@@ -23,12 +23,15 @@
 {application, erocksdb,
  [
   {description, "RocksDB for Erlang"},
-  {vsn, "0.4"},
+  {vsn, "0.5.0"},
   {registered, []},
   {applications, [
                   kernel,
                   stdlib
                  ]},
-  {env, [
-        ]}
+  {env, []},
+
+  {maintainers,["Benoit Chesneau"]},
+  {licenses, ["Apache 2.0"]},
+  {links, [{"Github", "https://gitlab.com/barrel-db/erocksdb"}]}
  ]}.
