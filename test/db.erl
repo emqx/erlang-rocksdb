@@ -3,13 +3,6 @@
 -include_lib("eunit/include/eunit.hrl").
 
 
-destroy_reopen(DbName, Options) ->
-  _ = erocksdb:destroy(DbName, []),
-  os:cmd("rm -rf " ++ DbName),
-  {ok, Db} = erocksdb:open(DbName, Options, []),
-  Db.
-
-
 open_test() -> [{open_test_Z(), l} || l <- lists:seq(1, 20)].
 open_test_Z() ->
   os:cmd("rm -rf /tmp/erocksdb.open.test"),
@@ -100,9 +93,3 @@ close_fold_test_Z() ->
   ok = erocksdb:put(Ref, <<"k">>,<<"v">>,[]),
   ?assertException(throw, {iterator_closed, ok}, % ok is returned by close as the acc
     erocksdb:fold(Ref, fun(_,_A) -> erocksdb:close(Ref) end, undefined, [])).
-
-randomstring(Len) ->
-  list_to_binary([rand:uniform(95) || _I <- lists:seq(0, Len - 1)]).
-
-key(I) when is_integer(I) ->
-  <<I:128/unsigned>>.
