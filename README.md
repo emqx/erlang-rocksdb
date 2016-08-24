@@ -1,18 +1,37 @@
 erocksdb
 ========
 
-[![Build Status](https://travis-ci.org/leo-project/erocksdb.svg?branch=develop)](http://travis-ci.org/leo-project/erocksdb)
-
 Erlang bindings to [RocksDB](https://github.com/facebook/rocksdb) datastore.
 
-## Build Information
+## Features
 
-* "erocksdb" uses the [rebar](https://github.com/rebar/rebar) build system. Makefile so that simply running "make" at the top level should work.
-* "erocksdb" requires Erlang R16B03-1 or later.
+- rocksdb 4.9 support
+- all basics db operations
+- snapshots support
+- checkpoint support
+- Tested on macosx and 
 
-## Status
+## Usage
 
-Passed all the tests derived from [eleveldb](https://github.com/basho/eleveldb)
+Build it using rebar 3
+
+    $ rebar3 compile
+
+```erl
+  os:cmd("rm -rf /tmp/erocksdb.open.test"),
+  {ok, Ref} = erocksdb:open("testdb", [{create_if_missing, true}], []),
+  true = erocksdb:is_empty(Ref),
+  ok = erocksdb:put(Ref, <<"abc">>, <<"123">>, []),
+  false = erocksdb:is_empty(Ref),
+  {ok, <<"123">>} = erocksdb:get(Ref, <<"abc">>, []),
+  {ok, 1} = erocksdb:count(Ref),
+  not_found = erocksdb:get(Ref, <<"def">>, []),
+  ok = erocksdb:delete(Ref, <<"abc">>, []),
+  not_found = erocksdb:get(Ref, <<"abc">>, []),
+  true = erocksdb:is_empty(Ref)
+  erocksdb:close(Ref).
+```
+ 
 
 ## License
 
