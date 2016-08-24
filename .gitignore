@@ -10,3 +10,8 @@ c_src/snappy*/
 c_src/system
 *~
 .rebar
+.idea
+CMakeLists.txt
+_build
+c_src/*.d
+*.db
