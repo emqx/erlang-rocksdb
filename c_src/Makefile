@@ -59,11 +59,10 @@ link_verbose = $(link_verbose_$(V))
 SOURCES := $(shell find $(C_SRC_DIR) -maxdepth 1 -type f \( -name "*.c" -o -name "*.C" -o -name "*.cc" -o -name "*.cpp" \))
 OBJECTS = $(addsuffix .o, $(basename $(SOURCES))) rocksdb/librocksdb.a system/lib/libsnappy.a
 
-
 COMPILE_C = $(c_verbose) $(CC) $(CFLAGS) $(CPPFLAGS) -c
 COMPILE_CPP = $(cpp_verbose) $(CXX) $(CXXFLAGS) $(CPPFLAGS) -c
 
-$(C_SRC_OUTPUT): $(OBJECTS)
+$(C_SRC_OUTPUT): $(OBJECTS) deps
 	@mkdir -p $(BASEDIR)/priv/
 	$(link_verbose) $(CC) $(OBJECTS) $(LDFLAGS) $(LDLIBS) -o $(C_SRC_OUTPUT)
 
@@ -79,14 +78,15 @@ $(C_SRC_OUTPUT): $(OBJECTS)
 %.o: %.cpp
 	$(COMPILE_CPP) $(OUTPUT_OPTION) $<
 
-clean:
-	./build_deps.sh clean
-	@rm -f $(C_SRC_OUTPUT) $(OBJECTS)
-
 deps:
 	./build_deps.sh
 
 rocksdb/librocksdb.a: deps
 
 libsnappy.a: deps
+
+clean:
+	./build_deps.sh clean
+	@rm -f $(C_SRC_OUTPUT) $(OBJECTS)
+
 
