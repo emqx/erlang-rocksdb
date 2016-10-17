@@ -8,6 +8,11 @@ if [ `uname -s` = 'SunOS' -a "${POSIX_SHELL}" != "true" ]; then
 fi
 unset POSIX_SHELL # clear it so if we invoke other scripts, they run as ksh as well
 
+if [ `uname -s` = "FreeBSD" ]; then
+    export CXX=c++48
+    export CFLAGS="$CFLAGS -D_GLIBCXX_USE_C99"
+fi
+
 SCRIPTPATH=$( cd $(dirname $0) ; pwd -P )
 SCRIPT=$SCRIPTPATH/${0##*/}
 BASEDIR=$SCRIPTPATH
@@ -23,7 +28,6 @@ if [ `basename $PWD` != "c_src" ]; then
     # but no need to use directory stack push here
     cd c_src
 fi
-
 
 # detecting gmake and if exists use it
 # if not use make
