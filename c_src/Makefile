@@ -24,9 +24,12 @@ ifeq ($(UNAME_SYS), Darwin)
 	CXXFLAGS ?= -O3 -arch x86_64 -finline-functions -Wall
 	LDFLAGS ?= -arch x86_64 -flat_namespace -undefined suppress
 else ifeq ($(UNAME_SYS), FreeBSD)
-	CC ?= cc
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
+	CC = c++48
+	CXX = c++48
+	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
+	CFLAGS += -D_GCLIBCXX_USE_C99
 	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS += -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), Linux)
 	CC ?= gcc
 	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
@@ -38,6 +41,9 @@ CXXFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rock
 
 LDLIBS += -L $(ERL_INTERFACE_LIB_DIR) -lerl_interface -lei rocksdb/librocksdb.a system/lib/libsnappy.a -lstdc++
 LDFLAGS += -shared
+
+ROCKSDB_PLATFORM_LDFLAGS=$(shell cat rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//')
+LDFLAGS += $(ROCKSDB_PLATFORM_LDFLAGS)
 
 # Verbosity.
 
