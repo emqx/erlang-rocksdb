@@ -1,6 +1,6 @@
 # Based on c_src.mk from erlang.mk by Loic Hoguin <essen@ninenines.eu>
 
-.PHONY: clean deps
+.PHONY: clean deps help
 
 CURDIR := $(shell pwd)
 BASEDIR := $(abspath $(CURDIR)/..)
@@ -36,13 +36,16 @@ else ifeq ($(UNAME_SYS), Linux)
 	CXXFLAGS ?= -O3 -finline-functions -Wall
 endif
 
+ROCKSDBLIBS = rocksdb/librocksdb.a system/lib/libsnappy.a
+
+ROCKSDB_PLATFORM_LDFLAGS=$(shell cat rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//')
+
 CFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include
 CXXFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include -std=c++11
 
-LDLIBS += -L $(ERL_INTERFACE_LIB_DIR) -lerl_interface -lei rocksdb/librocksdb.a system/lib/libsnappy.a -lstdc++
+LDLIBS += -L $(ERL_INTERFACE_LIB_DIR) -lerl_interface -lei -lstdc++ $(ROCKSDBLIBS)
 LDFLAGS += -shared
 
-ROCKSDB_PLATFORM_LDFLAGS=$(shell cat rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//')
 LDFLAGS += $(ROCKSDB_PLATFORM_LDFLAGS)
 
 # Verbosity.
@@ -57,16 +60,21 @@ link_verbose_0 = @echo " LD    " $(@F);
 link_verbose = $(link_verbose_$(V))
 
 SOURCES := $(shell find $(C_SRC_DIR) -maxdepth 1 -type f \( -name "*.c" -o -name "*.C" -o -name "*.cc" -o -name "*.cpp" \))
-OBJECTS = $(addsuffix .o, $(basename $(SOURCES))) rocksdb/librocksdb.a system/lib/libsnappy.a
+OBJECTS = $(addsuffix .o, $(basename $(SOURCES)))
 
 COMPILE_C = $(c_verbose) $(CC) $(CFLAGS) $(CPPFLAGS) -c
 COMPILE_CPP = $(cpp_verbose) $(CXX) $(CXXFLAGS) $(CPPFLAGS) -c
 
-$(C_SRC_OUTPUT): $(OBJECTS) deps
+help: ## This documentation
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+all: deps $(C_SRC_OUTPUT) ## Build all
+
+$(C_SRC_OUTPUT): $(OBJECTS) $(ROCKSDBLIBS)
 	@mkdir -p $(BASEDIR)/priv/
 	$(link_verbose) $(CC) $(OBJECTS) $(LDFLAGS) $(LDLIBS) -o $(C_SRC_OUTPUT)
 
-%.o: %.c
+%.o: %.c rocksdb
 	$(COMPILE_C) $(OUTPUT_OPTION) $<
 
 %.o: %.cc
@@ -78,15 +86,16 @@ $(C_SRC_OUTPUT): $(OBJECTS) deps
 %.o: %.cpp
 	$(COMPILE_CPP) $(OUTPUT_OPTION) $<
 
-deps:
+deps: ## Build deps for rocksdb
 	./build_deps.sh
+
+rocksdb: deps
 
 rocksdb/librocksdb.a: deps
 
 libsnappy.a: deps
 
-clean:
+clean: ## Clean all files
 	./build_deps.sh clean
 	@rm -f $(C_SRC_OUTPUT) $(OBJECTS)
-
 
