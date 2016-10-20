@@ -71,7 +71,7 @@ help: ## This documentation
 
 all: $(C_SRC_OUTPUT) ## Build all
 
-$(C_SRC_OUTPUT): $(OBJECTS) $(ROCKSDBLIBS)
+$(C_SRC_OUTPUT): $(ROCKSDBLIBS) $(OBJECTS) 
 	@mkdir -p $(BASEDIR)/priv/
 	$(link_verbose) $(CC) $(OBJECTS) $(LDFLAGS) $(LDLIBS) -o $(C_SRC_OUTPUT)
 
@@ -106,7 +106,7 @@ tar: all ## Creates a tar.gz file containing a pre-build rocksdb library (with s
 	set -e ;\
 	TAG=$$(git describe --tags) ;\
 	TAR_FILE=rocksdb-e-$$TAG.tar.gz ;\
-	tar -cvzf $$TAR_FILE rocksdb/*;\
+	tar -cvzf $$TAR_FILE rocksdb/* system/*;\
 	echo "";\
 	echo "Created tar archive $$TAR_FILE";\
 	echo 'Reuse with BIN_ROCKSDB variable:';\
