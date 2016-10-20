@@ -68,9 +68,9 @@ COMPILE_CPP = $(cpp_verbose) $(CXX) $(CXXFLAGS) $(CPPFLAGS) -c
 help: ## This documentation
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-all: deps $(C_SRC_OUTPUT) ## Build all
+all: $(C_SRC_OUTPUT) ## Build all
 
-$(C_SRC_OUTPUT): $(OBJECTS) $(ROCKSDBLIBS)
+$(C_SRC_OUTPUT): $(ROCKSDBLIBS) $(OBJECTS) 
 	@mkdir -p $(BASEDIR)/priv/
 	$(link_verbose) $(CC) $(OBJECTS) $(LDFLAGS) $(LDLIBS) -o $(C_SRC_OUTPUT)
 
@@ -86,16 +86,28 @@ $(C_SRC_OUTPUT): $(OBJECTS) $(ROCKSDBLIBS)
 %.o: %.cpp
 	$(COMPILE_CPP) $(OUTPUT_OPTION) $<
 
+$(ROCKSDBLIBS): deps
+
 deps: ## Build deps for rocksdb
+ifdef BIN_ROCKSDB
+	if [ ! -d rocksdb ]; then \
+		tar -xzf $(BIN_ROCKSDB);\
+	fi
+else
 	./build_deps.sh
-
-rocksdb: deps
-
-rocksdb/librocksdb.a: deps
-
-libsnappy.a: deps
+endif
 
 clean: ## Clean all files
 	./build_deps.sh clean
 	@rm -f $(C_SRC_OUTPUT) $(OBJECTS)
 
+tar: all ## Creates a tar.gz file containing a pre-build rocksdb library (with src)
+	set -e ;\
+	TAG=$$(git describe --tags) ;\
+	TAR_FILE=rocksdb-e-$$TAG.tar.gz ;\
+	tar -cvzf $$TAR_FILE rocksdb/* system/*;\
+	echo "";\
+	echo "Created tar archive $$TAR_FILE";\
+	echo 'Reuse with BIN_ROCKSDB variable:';\
+	echo '$ BIN_ROCKSDB=<path to tar> rebar3 compile';\
+	echo '$ BIN_ROCKSDB=http://<url to tar> rebar3 compile';\
