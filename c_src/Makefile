@@ -1,7 +1,6 @@
 # Based on c_src.mk from erlang.mk by Loic Hoguin <essen@ninenines.eu>
 
 .PHONY: clean deps help
-SHELL := /bin/bash
 
 CURDIR := $(shell pwd)
 BASEDIR := $(abspath $(CURDIR)/..)
