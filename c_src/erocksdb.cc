@@ -780,10 +780,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
         {
             opts.verify_checksums_in_compaction = (option[1] == erocksdb::ATOM_TRUE);
         }
-        else if (option[0] == erocksdb::ATOM_FILTER_DELETES)
-        {
-            opts.filter_deletes = (option[1] == erocksdb::ATOM_TRUE);
-        }
         else if (option[0] == erocksdb::ATOM_MAX_SEQUENTIAL_SKIP_IN_ITERATIONS)
         {
             ErlNifUInt64 max_sequential_skip_in_iterations;
@@ -828,8 +824,7 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
                 opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewPlainTableFactory());
                 opts.allow_mmap_reads = true;
                 opts.compression = rocksdb::CompressionType::kNoCompression;
-                opts.memtable_prefix_bloom_bits = 10000000;
-                opts.memtable_prefix_bloom_probes = 6;
+                opts.memtable_prefix_bloom_size_ratio = 0.06;
                 opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleUniversal;
                 opts.compaction_options_universal.size_ratio = 10;
                 opts.compaction_options_universal.min_merge_width = 2;
