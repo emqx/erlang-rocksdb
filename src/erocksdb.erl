@@ -164,7 +164,8 @@ init() ->
                        {skip_stats_update_on_db_open, boolean()} |
                        {wal_recovery_mode, wal_recovery_mode()} |
                        {allow_concurrent_memtable_write, boolean()} |
-                       {enable_write_thread_adaptive_yield, boolean()}].
+                       {enable_write_thread_adaptive_yield, boolean()},
+                       {in_memory, boolean()}].
 
 -type read_options() :: [{verify_checksums, boolean()} |
                          {fill_cache, boolean()} |

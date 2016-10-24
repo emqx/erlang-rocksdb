@@ -128,6 +128,7 @@ ERL_NIF_TERM ATOM_INPLACE_UPDATE_SUPPORT;
 ERL_NIF_TERM ATOM_INPLACE_UPDATE_NUM_LOCKS;
 ERL_NIF_TERM ATOM_TABLE_FACTORY_BLOCK_CACHE_SIZE;
 ERL_NIF_TERM ATOM_IN_MEMORY_MODE;
+ERL_NIF_TERM ATOM_IN_MEMORY;
 ERL_NIF_TERM ATOM_BLOCK_BASED_TABLE_OPTIONS;
 
 // Related to DBOptions
@@ -604,6 +605,15 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
         {
             opts.enable_write_thread_adaptive_yield = (option[1] == erocksdb::ATOM_TRUE);
         }
+        else if (option[0] == erocksdb::ATOM_IN_MEMORY)
+        {
+            if (option[1] == erocksdb::ATOM_TRUE)
+            {
+                opts.env = rocksdb::NewMemEnv(rocksdb::Env::Default());
+                opts.create_if_missing = true;
+                opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewPlainTableFactory());
+            }
+        }
     }
 
     return erocksdb::ATOM_OK;
@@ -842,6 +852,15 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
             }
         }
     }
+    else if (option[0] == erocksdb::ATOM_IN_MEMORY)
+    {
+        if (option[1] == erocksdb::ATOM_TRUE)
+        {
+            opts.env = rocksdb::NewMemEnv(rocksdb::Env::Default());
+            opts.create_if_missing = true;
+            opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewPlainTableFactory());
+        }
+    }
     return erocksdb::ATOM_OK;
 }
 
@@ -978,8 +997,7 @@ async_open(
     fold(env, argv[2], parse_db_option, *opts);
     fold(env, argv[3], parse_cf_option, *opts);
 
-    erocksdb::WorkTask *work_item = new erocksdb::OpenTask(env, caller_ref,
-                                                              db_name, opts);
+    erocksdb::WorkTask *work_item = new erocksdb::OpenTask(env, caller_ref, db_name, opts);
 
     if(false == priv.thread_pool.submit(work_item))
     {
@@ -991,6 +1009,7 @@ async_open(
     return erocksdb::ATOM_OK;
 
 }   // async_open
+
 
 ERL_NIF_TERM
 async_snapshot(
@@ -1703,6 +1722,7 @@ try
     ATOM(erocksdb::ATOM_INPLACE_UPDATE_NUM_LOCKS, "inplace_update_num_locks");
     ATOM(erocksdb::ATOM_TABLE_FACTORY_BLOCK_CACHE_SIZE, "table_factory_block_cache_size");
     ATOM(erocksdb::ATOM_IN_MEMORY_MODE, "in_memory_mode");
+    ATOM(erocksdb::ATOM_IN_MEMORY, "in_memory");
     ATOM(erocksdb::ATOM_BLOCK_BASED_TABLE_OPTIONS, "block_based_table_options");
 
     // Related to DBOptions
