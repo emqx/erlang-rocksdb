@@ -72,7 +72,7 @@ all: $(C_SRC_OUTPUT) ## Build all
 
 $(C_SRC_OUTPUT): $(ROCKSDBLIBS) $(OBJECTS) 
 	@mkdir -p $(BASEDIR)/priv/
-	$(link_verbose) $(CC) $(OBJECTS) $(LDFLAGS) $(LDLIBS) -o $(C_SRC_OUTPUT)
+	$(link_verbose) $(CC) $(OBJECTS) $(LDLIBS)  $(LDFLAGS) -o $(C_SRC_OUTPUT)
 
 %.o: %.c rocksdb
 	$(COMPILE_C) $(OUTPUT_OPTION) $<
