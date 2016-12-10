@@ -59,6 +59,10 @@
 
 #include "detail.hpp"
 
+#ifndef INCL_UTIL_H
+    #include "util.h"
+#endif
+
 static ErlNifFunc nif_funcs[] =
 {
     {"close", 1, erocksdb_close},
@@ -261,30 +265,6 @@ struct erocksdb_itr_handle;
 class erocksdb_thread_pool;
 class erocksdb_priv_data;
 
-
-
-// Erlang helpers:
-ERL_NIF_TERM error_einval(ErlNifEnv* env)
-{
-    return enif_make_tuple2(env, erocksdb::ATOM_ERROR, erocksdb::ATOM_EINVAL);
-}
-
-static ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error, rocksdb::Status& status)
-{
-    ERL_NIF_TERM reason = enif_make_string(env, status.ToString().c_str(),
-                                           ERL_NIF_LATIN1);
-    return enif_make_tuple2(env, erocksdb::ATOM_ERROR,
-                            enif_make_tuple2(env, error, reason));
-}
-
-static ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s)
-{
-    ERL_NIF_TERM result;
-    unsigned char* value = enif_make_new_binary(env, s.size(), &result);
-    memcpy(value, s.data(), s.size());
-    return result;
-}
-
 /** struct for grabbing erocksdb environment options via fold
  *   ... then loading said options into erocksdb_priv_data
  */
@@ -316,7 +296,8 @@ public:
     std::shared_ptr<rocksdb::Cache> block_cache;
 
     explicit erocksdb_priv_data(ErocksdbOptions & Options)
-    : m_Opts(Options), thread_pool(Options.m_ErocksdbThreads)
+    : m_Opts(Options),
+      thread_pool(Options.m_ErocksdbThreads)
         { block_cache = rocksdb::NewLRUCache(kCapacity); }
 
 private:
