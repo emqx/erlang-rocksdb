@@ -63,3 +63,17 @@ ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply)
     enif_free_env(msg_env);
     return erocksdb::ATOM_OK;
 }
+
+int
+enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::DbObject>* db_ptr)
+{
+    db_ptr->assign(erocksdb::DbObject::RetrieveDbObject(env, dbval));
+
+    if(NULL==db_ptr->get())
+        return 0;
+
+    if(NULL==db_ptr->get()->m_Db)
+        return 0;
+
+    return 1;
+}

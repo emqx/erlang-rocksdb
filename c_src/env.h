@@ -21,6 +21,7 @@
 #ifndef INCL_ENV_H
 #define INCL_ENV_H
 
+#include <syslog.h>
 #include "rocksdb/db.h"
 #include "rocksdb/cache.h"
 

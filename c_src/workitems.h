@@ -199,7 +199,7 @@ public:
 
 
 /**
- * Background object for async snapshot creation
+ * Background object for async checkpoint creation
  */
 
 class CheckpointTask : public WorkTask
@@ -432,6 +432,30 @@ public:
     virtual void recycle();
 
 };  // class MoveTask
+
+
+class CloseIteratorTask : public WorkTask
+{
+protected:
+    ReferencePtr<ItrObject> m_ItrPtr;
+
+public:
+    CloseIteratorTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                        ItrObject * Itr)
+                  : WorkTask(_caller_env, _caller_ref), m_ItrPtr(Itr)
+    {};
+
+    virtual ~CloseIteratorTask() {};
+
+    virtual work_result operator()()
+    {
+        ItrObject* itr = m_ItrPtr.get();
+        itr->ReleaseReuseMove();
+        ErlRefObject::InitiateCloseRequest(itr);
+        return work_result(ATOM_OK);
+    }   // operator()
+
+};  // class CloseIteratorTask
 
 } // namespace erocksdb
 

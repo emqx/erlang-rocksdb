@@ -18,32 +18,21 @@
 //
 // -------------------------------------------------------------------
 
+#ifndef INCL_EROCKSB_DB_H
+#define INCL_EROCKSB_DB_H
+
 #ifndef INCL_UTIL_H
-#define INCL_UTIL_H
-
-#include "erl_nif.h"
-
+    #include "util.h"
+#endif
 #ifndef ATOMS_H
     #include "atoms.h"
 #endif
 
-#ifndef INCL_REFOBJECTS_H
-    #include "refobjects.h"
-#endif
-
-
 #include "rocksdb/db.h"
-#include "rocksdb/slice_transform.h"
 
-ERL_NIF_TERM error_einval(ErlNifEnv* env);
-ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error,
-rocksdb::Status& status);
-
-ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s);
-
-ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply);
-
-int enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::DbObject>* db_ptr);
-
+ERL_NIF_TERM parse_read_option(ErlNifEnv* env, ERL_NIF_TERM item,
+rocksdb::ReadOptions& opts);
+ERL_NIF_TERM parse_write_option(ErlNifEnv* env, ERL_NIF_TERM item,
+rocksdb::WriteOptions& opts);
 
 #endif

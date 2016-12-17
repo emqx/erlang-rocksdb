@@ -404,8 +404,6 @@ iterator_move(ITRHandle, ITRAction) ->
         ER -> ER
     end.
 
-async_iterator_close(_CallerRef, _ITRHandle) ->
-    erlang:nif_error({error, not_loaded}).
 
 %% @doc
 %% Close a iterator
@@ -415,6 +413,11 @@ iterator_close(ITRHandle) ->
     CallerRef = make_ref(),
     async_iterator_close(CallerRef, ITRHandle),
     ?WAIT_FOR_REPLY(CallerRef).
+
+
+async_iterator_close(_CallerRef, _ITRHandle) ->
+    erlang:nif_error({error, not_loaded}).
+    
 
 -type fold_fun() :: fun(({Key::binary(), Value::binary()}, any()) -> any()).
 
