@@ -28,7 +28,6 @@
     #include "threading.h"
 #endif
 
-
 namespace erocksdb {
  /** struct for grabbing erocksdb environment options via fold
  *   ... then loading said options into erocksdb_priv_data
@@ -70,7 +69,6 @@ private:
     PrivData& operator=(const PrivData&);  // nocopyassign
 
 };
-
 
 }
 

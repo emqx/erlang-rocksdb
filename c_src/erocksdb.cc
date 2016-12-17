@@ -901,19 +901,6 @@ ERL_NIF_TERM write_batch_item(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::WriteB
 
 namespace erocksdb {
 
-ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply)
-{
-    ErlNifPid pid;
-    ErlNifEnv *msg_env = enif_alloc_env();
-    ERL_NIF_TERM msg = enif_make_tuple2(msg_env,
-                                        enif_make_copy(msg_env, ref),
-                                        enif_make_copy(msg_env, reply));
-    enif_self(env, &pid);
-    enif_send(env, &pid, msg_env, msg);
-    enif_free_env(msg_env);
-    return ATOM_OK;
-}
-
 ERL_NIF_TERM
 async_open(
     ErlNifEnv* env,

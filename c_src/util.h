@@ -36,4 +36,6 @@ rocksdb::Status& status);
 
 ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s);
 
+ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply);
+
 #endif
