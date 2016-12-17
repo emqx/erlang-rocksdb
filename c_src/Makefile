@@ -30,6 +30,34 @@ else ifeq ($(UNAME_SYS), FreeBSD)
 	CFLAGS += -D_GCLIBCXX_USE_C99
 	CXXFLAGS ?= -O3 -finline-functions -Wall
 	CXXFLAGS += -D_GCLIBCXX_USE_C99
+else ifeq ($(UNAME_SYS), OpenBsd)
+	CC = c++48
+	CXX = c++48
+	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
+	CFLAGS += -D_GCLIBCXX_USE_C99
+	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS += -D_GCLIBCXX_USE_C99
+else ifeq ($(UNAME_SYS), DragonFly)
+	CC = c++48
+	CXX = c++48
+	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
+	CFLAGS += -D_GCLIBCXX_USE_C99
+	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS += -D_GCLIBCXX_USE_C99
+else ifeq ($(UNAME_SYS), NetBSD)
+	CC = c++48
+	CXX = c++48
+	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
+	CFLAGS += -D_GCLIBCXX_USE_C99
+	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS += -D_GCLIBCXX_USE_C99 
+else ifeq ($(UNAME_SYS), SunOS)
+	CC = c++48
+	CXX = c++48
+	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
+	CFLAGS += -D_GCLIBCXX_USE_C99
+	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS += -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), Linux)
 	CC ?= gcc
 	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
