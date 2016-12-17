@@ -34,6 +34,7 @@
 
 #include "erocksdb.h"
 
+
 #include "rocksdb/db.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/env.h"
@@ -61,6 +62,10 @@
 
 #ifndef INCL_UTIL_H
     #include "util.h"
+#endif
+
+#ifndef INCL_ENV_H
+  #include "env.h"
 #endif
 
 static ErlNifFunc nif_funcs[] =
@@ -262,53 +267,7 @@ using std::nothrow;
 
 struct erocksdb_itr_handle;
 
-class erocksdb_thread_pool;
-class erocksdb_priv_data;
-
-/** struct for grabbing erocksdb environment options via fold
- *   ... then loading said options into erocksdb_priv_data
- */
-struct ErocksdbOptions
-{
-    int m_ErocksdbThreads;
-
-    ErocksdbOptions()
-        : m_ErocksdbThreads(71)
-        {};
-
-    void Dump()
-    {
-        syslog(LOG_ERR, "         m_ErocksdbThreads: %d\n", m_ErocksdbThreads);
-    }   // Dump
-};  // struct ErocksdbOptions
-
-
-static int kCapacity = 4194304; // default values, can be overridden
-
-/** Module-level private data:
- *    singleton instance held by erlang and passed on API calls
- */
-class erocksdb_priv_data
-{
-public:
-    ErocksdbOptions m_Opts;
-    erocksdb::erocksdb_thread_pool thread_pool;
-    std::shared_ptr<rocksdb::Cache> block_cache;
-
-    explicit erocksdb_priv_data(ErocksdbOptions & Options)
-    : m_Opts(Options),
-      thread_pool(Options.m_ErocksdbThreads)
-        { block_cache = rocksdb::NewLRUCache(kCapacity); }
-
-private:
-    erocksdb_priv_data();                                      // no default constructor
-    erocksdb_priv_data(const erocksdb_priv_data&);             // nocopy
-    erocksdb_priv_data& operator=(const erocksdb_priv_data&);  // nocopyassign
-
-};
-
-
-ERL_NIF_TERM parse_init_option(ErlNifEnv* env, ERL_NIF_TERM item, ErocksdbOptions& opts)
+ERL_NIF_TERM parse_init_option(ErlNifEnv* env, ERL_NIF_TERM item, erocksdb::DbOptions& opts)
 {
     int arity;
     const ERL_NIF_TERM* option;
@@ -321,7 +280,7 @@ ERL_NIF_TERM parse_init_option(ErlNifEnv* env, ERL_NIF_TERM item, ErocksdbOption
             {
                 if (temp != 0)
                 {
-                    opts.m_ErocksdbThreads = temp;
+                    opts.m_DbThreads = temp;
                 }   // if
             }   // if
         }   // if
@@ -344,7 +303,7 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
         } else if (option[0] == erocksdb::ATOM_BLOCK_CACHE_SIZE) {
             ErlNifUInt64 block_cache_size;
             if (enif_get_uint64(env, option[1], &block_cache_size)) {
-                erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+                erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
                 priv.block_cache->SetCapacity(block_cache_size);
                 opts.block_cache = priv.block_cache;
             }
@@ -792,7 +751,7 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
             ErlNifUInt64 table_factory_block_cache_size;
             if (enif_get_uint64(env, option[1], &table_factory_block_cache_size))
             {
-                erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+                erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
                 priv.block_cache->SetCapacity(table_factory_block_cache_size);
                 rocksdb::BlockBasedTableOptions bbtOpts;
                 bbtOpts.block_cache = priv.block_cache;
@@ -972,7 +931,7 @@ async_open(
 
     ERL_NIF_TERM caller_ref = argv[0];
 
-    erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
     rocksdb::Options *opts = new rocksdb::Options;
     fold(env, argv[2], parse_db_option, *opts);
@@ -1015,7 +974,7 @@ async_snapshot(
     if(NULL == db_ptr->m_Db)
         return send_reply(env, caller_ref, error_einval(env));
 
-    erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
     erocksdb::WorkTask* work_item = new erocksdb::GetSnapshotTask(env, caller_ref, db_ptr.get());
 
@@ -1049,7 +1008,7 @@ async_release_snapshot(
         return send_reply(env, caller_ref, erocksdb::ATOM_OK);
     }
 
-    erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
     erocksdb::WorkTask* work_item = new erocksdb::ReleaseSnapshotTask(env, caller_ref, snapshot_ptr.get());
 
@@ -1090,7 +1049,7 @@ async_write(
     if(NULL == db_ptr->m_Db)
         return send_reply(env, caller_ref, error_einval(env));
 
-    erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
     // Construct a write batch:
     rocksdb::WriteBatch* batch = new rocksdb::WriteBatch;
@@ -1157,7 +1116,7 @@ async_get(
     erocksdb::WorkTask *work_item = new erocksdb::GetTask(env, caller_ref,
                                                           db_ptr.get(), key_ref, opts);
 
-    erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
     if(false == priv.thread_pool.submit(work_item))
     {
@@ -1209,7 +1168,7 @@ async_iterator(
                                                            db_ptr.get(), keys_only, opts);
 
     // Now-boilerplate setup (we'll consolidate this pattern soon, I hope):
-    erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
     if(false == priv.thread_pool.submit(work_item))
     {
@@ -1360,7 +1319,7 @@ async_iterator_move(
             move_item->seek_target.assign((const char *)key.data, key.size);
         }   // else
 
-        erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+        erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
         if(false == priv.thread_pool.submit(move_item))
         {
@@ -1405,7 +1364,7 @@ async_checkpoint(
         return enif_make_badarg(env);
     }
 
-    erocksdb_priv_data& priv = *static_cast<erocksdb_priv_data *>(enif_priv_data(env));
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
     erocksdb::WorkTask* work_item = new erocksdb::CheckpointTask(env, caller_ref, db_ptr.get(), path);
 
@@ -1642,7 +1601,7 @@ erocksdb_is_empty(
 
 static void on_unload(ErlNifEnv *env, void *priv_data)
 {
-    erocksdb_priv_data *p = static_cast<erocksdb_priv_data *>(priv_data);
+    erocksdb::PrivData *p = static_cast<erocksdb::PrivData *>(priv_data);
     delete p;
 }
 
@@ -1832,12 +1791,12 @@ try
     // read options that apply to global erocksdb environment
     if(enif_is_list(env, load_info))
     {
-        ErocksdbOptions load_options;
+        erocksdb::DbOptions load_options;
 
         fold(env, load_info, parse_init_option, load_options);
 
         /* Spin up the thread pool, set up all private data: */
-        erocksdb_priv_data *priv = new erocksdb_priv_data(load_options);
+        erocksdb::PrivData *priv = new erocksdb::PrivData(load_options);
 
         *priv_data = priv;
 
