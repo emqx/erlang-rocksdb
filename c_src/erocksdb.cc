@@ -58,7 +58,7 @@ static ErlNifFunc nif_funcs[] =
 
 
   {"async_open", 4, erocksdb::AsyncOpen},
-  {"close", 1, erocksdb_close},
+  {"async_close", 2, erocksdb::AsyncClose},
 
   // kv operations
   {"async_write", 4, erocksdb::AsyncWrite},
@@ -66,8 +66,6 @@ static ErlNifFunc nif_funcs[] =
 
   {"async_snapshot", 2, erocksdb::AsyncSnapshot},
   {"async_release_snapshot", 2, erocksdb::AsyncReleaseSnapshot},
-
-  {"async_checkpoint", 3, erocksdb::AsyncCheckpoint},
 
   // iterator operations
   {"async_iterator", 3, erocksdb::AsyncIterator},
@@ -77,6 +75,7 @@ static ErlNifFunc nif_funcs[] =
 
   {"status", 2, erocksdb_status},
   {"destroy", 2, erocksdb_destroy},
+  {"async_checkpoint", 3, erocksdb::AsyncCheckpoint},
   {"repair", 2, erocksdb_repair},
   {"is_empty", 1, erocksdb_is_empty},
 

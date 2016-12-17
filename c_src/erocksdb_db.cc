@@ -708,7 +708,30 @@ AsyncOpen(
 
 }   // async_open
 
+ERL_NIF_TERM
+AsyncClose(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    erocksdb::DbObject * db_ptr;
+    const ERL_NIF_TERM& caller_ref = argv[0];
+    const ERL_NIF_TERM& handle_ref = argv[1];
 
+    db_ptr = erocksdb::DbObject::RetrieveDbObject(env, handle_ref);
+    if (db_ptr==NULL)
+        return enif_make_badarg(env);
+
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
+    erocksdb::WorkTask* work_item = new erocksdb::CloseTask(env, caller_ref, db_ptr);
+    if(false == priv.thread_pool.submit(work_item))
+    {
+        delete work_item;
+        return send_reply(env, caller_ref,
+                          enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
+    }
+    return erocksdb::ATOM_OK;
+}  // erocksdb::AsyncClose
 
 ERL_NIF_TERM
 AsyncWrite(
@@ -869,37 +892,6 @@ AsyncCheckpoint(
 /***
  * HEY YOU, please convert this to an async operation
  */
-
-ERL_NIF_TERM
-erocksdb_close(
-    ErlNifEnv* env,
-    int argc,
-    const ERL_NIF_TERM argv[])
-{
-    erocksdb::DbObject * db_ptr;
-    ERL_NIF_TERM ret_term;
-
-    ret_term=erocksdb::ATOM_OK;
-
-    db_ptr=erocksdb::DbObject::RetrieveDbObject(env, argv[0]);
-
-    if (NULL!=db_ptr)
-    {
-        // set closing flag
-        erocksdb::ErlRefObject::InitiateCloseRequest(db_ptr);
-
-        db_ptr=NULL;
-
-        ret_term=erocksdb::ATOM_OK;
-    }   // if
-    else
-    {
-        ret_term=enif_make_badarg(env);
-    }   // else
-
-    return(ret_term);
-
-}  // erocksdb_close
 
 
 

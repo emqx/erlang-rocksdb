@@ -211,8 +211,7 @@ open(Name, DBOpts, CFOpts) ->
 open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
     {error, not_implemeted}.
 
-async_close(_Callerfef, _DBHandle) ->
-    erlang:nif_error({error, not_loaded}).
+
 
 %% @doc
 %% Close RocksDB
@@ -223,9 +222,8 @@ close(DBHandle) ->
     async_close(CallerRef, DBHandle),
     ?WAIT_FOR_REPLY(CallerRef).
 
-async_snapshot(_CallerRef, _DbHandle) ->
+async_close(_Callerfef, _DBHandle) ->
     erlang:nif_error({error, not_loaded}).
-
 
 %% @sdoc return a database snapshot
 %% Snapshots provide consistent read-only views over the entire state of the key-value store
@@ -236,7 +234,7 @@ snapshot(DbHandle) ->
     async_snapshot(CallerRef, DbHandle),
     ?WAIT_FOR_REPLY(CallerRef).
 
-async_release_snapshot(_CallerRef, _SnapshotHandle) ->
+async_snapshot(_CallerRef, _DbHandle) ->
     erlang:nif_error({error, not_loaded}).
 
 %% @doc release a snapshot
@@ -246,6 +244,9 @@ release_snapshot(SnapshotHandle) ->
     CallerRef = make_ref(),
     async_release_snapshot(CallerRef, SnapshotHandle),
     ?WAIT_FOR_REPLY(CallerRef).
+
+async_release_snapshot(_CallerRef, _SnapshotHandle) ->
+    erlang:nif_error({error, not_loaded}).
 
 %% @doc
 %% List column families

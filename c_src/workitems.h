@@ -129,6 +129,30 @@ private:
 };  // class OpenTask
 
 
+class CloseTask : public WorkTask
+{
+protected:
+    ReferencePtr<DbObject> m_DbPtr;
+
+public:
+    CloseTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                        DbObject * Db)
+                  : WorkTask(_caller_env, _caller_ref), m_DbPtr(Db)
+    {};
+
+    virtual ~CloseTask() {};
+
+    virtual work_result operator()()
+    {
+        DbObject* db_ptr = m_DbPtr.get();
+        ErlRefObject::InitiateCloseRequest(db_ptr);
+        db = NULL;
+        return work_result(ATOM_OK);
+    }   // operator()
+
+};  // class CloseTask
+
+
 /**
  * Background object for async snapshot creation
  */
