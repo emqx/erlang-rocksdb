@@ -146,11 +146,37 @@ public:
     {
         DbObject* db_ptr = m_DbPtr.get();
         ErlRefObject::InitiateCloseRequest(db_ptr);
-        db = NULL;
+        db_ptr = NULL;
         return work_result(ATOM_OK);
     }   // operator()
 
 };  // class CloseTask
+
+
+class DestroyTask : public WorkTask
+{
+protected:
+    std::string         db_name;
+    rocksdb::Options   options; 
+
+public:
+    DestroyTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                         const std::string& db_name_,
+                         rocksdb::Options options_)
+                  : WorkTask(_caller_env, _caller_ref), db_name(db_name_), options(options_)
+    {};
+
+    virtual ~DestroyTask() {};
+
+    virtual work_result operator()()
+    {
+        rocksdb::Status status = rocksdb::DestroyDB(db_name, options);
+        if(!status.ok())
+            return work_result(local_env(), ATOM_ERROR_DB_DESTROY, status);
+        return work_result(ATOM_OK);
+    }   // operator()
+
+};  // class DestroyTask
 
 
 /**

@@ -62,7 +62,7 @@ ERL_NIF_TERM AsyncIteratorMove(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv
 ERL_NIF_TERM AsyncIteratorClose(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM AsyncCheckpoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-
+ERL_NIF_TERM AsyncDestroy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 } // namespace erocksdb
 
 

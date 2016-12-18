@@ -487,7 +487,13 @@ is_empty(_DBHandle) ->
 -spec(destroy(Name, DBOpts) ->
              ok | {error, any()} when Name::file:filename_all(),
                                       DBOpts::db_options()).
-destroy(_Name, _DBOpts) ->
+
+destroy(Name, DBOpts) ->
+    CallerRef = make_ref(),
+    async_destroy(CallerRef, Name, DBOpts),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_destroy(_CallerRef, _Name, _DBOpts) ->
     erlang:nif_error({error, not_loaded}).
 
 %% @doc
