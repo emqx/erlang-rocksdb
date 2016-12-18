@@ -73,7 +73,7 @@ static ErlNifFunc nif_funcs[] =
   {"async_iterator_move", 3, erocksdb::AsyncIteratorMove},
   {"async_iterator_close", 2, erocksdb::AsyncIteratorClose},
 
-  {"status", 2, erocksdb_status},
+  {"status", 2, erocksdb::Status},
   {"async_destroy", 3, erocksdb::AsyncDestroy},
   {"async_checkpoint", 3, erocksdb::AsyncCheckpoint},
   {"async_repair", 3, erocksdb::AsyncRepair},

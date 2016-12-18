@@ -937,20 +937,8 @@ AsyncRepair(
     return erocksdb::ATOM_OK;
 }   // erocksdb_repair
 
-
-
-}
-
-
-
-/***
- * HEY YOU, please convert this to an async operation
- */
-
-
-
 ERL_NIF_TERM
-erocksdb_status(
+Status(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
@@ -990,6 +978,7 @@ erocksdb_status(
 }   // erocksdb_status
 
 
+}
 
 /**
  * HEY YOU ... please make async
