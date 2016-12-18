@@ -282,6 +282,12 @@ static void on_unload(ErlNifEnv *env, void *priv_data)
     delete p;
 }
 
+static int on_upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data, ERL_NIF_TERM load_info)
+{
+    /* Convert the private data to the new version. */
+    *priv_data = *old_priv_data;
+    return 0;
+}
 
 static int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 try
@@ -487,5 +493,5 @@ catch(...)
 }
 
 extern "C" {
-    ERL_NIF_INIT(erocksdb, nif_funcs, &on_load, NULL, NULL, &on_unload);
+    ERL_NIF_INIT(erocksdb, nif_funcs, &on_load, NULL, &on_upgrade, &on_unload);
 }
