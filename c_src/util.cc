@@ -23,6 +23,10 @@
     #include "util.h"
 #endif
 
+#ifndef ATOMS_H
+    #include "atoms.h"
+#endif
+
 
 // Erlang helpers:
 ERL_NIF_TERM error_einval(ErlNifEnv* env)
@@ -45,4 +49,31 @@ ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s)
     unsigned char* value = enif_make_new_binary(env, s.size(), &result);
     memcpy(value, s.data(), s.size());
     return result;
+}
+
+ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply)
+{
+    ErlNifPid pid;
+    ErlNifEnv *msg_env = enif_alloc_env();
+    ERL_NIF_TERM msg = enif_make_tuple2(msg_env,
+                                        enif_make_copy(msg_env, ref),
+                                        enif_make_copy(msg_env, reply));
+    enif_self(env, &pid);
+    enif_send(env, &pid, msg_env, msg);
+    enif_free_env(msg_env);
+    return erocksdb::ATOM_OK;
+}
+
+int
+enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::DbObject>* db_ptr)
+{
+    db_ptr->assign(erocksdb::DbObject::RetrieveDbObject(env, dbval));
+
+    if(NULL==db_ptr->get())
+        return 0;
+
+    if(NULL==db_ptr->get()->m_Db)
+        return 0;
+
+    return 1;
 }

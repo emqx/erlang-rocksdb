@@ -22,6 +22,7 @@
 #ifndef INCL_EROCKSDB_H
 #define INCL_EROCKSDB_H
 
+
 extern "C" {
 
 #include "erl_nif.h"
@@ -40,19 +41,31 @@ ERL_NIF_TERM erocksdb_destroy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 ERL_NIF_TERM erocksdb_repair(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_is_empty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_checkpoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
 }
 
 namespace erocksdb {
 
-ERL_NIF_TERM async_open(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM async_snapshot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM async_release_snapshot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM async_write(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM async_get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM async_checkpoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncOpen(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncClose(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
-ERL_NIF_TERM async_iterator(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM async_iterator_move(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncWrite(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncGet(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+
+ERL_NIF_TERM AsyncSnapshot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncReleaseSnapshot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+
+ERL_NIF_TERM AsyncIterator(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncIteratorMove(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncIteratorClose(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM AsyncCheckpoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncDestroy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncRepair(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM Status(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM AsyncIsEmpty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 } // namespace erocksdb
 

@@ -129,6 +129,114 @@ private:
 };  // class OpenTask
 
 
+class CloseTask : public WorkTask
+{
+protected:
+    ReferencePtr<DbObject> m_DbPtr;
+
+public:
+    CloseTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                        DbObject * Db)
+                  : WorkTask(_caller_env, _caller_ref), m_DbPtr(Db)
+    {};
+
+    virtual ~CloseTask() {};
+
+    virtual work_result operator()()
+    {
+        DbObject* db_ptr = m_DbPtr.get();
+        ErlRefObject::InitiateCloseRequest(db_ptr);
+        db_ptr = NULL;
+        return work_result(ATOM_OK);
+    }   // operator()
+
+};  // class CloseTask
+
+
+class DestroyTask : public WorkTask
+{
+protected:
+    std::string         db_name;
+    rocksdb::Options   options; 
+
+public:
+    DestroyTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                         const std::string& db_name_,
+                         rocksdb::Options options_)
+                  : WorkTask(_caller_env, _caller_ref), db_name(db_name_), options(options_)
+    {};
+
+    virtual ~DestroyTask() {};
+
+    virtual work_result operator()()
+    {
+        rocksdb::Status status = rocksdb::DestroyDB(db_name, options);
+        if(!status.ok())
+            return work_result(local_env(), ATOM_ERROR_DB_DESTROY, status);
+        return work_result(ATOM_OK);
+    }   // operator()
+
+};  // class DestroyTask
+
+class RepairTask : public WorkTask
+{
+protected:
+    std::string         db_name;
+    rocksdb::Options   options;
+
+public:
+    RepairTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                         const std::string& db_name_,
+                         rocksdb::Options options_)
+                  : WorkTask(_caller_env, _caller_ref), db_name(db_name_), options(options_)
+    {};
+
+    virtual ~RepairTask() {};
+
+    virtual work_result operator()()
+    {
+        rocksdb::Status status = rocksdb::RepairDB(db_name, options);
+        if(!status.ok())
+            return work_result(local_env(), ATOM_ERROR_DB_DESTROY, status);
+        return work_result(ATOM_OK);
+    }   // operator()
+
+};  // class RepairTask
+
+
+class IsEmptyTask : public WorkTask
+{
+protected:
+    ReferencePtr<DbObject> m_DbPtr;
+
+public:
+    IsEmptyTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                        DbObject * Db)
+                  : WorkTask(_caller_env, _caller_ref), m_DbPtr(Db)
+    {};
+
+    virtual ~IsEmptyTask() {};
+
+    virtual work_result operator()()
+    {
+        DbObject* db_ptr = m_DbPtr.get();
+        ERL_NIF_TERM result;
+        rocksdb::ReadOptions opts;
+        rocksdb::Iterator* itr = db_ptr->m_Db->NewIterator(opts);
+        itr->SeekToFirst();
+        if (itr->Valid())
+        {
+            result = erocksdb::ATOM_OK;
+        }
+        else
+        {
+            result = erocksdb::ATOM_TRUE;
+        }
+        delete itr;
+        return work_result(result);
+    }   // operator()
+};  // class IsEmptyTask
+
 /**
  * Background object for async snapshot creation
  */
@@ -199,7 +307,7 @@ public:
 
 
 /**
- * Background object for async snapshot creation
+ * Background object for async checkpoint creation
  */
 
 class CheckpointTask : public WorkTask
@@ -432,6 +540,30 @@ public:
     virtual void recycle();
 
 };  // class MoveTask
+
+
+class CloseIteratorTask : public WorkTask
+{
+protected:
+    ReferencePtr<ItrObject> m_ItrPtr;
+
+public:
+    CloseIteratorTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                        ItrObject * Itr)
+                  : WorkTask(_caller_env, _caller_ref), m_ItrPtr(Itr)
+    {};
+
+    virtual ~CloseIteratorTask() {};
+
+    virtual work_result operator()()
+    {
+        ItrObject* itr = m_ItrPtr.get();
+        itr->ReleaseReuseMove();
+        ErlRefObject::InitiateCloseRequest(itr);
+        return work_result(ATOM_OK);
+    }   // operator()
+
+};  // class CloseIteratorTask
 
 } // namespace erocksdb
 
