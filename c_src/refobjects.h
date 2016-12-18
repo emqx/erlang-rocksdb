@@ -180,8 +180,11 @@ public:
 
     Mutex m_ItrMutex;                         //!< mutex protecting m_ItrList
     Mutex m_SnapshotMutex;                    //!< mutext protecting m_SnapshotList
+    Mutex m_ColumnFamilyMutex;                //!< mutex ptotecting m_ColumnFamily
+
     std::list<class ItrObject *> m_ItrList;   //!< ItrObjects holding ref count to this
     std::list<class SnapshotObject *> m_SnapshotList;
+    std::list<class ColumnFamilyObject *> m_ColumnFamilyList;
 
 protected:
     static ErlNifResourceType* m_Db_RESOURCE;
@@ -192,6 +195,12 @@ public:
     virtual ~DbObject();
 
     virtual void Shutdown();
+
+    // manual back link to Snapshot ColumnFamilyObject holding reference to this
+    void AddColumnFamilyReference(class ColumnFamilyObject *);
+
+    void RemoveColumnFamilyReference(class ColumnFamilyObject *);
+
 
     // manual back link to ItrObjects holding reference to this
     void AddReference(class ItrObject *);
@@ -217,6 +226,46 @@ private:
     DbObject& operator=(const DbObject&);   // nocopyassign
 };  // class DbObject
 
+/**
+ * Per ColumnFamilyObject object.  Created as erlang reference.
+ */
+class ColumnFamilyObject : public ErlRefObject
+{
+public:
+    rocksdb::ColumnFamilyHandle* m_ColumnFamily;
+    ReferencePtr<DbObject> m_DbPtr;
+
+    Mutex m_ItrMutex;                         //!< mutex protecting m_ItrList
+    std::list<class ItrObject *> m_ItrList;   //!< ItrObjects holding ref count to this
+
+protected:
+    static ErlNifResourceType* m_ColumnFamily_RESOURCE;
+
+public:
+    ColumnFamilyObject(DbObject * Db, rocksdb::ColumnFamilyHandle* Handle);
+
+    virtual ~ColumnFamilyObject(); // needs to perform free_itr
+
+    virtual void Shutdown();
+
+    static void CreateColumnFamilyObjectType(ErlNifEnv * Env);
+
+    static ColumnFamilyObject * CreateColumnFamilyObject(DbObject * Db, rocksdb::ColumnFamilyHandle* m_ColumnFamily);
+
+    static ColumnFamilyObject * RetrieveColumnFamilyObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
+
+    static void ColumnFamilyObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
+
+    // manual back link to ItrObjects holding reference to this
+    void AddItrReference(class ItrObject *);
+
+    void RemoveItrReference(class ItrObject *);
+
+private:
+    ColumnFamilyObject();
+    ColumnFamilyObject(const ColumnFamilyObject &);            // no copy
+    ColumnFamilyObject & operator=(const ColumnFamilyObject &); // no assignment
+};  // class ColumnFamilyObject
 
 /**
  * Per Snapshot object.  Created as erlang reference.

@@ -297,6 +297,7 @@ try
 
   // inform erlang of our two resource types
   erocksdb::DbObject::CreateDbObjectType(env);
+  erocksdb::ColumnFamilyObject::CreateColumnFamilyObjectType(env);
   erocksdb::ItrObject::CreateItrObjectType(env);
   erocksdb::SnapshotObject::CreateSnapshotObjectType(env);
 
