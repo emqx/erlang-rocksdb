@@ -438,23 +438,12 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
             if (enif_get_int(env, option[1], &max_bytes_for_level_multiplier))
                 opts.max_bytes_for_level_multiplier = max_bytes_for_level_multiplier;
         }
-        else if (option[0] == erocksdb::ATOM_EXPANDED_COMPACTION_FACTOR)
+        
+        else if (option[0] == erocksdb::ATOM_MAX_COMPACTION_BYTES)
         {
-            int expanded_compaction_factor;
-            if (enif_get_int(env, option[1], &expanded_compaction_factor))
-                opts.expanded_compaction_factor = expanded_compaction_factor;
-        }
-        else if (option[0] == erocksdb::ATOM_SOURCE_COMPACTION_FACTOR)
-        {
-            int source_compaction_factor;
-            if (enif_get_int(env, option[1], &source_compaction_factor))
-                opts.source_compaction_factor = source_compaction_factor;
-        }
-        else if (option[0] == erocksdb::ATOM_MAX_GRANDPARENT_OVERLAP_FACTOR)
-        {
-            int max_grandparent_overlap_factor;
-            if (enif_get_int(env, option[1], &max_grandparent_overlap_factor))
-                opts.max_grandparent_overlap_factor = max_grandparent_overlap_factor;
+            int max_compaction_bytes;
+            if (enif_get_int(env, option[1], &max_compaction_bytes))
+                opts.max_compaction_bytes = max_compaction_bytes;
         }
         else if (option[0] == erocksdb::ATOM_SOFT_RATE_LIMIT)
         {
