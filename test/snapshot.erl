@@ -5,7 +5,7 @@
 
 get_test() ->
     os:cmd("rm -rf test.db"),
-    {ok, Db} = erocksdb:open("test.db", [{create_if_missing, true}], []),
+    {ok, Db} = erocksdb:open("test.db", [{create_if_missing, true}]),
     try
         erocksdb:put(Db, <<"a">>, <<"x">>, []),
         ?assertEqual({ok, <<"x">>}, erocksdb:get(Db, <<"a">>, [])),
@@ -20,7 +20,7 @@ get_test() ->
 
 multiple_snapshot_test() ->
     os:cmd("rm -rf test.db"),
-    {ok, Db} = erocksdb:open("test.db", [{create_if_missing, true}], []),
+    {ok, Db} = erocksdb:open("test.db", [{create_if_missing, true}]),
     try
         erocksdb:put(Db, <<"a">>, <<"1">>, []),
         ?assertEqual({ok, <<"1">>}, erocksdb:get(Db, <<"a">>, [])),
@@ -53,7 +53,7 @@ multiple_snapshot_test() ->
 
 iterator_test() ->
     os:cmd("rm -rf ltest"),  % NOTE
-    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}], []),
+    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}]),
     try
         erocksdb:put(Ref, <<"a">>, <<"x">>, []),
         erocksdb:put(Ref, <<"b">>, <<"y">>, []),
@@ -83,7 +83,7 @@ iterator_test() ->
 
 release_snapshot_test() ->
     os:cmd("rm -rf ltest"),  % NOTE
-    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}], []),
+    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}]),
 
     try
         erocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -109,7 +109,7 @@ release_snapshot_test() ->
 
 close_iterator_test() ->
     os:cmd("rm -rf ltest"),  % NOTE
-    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}], []),
+    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}]),
 
     try
         erocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -131,7 +131,7 @@ close_iterator_test() ->
 
 db_close_test() ->
     os:cmd("rm -rf ltest"),  % NOTE
-    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}], []),
+    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}]),
 
     erocksdb:put(Ref, <<"a">>, <<"x">>, []),
     erocksdb:put(Ref, <<"b">>, <<"y">>, []),
@@ -154,7 +154,7 @@ db_close_test() ->
 
 
     os:cmd("rm -rf ltest"),
-    {ok, Db} = erocksdb:open("ltest", [{create_if_missing, true}], []),
+    {ok, Db} = erocksdb:open("ltest", [{create_if_missing, true}]),
     erocksdb:put(Db, <<"a">>, <<"x">>, []),
     ?assertEqual({ok, <<"x">>}, erocksdb:get(Db, <<"a">>, [])),
     {ok, Snapshot2} = erocksdb:snapshot(Db),

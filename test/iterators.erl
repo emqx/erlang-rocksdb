@@ -27,7 +27,7 @@
 
 prev_test() ->
     os:cmd("rm -rf ltest"),  % NOTE
-    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}], []),
+    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}]),
     try
       erocksdb:put(Ref, <<"a">>, <<"x">>, []),
       erocksdb:put(Ref, <<"b">>, <<"y">>, []),

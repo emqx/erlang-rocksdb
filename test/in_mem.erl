@@ -14,10 +14,10 @@
 
 
 basic_test() ->
-  {ok, Db} = erocksdb:open("test", [{in_memory, true}], []),
+  {ok, Db} = erocksdb:open("test", [{in_memory, true}]),
   ok = erocksdb:put(Db, <<"a">>, <<"1">>, []),
   ?assertEqual({ok, <<"1">>}, erocksdb:get(Db, <<"a">>, [])),
-  {ok, Db1} = erocksdb:open("test1", [{in_memory, true}], []),
+  {ok, Db1} = erocksdb:open("test1", [{in_memory, true}]),
   ok = erocksdb:put(Db1, <<"a">>, <<"2">>, []),
   ?assertEqual({ok, <<"1">>}, erocksdb:get(Db, <<"a">>, [])),
   ?assertEqual({ok, <<"2">>}, erocksdb:get(Db1, <<"a">>, [])),

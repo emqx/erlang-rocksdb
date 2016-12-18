@@ -49,7 +49,7 @@ cacheleak_loop(Count, Blobs, MaxFinalRSS) ->
 
                 {ok, Ref} = erocksdb:open("/tmp/erocksdb.cacheleak.test",
                                           [{create_if_missing, true},
-                                           {cache_size, 83886080}], []),
+                                           {cache_size, 83886080}]),
                 [ok = erocksdb:put(Ref, I, B, []) || {I, B} <- Blobs],
                 erocksdb:fold(Ref, fun({_K, _V}, A) -> A end, [], [{fill_cache, true}]),
                 [{ok, B} = erocksdb:get(Ref, I, []) || {I, B} <- Blobs],

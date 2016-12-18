@@ -57,8 +57,14 @@ static ErlNifFunc nif_funcs[] =
 {
 
 
-  {"async_open", 4, erocksdb::AsyncOpen},
+  {"async_open", 3, erocksdb::AsyncOpen},
+  {"async_open_with_cf", 4, erocksdb::AsyncOpenWithCf},
   {"async_close", 2, erocksdb::AsyncClose},
+
+  // column families
+  {"async_list_column_families", 3, erocksdb::AsyncListColumnFamilies},
+  {"async_create_column_family", 4, erocksdb::AsyncCreateColumnFamily},
+  {"async_drop_column_family", 2, erocksdb::AsyncDropColumnFamily},
 
   // kv operations
   {"async_write", 4, erocksdb::AsyncWrite},

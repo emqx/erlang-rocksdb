@@ -24,9 +24,9 @@
 %%======================================================================
 -module(erocksdb).
 
--export([open/3, open_with_cf/3, close/1]).
+-export([open/2, open_with_cf/3, close/1]).
 -export([snapshot/1, release_snapshot/1]).
--export([list_column_families/2, create_column_family/3, drop_column_family/2]).
+-export([list_column_families/2, create_column_family/3, drop_column_family/1]).
 -export([put/4, put/5, delete/3, delete/4, write/3, get/3, get/4]).
 -export([iterator/2, iterator/3, iterator_with_cf/3, iterator_move/2, iterator_close/1]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
@@ -109,9 +109,7 @@ init() ->
                        {target_file_size_multiplier,  pos_integer()} |
                        {max_bytes_for_level_base,  pos_integer()} |
                        {max_bytes_for_level_multiplier,  pos_integer()} |
-                       {expanded_compaction_factor,  pos_integer()} |
-                       {source_compaction_factor,  pos_integer()} |
-                       {max_grandparent_overlap_factor,  pos_integer()} |
+                       {max_compaction_bytes,  pos_integer()} |
                        {soft_rate_limit,  float()} |
                        {hard_rate_limit,  float()} |
                        {arena_block_size,  integer()} |
@@ -187,19 +185,21 @@ init() ->
 
 -type iterator_action() :: first | last | next | prev | binary().
 
-async_open(_CallerRef, _Name, _DBOpts, _CFOpts) ->
-    erlang:nif_error({error, not_loaded}).
+
 
 %% @doc
 %% Open RocksDB with the defalut column family
--spec(open(Name, DBOpts, CFOpts) ->
-             {ok, db_handle()} | {error, any()} when Name::file:filename_all(),
-                                                     DBOpts::db_options(),
-                                                     CFOpts::cf_options()).
-open(Name, DBOpts, CFOpts) ->
+-spec open(Name, DBOpts) -> Result when 
+    Name :: file:filename_all(),
+    DBOpts :: db_options(),
+    Result :: {ok, db_handle()} | {error, any()}.
+open(Name, DBOpts) ->
     CallerRef = make_ref(),
-    async_open(CallerRef, Name, DBOpts, CFOpts),
+    async_open(CallerRef, Name, DBOpts),
     ?WAIT_FOR_REPLY(CallerRef).
+
+async_open(_CallerRef, _Name, _DBOpts) ->
+    erlang:nif_error({error, not_loaded}).
 
 %% @doc
 %% Open RocksDB with the specified column families
@@ -208,10 +208,13 @@ open(Name, DBOpts, CFOpts) ->
                when Name::file:filename_all(),
                     DBOpts :: db_options(),
                     CFDescriptors :: list(#cf_descriptor{})).
-open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
-    {error, not_implemeted}.
+open_with_cf(Name, DBOpts, CFDescriptors) ->
+    CallerRef = make_ref(),
+    async_open_with_cf(CallerRef, Name, DBOpts, CFDescriptors),
+    ?WAIT_FOR_REPLY(CallerRef).
 
-
+async_open_with_cf(_Callerfef, _Name, _DBOpts, _CFDescriptors) ->
+    erlang:nif_error({error, not_loaded}).
 
 %% @doc
 %% Close RocksDB
@@ -223,6 +226,48 @@ close(DBHandle) ->
     ?WAIT_FOR_REPLY(CallerRef).
 
 async_close(_Callerfef, _DBHandle) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% ===============================================
+%% Column Families API
+%% ===============================================
+
+%% @doc List column families
+-spec(list_column_families(Name, DBOpts) -> {ok, list(string())} | {error, any()}
+        when Name::file:filename_all(),
+             DBOpts::db_options()).
+list_column_families(Name, DbOpts) ->
+    CallerRef = make_ref(),
+    async_list_column_families(CallerRef, Name, DbOpts),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_list_column_families(_Callerfef, _Name, _DbOpts) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% @doc
+%% Create a new column family
+-spec(create_column_family(DBHandle, Name, CFOpts) ->
+             {ok, cf_handle()} | {error, any()} when DBHandle::db_handle(),
+                                                     Name::string(),
+                                                     CFOpts::cf_options()).
+create_column_family(DBHandle, Name, CFOpts) ->
+    CallerRef = make_ref(),
+    async_create_column_family(CallerRef, DBHandle, Name, CFOpts),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_create_column_family(_Callerfef, _DBHandle, _Name, _CFOpts) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% @doc
+%% Drop a column family
+-spec(drop_column_family(CFHandle) ->
+             ok | {error, any()} when  CFHandle::cf_handle()).
+drop_column_family(CFHandle) ->
+    CallerRef = make_ref(),
+    async_drop_column_family(CallerRef, CFHandle),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_drop_column_family(_Callerfef, _CFHandle) ->
     erlang:nif_error({error, not_loaded}).
 
 %% @sdoc return a database snapshot
@@ -247,31 +292,6 @@ release_snapshot(SnapshotHandle) ->
 
 async_release_snapshot(_CallerRef, _SnapshotHandle) ->
     erlang:nif_error({error, not_loaded}).
-
-%% @doc
-%% List column families
--spec(list_column_families(Name, DBOpts) ->
-             {ok, list(string())} | {error, any()} when Name::file:filename_all(),
-                                                        DBOpts::db_options()).
-list_column_families(_Name, _DBOpts) ->
-    {error, not_implemeted}.
-
-%% @doc
-%% Create a new column family
--spec(create_column_family(DBHandle, Name, CFOpts) ->
-             {ok, cf_handle()} | {error, any()} when DBHandle::db_handle(),
-                                                     Name::string(),
-                                                     CFOpts::cf_options()).
-create_column_family(_DBHandle, _Name, _CFOpts) ->
-    {error, not_implemeted}.
-
-%% @doc
-%% Drop a column family
--spec(drop_column_family(DBHandle, CFHandle) ->
-             ok | {error, any()} when DBHandle::db_handle(),
-                                      CFHandle::cf_handle()).
-drop_column_family(_DBHandle, _CFHandle) ->
-    {error, not_implemeted}.
 
 %% @doc
 %% Put a key/value pair into the default column family
