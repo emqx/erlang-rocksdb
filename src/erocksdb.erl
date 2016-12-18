@@ -502,8 +502,13 @@ async_destroy(_CallerRef, _Name, _DBOpts) ->
 -spec(repair(Name, DBOpts) ->
              ok | {error, any()} when Name::file:filename_all(),
                                       DBOpts::db_options()).
-repair(_Name, _DBOpts) ->
-    erlang:nif_error({error, not_loaded}).
+repair(Name, DBOpts) ->
+    CallerRef = make_ref(),
+    async_repair(CallerRef, Name, DBOpts),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_repair(_CallerRef, _Name, _DbOpts) ->
+     erlang:nif_error({error, not_loaded}).
 
 
 async_checkpoint(_Callerfef, _DbHandle, _Path) ->

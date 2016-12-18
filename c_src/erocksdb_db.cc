@@ -909,6 +909,35 @@ AsyncDestroy(
     return erocksdb::ATOM_OK;
 }   // erocksdb_destroy
 
+ERL_NIF_TERM
+AsyncRepair(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    char db_name[4096];
+    const ERL_NIF_TERM& caller_ref = argv[0];
+    if (!enif_get_string(env, argv[1], db_name, sizeof(db_name), ERL_NIF_LATIN1) &&
+        ! enif_is_list(env, argv[2]))
+    {
+        return enif_make_badarg(env);
+    }
+
+    // Parse out the options
+    rocksdb::Options opts;
+    fold(env, argv[2], parse_db_option, opts);
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
+    erocksdb::WorkTask* work_item = new erocksdb::RepairTask(env, caller_ref, db_name, opts);
+    if(false == priv.thread_pool.submit(work_item))
+    {
+        delete work_item;
+        return send_reply(env, caller_ref,
+                            enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
+    }
+    return erocksdb::ATOM_OK;
+}   // erocksdb_repair
+
+
 
 }
 
@@ -961,35 +990,6 @@ erocksdb_status(
 }   // erocksdb_status
 
 
-ERL_NIF_TERM
-erocksdb_repair(
-    ErlNifEnv* env,
-    int argc,
-    const ERL_NIF_TERM argv[])
-{
-    char name[4096];
-    if (enif_get_string(env, argv[0], name, sizeof(name), ERL_NIF_LATIN1) &&
-        enif_is_list(env, argv[1]))
-    {
-        // Parse out the options
-        rocksdb::Options opts;
-        fold(env, argv[1], parse_db_option, opts);
-
-        rocksdb::Status status = rocksdb::RepairDB(name, opts);
-        if (!status.ok())
-        {
-            return error_tuple(env, erocksdb::ATOM_ERROR_DB_REPAIR, status);
-        }
-        else
-        {
-            return erocksdb::ATOM_OK;
-        }
-    }
-    else
-    {
-        return enif_make_badarg(env);
-    }
-}   // erocksdb_repair
 
 /**
  * HEY YOU ... please make async

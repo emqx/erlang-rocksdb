@@ -76,7 +76,7 @@ static ErlNifFunc nif_funcs[] =
   {"status", 2, erocksdb_status},
   {"async_destroy", 3, erocksdb::AsyncDestroy},
   {"async_checkpoint", 3, erocksdb::AsyncCheckpoint},
-  {"repair", 2, erocksdb_repair},
+  {"async_repair", 3, erocksdb::AsyncRepair},
   {"is_empty", 1, erocksdb_is_empty},
 
 };
