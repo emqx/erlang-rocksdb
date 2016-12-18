@@ -478,7 +478,12 @@ fold_keys(DBHandle, Fun, Acc0, ReadOpts) ->
 fold_keys(_DBHandle, _CFHandle, _Fun, _Acc0, _ReadOpts) ->
     _Acc0.
 
-is_empty(_DBHandle) ->
+is_empty(DbHandle) ->
+    CallerRef = make_ref(),
+    async_is_empty(CallerRef, DbHandle),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_is_empty(_CallerRef, _DBHandle) ->
     erlang:nif_error({error, not_loaded}).
 
 %% @doc

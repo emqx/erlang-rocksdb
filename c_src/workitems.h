@@ -201,8 +201,41 @@ public:
         return work_result(ATOM_OK);
     }   // operator()
 
-};  // class DestroyTask
+};  // class RepairTask
 
+
+class IsEmptyTask : public WorkTask
+{
+protected:
+    ReferencePtr<DbObject> m_DbPtr;
+
+public:
+    IsEmptyTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                        DbObject * Db)
+                  : WorkTask(_caller_env, _caller_ref), m_DbPtr(Db)
+    {};
+
+    virtual ~IsEmptyTask() {};
+
+    virtual work_result operator()()
+    {
+        DbObject* db_ptr = m_DbPtr.get();
+        ERL_NIF_TERM result;
+        rocksdb::ReadOptions opts;
+        rocksdb::Iterator* itr = db_ptr->m_Db->NewIterator(opts);
+        itr->SeekToFirst();
+        if (itr->Valid())
+        {
+            result = erocksdb::ATOM_OK;
+        }
+        else
+        {
+            result = erocksdb::ATOM_TRUE;
+        }
+        delete itr;
+        return work_result(result);
+    }   // operator()
+};  // class IsEmptyTask
 
 /**
  * Background object for async snapshot creation

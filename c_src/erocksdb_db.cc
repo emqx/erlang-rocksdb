@@ -734,6 +734,43 @@ AsyncClose(
 }  // erocksdb::AsyncClose
 
 ERL_NIF_TERM
+Status(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    ErlNifBinary name_bin;
+    erocksdb::ReferencePtr<erocksdb::DbObject> db_ptr;
+    db_ptr.assign(erocksdb::DbObject::RetrieveDbObject(env, argv[0]));
+    if(NULL!=db_ptr.get()
+       && enif_inspect_binary(env, argv[1], &name_bin))
+    {
+        if (db_ptr->m_Db == NULL)
+        {
+            return error_einval(env);
+        }
+        rocksdb::Slice name((const char*)name_bin.data, name_bin.size);
+        std::string value;
+        if (db_ptr->m_Db->GetProperty(name, &value))
+        {
+            ERL_NIF_TERM result;
+            unsigned char* result_buf = enif_make_new_binary(env, value.size(), &result);
+            memcpy(result_buf, value.c_str(), value.size());
+            return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
+        }
+        else
+        {
+            return erocksdb::ATOM_ERROR;
+        }
+    }
+    else
+    {
+        return enif_make_badarg(env);
+    }
+}   // erocksdb_status
+
+
+ERL_NIF_TERM
 AsyncWrite(
     ErlNifEnv* env,
     int argc,
@@ -938,44 +975,28 @@ AsyncRepair(
 }   // erocksdb_repair
 
 ERL_NIF_TERM
-Status(
+AsyncIsEmpty(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    ErlNifBinary name_bin;
-    erocksdb::ReferencePtr<erocksdb::DbObject> db_ptr;
+    const ERL_NIF_TERM& caller_ref = argv[0];
 
-    db_ptr.assign(erocksdb::DbObject::RetrieveDbObject(env, argv[0]));
-
-    if(NULL!=db_ptr.get()
-       && enif_inspect_binary(env, argv[1], &name_bin))
-    {
-        if (db_ptr->m_Db == NULL)
-        {
-            return error_einval(env);
-        }
-
-        rocksdb::Slice name((const char*)name_bin.data, name_bin.size);
-        std::string value;
-        if (db_ptr->m_Db->GetProperty(name, &value))
-        {
-            ERL_NIF_TERM result;
-            unsigned char* result_buf = enif_make_new_binary(env, value.size(), &result);
-            memcpy(result_buf, value.c_str(), value.size());
-
-            return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
-        }
-        else
-        {
-            return erocksdb::ATOM_ERROR;
-        }
-    }
-    else
-    {
+    ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[1], &db_ptr))
         return enif_make_badarg(env);
+
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
+    erocksdb::WorkTask* work_item = new erocksdb::IsEmptyTask(env, caller_ref, db_ptr.get());
+    if(false == priv.thread_pool.submit(work_item))
+    {
+        delete work_item;
+        return send_reply(env, caller_ref,
+                          enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
     }
-}   // erocksdb_status
+    return erocksdb::ATOM_OK;
+}   // erocksdb_is_empty
+
 
 
 }
@@ -984,41 +1005,3 @@ Status(
  * HEY YOU ... please make async
  */
 
-ERL_NIF_TERM
-erocksdb_is_empty(
-    ErlNifEnv* env,
-    int argc,
-    const ERL_NIF_TERM argv[])
-{
-    erocksdb::ReferencePtr<erocksdb::DbObject> db_ptr;
-
-    db_ptr.assign(erocksdb::DbObject::RetrieveDbObject(env, argv[0]));
-
-    if(NULL!=db_ptr.get())
-    {
-        if (db_ptr->m_Db == NULL)
-        {
-            return error_einval(env);
-        }
-
-        rocksdb::ReadOptions opts;
-        rocksdb::Iterator* itr = db_ptr->m_Db->NewIterator(opts);
-        itr->SeekToFirst();
-        ERL_NIF_TERM result;
-        if (itr->Valid())
-        {
-            result = erocksdb::ATOM_FALSE;
-        }
-        else
-        {
-            result = erocksdb::ATOM_TRUE;
-        }
-        delete itr;
-
-        return result;
-    }
-    else
-    {
-        return enif_make_badarg(env);
-    }
-}   // erocksdb_is_empty
