@@ -311,8 +311,8 @@ put(DBHandle, Key, Value, WriteOpts) ->
                                       Key::binary(),
                                       Value::binary(),
                                       WriteOpts::write_options()).
-put(_DBHandle, _CFHandle, _Key, _Value, _WriteOpts) ->
-    {error, not_implemeted}.
+put(DBHandle, CFHandle, Key, Value, WriteOpts) ->
+    write(DBHandle, [{put, CFHandle, Key, Value}], WriteOpts).
 
 %% @doc
 %% Delete a key/value pair in the default column family
@@ -330,8 +330,8 @@ delete(DBHandle, Key, WriteOpts) ->
                                       CFHandle::cf_handle(),
                                       Key::binary(),
                                       WriteOpts::write_options()).
-delete(_DBHandle, _CFHandle, _Key, _WriteOpts) ->
-    {error, not_implemeted}.
+delete(DBHandle, CFHandle, Key, WriteOpts) ->
+    write(DBHandle, [{delete, CFHandle, Key}], WriteOpts).
 
 async_write(_CallerRef, _DBHandle, _WriteActions, _WriteOpts) ->
     erlang:nif_error({error, not_loaded}).
@@ -347,8 +347,7 @@ write(DBHandle, WriteActions, WriteOpts) ->
     async_write(CallerRef, DBHandle, WriteActions, WriteOpts),
     ?WAIT_FOR_REPLY(CallerRef).
 
-async_get(_CallerRef, _DBHandle, _Key, _ReadOpts) ->
-    erlang:nif_error({error, not_loaded}).
+
 
 %% @doc
 %% Retrieve a key/value pair in the default column family
@@ -368,8 +367,17 @@ get(DBHandle, Key, ReadOpts) ->
                                                               CFHandle::cf_handle(),
                                                               Key::binary(),
                                                               ReadOpts::read_options()).
-get(_DBHandle, _CFHandle, _Key, _ReadOpts) ->
-    {error, not_implemeted}.
+get(DBHandle, CFHandle, Key, ReadOpts) ->
+    CallerRef = make_ref(),
+    async_get(CallerRef, DBHandle, CFHandle, Key, ReadOpts),
+    ?WAIT_FOR_REPLY(CallerRef).
+
+async_get(_CallerRef, _DBHandle, _Key, _ReadOpts) ->
+    erlang:nif_error({error, not_loaded}).
+
+async_get(_CallerRef, _DBHandle, _CfHandle, _Key, _ReadOpts) ->
+    erlang:nif_error({error, not_loaded}).
+
 
 async_iterator(_CallerRef, _DBHandle, _ReadOpts) ->
     erlang:nif_error({error, not_loaded}).

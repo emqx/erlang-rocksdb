@@ -98,6 +98,26 @@ WorkTask::WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref, DbObject * D
 
 }   // WorkTask::WorkTask
 
+WorkTask::WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref, DbObject * DbPtr, ColumnFamilyObject * CfPtr)
+    : m_DbPtr(DbPtr), m_CfPtr(CfPtr), terms_set(false), resubmit_work(false)
+{
+    if (NULL!=caller_env)
+    {
+        local_env_ = enif_alloc_env();
+        caller_ref_term = enif_make_copy(local_env_, caller_ref);
+        caller_pid_term = enif_make_pid(local_env_, enif_self(caller_env, &local_pid));
+        terms_set=true;
+    }   // if
+    else
+    {
+        local_env_=NULL;
+        terms_set=false;
+    }   // else
+
+    return;
+
+}   // WorkTask::WorkTask
+
 
 WorkTask::~WorkTask()
 {

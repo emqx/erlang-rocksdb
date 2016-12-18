@@ -63,6 +63,7 @@ public:
 
 protected:
     ReferencePtr<DbObject> m_DbPtr;             //!< access to database, and holds reference
+    ReferencePtr<ColumnFamilyObject> m_CfPtr;   
 
     ErlNifEnv      *local_env_;
     ERL_NIF_TERM   caller_ref_term;
@@ -78,6 +79,8 @@ protected:
     WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref);
 
     WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref, DbObject * DbPtr);
+
+    WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref, DbObject * DbPtr, ColumnFamilyObject * CfPtr);
 
     virtual ~WorkTask();
 
@@ -542,7 +545,20 @@ public:
         options(_options)
         {
             ErlNifBinary key;
+            enif_inspect_binary(_caller_env, _key_term, &key);
+            m_Key.assign((const char *)key.data, key.size);
+        }
 
+    GetTask(ErlNifEnv *_caller_env,
+            ERL_NIF_TERM _caller_ref,
+            DbObject *_db_handle,
+            ColumnFamilyObject *_cf_handle,
+            ERL_NIF_TERM _key_term,
+            rocksdb::ReadOptions *_options)
+        : WorkTask(_caller_env, _caller_ref, _db_handle, _cf_handle),
+        options(_options)
+        {
+            ErlNifBinary key;
             enif_inspect_binary(_caller_env, _key_term, &key);
             m_Key.assign((const char *)key.data, key.size);
         }
@@ -557,8 +573,16 @@ public:
         ERL_NIF_TERM value_bin;
         std::string value;
         rocksdb::Slice key_slice(m_Key);
+        rocksdb::Status status;
 
-        rocksdb::Status status = m_DbPtr->m_Db->Get(*options, key_slice, &value);
+        if(NULL==m_CfPtr.get())
+        {
+            status = m_DbPtr->m_Db->Get(*options, key_slice, &value);
+        }
+        else
+        {
+            status = m_DbPtr->m_Db->Get(*options, m_CfPtr->m_ColumnFamily, key_slice, &value);
+        }
 
         if(!status.ok())
             return work_result(ATOM_NOT_FOUND);

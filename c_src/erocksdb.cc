@@ -69,6 +69,7 @@ static ErlNifFunc nif_funcs[] =
   // kv operations
   {"async_write", 4, erocksdb::AsyncWrite},
   {"async_get", 4, erocksdb::AsyncGet},
+  {"async_get", 5, erocksdb::AsyncGet},
 
   {"async_snapshot", 2, erocksdb::AsyncSnapshot},
   {"async_release_snapshot", 2, erocksdb::AsyncReleaseSnapshot},

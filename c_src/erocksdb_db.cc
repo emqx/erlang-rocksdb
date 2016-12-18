@@ -827,23 +827,58 @@ ERL_NIF_TERM write_batch_item(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::WriteB
         }
 
         ErlNifBinary key, value;
+        erocksdb::ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
 
-        if (action[0] == erocksdb::ATOM_PUT && arity == 3 &&
-            enif_inspect_binary(env, action[1], &key) &&
-            enif_inspect_binary(env, action[2], &value))
+        if (action[0] == erocksdb::ATOM_PUT)
         {
-            rocksdb::Slice key_slice((const char*)key.data, key.size);
-            rocksdb::Slice value_slice((const char*)value.data, value.size);
-            batch.Put(key_slice, value_slice);
-            return erocksdb::ATOM_OK;
+            if(arity == 3  &&
+               enif_inspect_binary(env, action[1], &key) &&
+               enif_inspect_binary(env, action[2], &value))
+            {
+                rocksdb::Slice key_slice((const char*)key.data, key.size);
+                rocksdb::Slice value_slice((const char*)value.data, value.size);
+                batch.Put(key_slice, value_slice);
+                return erocksdb::ATOM_OK;
+            }
+            else
+            {
+                const ERL_NIF_TERM& cf_ref = action[1];
+                cf_ptr.assign(erocksdb::ColumnFamilyObject::RetrieveColumnFamilyObject(env, cf_ref));
+                erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
+
+                if(NULL!=cf_ptr.get() &&
+                   enif_inspect_binary(env, action[2], &key) &&
+                   enif_inspect_binary(env, action[3], &value))
+                {
+                    rocksdb::Slice key_slice((const char*)key.data, key.size);
+                    rocksdb::Slice value_slice((const char*)value.data, value.size);
+                    batch.Put(cf->m_ColumnFamily, key_slice, value_slice);
+                    return erocksdb::ATOM_OK;
+                }
+            }
         }
 
-        if (action[0] == erocksdb::ATOM_DELETE && arity == 2 &&
-            enif_inspect_binary(env, action[1], &key))
+        if (action[0] == erocksdb::ATOM_DELETE)
         {
-            rocksdb::Slice key_slice((const char*)key.data, key.size);
-            batch.Delete(key_slice);
-            return erocksdb::ATOM_OK;
+            if(arity == 2 && enif_inspect_binary(env, action[1], &key))
+            {
+                rocksdb::Slice key_slice((const char*)key.data, key.size);
+                batch.Delete(key_slice);
+                return erocksdb::ATOM_OK;
+            }
+            else
+            {
+                const ERL_NIF_TERM& cf_ref = action[1];
+                cf_ptr.assign(erocksdb::ColumnFamilyObject::RetrieveColumnFamilyObject(env, cf_ref));
+                erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
+
+                if(NULL!=cf_ptr.get() && enif_inspect_binary(env, action[2], &key))
+                {
+                    rocksdb::Slice key_slice((const char*)key.data, key.size);
+                    batch.Delete(cf->m_ColumnFamily, key_slice);
+                    return erocksdb::ATOM_OK;
+                }
+            }
         }
     }
 
@@ -1088,17 +1123,36 @@ AsyncGet(
 {
   const ERL_NIF_TERM& caller_ref = argv[0];
   const ERL_NIF_TERM& dbh_ref    = argv[1];
-  const ERL_NIF_TERM& key_ref    = argv[2];
-  const ERL_NIF_TERM& opts_ref   = argv[3];
-
-  rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
+  ERL_NIF_TERM cf_ref;
+  ERL_NIF_TERM key_ref;
+  ERL_NIF_TERM opts_ref;
 
   ReferencePtr<DbObject> db_ptr;
+  ReferencePtr<ColumnFamilyObject> cf_ptr;
+
+  
+
   db_ptr.assign(DbObject::RetrieveDbObject(env, dbh_ref));
+  if(NULL==db_ptr.get())
+    return enif_make_badarg(env);
+
+  if(argc  == 4)
+  {
+      key_ref = argv[2];
+      opts_ref = argv[3];
+  }
+  else
+  {
+      cf_ref = argv[2];
+      key_ref = argv[3];
+      opts_ref = argv[4];
+      // we use a column family assign the value
+      cf_ptr.assign(ColumnFamilyObject::RetrieveColumnFamilyObject(env, cf_ref));
+  }
 
   if(NULL==db_ptr.get()
-      || !enif_is_list(env, opts_ref)
-      || !enif_is_binary(env, key_ref))
+       || !enif_is_list(env, opts_ref)
+       || !enif_is_binary(env, key_ref))
   {
       return enif_make_badarg(env);
   }
@@ -1106,15 +1160,21 @@ AsyncGet(
   if(NULL == db_ptr->m_Db)
       return send_reply(env, caller_ref, error_einval(env));
 
-  ERL_NIF_TERM fold_result;
-
-  fold_result = fold(env, opts_ref, parse_read_option, *opts);
+  rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
+  ERL_NIF_TERM fold_result = fold(env, opts_ref, parse_read_option, *opts);
   if(fold_result!=erocksdb::ATOM_OK)
       return enif_make_badarg(env);
 
-  erocksdb::WorkTask *work_item = new erocksdb::GetTask(env, caller_ref,
-                                                        db_ptr.get(), key_ref, opts);
-
+  erocksdb::WorkTask *work_item;
+  if(argc==4)
+  {
+    work_item = new erocksdb::GetTask(env, caller_ref, db_ptr.get(), key_ref, opts);
+  }
+  else
+  {
+    work_item = new erocksdb::GetTask(env, caller_ref, db_ptr.get(), cf_ptr.get(), key_ref, opts);
+  }
+  
   erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
   if(false == priv.thread_pool.submit(work_item))
