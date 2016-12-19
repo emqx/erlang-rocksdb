@@ -60,6 +60,9 @@ static ErlNifFunc nif_funcs[] =
   {"async_open", 3, erocksdb::AsyncOpen},
   {"async_open_with_cf", 4, erocksdb::AsyncOpenWithCf},
   {"async_close", 2, erocksdb::AsyncClose},
+  {"get_property", 2, erocksdb::GetProperty},
+  {"get_property", 3, erocksdb::GetProperty},
+  {"async_destroy", 3, erocksdb::AsyncDestroy},
 
   // column families
   {"async_list_column_families", 3, erocksdb::AsyncListColumnFamilies},
@@ -82,8 +85,7 @@ static ErlNifFunc nif_funcs[] =
   {"async_iterators", 4, erocksdb::AsyncIterators},
   {"async_iterators", 5, erocksdb::AsyncIterators},
 
-  {"status", 2, erocksdb::Status},
-  {"async_destroy", 3, erocksdb::AsyncDestroy},
+  // db management
   {"async_checkpoint", 3, erocksdb::AsyncCheckpoint},
   {"async_repair", 3, erocksdb::AsyncRepair},
   {"async_is_empty", 2, erocksdb::AsyncIsEmpty},

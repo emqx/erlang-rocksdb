@@ -1021,39 +1021,46 @@ AsyncClose(
 }  // erocksdb::AsyncClose
 
 ERL_NIF_TERM
-Status(
+GetProperty(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
     ErlNifBinary name_bin;
-    erocksdb::ReferencePtr<erocksdb::DbObject> db_ptr;
-    db_ptr.assign(erocksdb::DbObject::RetrieveDbObject(env, argv[0]));
-    if(NULL!=db_ptr.get()
-       && enif_inspect_binary(env, argv[1], &name_bin))
+    ERL_NIF_TERM name_ref;
+
+    ReferencePtr<DbObject> db_ptr;
+    ReferencePtr<ColumnFamilyObject> cf_ptr;
+
+    db_ptr.assign(DbObject::RetrieveDbObject(env, argv[0]));
+    if(NULL==db_ptr.get())
+        return enif_make_badarg(env);
+
+    if(argc  == 3)
     {
-        if (db_ptr->m_Db == NULL)
-        {
-            return error_einval(env);
-        }
-        rocksdb::Slice name((const char*)name_bin.data, name_bin.size);
-        std::string value;
-        if (db_ptr->m_Db->GetProperty(name, &value))
-        {
-            ERL_NIF_TERM result;
-            unsigned char* result_buf = enif_make_new_binary(env, value.size(), &result);
-            memcpy(result_buf, value.c_str(), value.size());
-            return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
-        }
-        else
-        {
-            return erocksdb::ATOM_ERROR;
-        }
+      name_ref = argv[2];
+      // we use a column family assign the value
+      cf_ptr.assign(ColumnFamilyObject::RetrieveColumnFamilyObject(env, argv[1]));
     }
     else
     {
-        return enif_make_badarg(env);
+      name_ref = argv[1];
     }
+
+    if (!enif_inspect_binary(env, name_ref, &name_bin))
+        return enif_make_badarg(env);
+
+
+    rocksdb::Slice name((const char*)name_bin.data, name_bin.size);
+    std::string value;
+    if (db_ptr->m_Db->GetProperty(name, &value))
+    {
+        ERL_NIF_TERM result;
+        unsigned char* result_buf = enif_make_new_binary(env, value.size(), &result);
+        memcpy(result_buf, value.c_str(), value.size());
+        return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
+    }
+    return erocksdb::ATOM_ERROR;
 }   // erocksdb_status
 
 

@@ -32,7 +32,7 @@
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
 -export([destroy/2, repair/2, is_empty/1]).
 -export([checkpoint/2]).
--export([count/1, count/2, status/1, status/2, status/3]).
+-export([count/1, count/2, stats/1, get_property/2, get_property/3]).
 
 -export_type([db_handle/0,
               cf_handle/0,
@@ -581,12 +581,7 @@ checkpoint(DbHandle, Path) ->
 -spec(count(DBHandle) ->
              non_neg_integer() | {error, any()} when DBHandle::db_handle()).
 count(DBHandle) ->
-    case status(DBHandle, <<"rocksdb.estimate-num-keys">>) of
-        {ok, BinCount} ->
-            erlang:binary_to_integer(BinCount);
-        Error ->
-            Error
-    end.
+    count_1(get_property(DBHandle, <<"rocksdb.estimate-num-keys">>)).
 
 %% @doc
 %% Return the approximate number of keys in the specified column family.
@@ -594,36 +589,46 @@ count(DBHandle) ->
 -spec(count(DBHandle, CFHandle) ->
              non_neg_integer() | {error, any()} when DBHandle::db_handle(),
                                                      CFHandle::cf_handle()).
-count(_DBHandle, _CFHandle) ->
-    {error, not_implemeted}.
+count(DBHandle, CFHandle) ->
+    count_1(get_property(DBHandle, CFHandle, <<"rocksdb.estimate-num-keys">>)).
+
+count_1({ok, BinCount}) -> erlang:binary_to_integer(BinCount);
+count_1(Error) -> Error.
 
 %% @doc
-%% Return the current status of the default column family
+%% Return the current stats of the default column family
 %% Implemented by calling GetProperty with "rocksdb.stats"
 %%
--spec(status(DBHandle) ->
+-spec(stats(DBHandle) ->
              {ok, any()} | {error, any()} when DBHandle::db_handle()).
-status(DBHandle) ->
-    status(DBHandle, <<"rocksdb.stats">>).
+stats(DBHandle) ->
+    get_property(DBHandle, <<"rocksdb.stats">>).
+
+%% @doc
+%% Return the current stats of the specified column family
+%% Implemented by calling GetProperty with "rocksdb.stats"
+%%
+stats(DBHandle, CfHandle) ->
+    get_property(DBHandle, CfHandle, <<"rocksdb.stats">>).
 
 %% @doc
 %% Return the RocksDB internal status of the default column family specified at Property
 %%
--spec(status(DBHandle, Property) ->
+-spec(get_property(DBHandle, Property) ->
              {ok, any()} | {error, any()} when DBHandle::db_handle(),
                                                Property::binary()).
-status(_DBHandle, _Property) ->
+get_property(_DBHandle, _Property) ->
     erlang:nif_error({error, not_loaded}).
 
 %% @doc
 %% Return the RocksDB internal status of the specified column family specified at Property
 %%
--spec(status(DBHandle, CFHandle, Property) ->
+-spec(get_property(DBHandle, CFHandle, Property) ->
              string() | {error, any()} when DBHandle::db_handle(),
                                             CFHandle::cf_handle(),
                                             Property::binary()).
-status(_DBHandle, _CFHandle, _Property) ->
-    {error, not_implemeted}.
+get_property(_DBHandle, _CFHandle, _Property) ->
+    erlang:nif_error({error, not_loaded}).
 
 %% ===================================================================
 %% Internal functions
