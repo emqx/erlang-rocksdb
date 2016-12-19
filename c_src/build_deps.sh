@@ -9,7 +9,7 @@ fi
 unset POSIX_SHELL # clear it so if we invoke other scripts, they run as ksh as well
 
 if [ `uname -s` = "FreeBSD" ]; then
-    export CXX=c++48
+    export CXX="clang++38"
     export CFLAGS="$CFLAGS -D_GLIBCXX_USE_C99"
 fi
 
