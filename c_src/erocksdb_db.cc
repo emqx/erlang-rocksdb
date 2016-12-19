@@ -1006,7 +1006,7 @@ AsyncClose(
     const ERL_NIF_TERM& handle_ref = argv[1];
 
     db_ptr = erocksdb::DbObject::RetrieveDbObject(env, handle_ref);
-    if (db_ptr==NULL)
+    if (db_ptr==NULL || 0!=db_ptr->m_CloseRequested)
         return enif_make_badarg(env);
 
     erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
