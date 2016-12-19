@@ -57,14 +57,17 @@ basic_kvs_test() ->
     {ok,  <<"a1">>} = erocksdb:get(Db, DefaultH, <<"a">>, []),
     ok = erocksdb:put(Db, DefaultH, <<"b">>, <<"b1">>, []),
     {ok, <<"b1">>} = erocksdb:get(Db, DefaultH, <<"b">>, []),
+    ?assertEqual(2, erocksdb:count(Db,DefaultH)),
+
     ok = erocksdb:delete(Db, DefaultH, <<"b">>, []),
     not_found = erocksdb:get(Db, DefaultH, <<"b">>, []),
+    ?assertEqual(1, erocksdb:count(Db, DefaultH)),
 
     {ok, TestH} = erocksdb:create_column_family(Db, "test", []),
     erocksdb:put(Db, TestH, <<"a">>, <<"a2">>, []),
     {ok,  <<"a1">>} = erocksdb:get(Db, DefaultH, <<"a">>, []),
     {ok,  <<"a2">>} = erocksdb:get(Db, TestH, <<"a">>, []),
-
+    ?assertEqual(1, erocksdb:count(Db, TestH)),
     erocksdb:close(Db),
     ok.
 
