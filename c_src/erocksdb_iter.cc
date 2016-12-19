@@ -180,7 +180,7 @@ AsyncIteratorMove(
 
     itr_ptr.assign(ItrObject::RetrieveItrObject(env, itr_handle_ref));
 
-    if(NULL==itr_ptr.get())
+    if(NULL==itr_ptr.get() || 0!=itr_ptr->m_CloseRequested)
         return enif_make_badarg(env);
 
     // Reuse ref from iterator creation
