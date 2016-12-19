@@ -32,7 +32,7 @@
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
 -export([destroy/2, repair/2, is_empty/1]).
 -export([checkpoint/2]).
--export([count/1, count/2, stats/1, get_property/2, get_property/3]).
+-export([count/1, count/2, stats/1, stats/2, get_property/2, get_property/3]).
 
 -export_type([db_handle/0,
               cf_handle/0,
@@ -187,8 +187,7 @@ init() ->
 
 
 
-%% @doc
-%% Open RocksDB with the defalut column family
+%% @doc Open RocksDB with the defalut column family
 -spec open(Name, DBOpts) -> Result when 
     Name :: file:filename_all(),
     DBOpts :: db_options(),
@@ -201,8 +200,7 @@ open(Name, DBOpts) ->
 async_open(_CallerRef, _Name, _DBOpts) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Open RocksDB with the specified column families
+%% @doc Open RocksDB with the specified column families
 -spec(open_with_cf(Name, DBOpts, CFDescriptors) ->
              {ok, db_handle(), list(cf_handle())} | {error, any()}
                when Name::file:filename_all(),
@@ -216,10 +214,10 @@ open_with_cf(Name, DBOpts, CFDescriptors) ->
 async_open_with_cf(_Callerfef, _Name, _DBOpts, _CFDescriptors) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Close RocksDB
--spec(close(DBHandle) ->
-             ok | {error, any()} when DBHandle::db_handle()).
+%% @doc Close RocksDB
+-spec close(DBHandle) -> Res when 
+    DBHandle :: db_handle(),
+    Res :: ok | {error, any()}.
 close(DBHandle) ->
     CallerRef = make_ref(),
     async_close(CallerRef, DBHandle),
@@ -233,9 +231,10 @@ async_close(_Callerfef, _DBHandle) ->
 %% ===============================================
 
 %% @doc List column families
--spec(list_column_families(Name, DBOpts) -> {ok, list(string())} | {error, any()}
-        when Name::file:filename_all(),
-             DBOpts::db_options()).
+-spec list_column_families(Name, DBOpts) -> Res when
+    Name::file:filename_all(),
+    DBOpts::db_options(),
+    Res :: {ok, list(string())} | {error, any()}.
 list_column_families(Name, DbOpts) ->
     CallerRef = make_ref(),
     async_list_column_families(CallerRef, Name, DbOpts),
@@ -244,12 +243,12 @@ list_column_families(Name, DbOpts) ->
 async_list_column_families(_Callerfef, _Name, _DbOpts) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Create a new column family
--spec(create_column_family(DBHandle, Name, CFOpts) ->
-             {ok, cf_handle()} | {error, any()} when DBHandle::db_handle(),
-                                                     Name::string(),
-                                                     CFOpts::cf_options()).
+%% @doc Create a new column family
+-spec create_column_family(DBHandle, Name, CFOpts) -> Res when 
+    DBHandle :: db_handle(),
+    Name ::string(),
+    CFOpts :: cf_options(),
+    Res :: {ok, cf_handle()} | {error, any()}.
 create_column_family(DBHandle, Name, CFOpts) ->
     CallerRef = make_ref(),
     async_create_column_family(CallerRef, DBHandle, Name, CFOpts),
@@ -258,10 +257,10 @@ create_column_family(DBHandle, Name, CFOpts) ->
 async_create_column_family(_Callerfef, _DBHandle, _Name, _CFOpts) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Drop a column family
--spec(drop_column_family(CFHandle) ->
-             ok | {error, any()} when  CFHandle::cf_handle()).
+%% @doc Drop a column family
+-spec drop_column_family(CFHandle) -> Res when
+    CFHandle::cf_handle(),
+    Res :: ok | {error, any()}.
 drop_column_family(CFHandle) ->
     CallerRef = make_ref(),
     async_drop_column_family(CallerRef, CFHandle),
@@ -270,10 +269,9 @@ drop_column_family(CFHandle) ->
 async_drop_column_family(_Callerfef, _CFHandle) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @sdoc return a database snapshot
+%% @doc return a database snapshot
 %% Snapshots provide consistent read-only views over the entire state of the key-value store
--spec(snapshot(DbHandle::db_handle()) ->
-    {ok, snapshot_handle()} | {error, any()}).
+-spec snapshot(DbHandle::db_handle()) -> {ok, snapshot_handle()} | {error, any()}.
 snapshot(DbHandle) ->
     CallerRef = make_ref(),
     async_snapshot(CallerRef, DbHandle),
@@ -283,8 +281,7 @@ async_snapshot(_CallerRef, _DbHandle) ->
     erlang:nif_error({error, not_loaded}).
 
 %% @doc release a snapshot
--spec(release_snapshot(SnapshotHandle::snapshot_handle()) ->
-    ok | {error, any()}).
+-spec release_snapshot(SnapshotHandle::snapshot_handle()) -> ok | {error, any()}.
 release_snapshot(SnapshotHandle) ->
     CallerRef = make_ref(),
     async_release_snapshot(CallerRef, SnapshotHandle),
@@ -293,29 +290,28 @@ release_snapshot(SnapshotHandle) ->
 async_release_snapshot(_CallerRef, _SnapshotHandle) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Put a key/value pair into the default column family
--spec(put(DBHandle, Key, Value, WriteOpts) ->
-             ok | {error, any()} when DBHandle::db_handle(),
-                                      Key::binary(),
-                                      Value::binary(),
-                                      WriteOpts::write_options()).
+%% @doc Put a key/value pair into the default column family
+-spec put(DBHandle, Key, Value, WriteOpts) -> Res when
+    DBHandle::db_handle(),
+    Key::binary(),
+    Value::binary(),
+    WriteOpts::write_options(),
+    Res :: ok | {error, any()}.
 put(DBHandle, Key, Value, WriteOpts) ->
     write(DBHandle, [{put, Key, Value}], WriteOpts).
 
-%% @doc
-%% Put a key/value pair into the specified column family
--spec(put(DBHandle, CFHandle, Key, Value, WriteOpts) ->
-             ok | {error, any()} when DBHandle::db_handle(),
-                                      CFHandle::cf_handle(),
-                                      Key::binary(),
-                                      Value::binary(),
-                                      WriteOpts::write_options()).
+%% @doc Put a key/value pair into the specified column family
+-spec put(DBHandle, CFHandle, Key, Value, WriteOpts) -> Res when
+    DBHandle::db_handle(),
+    CFHandle::cf_handle(),
+    Key::binary(),
+    Value::binary(),
+    WriteOpts::write_options(),
+    Res :: ok | {error, any()}.
 put(DBHandle, CFHandle, Key, Value, WriteOpts) ->
     write(DBHandle, [{put, CFHandle, Key, Value}], WriteOpts).
 
-%% @doc
-%% Delete a key/value pair in the default column family
+%% @doc Delete a key/value pair in the default column family
 -spec(delete(DBHandle, Key, WriteOpts) ->
              ok | {error, any()} when DBHandle::db_handle(),
                                       Key::binary(),
@@ -323,87 +319,89 @@ put(DBHandle, CFHandle, Key, Value, WriteOpts) ->
 delete(DBHandle, Key, WriteOpts) ->
     write(DBHandle, [{delete, Key}], WriteOpts).
 
-%% @doc
-%% Delete a key/value pair in the specified column family
--spec(delete(DBHandle, CFHandle, Key, WriteOpts) ->
-             ok | {error, any()} when DBHandle::db_handle(),
-                                      CFHandle::cf_handle(),
-                                      Key::binary(),
-                                      WriteOpts::write_options()).
+%% @doc Delete a key/value pair in the specified column family
+-spec delete(DBHandle, CFHandle, Key, WriteOpts) -> Res when
+    DBHandle::db_handle(),
+    CFHandle::cf_handle(),
+    Key::binary(),
+    WriteOpts::write_options(),
+    Res ::  ok | {error, any()}.
 delete(DBHandle, CFHandle, Key, WriteOpts) ->
     write(DBHandle, [{delete, CFHandle, Key}], WriteOpts).
 
 async_write(_CallerRef, _DBHandle, _WriteActions, _WriteOpts) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Apply the specified updates to the database.
--spec(write(DBHandle, WriteActions, WriteOpts) ->
-             ok | {error, any()} when DBHandle::db_handle(),
-                                      WriteActions::write_actions(),
-                                      WriteOpts::write_options()).
+%% @doc Apply the specified updates to the database.
+-spec write(DBHandle, WriteActions, WriteOpts) -> Res when 
+    DBHandle::db_handle(),
+     WriteActions::write_actions(),
+     WriteOpts::write_options(),
+     Res :: ok | {error, any()}.
 write(DBHandle, WriteActions, WriteOpts) ->
     CallerRef = make_ref(),
     async_write(CallerRef, DBHandle, WriteActions, WriteOpts),
     ?WAIT_FOR_REPLY(CallerRef).
 
-
-
-%% @doc
-%% Retrieve a key/value pair in the default column family
--spec(get(DBHandle, Key, ReadOpts) ->
-             {ok, binary()} | not_found | {error, any()} when DBHandle::db_handle(),
-                                                              Key::binary(),
-                                                              ReadOpts::read_options()).
+%% @doc Retrieve a key/value pair in the default column family
+-spec get(DBHandle, Key, ReadOpts) ->  Res when 
+    DBHandle::db_handle(),
+    Key::binary(),
+    ReadOpts::read_options(),
+     Res :: {ok, binary()} | not_found | {error, any()}.
 get(DBHandle, Key, ReadOpts) ->
     CallerRef = make_ref(),
     async_get(CallerRef, DBHandle, Key, ReadOpts),
     ?WAIT_FOR_REPLY(CallerRef).
 
-%% @doc
-%% Retrieve a key/value pair in the specified column family
--spec(get(DBHandle, CFHandle, Key, ReadOpts) ->
-             {ok, binary()} | not_found | {error, any()} when DBHandle::db_handle(),
-                                                              CFHandle::cf_handle(),
-                                                              Key::binary(),
-                                                              ReadOpts::read_options()).
+async_get(_CallerRef, _DBHandle, _Key, _ReadOpts) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% @doc Retrieve a key/value pair in the specified column family
+-spec get(DBHandle, CFHandle, Key, ReadOpts) -> Res when
+    DBHandle::db_handle(),
+    CFHandle::cf_handle(),
+    Key::binary(),
+    ReadOpts::read_options(),
+    Res :: {ok, binary()} | not_found | {error, any()}.
 get(DBHandle, CFHandle, Key, ReadOpts) ->
     CallerRef = make_ref(),
     async_get(CallerRef, DBHandle, CFHandle, Key, ReadOpts),
     ?WAIT_FOR_REPLY(CallerRef).
 
-async_get(_CallerRef, _DBHandle, _Key, _ReadOpts) ->
-    erlang:nif_error({error, not_loaded}).
-
 async_get(_CallerRef, _DBHandle, _CfHandle, _Key, _ReadOpts) ->
     erlang:nif_error({error, not_loaded}).
 
-
-async_iterator(_CallerRef, _DBHandle, _ReadOpts) ->
-    erlang:nif_error({error, not_loaded}).
-
-async_iterator(_CallerRef, _DBHandle, _ReadOpts, keys_only) ->
-    erlang:nif_error({error, not_loaded}).
-
-%% @doc
-%% Return a iterator over the contents of the database.
+%% @doc Return a iterator over the contents of the database.
 %% The result of iterator() is initially invalid (caller must
 %% call iterator_move function on the iterator before using it).
--spec(iterator(DBHandle, ReadOpts) ->
-             {ok, itr_handle()} | {error, any()} when DBHandle::db_handle(),
-                                                      ReadOpts::read_options()).
+-spec iterator(DBHandle, ReadOpts) -> Res when
+    DBHandle::db_handle(),
+    ReadOpts::read_options(),
+    Res :: {ok, itr_handle()} | {error, any()}.
 iterator(DBHandle, ReadOpts) ->
     CallerRef = make_ref(),
     async_iterator(CallerRef, DBHandle, ReadOpts),
     ?WAIT_FOR_REPLY(CallerRef).
+
+async_iterator(_CallerRef, _DBHandle, _ReadOpts) ->
+    erlang:nif_error({error, not_loaded}).
+
+-spec iterator(DBHandle, ReadOpts, keys_only) -> Res when
+    DBHandle::db_handle(),
+    ReadOpts::read_options(),
+    Res :: {ok, itr_handle()} | {error, any()}.
 
 iterator(DBHandle, ReadOpts, keys_only) ->
     CallerRef = make_ref(),
     async_iterator(CallerRef, DBHandle, ReadOpts, keys_only),
     ?WAIT_FOR_REPLY(CallerRef).
 
-%% @doc
-%% Return a iterator over the contents of the specified column family.
+
+async_iterator(_CallerRef, _DBHandle, _ReadOpts, keys_only) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% @doc Return a iterator over the contents of the specified column families.
 -spec iterators(DBHandle, CFHandles, ReadOpts) -> Res when
     DBHandle ::db_handle(),
     CFHandles :: [cf_handle()],
@@ -417,24 +415,27 @@ iterators(DBHandle, CFHandles, ReadOpts) ->
 async_iterators(_CallerRef, _DBHandle, _CFHandles, _ReadOpts) ->
     erlang:nif_error({error, not_loaded}).
 
+
+%% @doc Return keys iterator over the contents of the specified column families.
 iterators(DBHandle, CFHandles, ReadOpts, keys_only) ->
     CallerRef = make_ref(),
     async_iterators(CallerRef, DBHandle, CFHandles, ReadOpts, keys_only),
     ?WAIT_FOR_REPLY(CallerRef);
+
 iterators(_, _, _, _) ->
     erlang:error(badarg).   
 
 async_iterators(_CallerRef, _DBHandle, _CFHandles, _ReadOpts, keys_only) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Move to the specified place
--spec(iterator_move(ITRHandle, ITRAction) ->
-             {ok, Key::binary(), Value::binary()} |
-             {ok, Key::binary()} |
-             {error, invalid_iterator} |
-             {error, iterator_closed} when ITRHandle::itr_handle(),
-                                           ITRAction::iterator_action()).
+%% @doc  Move to the specified place
+-spec iterator_move(ITRHandle, ITRAction) -> Res when
+    ITRHandle::itr_handle(),
+    ITRAction::iterator_action(),
+    Res ::  {ok, Key::binary(), Value::binary()} |
+            {ok, Key::binary()} |
+            {error, invalid_iterator} |
+            {error, iterator_closed}.
 iterator_move(ITRHandle, ITRAction) ->
     case async_iterator_move(undefined, ITRHandle, ITRAction) of
         Ref when is_reference(Ref) ->
@@ -446,20 +447,16 @@ iterator_move(ITRHandle, ITRAction) ->
         ER -> ER
     end.
 
-
 async_iterator_move(_CallerRef, _ITRHandle, _ITRAction) ->
     erlang:nif_error({error, not_loaded}).
 
 
-%% @doc
-%% Close a iterator
--spec(iterator_close(ITRHandle) ->
-             ok when ITRHandle::itr_handle()).
+%% @doc Close a iterator
+-spec iterator_close(ITRHandle::itr_handle()) -> ok.
 iterator_close(ITRHandle) ->
     CallerRef = make_ref(),
     async_iterator_close(CallerRef, ITRHandle),
     ?WAIT_FOR_REPLY(CallerRef).
-
 
 async_iterator_close(_CallerRef, _ITRHandle) ->
     erlang:nif_error({error, not_loaded}).
@@ -467,62 +464,64 @@ async_iterator_close(_CallerRef, _ITRHandle) ->
 
 -type fold_fun() :: fun(({Key::binary(), Value::binary()}, any()) -> any()).
 
-%% @doc
-%% Calls Fun(Elem, AccIn) on successive elements in the default column family
+%% @doc Calls Fun(Elem, AccIn) on successive elements in the default column family
 %% starting with AccIn == Acc0.
 %% Fun/2 must return a new accumulator which is passed to the next call.
 %% The function returns the final value of the accumulator.
 %% Acc0 is returned if the default column family is empty.
--spec(fold(DBHandle, Fun, Acc0, ReadOpts) ->
-             any() when DBHandle::db_handle(),
-                        Fun::fold_fun(),
-                        Acc0::any(),
-                        ReadOpts::read_options()).
+-spec fold(DBHandle, Fun, AccIn, ReadOpts) -> AccOut when 
+    DBHandle::db_handle(),
+    Fun::fold_fun(),
+    AccIn::any(),
+    ReadOpts::read_options(),
+    AccOut :: any().
 fold(DBHandle, Fun, Acc0, ReadOpts) ->
     {ok, Itr} = iterator(DBHandle, ReadOpts),
     do_fold(Itr, Fun, Acc0).
 
-%% @doc
-%% Calls Fun(Elem, AccIn) on successive elements in the specified column family
+%% @doc Calls Fun(Elem, AccIn) on successive elements in the specified column family
 %% Other specs are same with fold/4
--spec(fold(DBHandle, CFHandle, Fun, Acc0, ReadOpts) ->
-             any() when DBHandle::db_handle(),
-                        CFHandle::cf_handle(),
-                        Fun::fold_fun(),
-                        Acc0::any(),
-                        ReadOpts::read_options()).
+-spec fold(DBHandle, CFHandle, Fun, AccIn, ReadOpts) -> AccOut when 
+    DBHandle::db_handle(),
+    CFHandle::cf_handle(),
+    Fun::fold_fun(),
+    AccIn::any(),
+    ReadOpts::read_options(),
+    AccOut :: any().
 fold(_DBHandle, _CFHandle, _Fun, _Acc0, _ReadOpts) ->
     _Acc0.
 
 -type fold_keys_fun() :: fun((Key::binary(), any()) -> any()).
 
-%% @doc
-%% Calls Fun(Elem, AccIn) on successive elements in the default column family
+%% @doc Calls Fun(Elem, AccIn) on successive elements in the default column family
 %% starting with AccIn == Acc0.
 %% Fun/2 must return a new accumulator which is passed to the next call.
 %% The function returns the final value of the accumulator.
 %% Acc0 is returned if the default column family is empty.
--spec(fold_keys(DBHandle, Fun, Acc0, ReadOpts) ->
-             any() when DBHandle::db_handle(),
-                        Fun::fold_keys_fun(),
-                        Acc0::any(),
-                        ReadOpts::read_options()).
+-spec fold_keys(DBHandle, Fun, AccIn, ReadOpts) -> AccOut when 
+    DBHandle::db_handle(),
+    Fun::fold_keys_fun(),
+    AccIn::any(),
+    ReadOpts::read_options(),
+    AccOut :: any().
 fold_keys(DBHandle, Fun, Acc0, ReadOpts) ->
     {ok, Itr} = iterator(DBHandle, ReadOpts, keys_only),
     do_fold(Itr, Fun, Acc0).
 
-%% @doc
-%% Calls Fun(Elem, AccIn) on successive elements in the specified column family
+%% @doc Calls Fun(Elem, AccIn) on successive elements in the specified column family
 %% Other specs are same with fold_keys/4
--spec(fold_keys(DBHandle, CFHandle, Fun, Acc0, ReadOpts) ->
-             any() when DBHandle::db_handle(),
-                        CFHandle::cf_handle(),
-                        Fun::fold_keys_fun(),
-                        Acc0::any(),
-                        ReadOpts::read_options()).
+-spec fold_keys(DBHandle, CFHandle, Fun, AccIn, ReadOpts) -> AccOut when
+    DBHandle::db_handle(),
+    CFHandle::cf_handle(),
+    Fun::fold_keys_fun(),
+    AccIn::any(),
+    ReadOpts::read_options(),
+    AccOut :: any().
 fold_keys(_DBHandle, _CFHandle, _Fun, _Acc0, _ReadOpts) ->
     _Acc0.
 
+%% @doc is the database empty
+-spec  is_empty(DBHandle::db_handle()) -> true | false.
 is_empty(DbHandle) ->
     CallerRef = make_ref(),
     async_is_empty(CallerRef, DbHandle),
@@ -531,13 +530,9 @@ is_empty(DbHandle) ->
 async_is_empty(_CallerRef, _DBHandle) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Destroy the contents of the specified database.
+%% @doc Destroy the contents of the specified database.
 %% Be very careful using this method.
--spec(destroy(Name, DBOpts) ->
-             ok | {error, any()} when Name::file:filename_all(),
-                                      DBOpts::db_options()).
-
+-spec destroy(Name::file:filename_all(), DBOpts::db_options()) -> ok | {error, any()}.
 destroy(Name, DBOpts) ->
     CallerRef = make_ref(),
     async_destroy(CallerRef, Name, DBOpts),
@@ -546,12 +541,9 @@ destroy(Name, DBOpts) ->
 async_destroy(_CallerRef, _Name, _DBOpts) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Try to repair as much of the contents of the database as possible.
+%% @doc Try to repair as much of the contents of the database as possible.
 %% Some data may be lost, so be careful when calling this function
--spec(repair(Name, DBOpts) ->
-             ok | {error, any()} when Name::file:filename_all(),
-                                      DBOpts::db_options()).
+-spec repair(Name::file:filename_all(), DBOpts::db_options()) -> ok | {error, any()}.
 repair(Name, DBOpts) ->
     CallerRef = make_ref(),
     async_repair(CallerRef, Name, DBOpts),
@@ -560,73 +552,60 @@ repair(Name, DBOpts) ->
 async_repair(_CallerRef, _Name, _DbOpts) ->
      erlang:nif_error({error, not_loaded}).
 
-
-async_checkpoint(_Callerfef, _DbHandle, _Path) ->
-    erlang:nif_error({error, not_loaded}).
-
 %% @doc take a snapshot of a running RocksDB database in a separate directory
 %% http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/
--spec(checkpoint(DbHandle::db_handle(), Path::file:filename_all()) ->
-ok | {error, any()}).
+-spec checkpoint(
+    DbHandle::db_handle(), Path::file:filename_all()
+) -> ok | {error, any()}.
 checkpoint(DbHandle, Path) ->
     CallerRef = make_ref(),
     async_checkpoint(CallerRef, DbHandle, Path),
     ?WAIT_FOR_REPLY(CallerRef).
 
+async_checkpoint(_Callerfef, _DbHandle, _Path) ->
+    erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Return the approximate number of keys in the default column family.
+%% @doc Return the approximate number of keys in the default column family.
 %% Implemented by calling GetIntProperty with "rocksdb.estimate-num-keys"
-%%
--spec(count(DBHandle) ->
-             non_neg_integer() | {error, any()} when DBHandle::db_handle()).
+-spec count(DBHandle::db_handle()) ->  non_neg_integer() | {error, any()}.
 count(DBHandle) ->
     count_1(get_property(DBHandle, <<"rocksdb.estimate-num-keys">>)).
 
 %% @doc
 %% Return the approximate number of keys in the specified column family.
 %%
--spec(count(DBHandle, CFHandle) ->
-             non_neg_integer() | {error, any()} when DBHandle::db_handle(),
-                                                     CFHandle::cf_handle()).
+-spec count(DBHandle::db_handle(), CFHandle::cf_handle()) -> non_neg_integer() | {error, any()}.
 count(DBHandle, CFHandle) ->
     count_1(get_property(DBHandle, CFHandle, <<"rocksdb.estimate-num-keys">>)).
 
 count_1({ok, BinCount}) -> erlang:binary_to_integer(BinCount);
 count_1(Error) -> Error.
 
-%% @doc
-%% Return the current stats of the default column family
+%% @doc Return the current stats of the default column family
 %% Implemented by calling GetProperty with "rocksdb.stats"
-%%
--spec(stats(DBHandle) ->
-             {ok, any()} | {error, any()} when DBHandle::db_handle()).
+-spec stats(DBHandle::db_handle()) -> {ok, any()} | {error, any()}.
 stats(DBHandle) ->
     get_property(DBHandle, <<"rocksdb.stats">>).
 
-%% @doc
-%% Return the current stats of the specified column family
+%% @doc Return the current stats of the specified column family
 %% Implemented by calling GetProperty with "rocksdb.stats"
-%%
+-spec stats(
+    DBHandle::db_handle(), CFHandle::cf_handle()
+) -> {ok, any()} | {error, any()}.
 stats(DBHandle, CfHandle) ->
     get_property(DBHandle, CfHandle, <<"rocksdb.stats">>).
 
-%% @doc
-%% Return the RocksDB internal status of the default column family specified at Property
-%%
--spec(get_property(DBHandle, Property) ->
-             {ok, any()} | {error, any()} when DBHandle::db_handle(),
-                                               Property::binary()).
+%% @doc Return the RocksDB internal status of the default column family specified at Property
+-spec get_property(
+    DBHandle::db_handle(), Property::binary()
+) -> {ok, any()} | {error, any()}.
 get_property(_DBHandle, _Property) ->
     erlang:nif_error({error, not_loaded}).
 
-%% @doc
-%% Return the RocksDB internal status of the specified column family specified at Property
-%%
--spec(get_property(DBHandle, CFHandle, Property) ->
-             string() | {error, any()} when DBHandle::db_handle(),
-                                            CFHandle::cf_handle(),
-                                            Property::binary()).
+%% @doc Return the RocksDB internal status of the specified column family specified at Property
+-spec get_property(
+    DBHandle::db_handle(), CFHandle::cf_handle(), Property::binary()
+) -> string() | {error, any()}.
 get_property(_DBHandle, _CFHandle, _Property) ->
     erlang:nif_error({error, not_loaded}).
 

@@ -40,6 +40,6 @@ This project is a fork of [erocksdb](https://github.com/leo-project/erocksdb) sp
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="http://gitlab.com/barrel-db/erocksdb/blob/column-families/doc/erocksdb.md" class="module">erocksdb</a></td></tr>
-<tr><td><a href="http://gitlab.com/barrel-db/erocksdb/blob/column-families/doc/erocksdb_bump.md" class="module">erocksdb_bump</a></td></tr></table>
+<tr><td><a href="erocksdb.md" class="module">erocksdb</a></td></tr>
+<tr><td><a href="erocksdb_bump.md" class="module">erocksdb_bump</a></td></tr></table>
 
