@@ -533,14 +533,14 @@ class GetTask : public WorkTask
 {
 protected:
     std::string                        m_Key;
-    rocksdb::ReadOptions*              options;
+    rocksdb::ReadOptions              options;
 
 public:
     GetTask(ErlNifEnv *_caller_env,
             ERL_NIF_TERM _caller_ref,
             DbObject *_db_handle,
             ERL_NIF_TERM _key_term,
-            rocksdb::ReadOptions *_options)
+            rocksdb::ReadOptions _options)
         : WorkTask(_caller_env, _caller_ref, _db_handle),
         options(_options)
         {
@@ -554,7 +554,7 @@ public:
             DbObject *_db_handle,
             ColumnFamilyObject *_cf_handle,
             ERL_NIF_TERM _key_term,
-            rocksdb::ReadOptions *_options)
+            rocksdb::ReadOptions _options)
         : WorkTask(_caller_env, _caller_ref, _db_handle, _cf_handle),
         options(_options)
         {
@@ -565,7 +565,6 @@ public:
 
     virtual ~GetTask()
     {
-        delete options;
     }
 
     virtual work_result operator()()
@@ -577,11 +576,11 @@ public:
 
         if(NULL==m_CfPtr.get())
         {
-            status = m_DbPtr->m_Db->Get(*options, key_slice, &value);
+            status = m_DbPtr->m_Db->Get(options, key_slice, &value);
         }
         else
         {
-            status = m_DbPtr->m_Db->Get(*options, m_CfPtr->m_ColumnFamily, key_slice, &value);
+            status = m_DbPtr->m_Db->Get(options, m_CfPtr->m_ColumnFamily, key_slice, &value);
         }
 
         if(!status.ok())
@@ -606,7 +605,7 @@ class IterTask : public WorkTask
 protected:
 
     const bool keys_only;
-    rocksdb::ReadOptions *options;
+    rocksdb::ReadOptions options;
 
 public:
 
@@ -614,27 +613,22 @@ public:
              ERL_NIF_TERM _caller_ref,
              DbObject *_db_handle,
              const bool _keys_only,
-             rocksdb::ReadOptions *_options)
+             rocksdb::ReadOptions _options)
         : WorkTask(_caller_env, _caller_ref, _db_handle),
         keys_only(_keys_only), options(_options)
     {}
 
     virtual ~IterTask()
     {
-        // options should be NULL at this point
-        delete options;
     }
 
     virtual work_result operator()()
     {
-        ItrObject * itr_ptr;
         rocksdb::Iterator * iterator;
 
         // NOTE: transfering ownership of options to ItrObject
-        itr_ptr=ItrObject::CreateItrObject(m_DbPtr.get(), keys_only, options);
-
-
-        iterator = m_DbPtr->m_Db->NewIterator(*options);
+        ItrObject * itr_ptr=ItrObject::CreateItrObject(m_DbPtr.get(), keys_only, options);
+        iterator = m_DbPtr->m_Db->NewIterator(options);
         itr_ptr->m_Iter.assign(new RocksIteratorWrapper(m_DbPtr.get(), iterator, keys_only));
 
         // Copy caller_ref to reuse in future iterator_move calls
@@ -645,12 +639,67 @@ public:
 
         // release reference created during CreateItrObject()
         enif_release_resource(itr_ptr);
-        options=NULL;  // ptr ownership given to ItrObject
 
         return work_result(local_env(), ATOM_OK, result);
     }   // operator()
 
 };  // class IterTask
+
+class IteratorsTask : public WorkTask
+{
+protected:
+
+    std::vector<rocksdb::ColumnFamilyHandle *> column_families;
+    const bool keys_only;
+    rocksdb::ReadOptions options;
+
+public:
+
+    IteratorsTask(ErlNifEnv *_caller_env,
+             ERL_NIF_TERM _caller_ref,
+             DbObject *_db_handle,
+             std::vector<rocksdb::ColumnFamilyHandle *> column_families_,
+             const bool _keys_only,
+             rocksdb::ReadOptions &_options)
+        : WorkTask(_caller_env, _caller_ref, _db_handle),
+        column_families(column_families_), keys_only(_keys_only), options(_options)
+    {}
+
+    virtual ~IteratorsTask()
+    {
+    }
+
+    virtual work_result operator()()
+    {
+        std::vector<rocksdb::Iterator*> iterators;
+        m_DbPtr->m_Db->NewIterators(options, column_families, &iterators);
+
+        ERL_NIF_TERM result = enif_make_list(local_env(), 0);
+        try {
+            for (auto* it : iterators) {
+                // assign the iterator ibject
+                ItrObject * itr_ptr = ItrObject::CreateItrObject(m_DbPtr.get(), keys_only, options);
+                itr_ptr->m_Iter.assign(new RocksIteratorWrapper(m_DbPtr.get(), it, keys_only));
+
+                // Copy caller_ref to reuse in future iterator_move calls
+                itr_ptr->m_Iter->itr_ref_env = enif_alloc_env();
+                itr_ptr->m_Iter->itr_ref = enif_make_copy(itr_ptr->m_Iter->itr_ref_env, caller_ref());
+
+                ERL_NIF_TERM itr_res = enif_make_resource(local_env(), itr_ptr);
+                result = enif_make_list_cell(local_env(), itr_res, result);
+                enif_release_resource(itr_ptr);
+            }
+        } catch (const std::exception& e) {
+            // pass through and return nullptr
+        }
+
+        ERL_NIF_TERM result_out;
+        enif_make_reverse_list(local_env(), result, &result_out);
+
+        return work_result(local_env(), ATOM_OK, result_out);
+    }   // operator()
+
+};  // class IteratorsTask
 
 
 class MoveTask : public WorkTask
@@ -705,21 +754,21 @@ public:
 class CloseIteratorTask : public WorkTask
 {
 protected:
-    ReferencePtr<ItrObject> m_ItrPtr;
+    ItrObject * itr_ptr;
 
 public:
     CloseIteratorTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
                         ItrObject * Itr)
-                  : WorkTask(_caller_env, _caller_ref), m_ItrPtr(Itr)
+                  : WorkTask(_caller_env, _caller_ref), itr_ptr(Itr)
     {};
 
     virtual ~CloseIteratorTask() {};
 
     virtual work_result operator()()
     {
-        ItrObject* itr = m_ItrPtr.get();
-        itr->ReleaseReuseMove();
-        ErlRefObject::InitiateCloseRequest(itr);
+        itr_ptr->ReleaseReuseMove();
+        ErlRefObject::InitiateCloseRequest(itr_ptr);
+        itr_ptr=NULL;
         return work_result(ATOM_OK);
     }   // operator()
 

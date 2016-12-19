@@ -72,7 +72,7 @@ AsyncSnapshot(
 
     db_ptr.assign(DbObject::RetrieveDbObject(env, handle_ref));
 
-    if(NULL==db_ptr.get())
+    if(NULL==db_ptr.get() || 0!=db_ptr->m_CloseRequested)
     {
         return enif_make_badarg(env);
     }

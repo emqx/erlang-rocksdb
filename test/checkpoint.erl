@@ -24,7 +24,6 @@
 checkpoint_test() ->
     os:cmd("rm -rf test.db"),
     os:cmd("rm -rf test_backup.db"),
-
     {ok, Ref} = erocksdb:open("test.db", [{create_if_missing, true}]),
     try
         erocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -42,7 +41,6 @@ checkpoint_test() ->
     after
         erocksdb:close(Ref2)
     end.
-
 
 iterator_test() ->
     os:cmd("rm -rf test.db"),
@@ -68,7 +66,6 @@ iterator_test() ->
 
     {ok, Ref2} = erocksdb:open("test_backup.db", []),
     try
-
         {ok, I3} = erocksdb:iterator(Ref2, []),
         ?assertEqual({ok, <<"a">>, <<"x">>},erocksdb:iterator_move(I3, <<>>)),
         ?assertEqual({ok, <<"b">>, <<"y">>},erocksdb:iterator_move(I3, next)),

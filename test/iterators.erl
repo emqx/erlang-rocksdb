@@ -34,7 +34,8 @@ prev_test() ->
       {ok, I} = erocksdb:iterator(Ref, []),
         ?assertEqual({ok, <<"a">>, <<"x">>},erocksdb:iterator_move(I, <<>>)),
         ?assertEqual({ok, <<"b">>, <<"y">>},erocksdb:iterator_move(I, next)),
-        ?assertEqual({ok, <<"a">>, <<"x">>},erocksdb:iterator_move(I, prev))
+        ?assertEqual({ok, <<"a">>, <<"x">>},erocksdb:iterator_move(I, prev)),
+        ?assertEqual(ok, erocksdb:iterator_close(I))
     after
       erocksdb:close(Ref)
     end.

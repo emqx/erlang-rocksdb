@@ -197,18 +197,18 @@ public:
     virtual void Shutdown();
 
     // manual back link to Snapshot ColumnFamilyObject holding reference to this
-    void AddColumnFamilyReference(class ColumnFamilyObject *);
+    bool AddColumnFamilyReference(class ColumnFamilyObject *);
 
     void RemoveColumnFamilyReference(class ColumnFamilyObject *);
 
 
     // manual back link to ItrObjects holding reference to this
-    void AddReference(class ItrObject *);
+    bool AddReference(class ItrObject *);
 
     void RemoveReference(class ItrObject *);
 
      // manual back link to Snapshot DbObjects holding reference to this
-    void AddSnapshotReference(class SnapshotObject *);
+    bool AddSnapshotReference(class SnapshotObject *);
 
     void RemoveSnapshotReference(class SnapshotObject *);
 
@@ -235,9 +235,6 @@ public:
     rocksdb::ColumnFamilyHandle* m_ColumnFamily;
     ReferencePtr<DbObject> m_DbPtr;
 
-    Mutex m_ItrMutex;                         //!< mutex protecting m_ItrList
-    std::list<class ItrObject *> m_ItrList;   //!< ItrObjects holding ref count to this
-
 protected:
     static ErlNifResourceType* m_ColumnFamily_RESOURCE;
 
@@ -255,11 +252,6 @@ public:
     static ColumnFamilyObject * RetrieveColumnFamilyObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
 
     static void ColumnFamilyObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
-
-    // manual back link to ItrObjects holding reference to this
-    void AddItrReference(class ItrObject *);
-
-    void RemoveItrReference(class ItrObject *);
 
 private:
     ColumnFamilyObject();
@@ -332,10 +324,10 @@ public:
 
     virtual ~RocksIteratorWrapper()
     {
-        if (NULL!=itr_ref_env)
+        if (NULL!=itr_ref_env) {
             enif_free_env(itr_ref_env);
-
-
+            itr_ref_env = NULL;
+        }
 
         if (NULL!=m_Iterator)
         {
@@ -367,7 +359,7 @@ public:
     ReferencePtr<RocksIteratorWrapper> m_Iter;
 
     bool keys_only;
-    rocksdb::ReadOptions * m_ReadOptions;
+    rocksdb::ReadOptions m_ReadOptions;
 
     volatile class MoveTask * reuse_move;//!< iterator work object that is reused instead of lots malloc/free
 
@@ -378,7 +370,7 @@ protected:
     static ErlNifResourceType* m_Itr_RESOURCE;
 
 public:
-    ItrObject(DbObject *, bool, rocksdb::ReadOptions *);
+    ItrObject(DbObject *, bool, rocksdb::ReadOptions &);
 
     virtual ~ItrObject(); // needs to perform free_itr
 
@@ -387,7 +379,7 @@ public:
     static void CreateItrObjectType(ErlNifEnv * Env);
 
     static ItrObject * CreateItrObject(DbObject * Db, bool KeysOnly,
-                                       rocksdb::ReadOptions * Options);
+                                       rocksdb::ReadOptions & Options);
 
     static ItrObject * RetrieveItrObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm,
                                          bool ItrClosing=false);

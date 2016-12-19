@@ -28,7 +28,7 @@
 -export([snapshot/1, release_snapshot/1]).
 -export([list_column_families/2, create_column_family/3, drop_column_family/1]).
 -export([put/4, put/5, delete/3, delete/4, write/3, get/3, get/4]).
--export([iterator/2, iterator/3, iterator_with_cf/3, iterator_move/2, iterator_close/1]).
+-export([iterator/2, iterator/3, iterators/3, iterators/4, iterator_move/2, iterator_close/1]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
 -export([destroy/2, repair/2, is_empty/1]).
 -export([checkpoint/2]).
@@ -404,14 +404,27 @@ iterator(DBHandle, ReadOpts, keys_only) ->
 
 %% @doc
 %% Return a iterator over the contents of the specified column family.
--spec(iterator_with_cf(DBHandle, CFHandle, ReadOpts) ->
-             {ok, itr_handle()} | {error, any()} when DBHandle::db_handle(),
-                                                      CFHandle::cf_handle(),
-                                                      ReadOpts::read_options()).
-iterator_with_cf(_DBHandle, _CFHandle, _ReadOpts) ->
-    {error, not_implemeted}.
+-spec iterators(DBHandle, CFHandles, ReadOpts) -> Res when
+    DBHandle ::db_handle(),
+    CFHandles :: [cf_handle()],
+    ReadOpts :: read_options(),
+    Res :: {ok, itr_handle()} | {error, any()}.
+iterators(DBHandle, CFHandles, ReadOpts) ->
+    CallerRef = make_ref(),
+    async_iterators(CallerRef, DBHandle, CFHandles, ReadOpts),
+    ?WAIT_FOR_REPLY(CallerRef).
 
-async_iterator_move(_CallerRef, _ITRHandle, _ITRAction) ->
+async_iterators(_CallerRef, _DBHandle, _CFHandles, _ReadOpts) ->
+    erlang:nif_error({error, not_loaded}).
+
+iterators(DBHandle, CFHandles, ReadOpts, keys_only) ->
+    CallerRef = make_ref(),
+    async_iterators(CallerRef, DBHandle, CFHandles, ReadOpts, keys_only),
+    ?WAIT_FOR_REPLY(CallerRef);
+iterators(_, _, _, _) ->
+    erlang:error(badarg).   
+
+async_iterators(_CallerRef, _DBHandle, _CFHandles, _ReadOpts, keys_only) ->
     erlang:nif_error({error, not_loaded}).
 
 %% @doc
@@ -432,6 +445,10 @@ iterator_move(ITRHandle, ITRAction) ->
         {ok, _, _} = KeyVal -> KeyVal;
         ER -> ER
     end.
+
+
+async_iterator_move(_CallerRef, _ITRHandle, _ITRAction) ->
+    erlang:nif_error({error, not_loaded}).
 
 
 %% @doc

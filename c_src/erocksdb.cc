@@ -79,6 +79,8 @@ static ErlNifFunc nif_funcs[] =
   {"async_iterator", 4, erocksdb::AsyncIterator},
   {"async_iterator_move", 3, erocksdb::AsyncIteratorMove},
   {"async_iterator_close", 2, erocksdb::AsyncIteratorClose},
+  {"async_iterators", 4, erocksdb::AsyncIterators},
+  {"async_iterators", 5, erocksdb::AsyncIterators},
 
   {"status", 2, erocksdb::Status},
   {"async_destroy", 3, erocksdb::AsyncDestroy},
@@ -301,6 +303,8 @@ try
 
   ret_val=0;
   *priv_data = NULL;
+
+  rocksdb::Env::Default();
 
   // inform erlang of our two resource types
   erocksdb::DbObject::CreateDbObjectType(env);

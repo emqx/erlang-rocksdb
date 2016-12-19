@@ -44,7 +44,6 @@
     #include "refobjects.h"
 #endif
 
-
 #include "work_result.hpp"
 #include "detail.hpp"
 
@@ -1130,8 +1129,6 @@ AsyncGet(
   ReferencePtr<DbObject> db_ptr;
   ReferencePtr<ColumnFamilyObject> cf_ptr;
 
-  
-
   db_ptr.assign(DbObject::RetrieveDbObject(env, dbh_ref));
   if(NULL==db_ptr.get())
     return enif_make_badarg(env);
@@ -1160,8 +1157,8 @@ AsyncGet(
   if(NULL == db_ptr->m_Db)
       return send_reply(env, caller_ref, error_einval(env));
 
-  rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
-  ERL_NIF_TERM fold_result = fold(env, opts_ref, parse_read_option, *opts);
+  rocksdb::ReadOptions opts;
+  ERL_NIF_TERM fold_result = fold(env, opts_ref, parse_read_option, opts);
   if(fold_result!=erocksdb::ATOM_OK)
       return enif_make_badarg(env);
 
