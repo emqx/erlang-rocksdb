@@ -197,7 +197,7 @@ public:
     virtual void Shutdown();
 
     // manual back link to Snapshot ColumnFamilyObject holding reference to this
-    bool AddColumnFamilyReference(class ColumnFamilyObject *);
+    void AddColumnFamilyReference(class ColumnFamilyObject *);
 
     void RemoveColumnFamilyReference(class ColumnFamilyObject *);
 
@@ -208,7 +208,7 @@ public:
     void RemoveReference(class ItrObject *);
 
      // manual back link to Snapshot DbObjects holding reference to this
-    bool AddSnapshotReference(class SnapshotObject *);
+    void AddSnapshotReference(class SnapshotObject *);
 
     void RemoveSnapshotReference(class SnapshotObject *);
 

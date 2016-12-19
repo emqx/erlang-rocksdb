@@ -392,17 +392,12 @@ DbObject::Shutdown()
 
 }   // DbObject::Shutdown
 
-bool
+void
 DbObject::AddColumnFamilyReference(
         ColumnFamilyObject *ColumnFamilyPtr) {
-
-    bool ret_flag;
     MutexLock lock(m_ColumnFamilyMutex);
-
-    ret_flag=(0==m_CloseRequested);
-    if (ret_flag)
-        m_ColumnFamilyList.push_back(ColumnFamilyPtr);
-    return(ret_flag);
+    m_ColumnFamilyList.push_back(ColumnFamilyPtr);
+    return;
 }   // DbObject::ColumnFamilyReference
 
 
@@ -439,18 +434,13 @@ DbObject::RemoveReference(
 
 }   // DbObject::RemoveReference
 
-bool
+void
 DbObject::AddSnapshotReference(
     SnapshotObject * SnapshotPtr)
 {
-    bool ret_flag;
     MutexLock lock(m_SnapshotMutex);
- 
-    ret_flag=(0==m_CloseRequested);
-    if (ret_flag)
-        m_SnapshotList.push_back(SnapshotPtr);
-
-    return(ret_flag);
+    m_SnapshotList.push_back(SnapshotPtr);
+    return;
 
 }   // DbObject::AddSnapshotReference
 
