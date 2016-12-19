@@ -540,7 +540,7 @@ public:
             ERL_NIF_TERM _caller_ref,
             DbObject *_db_handle,
             ERL_NIF_TERM _key_term,
-            rocksdb::ReadOptions _options)
+            rocksdb::ReadOptions &_options)
         : WorkTask(_caller_env, _caller_ref, _db_handle),
         options(_options)
         {
@@ -554,7 +554,7 @@ public:
             DbObject *_db_handle,
             ColumnFamilyObject *_cf_handle,
             ERL_NIF_TERM _key_term,
-            rocksdb::ReadOptions _options)
+            rocksdb::ReadOptions &_options)
         : WorkTask(_caller_env, _caller_ref, _db_handle, _cf_handle),
         options(_options)
         {
