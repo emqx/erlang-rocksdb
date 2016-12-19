@@ -301,9 +301,6 @@ static int on_upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data, ER
 static int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 try
 {
-  int ret_val;
-
-  ret_val=0;
   *priv_data = NULL;
 
   rocksdb::Env::Default();

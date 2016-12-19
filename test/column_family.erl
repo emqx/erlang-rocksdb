@@ -16,16 +16,17 @@ basic_test() ->
     ok = erocksdb:drop_column_family(Handle),
     ?assertEqual({ok, ["default"]}, erocksdb:list_column_families("test.db", [])),
     erocksdb:close(Db),
+    
     ok.
 
 column_order_test() ->
-    os:cmd("rm -rf test.db"),
+    erocksdb:destroy("test.db", []),
     ColumnFamilies = [{"default", []}],
     {ok, Db, Handles1} = erocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
     ?assertEqual(1, length(Handles1)),
     ?assertEqual({ok, ["default"]}, erocksdb:list_column_families("test.db", [])),
-    {ok, Handle} = erocksdb:create_column_family(Db, "test", []),
-    erocksdb:close(Db),
+    {ok, _Handle} = erocksdb:create_column_family(Db, "test", []),
+    ok = erocksdb:close(Db),
     ?assertEqual({ok, ["default", "test"]}, erocksdb:list_column_families("test.db", [])),
     ColumnFamilies2 = [{"default", []}, {"test", []}],
     {ok, Db2, Handles2} = erocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies2),
@@ -36,7 +37,7 @@ column_order_test() ->
     ok.
 
 try_remove_default_test() ->
-    os:cmd("rm -rf test.db"),
+    erocksdb:destroy("test.db", []),
     ColumnFamilies = [{"default", []}],
     {ok, Db, [DefaultH]} = erocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
     {error, _} = erocksdb:drop_column_family(DefaultH),
@@ -49,7 +50,7 @@ try_remove_default_test() ->
     ok.
 
 basic_kvs_test() ->
-    os:cmd("rm -rf test.db"),
+    erocksdb:destroy("test.db", []),
     ColumnFamilies = [{"default", []}],
     {ok, Db, [DefaultH]} = erocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
     ok = erocksdb:put(Db, DefaultH, <<"a">>, <<"a1">>, []),
