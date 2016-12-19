@@ -1,28 +1,23 @@
-%%======================================================================
-%%
-%% erocksdb: Erlang Wrapper for RocksDB (https://github.com/facebook/rocksdb)
+%%% -*- erlang -*-
 %%
 %% Copyright (c) 2012-2015 Rakuten, Inc.
+%% Copyright (c) 2016 Benoit Chesneau
 %%
-%% This file is provided to you under the Apache License,
-%% Version 2.0 (the "License"); you may not use this file
-%% except in compliance with the License.  You may obtain
-%% a copy of the License at
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%%   http://www.apache.org/licenses/LICENSE-2.0
+%% http://www.apache.org/licenses/LICENSE-2.0
 %%
-%% Unless required by applicable law or agreed to in writing,
-%% software distributed under the License is distributed on an
-%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-%% KIND, either express or implied.  See the License for the
-%% specific language governing permissions and limitations
-%% under the License.
-%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+
+
 %% @doc Erlang Wrapper for RocksDB
-%% @reference https://github.com/leo-project/erocksdb/blob/master/src/erocksdb.erl
-%% @end
-%%======================================================================
--module(erocksdb).
+-module(rocksdb).
 
 -export([open/2, open_with_cf/3, close/1]).
 -export([snapshot/1, release_snapshot/1]).
@@ -58,14 +53,14 @@ init() ->
                  {error, bad_name} ->
                      case code:which(?MODULE) of
                          Filename when is_list(Filename) ->
-                             filename:join([filename:dirname(Filename),"../priv", "erocksdb"]);
+                             filename:join([filename:dirname(Filename),"../priv", "rocksdb"]);
                          _ ->
-                             filename:join("../priv", "erocksdb")
+                             filename:join("../priv", "rocksdb")
                      end;
                  Dir ->
-                     filename:join(Dir, "erocksdb")
+                     filename:join(Dir, "rocksdb")
              end,
-    erlang:load_nif(SoName, application:get_all_env(erocksdb)).
+    erlang:load_nif(SoName, application:get_all_env(rocksdb)).
 
 -record(db_path, {path        :: file:filename_all(),
                   target_size :: non_neg_integer()}).

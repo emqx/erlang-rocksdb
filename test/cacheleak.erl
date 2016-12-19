@@ -47,13 +47,13 @@ cacheleak_loop(Count, Blobs, MaxFinalRSS) ->
     %% process to make sure everything got cleaned up as expected.
     F = fun() ->
 
-                {ok, Ref} = erocksdb:open("/tmp/erocksdb.cacheleak.test",
+                {ok, Ref} = rocksdb:open("/tmp/erocksdb.cacheleak.test",
                                           [{create_if_missing, true},
                                            {cache_size, 83886080}]),
-                [ok = erocksdb:put(Ref, I, B, []) || {I, B} <- Blobs],
-                erocksdb:fold(Ref, fun({_K, _V}, A) -> A end, [], [{fill_cache, true}]),
-                [{ok, B} = erocksdb:get(Ref, I, []) || {I, B} <- Blobs],
-                ok = erocksdb:close(Ref),
+                [ok = rocksdb:put(Ref, I, B, []) || {I, B} <- Blobs],
+                rocksdb:fold(Ref, fun({_K, _V}, A) -> A end, [], [{fill_cache, true}]),
+                [{ok, B} = rocksdb:get(Ref, I, []) || {I, B} <- Blobs],
+                ok = rocksdb:close(Ref),
                 erlang:garbage_collect(),
                 io:format(user, "RSS1: ~p\n", [rssmem()])
         end,

@@ -40,14 +40,14 @@ assumption_test() ->
         io:format(user, "assumption_test: bottom\n", []),
         ok
     after
-        erocksdb:close(DB),
+        rocksdb:close(DB),
         timer:sleep(500)
     end.
 
 %% Open/close
 open_close_test() ->
     DB = open(),
-    erocksdb:close(DB),
+    rocksdb:close(DB),
     check().
 
 %% Open w/o close
@@ -63,14 +63,14 @@ iterator_test() ->
     DB = open(),
     try
         write(100, DB),
-        {ok, Itr} = erocksdb:iterator(DB, []),
+        {ok, Itr} = rocksdb:iterator(DB, []),
         iterate(Itr),
-        erocksdb:iterator_close(Itr),
-        erocksdb:close(DB),
+        rocksdb:iterator_close(Itr),
+        rocksdb:close(DB),
         check(),
         ok
     after
-        catch erocksdb:close(DB),
+        catch rocksdb:close(DB),
         timer:sleep(500)
     end.
 
@@ -84,7 +84,7 @@ iterator_db_close_test() ->
         write(100, DB),
         Parent = self(),
         spawn_monitor(fun() ->
-                              {ok, Itr} = erocksdb:iterator(DB, []),
+                              {ok, Itr} = rocksdb:iterator(DB, []),
                               Parent ! continue,
                               try
                                   iterate(Itr, 10)
@@ -93,14 +93,14 @@ iterator_db_close_test() ->
                                       ok
                               end,
                               try
-                                  erocksdb:iterator_close(Itr)
+                                  rocksdb:iterator_close(Itr)
                               catch
                                   error:badarg ->
                                       ok
                               end
                       end),
         receive continue -> ok end,
-        erocksdb:close(DB),
+        rocksdb:close(DB),
         %%failed_open(),
         wait_down(),
         erlang:garbage_collect(),
@@ -108,7 +108,7 @@ iterator_db_close_test() ->
         check(),
         ok
     after
-        catch erocksdb:close(DB),
+        catch rocksdb:close(DB),
         timer:sleep(500)
     end.
 
@@ -118,14 +118,14 @@ iterator_exit_test() ->
     try
         write(100, DB),
         spawn_wait(fun() ->
-                           {ok, Itr} = erocksdb:iterator(DB, []),
+                           {ok, Itr} = rocksdb:iterator(DB, []),
                            iterate(Itr)
                    end),
-        erocksdb:close(DB),
+        rocksdb:close(DB),
         check(),
         ok
     after
-        catch erocksdb:close(DB),
+        catch rocksdb:close(DB),
         timer:sleep(500)
     end.
 
@@ -141,17 +141,17 @@ wait_down() ->
 check() ->
     timer:sleep(500),
     DB = open(),
-    erocksdb:close(DB),
+    rocksdb:close(DB),
     timer:sleep(500),
     ok.
 
 open() ->
-    {ok, Ref} = erocksdb:open(?COMMON_INSTANCE_DIR,
+    {ok, Ref} = rocksdb:open(?COMMON_INSTANCE_DIR,
                               [{create_if_missing, true}]),
     Ref.
 
 failed_open() ->
-    {error, {db_open, _}} = erocksdb:open(?COMMON_INSTANCE_DIR,
+    {error, {db_open, _}} = rocksdb:open(?COMMON_INSTANCE_DIR,
                                           [{create_if_missing, true}]),
     ok.
 
@@ -160,13 +160,13 @@ write(N, DB) ->
 write(Same, Same, _DB) ->
     ok;
 write(N, End, DB) ->
-    erocksdb:put(DB, <<N:64/integer>>, <<N:64/integer>>, []),
+    rocksdb:put(DB, <<N:64/integer>>, <<N:64/integer>>, []),
     write(N+1, End, DB).
 
 iterate(Itr) ->
     iterate(Itr, 0).
 iterate(Itr, Delay) ->
-    do_iterate(erocksdb:iterator_move(Itr, <<0:64/integer>>), {Itr, 0, Delay}).
+    do_iterate(rocksdb:iterator_move(Itr, <<0:64/integer>>), {Itr, 0, Delay}).
 
 do_iterate({error, invalid_iterator}, _) ->
     ok;
@@ -174,5 +174,5 @@ do_iterate({ok, K, _V}, {Itr, Expected, Delay}) ->
     <<N:64/integer>> = K,
     ?assertEqual(Expected, N),
     (Delay == 0) orelse timer:sleep(Delay),
-    do_iterate(erocksdb:iterator_move(Itr, next),
+    do_iterate(rocksdb:iterator_move(Itr, next),
                {Itr, Expected + 1, Delay}).

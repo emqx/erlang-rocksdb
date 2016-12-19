@@ -27,15 +27,15 @@
 
 prev_test() ->
     os:cmd("rm -rf ltest"),  % NOTE
-    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}]),
+    {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
     try
-      erocksdb:put(Ref, <<"a">>, <<"x">>, []),
-      erocksdb:put(Ref, <<"b">>, <<"y">>, []),
-      {ok, I} = erocksdb:iterator(Ref, []),
-        ?assertEqual({ok, <<"a">>, <<"x">>},erocksdb:iterator_move(I, <<>>)),
-        ?assertEqual({ok, <<"b">>, <<"y">>},erocksdb:iterator_move(I, next)),
-        ?assertEqual({ok, <<"a">>, <<"x">>},erocksdb:iterator_move(I, prev)),
-        ?assertEqual(ok, erocksdb:iterator_close(I))
+      rocksdb:put(Ref, <<"a">>, <<"x">>, []),
+      rocksdb:put(Ref, <<"b">>, <<"y">>, []),
+      {ok, I} = rocksdb:iterator(Ref, []),
+        ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
+        ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I, next)),
+        ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, prev)),
+        ?assertEqual(ok, rocksdb:iterator_close(I))
     after
-      erocksdb:close(Ref)
+      rocksdb:close(Ref)
     end.

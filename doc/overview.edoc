@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2012-2016 Benoît Chesneau
+%% Copyright 2016 Benoît Chesneau
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -26,15 +26,15 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 ### Examples
 
 ```
-{ok, Db} = erocksdb:open("path/for/rocksdb/storage", []),
-erocksdb:put(Db, <<"my key">>, <<"my value">>),
-case erocksdb:get(Db, <<"my key">>, []) of
+{ok, Db} = rocksdb:open("path/for/rocksdb/storage", []),
+rocksdb:put(Db, <<"my key">>, <<"my value">>),
+case rocksdb:get(Db, <<"my key">>, []) of
   {ok, Value} => io:format("retrieved value %p~n", [Value]);
   not_found => io:format("value not found~n", []);
   Error -> io:format("operational problem encountered: %p~n", [Error])
 end,
-erocksdb:close(Db),
-erocksdb:destroy(Db).
+rocksdb:close(Db),
+rocksdb:destroy(Db).
 '''
 
 # Features
