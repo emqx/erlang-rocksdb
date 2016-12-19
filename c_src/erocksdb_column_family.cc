@@ -98,7 +98,7 @@ AsyncCreateColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
       return enif_make_badarg(env);
 
     char cf_name[4096];
-    rocksdb::ColumnFamilyOptions *opts = new rocksdb::ColumnFamilyOptions;
+    rocksdb::ColumnFamilyOptions opts;
 
     if(!enif_get_string(env, argv[2], cf_name, sizeof(cf_name), ERL_NIF_LATIN1) ||
        !enif_is_list(env, argv[3]))
@@ -107,7 +107,7 @@ AsyncCreateColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     }
 
     ERL_NIF_TERM caller_ref = argv[0];
-    ERL_NIF_TERM result = fold(env, argv[2], parse_cf_option, *opts);
+    ERL_NIF_TERM result = fold(env, argv[2], parse_cf_option, opts);
     if (result != erocksdb::ATOM_OK)
     {
         return result;

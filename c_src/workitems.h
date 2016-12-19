@@ -212,13 +212,13 @@ class CreateColumnFamilyTask : public WorkTask
 protected:
 
     std::string         cf_name;
-    rocksdb::ColumnFamilyOptions  *cf_options;
+    rocksdb::ColumnFamilyOptions  cf_options;
     ReferencePtr<DbObject> m_DbPtr;
 
 public:
     CreateColumnFamilyTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
                          const std::string& cf_name_,
-                         rocksdb::ColumnFamilyOptions *cf_options_,
+                         rocksdb::ColumnFamilyOptions &cf_options_,
                          ReferencePtr<DbObject> DbPtr
                          )
                   : WorkTask(_caller_env, _caller_ref), cf_name(cf_name_), cf_options(cf_options_), m_DbPtr(DbPtr)
@@ -232,7 +232,7 @@ public:
         rocksdb::Status status;
         DbObject* db_ptr = m_DbPtr.get();
 
-        status = db_ptr->m_Db->CreateColumnFamily(*cf_options, cf_name, &handle);
+        status = db_ptr->m_Db->CreateColumnFamily(cf_options, cf_name, &handle);
         if (status.ok())
         {
             ColumnFamilyObject * handle_ptr = ColumnFamilyObject::CreateColumnFamilyObject(db_ptr, handle);
