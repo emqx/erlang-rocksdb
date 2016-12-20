@@ -336,7 +336,6 @@ DbObject::Shutdown()
     } while(again);
 
     // clean columns families
-    again = true;
     do {
         again = false;
         column_family_ptr = NULL;
@@ -360,7 +359,6 @@ DbObject::Shutdown()
     } while (again);
 
     // clean snapshots linked to the database object
-    again = true;
     do
     {
         again=false;
