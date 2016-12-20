@@ -174,9 +174,14 @@ public:
     virtual work_result operator()()
     {
         DbObject* db_ptr = m_DbPtr.get();
-        ErlRefObject::InitiateCloseRequest(db_ptr);
-        db_ptr = NULL;
-        return work_result(ATOM_OK);
+        m_DbPtr.assign(NULL);
+
+        if (NULL != db_ptr) {
+            ErlRefObject::InitiateCloseRequest(db_ptr);
+            db_ptr = NULL;
+            return work_result(ATOM_OK);
+        }
+        return work_result(local_env(), ATOM_ERROR, ATOM_BADARG);
     }   // operator()
 
 };  // class CloseTask
