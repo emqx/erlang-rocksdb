@@ -27,26 +27,16 @@
     #include "workitems.h"
 #endif
 
+#ifndef INCL_UTIL_H
+    #include "util.h"
+#endif
+#ifndef ATOMS_H
+    #include "atoms.h"
+#endif
+
+
 #include "rocksdb/cache.h"
 #include "rocksdb/filter_policy.h"
-
-// error_tuple duplicated in workitems.cc and erocksdb.cc ... how to fix?
-static ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error, rocksdb::Status& status)
-{
-    ERL_NIF_TERM reason = enif_make_string(env, status.ToString().c_str(),
-                                           ERL_NIF_LATIN1);
-    return enif_make_tuple2(env, erocksdb::ATOM_ERROR,
-                            enif_make_tuple2(env, error, reason));
-}
-
-
-static ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s)
-{
-    ERL_NIF_TERM result;
-    unsigned char* value = enif_make_new_binary(env, s.size(), &result);
-    memcpy(value, s.data(), s.size());
-    return result;
-}
 
 
 namespace erocksdb {
@@ -178,7 +168,7 @@ OpenTask::operator()()
     rocksdb::Status status = rocksdb::DB::Open(*options, db_name, &db);
 
     if(!status.ok())
-        return error_tuple(local_env(), ATOM_ERROR_DB_OPEN, status);
+        return work_result(local_env(), ATOM_ERROR_DB_OPEN, status);
 
     db_ptr=DbObject::CreateDbObject(db, options);
 

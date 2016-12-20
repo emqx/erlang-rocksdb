@@ -25,11 +25,11 @@ Vagrant.configure("2") do |config|
     box.vm.box = "freebsd/FreeBSD-10.3-STABLE"
     box.vm.synced_folder ".", "/vagrant", :nfs => true, id: "vagrant-root"
     box.vm.network "private_network", type: "dhcp"
-    box.ssh.shell = "sh" 
+    box.ssh.shell = "sh"
 
     # build everything after creating VM, skip using --no-provision
     box.vm.provision "shell", inline: <<-SCRIPT
-      pkg install -y gmake clang38 erlang
+      pkg install -y gmake gflags vim gcc48 erlang
     SCRIPT
 
   end
