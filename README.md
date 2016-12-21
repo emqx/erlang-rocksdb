@@ -11,15 +11,15 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 ### Examples
 
 ```
-{ok, Db} = erocksdb:open("path/for/rocksdb/storage", []),
-erocksdb:put(Db, <<"my key">>, <<"my value">>),
-case erocksdb:get(Db, <<"my key">>, []) of
+{ok, Db} = rocksdb:open("path/for/rocksdb/storage", []),
+rocksdb:put(Db, <<"my key">>, <<"my value">>),
+case rocksdb:get(Db, <<"my key">>, []) of
   {ok, Value} => io:format("retrieved value %p~n", [Value]);
   not_found => io:format("value not found~n", []);
   Error -> io:format("operational problem encountered: %p~n", [Error])
 end,
-erocksdb:close(Db),
-erocksdb:destroy(Db).
+rocksdb:close(Db),
+rocksdb:destroy(Db).
 ```
 
 # Features
@@ -40,6 +40,6 @@ This project is a fork of [erocksdb](https://github.com/leo-project/erocksdb) sp
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="http://gitlab.com/barrel-db/erocksdb/blob/column-families/doc/erocksdb.md" class="module">erocksdb</a></td></tr>
-<tr><td><a href="http://gitlab.com/barrel-db/erocksdb/blob/column-families/doc/erocksdb_bump.md" class="module">erocksdb_bump</a></td></tr></table>
+<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/rocksdb.md" class="module">rocksdb</a></td></tr>
+<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/rocksdb_bump.md" class="module">rocksdb_bump</a></td></tr></table>
 
