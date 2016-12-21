@@ -9,8 +9,11 @@ fi
 unset POSIX_SHELL # clear it so if we invoke other scripts, they run as ksh as well
 
 if [ `uname -s` = "FreeBSD" ]; then
-    export CXX="clang++38"
+    export CC="clang"
+    export CXX="clang++"
     export CFLAGS="$CFLAGS -D_GLIBCXX_USE_C99"
+    export CXXFLAGS="-std=c++11 -stdlib=libc++ -D_GLIBCXX_USE_C99"
+
 fi
 
 SCRIPTPATH=$( cd $(dirname $0) ; pwd -P )
