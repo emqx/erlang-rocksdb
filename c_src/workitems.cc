@@ -27,26 +27,16 @@
     #include "workitems.h"
 #endif
 
+#ifndef INCL_UTIL_H
+    #include "util.h"
+#endif
+#ifndef ATOMS_H
+    #include "atoms.h"
+#endif
+
+
 #include "rocksdb/cache.h"
 #include "rocksdb/filter_policy.h"
-
-// error_tuple duplicated in workitems.cc and erocksdb.cc ... how to fix?
-static ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error, rocksdb::Status& status)
-{
-    ERL_NIF_TERM reason = enif_make_string(env, status.ToString().c_str(),
-                                           ERL_NIF_LATIN1);
-    return enif_make_tuple2(env, erocksdb::ATOM_ERROR,
-                            enif_make_tuple2(env, error, reason));
-}
-
-
-static ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s)
-{
-    ERL_NIF_TERM result;
-    unsigned char* value = enif_make_new_binary(env, s.size(), &result);
-    memcpy(value, s.data(), s.size());
-    return result;
-}
 
 
 namespace erocksdb {
@@ -80,6 +70,26 @@ WorkTask::WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref)
 
 WorkTask::WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref, DbObject * DbPtr)
     : m_DbPtr(DbPtr), terms_set(false), resubmit_work(false)
+{
+    if (NULL!=caller_env)
+    {
+        local_env_ = enif_alloc_env();
+        caller_ref_term = enif_make_copy(local_env_, caller_ref);
+        caller_pid_term = enif_make_pid(local_env_, enif_self(caller_env, &local_pid));
+        terms_set=true;
+    }   // if
+    else
+    {
+        local_env_=NULL;
+        terms_set=false;
+    }   // else
+
+    return;
+
+}   // WorkTask::WorkTask
+
+WorkTask::WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref, DbObject * DbPtr, ColumnFamilyObject * CfPtr)
+    : m_DbPtr(DbPtr), m_CfPtr(CfPtr), terms_set(false), resubmit_work(false)
 {
     if (NULL!=caller_env)
     {
@@ -172,7 +182,62 @@ OpenTask::operator()()
 
 }   // OpenTask::operator()
 
+/**
+ * OpenCfTask functions
+ */
 
+OpenCfTask::OpenCfTask(
+    ErlNifEnv* caller_env,
+    ERL_NIF_TERM& _caller_ref,
+    const std::string& db_name_,
+    rocksdb::Options *options_,
+    std::vector<rocksdb::ColumnFamilyDescriptor> column_families_,
+    unsigned int num_cols_)
+    : WorkTask(caller_env, _caller_ref),
+    db_name(db_name_), options(options_), column_families(column_families_), num_cols(num_cols_)
+{
+}   // OpenTask::OpenTask
+
+
+work_result
+OpenCfTask::operator()()
+{
+    DbObject * db_ptr;
+    rocksdb::DB *db(0);
+
+    std::vector<rocksdb::ColumnFamilyHandle*> handles;
+
+    rocksdb::Status status = rocksdb::DB::Open(*options, db_name, column_families, &handles, &db);
+    if(!status.ok())
+      return error_tuple(local_env(), ATOM_ERROR_DB_OPEN, status);
+
+    // create db respirce
+    db_ptr = DbObject::CreateDbObject(db, options);
+    ERL_NIF_TERM result = enif_make_resource(local_env(), db_ptr);
+
+    // creare cf list
+    ERL_NIF_TERM cf_list = enif_make_list(local_env(), 0);
+    try {
+        for (unsigned int i = 0; i < num_cols; ++i)
+        {
+            ColumnFamilyObject * handle_ptr;
+            handle_ptr = ColumnFamilyObject::CreateColumnFamilyObject(db_ptr, handles[i]);
+            ERL_NIF_TERM cf = enif_make_resource(local_env(), handle_ptr);
+            enif_release_resource(handle_ptr);
+            handle_ptr = NULL;
+            cf_list = enif_make_list_cell(local_env(), cf, cf_list);
+        }
+    } catch (const std::exception& e) {
+        // pass through
+    }
+    // clear the automatic reference from enif_alloc_resource in CreateDbObject
+    enif_release_resource(db_ptr);
+
+    ERL_NIF_TERM cf_list_out;
+    enif_make_reverse_list(local_env(), cf_list, &cf_list_out);
+
+    return work_result(local_env(), ATOM_OK, result, cf_list_out);
+}   // OpenCfTask::operator()
 
 /**
  * MoveTask functions

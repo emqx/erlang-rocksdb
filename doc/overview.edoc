@@ -1,0 +1,54 @@
+%%==============================================================================
+%% Copyright 2016 Benoît Chesneau
+%%
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
+%%
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
+%%==============================================================================
+
+
+@copyright 2016 Benoît Chesneau.
+@version 0.6.0 Erlang wrapper for RocksDB.
+@title erlang-rocksdb - HTTP client library in Erlang
+
+@doc
+
+Feedback and pull requests welcome! If a particular feature of RocksDB is important to you, please let me know by opening an issue, and I'll prioritize it.
+
+### Examples
+
+```
+{ok, Db} = rocksdb:open("path/for/rocksdb/storage", []),
+rocksdb:put(Db, <<"my key">>, <<"my value">>),
+case rocksdb:get(Db, <<"my key">>, []) of
+  {ok, Value} => io:format("retrieved value %p~n", [Value]);
+  not_found => io:format("value not found~n", []);
+  Error -> io:format("operational problem encountered: %p~n", [Error])
+end,
+rocksdb:close(Db),
+rocksdb:destroy(Db).
+'''
+
+# Features
+
+- rocksdb 4.13  
+- all basics db operations
+- snapshots support
+- checkpoint support
+- column families support
+- Tested on macosx and 
+
+## Notes
+
+This project is a fork of [erocksdb](https://github.com/leo-project/erocksdb) sponsored by Enki Multimedia (https://enkim.eu).
+
+
+@end

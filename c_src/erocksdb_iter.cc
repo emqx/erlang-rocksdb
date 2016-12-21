@@ -17,7 +17,16 @@
 //
 // -------------------------------------------------------------------
 
+#include <new>
+#include <set>
+#include <stack>
+#include <deque>
+#include <sstream>
+#include <utility>
+#include <stdexcept>
+#include <algorithm>
 #include <vector>
+
 
 #include "erocksdb.h"
 
@@ -71,13 +80,12 @@ AsyncIterator(
 
     const bool keys_only = ((argc == 4) && (argv[3] == ATOM_KEYS_ONLY));
 
-    rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
+    rocksdb::ReadOptions opts;
 
     ReferencePtr<DbObject> db_ptr;
     db_ptr.assign(DbObject::RetrieveDbObject(env, dbh_ref));
 
-
-    if(NULL==db_ptr.get()
+    if(NULL==db_ptr.get() || 0!=db_ptr->m_CloseRequested
        || !enif_is_list(env, options_ref))
      {
         return enif_make_badarg(env);
@@ -89,7 +97,7 @@ AsyncIterator(
 
     ERL_NIF_TERM fold_result;
 
-    fold_result = fold(env, options_ref, parse_read_option, *opts);
+    fold_result = fold(env, options_ref, parse_read_option, opts);
     if(fold_result!=erocksdb::ATOM_OK)
         return enif_make_badarg(env);
 
@@ -98,7 +106,6 @@ AsyncIterator(
 
     // Now-boilerplate setup (we'll consolidate this pattern soon, I hope):
     erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-
     if(false == priv.thread_pool.submit(work_item))
     {
         delete work_item;
@@ -108,6 +115,53 @@ AsyncIterator(
     return ATOM_OK;
 
 }   // erocksdb::AsyncIterator
+
+ERL_NIF_TERM
+AsyncIterators(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    const ERL_NIF_TERM caller_ref  = argv[0];
+
+    const bool keys_only = ((argc == 5) && (argv[4] == ATOM_KEYS_ONLY));
+
+    ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[1], &db_ptr))
+        return enif_make_badarg(env);
+
+    if(NULL==db_ptr.get() || 0!=db_ptr->m_CloseRequested
+       ||!enif_is_list(env, argv[2]) || !enif_is_list(env, argv[3]))
+    {
+        return enif_make_badarg(env);
+    }
+
+    rocksdb::ReadOptions opts;
+    fold(env, argv[3], parse_read_option, opts);
+
+
+    std::vector<rocksdb::ColumnFamilyHandle*> column_families;
+    ERL_NIF_TERM head, tail = argv[2];
+    while(enif_get_list_cell(env, tail, &head, &tail))
+    {
+        ReferencePtr<ColumnFamilyObject> cf_ptr;
+        cf_ptr.assign(ColumnFamilyObject::RetrieveColumnFamilyObject(env, head));
+        ColumnFamilyObject* cf = cf_ptr.get();
+        column_families.push_back(cf->m_ColumnFamily);
+    }
+
+    erocksdb::WorkTask *work_item = new erocksdb::IteratorsTask(
+        env, caller_ref, db_ptr.get(), column_families, keys_only, opts);
+
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
+    if(false == priv.thread_pool.submit(work_item))
+    {
+        delete work_item;
+        return send_reply(env, caller_ref, enif_make_tuple2(env, ATOM_ERROR, caller_ref));
+    }   // if
+
+    return ATOM_OK;
+}
 
 ERL_NIF_TERM
 AsyncIteratorMove(
@@ -126,7 +180,7 @@ AsyncIteratorMove(
 
     itr_ptr.assign(ItrObject::RetrieveItrObject(env, itr_handle_ref));
 
-    if(NULL==itr_ptr.get())
+    if(NULL==itr_ptr.get() || 0!=itr_ptr->m_CloseRequested)
         return enif_make_badarg(env);
 
     // Reuse ref from iterator creation
@@ -268,18 +322,13 @@ AsyncIteratorClose(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    
-
     const ERL_NIF_TERM& caller_ref = argv[0];
-    const ERL_NIF_TERM& handle_ref = argv[1];
 
     ItrObject * itr_ptr;
-    itr_ptr=erocksdb::ItrObject::RetrieveItrObject(env, handle_ref, true);
+    itr_ptr=erocksdb::ItrObject::RetrieveItrObject(env, argv[1], true);
 
     if(NULL==itr_ptr)
-    {
-      return enif_make_badarg(env);
-    }
+        return enif_make_badarg(env);
 
     erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
     erocksdb::WorkTask* work_item = new erocksdb::CloseIteratorTask(env, caller_ref, itr_ptr);
@@ -288,9 +337,7 @@ AsyncIteratorClose(
         delete work_item;
         return send_reply(env,caller_ref, enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
     }
-
     return erocksdb::ATOM_OK;
 }   // erocksdb:AsyncIteratorClose
-
 
 }

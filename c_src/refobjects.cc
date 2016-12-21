@@ -295,8 +295,6 @@ DbObject::~DbObject()
         m_DbOptions = NULL;
     }   // if
 
-
-
     // do not clean up m_CloseMutex and m_CloseCond
 
     return;
@@ -309,6 +307,7 @@ DbObject::Shutdown()
 {
 #if 1
     bool again;
+    ColumnFamilyObject *column_family_ptr;
     ItrObject * itr_ptr;
     SnapshotObject * snapshot_ptr;
 
@@ -336,8 +335,30 @@ DbObject::Shutdown()
 
     } while(again);
 
+    // clean columns families
+    do {
+        again = false;
+        column_family_ptr = NULL;
+
+        // lock the SnapshotList
+        {
+            MutexLock lock(m_ColumnFamilyMutex);
+
+            if (!m_ColumnFamilyList.empty()) {
+                again = true;
+                column_family_ptr = m_ColumnFamilyList.front();
+                m_ColumnFamilyList.pop_front();
+            }   // if
+        }
+
+        // must be outside lock so SnapshotObject can attempt
+        //  RemoveReference
+        if (again)
+            ColumnFamilyObject::InitiateCloseRequest(column_family_ptr);
+
+    } while (again);
+
     // clean snapshots linked to the database object
-    again = true;
     do
     {
         again=false;
@@ -369,17 +390,35 @@ DbObject::Shutdown()
 
 }   // DbObject::Shutdown
 
+void
+DbObject::AddColumnFamilyReference(
+        ColumnFamilyObject *ColumnFamilyPtr) {
+    MutexLock lock(m_ColumnFamilyMutex);
+    m_ColumnFamilyList.push_back(ColumnFamilyPtr);
+    return;
+}   // DbObject::ColumnFamilyReference
+
 
 void
+DbObject::RemoveColumnFamilyReference(
+        ColumnFamilyObject *ColumnFamilyPtr) {
+    MutexLock lock(m_ColumnFamilyMutex);
+    m_ColumnFamilyList.remove(ColumnFamilyPtr);
+    return;
+}   // DbObject::RemoveColumnFamilyReference
+
+bool
 DbObject::AddReference(
     ItrObject * ItrPtr)
 {
+    bool ret_flag;
     MutexLock lock(m_ItrMutex);
+    
+    ret_flag=(0==m_CloseRequested);
+    if (ret_flag)
+        m_ItrList.push_back(ItrPtr);
 
-    m_ItrList.push_back(ItrPtr);
-
-    return;
-
+    return(ret_flag);
 }   // DbObject::AddReference
 
 
@@ -388,9 +427,7 @@ DbObject::RemoveReference(
     ItrObject * ItrPtr)
 {
     MutexLock lock(m_ItrMutex);
-
     m_ItrList.remove(ItrPtr);
-
     return;
 
 }   // DbObject::RemoveReference
@@ -400,9 +437,7 @@ DbObject::AddSnapshotReference(
     SnapshotObject * SnapshotPtr)
 {
     MutexLock lock(m_SnapshotMutex);
-
     m_SnapshotList.push_back(SnapshotPtr);
-
     return;
 
 }   // DbObject::AddSnapshotReference
@@ -420,6 +455,106 @@ DbObject::RemoveSnapshotReference(
 
 }   // DbObject::RemoveSnapshotReference
 
+/**
+* ColumnFamily object
+*/
+
+ErlNifResourceType *ColumnFamilyObject::m_ColumnFamily_RESOURCE(NULL);
+
+
+void
+ColumnFamilyObject::CreateColumnFamilyObjectType(
+        ErlNifEnv *Env) {
+    ErlNifResourceFlags flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
+
+    m_ColumnFamily_RESOURCE = enif_open_resource_type(Env, NULL, "erocksdb_ColumnFamilyObject",
+                                                      &ColumnFamilyObject::ColumnFamilyObjectResourceCleanup,
+                                                      flags, NULL);
+    return;
+
+}   // ColumnFamilyObject::CreateSnapshotObjectType
+
+
+ColumnFamilyObject *
+ColumnFamilyObject::CreateColumnFamilyObject(
+        DbObject *DbPtr,
+        rocksdb::ColumnFamilyHandle *Handle) {
+    ColumnFamilyObject *ret_ptr;
+    void *alloc_ptr;
+
+    // the alloc call initializes the reference count to "one"
+    alloc_ptr = enif_alloc_resource(m_ColumnFamily_RESOURCE, sizeof(ColumnFamilyObject));
+    ret_ptr = new(alloc_ptr) ColumnFamilyObject(DbPtr, Handle);
+
+    // manual reference increase to keep active until "close" called
+    //  only inc local counter
+    ret_ptr->RefInc();
+
+    // see IterTask::operator() for release of reference count
+
+    return (ret_ptr);
+
+}   // ColumnFamilyObject::ColumnFamilySnapshotObject
+
+
+ColumnFamilyObject *
+ColumnFamilyObject::RetrieveColumnFamilyObject(
+        ErlNifEnv *Env,
+        const ERL_NIF_TERM &ColumnFamilyTerm) {
+    ColumnFamilyObject *ret_ptr;
+
+    ret_ptr = NULL;
+
+    if (enif_get_resource(Env, ColumnFamilyTerm, m_ColumnFamily_RESOURCE, (void **) &ret_ptr)) {
+        // has close been requested?
+        if (ret_ptr->m_CloseRequested) {
+            // object already closing
+            ret_ptr = NULL;
+        }   // else
+    }   // if
+
+    return (ret_ptr);
+
+}   // ColumnFamilyObject::RetrieveColumnFamilyObject
+
+
+void
+ColumnFamilyObject::ColumnFamilyObjectResourceCleanup(
+        ErlNifEnv *Env,
+        void *Arg) {
+    ColumnFamilyObject *handle_ptr;
+    handle_ptr = (ColumnFamilyObject *) Arg;
+    // vtable for snapshot_ptr could be invalid if close already
+    //  occurred
+    InitiateCloseRequest(handle_ptr);
+    // YES this can be called after snapshot_ptr destructor.  Don't panic.
+    AwaitCloseAndDestructor(handle_ptr);
+    return;
+}   // ColumnFamilyObject::ColumnFamilyObjectResourceCleanup
+
+
+ColumnFamilyObject::ColumnFamilyObject(
+        DbObject *DbPtr,
+        rocksdb::ColumnFamilyHandle *Handle)
+        : m_ColumnFamily(Handle), m_DbPtr(DbPtr) {
+    if (NULL != DbPtr)
+        DbPtr->AddColumnFamilyReference(this);
+}   // ColumnFamilyObject::ColumnFamilyObject
+
+
+ColumnFamilyObject::~ColumnFamilyObject() {
+    m_ColumnFamily = NULL;
+    if (NULL != m_DbPtr.get())
+        m_DbPtr->RemoveColumnFamilyReference(this);
+    return;
+}   // ColumnFamilyObject::~ColumnFamilyObject
+
+
+void
+ColumnFamilyObject::Shutdown() {
+    RefDec();
+    return;
+}   // ColumnFamilyObject::CloseRequest
 
 /**
  * snapshot object
@@ -576,7 +711,7 @@ ItrObject *
 ItrObject::CreateItrObject(
     DbObject * DbPtr,
     bool KeysOnly,
-    rocksdb::ReadOptions * Options)
+    rocksdb::ReadOptions & Options)
 {
     ItrObject * ret_ptr;
     void * alloc_ptr;
@@ -611,7 +746,6 @@ ItrObject::RetrieveItrObject(
         // has close been requested?
         if (ret_ptr->m_CloseRequested
             || (!ItrClosing && ret_ptr->m_DbPtr->m_CloseRequested))
-
         {
             // object already closing
             ret_ptr=NULL;
@@ -647,12 +781,11 @@ ItrObject::ItrObjectResourceCleanup(
 ItrObject::ItrObject(
     DbObject * DbPtr,
     bool KeysOnly,
-    rocksdb::ReadOptions * Options)
+    rocksdb::ReadOptions & Options)
     : keys_only(KeysOnly), m_ReadOptions(Options), reuse_move(NULL), m_DbPtr(DbPtr)
 {
     if (NULL!=DbPtr)
         DbPtr->AddReference(this);
-
 }   // ItrObject::ItrObject
 
 
@@ -662,13 +795,10 @@ ItrObject::~ItrObject()
     //  block destruction
     ReleaseReuseMove();
 
-    delete m_ReadOptions;
-
     if (NULL!=m_DbPtr.get())
         m_DbPtr->RemoveReference(this);
 
     // do not clean up m_CloseMutex and m_CloseCond
-
     return;
 
 }   // ItrObject::~ItrObject

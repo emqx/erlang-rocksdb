@@ -14,13 +14,13 @@
 
 
 basic_test() ->
-  {ok, Db} = erocksdb:open("test", [{in_memory, true}], []),
-  ok = erocksdb:put(Db, <<"a">>, <<"1">>, []),
-  ?assertEqual({ok, <<"1">>}, erocksdb:get(Db, <<"a">>, [])),
-  {ok, Db1} = erocksdb:open("test1", [{in_memory, true}], []),
-  ok = erocksdb:put(Db1, <<"a">>, <<"2">>, []),
-  ?assertEqual({ok, <<"1">>}, erocksdb:get(Db, <<"a">>, [])),
-  ?assertEqual({ok, <<"2">>}, erocksdb:get(Db1, <<"a">>, [])),
-  ok = erocksdb:close(Db),
-  ok = erocksdb:close(Db1),
+  {ok, Db} = rocksdb:open("test", [{in_memory, true}]),
+  ok = rocksdb:put(Db, <<"a">>, <<"1">>, []),
+  ?assertEqual({ok, <<"1">>}, rocksdb:get(Db, <<"a">>, [])),
+  {ok, Db1} = rocksdb:open("test1", [{in_memory, true}]),
+  ok = rocksdb:put(Db1, <<"a">>, <<"2">>, []),
+  ?assertEqual({ok, <<"1">>}, rocksdb:get(Db, <<"a">>, [])),
+  ?assertEqual({ok, <<"2">>}, rocksdb:get(Db1, <<"a">>, [])),
+  ok = rocksdb:close(Db),
+  ok = rocksdb:close(Db1),
   ok.

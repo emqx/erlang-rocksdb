@@ -38,12 +38,11 @@
 ERL_NIF_TERM error_einval(ErlNifEnv* env);
 ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error,
 rocksdb::Status& status);
-
 ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s);
-
 ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply);
 
 int enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::DbObject>* db_ptr);
+int enif_get_cf(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::ColumnFamilyObject>* cf_ptr);
 
 
 #endif

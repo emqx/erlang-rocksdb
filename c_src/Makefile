@@ -5,8 +5,7 @@
 CURDIR := $(shell pwd)
 BASEDIR := $(abspath $(CURDIR)/..)
 
-PROJECT ?= $(notdir $(BASEDIR))
-PROJECT := $(strip $(PROJECT))
+PROJECT := rocksdb
 
 ERTS_INCLUDE_DIR ?= $(shell erl -noshell -s init stop -eval "io:format(\"~s/erts-~s/include/\", [code:root_dir(), erlang:system_info(version)]).")
 ERL_INTERFACE_INCLUDE_DIR ?= $(shell erl -noshell -s init stop -eval "io:format(\"~s\", [code:lib_dir(erl_interface, include)]).")
@@ -24,12 +23,12 @@ ifeq ($(UNAME_SYS), Darwin)
 	CXXFLAGS ?= -O3 -arch x86_64 -Wall
 	LDFLAGS ?= -arch x86_64 -flat_namespace -undefined suppress
 else ifeq ($(UNAME_SYS), FreeBSD)
-	CC = c++48
-	CXX = c++48
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
+	CC = clang
+	CXX = clang++
+	CFLAGS ?= -O3 -std=c99 -Wall -Wmissing-prototypes 
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O3 -finline-functions -Wall
-	CXXFLAGS += -D_GCLIBCXX_USE_C99
+	CXXFLAGS ?= -O3 -Wall
+	CXXFLAGS += -std=c++11 -stdlib=libc++ -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), OpenBsd)
 	CC = c++48
 	CXX = c++48

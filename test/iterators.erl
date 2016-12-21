@@ -26,15 +26,16 @@
 -include_lib("eunit/include/eunit.hrl").
 
 prev_test() ->
-    os:cmd("rm -rf ltest"),  % NOTE
-    {ok, Ref} = erocksdb:open("ltest", [{create_if_missing, true}], []),
-    try
-      erocksdb:put(Ref, <<"a">>, <<"x">>, []),
-      erocksdb:put(Ref, <<"b">>, <<"y">>, []),
-      {ok, I} = erocksdb:iterator(Ref, []),
-        ?assertEqual({ok, <<"a">>, <<"x">>},erocksdb:iterator_move(I, <<>>)),
-        ?assertEqual({ok, <<"b">>, <<"y">>},erocksdb:iterator_move(I, next)),
-        ?assertEqual({ok, <<"a">>, <<"x">>},erocksdb:iterator_move(I, prev))
-    after
-      erocksdb:close(Ref)
-    end.
+  os:cmd("rm -rf ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
+  try
+    rocksdb:put(Ref, <<"a">>, <<"x">>, []),
+    rocksdb:put(Ref, <<"b">>, <<"y">>, []),
+    {ok, I} = rocksdb:iterator(Ref, []),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
+    ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I, next)),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, prev)),
+    ?assertEqual(ok, rocksdb:iterator_close(I))
+  after
+    rocksdb:close(Ref)
+  end.

@@ -180,8 +180,11 @@ public:
 
     Mutex m_ItrMutex;                         //!< mutex protecting m_ItrList
     Mutex m_SnapshotMutex;                    //!< mutext protecting m_SnapshotList
+    Mutex m_ColumnFamilyMutex;                //!< mutex ptotecting m_ColumnFamily
+
     std::list<class ItrObject *> m_ItrList;   //!< ItrObjects holding ref count to this
     std::list<class SnapshotObject *> m_SnapshotList;
+    std::list<class ColumnFamilyObject *> m_ColumnFamilyList;
 
 protected:
     static ErlNifResourceType* m_Db_RESOURCE;
@@ -193,8 +196,14 @@ public:
 
     virtual void Shutdown();
 
+    // manual back link to Snapshot ColumnFamilyObject holding reference to this
+    void AddColumnFamilyReference(class ColumnFamilyObject *);
+
+    void RemoveColumnFamilyReference(class ColumnFamilyObject *);
+
+
     // manual back link to ItrObjects holding reference to this
-    void AddReference(class ItrObject *);
+    bool AddReference(class ItrObject *);
 
     void RemoveReference(class ItrObject *);
 
@@ -217,6 +226,38 @@ private:
     DbObject& operator=(const DbObject&);   // nocopyassign
 };  // class DbObject
 
+/**
+ * Per ColumnFamilyObject object.  Created as erlang reference.
+ */
+class ColumnFamilyObject : public ErlRefObject
+{
+public:
+    rocksdb::ColumnFamilyHandle* m_ColumnFamily;
+    ReferencePtr<DbObject> m_DbPtr;
+
+protected:
+    static ErlNifResourceType* m_ColumnFamily_RESOURCE;
+
+public:
+    ColumnFamilyObject(DbObject * Db, rocksdb::ColumnFamilyHandle* Handle);
+
+    virtual ~ColumnFamilyObject(); // needs to perform free_itr
+
+    virtual void Shutdown();
+
+    static void CreateColumnFamilyObjectType(ErlNifEnv * Env);
+
+    static ColumnFamilyObject * CreateColumnFamilyObject(DbObject * Db, rocksdb::ColumnFamilyHandle* m_ColumnFamily);
+
+    static ColumnFamilyObject * RetrieveColumnFamilyObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
+
+    static void ColumnFamilyObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
+
+private:
+    ColumnFamilyObject();
+    ColumnFamilyObject(const ColumnFamilyObject &);            // no copy
+    ColumnFamilyObject & operator=(const ColumnFamilyObject &); // no assignment
+};  // class ColumnFamilyObject
 
 /**
  * Per Snapshot object.  Created as erlang reference.
@@ -283,10 +324,10 @@ public:
 
     virtual ~RocksIteratorWrapper()
     {
-        if (NULL!=itr_ref_env)
+        if (NULL!=itr_ref_env) {
             enif_free_env(itr_ref_env);
-
-
+            itr_ref_env = NULL;
+        }
 
         if (NULL!=m_Iterator)
         {
@@ -318,7 +359,7 @@ public:
     ReferencePtr<RocksIteratorWrapper> m_Iter;
 
     bool keys_only;
-    rocksdb::ReadOptions * m_ReadOptions;
+    rocksdb::ReadOptions m_ReadOptions;
 
     volatile class MoveTask * reuse_move;//!< iterator work object that is reused instead of lots malloc/free
 
@@ -329,7 +370,7 @@ protected:
     static ErlNifResourceType* m_Itr_RESOURCE;
 
 public:
-    ItrObject(DbObject *, bool, rocksdb::ReadOptions *);
+    ItrObject(DbObject *, bool, rocksdb::ReadOptions &);
 
     virtual ~ItrObject(); // needs to perform free_itr
 
@@ -338,7 +379,7 @@ public:
     static void CreateItrObjectType(ErlNifEnv * Env);
 
     static ItrObject * CreateItrObject(DbObject * Db, bool KeysOnly,
-                                       rocksdb::ReadOptions * Options);
+                                       rocksdb::ReadOptions & Options);
 
     static ItrObject * RetrieveItrObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm,
                                          bool ItrClosing=false);

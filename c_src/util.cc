@@ -77,3 +77,14 @@ enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb:
 
     return 1;
 }
+
+int
+enif_get_cf(ErlNifEnv* env, ERL_NIF_TERM cfval, erocksdb::ReferencePtr<erocksdb::ColumnFamilyObject>* cf_ptr)
+{
+    cf_ptr->assign(erocksdb::ColumnFamilyObject::RetrieveColumnFamilyObject(env, cfval));
+
+    if(NULL==cf_ptr->get())
+        return 0;
+
+    return 1;
+}

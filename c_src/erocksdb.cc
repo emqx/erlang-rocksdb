@@ -57,12 +57,22 @@ static ErlNifFunc nif_funcs[] =
 {
 
 
-  {"async_open", 4, erocksdb::AsyncOpen},
+  {"async_open", 3, erocksdb::AsyncOpen},
+  {"async_open_with_cf", 4, erocksdb::AsyncOpenWithCf},
   {"async_close", 2, erocksdb::AsyncClose},
+  {"get_property", 2, erocksdb::GetProperty},
+  {"get_property", 3, erocksdb::GetProperty},
+  {"async_destroy", 3, erocksdb::AsyncDestroy},
+
+  // column families
+  {"async_list_column_families", 3, erocksdb::AsyncListColumnFamilies},
+  {"async_create_column_family", 4, erocksdb::AsyncCreateColumnFamily},
+  {"async_drop_column_family", 2, erocksdb::AsyncDropColumnFamily},
 
   // kv operations
   {"async_write", 4, erocksdb::AsyncWrite},
   {"async_get", 4, erocksdb::AsyncGet},
+  {"async_get", 5, erocksdb::AsyncGet},
 
   {"async_snapshot", 2, erocksdb::AsyncSnapshot},
   {"async_release_snapshot", 2, erocksdb::AsyncReleaseSnapshot},
@@ -72,9 +82,10 @@ static ErlNifFunc nif_funcs[] =
   {"async_iterator", 4, erocksdb::AsyncIterator},
   {"async_iterator_move", 3, erocksdb::AsyncIteratorMove},
   {"async_iterator_close", 2, erocksdb::AsyncIteratorClose},
+  {"async_iterators", 4, erocksdb::AsyncIterators},
+  {"async_iterators", 5, erocksdb::AsyncIterators},
 
-  {"status", 2, erocksdb::Status},
-  {"async_destroy", 3, erocksdb::AsyncDestroy},
+  // db management
   {"async_checkpoint", 3, erocksdb::AsyncCheckpoint},
   {"async_repair", 3, erocksdb::AsyncRepair},
   {"async_is_empty", 2, erocksdb::AsyncIsEmpty},
@@ -290,13 +301,13 @@ static int on_upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data, ER
 static int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 try
 {
-  int ret_val;
-
-  ret_val=0;
   *priv_data = NULL;
+
+  rocksdb::Env::Default();
 
   // inform erlang of our two resource types
   erocksdb::DbObject::CreateDbObjectType(env);
+  erocksdb::ColumnFamilyObject::CreateColumnFamilyObjectType(env);
   erocksdb::ItrObject::CreateItrObjectType(env);
   erocksdb::SnapshotObject::CreateSnapshotObjectType(env);
 
@@ -489,5 +500,5 @@ catch(...)
 }
 
 extern "C" {
-    ERL_NIF_INIT(erocksdb, nif_funcs, &on_load, NULL, &on_upgrade, &on_unload);
+    ERL_NIF_INIT(rocksdb, nif_funcs, &on_load, NULL, &on_upgrade, &on_unload);
 }
