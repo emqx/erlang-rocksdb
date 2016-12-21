@@ -1,6 +1,6 @@
 
 
-# Module erocksdb_bump #
+# Module rocksdb_bump #
 * [Function Index](#index)
 * [Function Details](#functions)
 

@@ -1,14 +1,12 @@
 
 
-# Module erocksdb #
+# Module rocksdb #
 * [Description](#description)
 * [Data Types](#types)
 * [Function Index](#index)
 * [Function Details](#functions)
 
 Erlang Wrapper for RocksDB.
-
-__References__* https://github.com/leo-project/erocksdb/blob/master/src/erocksdb.erl
 
 <a name="types"></a>
 
