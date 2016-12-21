@@ -1,6 +1,6 @@
 
 
-# erlang-rocksdb - HTTP client library in Erlang #
+# erlang-rocksdb - Erlang wrapper for RocksDB. #
 
 Copyright (c) 2016 Benoît Chesneau.
 
