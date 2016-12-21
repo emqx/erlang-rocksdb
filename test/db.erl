@@ -25,12 +25,12 @@ fold_test_Z() ->
   ok = rocksdb:put(Ref, <<"abc">>, <<"123">>, []),
   ok = rocksdb:put(Ref, <<"hij">>, <<"789">>, []),
   [{<<"abc">>, <<"123">>},
-    {<<"def">>, <<"456">>},
-    {<<"hij">>, <<"789">>}] = lists:reverse(rocksdb:fold(Ref,
-    fun({K, V}, Acc) ->
-      [{K, V} | Acc]
-    end,
-    [], [])).
+  {<<"def">>, <<"456">>},
+  {<<"hij">>, <<"789">>}] = lists:reverse(rocksdb:fold(Ref,
+  fun({K, V}, Acc) ->
+    [{K, V} | Acc]
+  end,
+  [], [])).
 
 fold_keys_test() -> [{fold_keys_test_Z(), l} || l <- lists:seq(1, 20)].
 fold_keys_test_Z() ->
@@ -40,8 +40,8 @@ fold_keys_test_Z() ->
   ok = rocksdb:put(Ref, <<"abc">>, <<"123">>, []),
   ok = rocksdb:put(Ref, <<"hij">>, <<"789">>, []),
   [<<"abc">>, <<"def">>, <<"hij">>] = lists:reverse(rocksdb:fold_keys(Ref,
-    fun(K, Acc) -> [K | Acc] end,
-    [], [])).
+  fun(K, Acc) -> [K | Acc] end,
+  [], [])).
 
 destroy_test() -> [{destroy_test_Z(), l} || l <- lists:seq(1, 20)].
 destroy_test_Z() ->
@@ -59,20 +59,20 @@ compression_test_Z() ->
   os:cmd("rm -rf /tmp/erocksdb.compress.0 /tmp/erocksdb.compress.1"),
   {ok, Ref0} = rocksdb:open("/tmp/erocksdb.compress.0", [{create_if_missing, true}, {compression, none}]),
   [ok = rocksdb:put(Ref0, <<I:64/unsigned>>, CompressibleData, [{sync, true}]) ||
-    I <- lists:seq(1,10)],
+  I <- lists:seq(1,10)],
   {ok, Ref1} = rocksdb:open("/tmp/erocksdb.compress.1", [{create_if_missing, true}, {compression, snappy}]),
   [ok = rocksdb:put(Ref1, <<I:64/unsigned>>, CompressibleData, [{sync, true}]) ||
-    I <- lists:seq(1,10)],
+  I <- lists:seq(1,10)],
   %% Check both of the LOG files created to see if the compression option was correctly
   %% passed down
   MatchCompressOption =
-    fun(File, Expected) ->
-      {ok, Contents} = file:read_file(File),
-      case re:run(Contents, "Options.compression: " ++ Expected) of
-        {match, _} -> match;
-        nomatch -> nomatch
-      end
-    end,
+  fun(File, Expected) ->
+    {ok, Contents} = file:read_file(File),
+    case re:run(Contents, "Options.compression: " ++ Expected) of
+    {match, _} -> match;
+    nomatch -> nomatch
+    end
+  end,
   Log0Option = MatchCompressOption("/tmp/erocksdb.compress.0/LOG", "0"),
   Log1Option = MatchCompressOption("/tmp/erocksdb.compress.1/LOG", "1"),
   ?assert(Log0Option =:= match andalso Log1Option =:= match).
@@ -90,4 +90,4 @@ close_fold_test_Z() ->
   {ok, Ref} = rocksdb:open("/tmp/erocksdb.close_fold.test", [{create_if_missing, true}], []),
   ok = rocksdb:put(Ref, <<"k">>,<<"v">>,[]),
   ?assertException(throw, {iterator_closed, ok}, % ok is returned by close as the acc
-    rocksdb:fold(Ref, fun(_,_A) -> rocksdb:close(Ref) end, undefined, [])).
+  rocksdb:fold(Ref, fun(_,_A) -> rocksdb:close(Ref) end, undefined, [])).

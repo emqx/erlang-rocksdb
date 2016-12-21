@@ -168,7 +168,7 @@ OpenTask::operator()()
     rocksdb::Status status = rocksdb::DB::Open(*options, db_name, &db);
 
     if(!status.ok())
-        return work_result(local_env(), ATOM_ERROR_DB_OPEN, status);
+        return error_tuple(local_env(), ATOM_ERROR_DB_OPEN, status);
 
     db_ptr=DbObject::CreateDbObject(db, options);
 
@@ -209,7 +209,7 @@ OpenCfTask::operator()()
 
     rocksdb::Status status = rocksdb::DB::Open(*options, db_name, column_families, &handles, &db);
     if(!status.ok())
-      return work_result(local_env(), ATOM_ERROR_DB_OPEN, status);
+      return error_tuple(local_env(), ATOM_ERROR_DB_OPEN, status);
 
     // create db respirce
     db_ptr = DbObject::CreateDbObject(db, options);
