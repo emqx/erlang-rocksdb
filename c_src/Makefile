@@ -28,14 +28,14 @@ else ifeq ($(UNAME_SYS), FreeBSD)
 	CFLAGS ?= -O3 -std=c99 -Wall -Wmissing-prototypes 
 	CFLAGS += -D_GCLIBCXX_USE_C99
 	CXXFLAGS ?= -O3 -Wall
-	CXXFLAGS += -std=c++11 -stdlib=libc++ -D_GCLIBCXX_USE_C99
-else ifeq ($(UNAME_SYS), OpenBsd)
-	CC = c++48
-	CXX = c++48
+	CXXFLAGS += -std=c++11 -stdlib=lstc++ -D_GCLIBCXX_USE_C99
+else ifeq ($(UNAME_SYS), OpenBSD)
+	CC = egcc 
+	CXX = eg++ 
 	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O3 -finline-functions -Wall
-	CXXFLAGS += -D_GCLIBCXX_USE_C99
+	CXXFLAGS ?= -O3 -Wall
+	CXXFLAGS += -std=c++11 -pthread -finline-functions -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), DragonFly)
 	CC = c++48
 	CXX = c++48
@@ -70,10 +70,15 @@ ROCKSDB_PLATFORM_LDFLAGS=$(shell cat rocksdb/make_config.mk | grep PLATFORM_LDFL
 CFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include
 CXXFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include -std=c++11
 
-LDLIBS += -L $(ERL_INTERFACE_LIB_DIR) -lerl_interface -lei -lstdc++ $(ROCKSDBLIBS)
-LDFLAGS += -shared
+LDLIBS += -L $(ERL_INTERFACE_LIB_DIR) -lerl_interface -lei
+ifeq ($(UNAME_SYS), OpenBSD)
+	LDLIBS += -lestdc++
+else
+	LDLIBS += -lstdc++
+endif
+LDLIBS += $(ROCKSDBLIBS)
 
-LDFLAGS += $(ROCKSDB_PLATFORM_LDFLAGS)
+LDFLAGS += -shared $(ROCKSDB_PLATFORM_LDFLAGS)
 
 # Verbosity.
 
