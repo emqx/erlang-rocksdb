@@ -16,13 +16,20 @@ if [ `uname -s` = "FreeBSD" ]; then
 
 fi
 
+if [ `uname -s` = "OpenBSD" ]; then
+    export CC="egcc"
+    export CXX="eg++"
+    export CFLAGS="$CFLAGS -D_GLIBCXX_USE_C99"
+    export CXXFLAGS="-std=c++11 -pthread -D_GLIBCXX_USE_C99"
+fi
+
 SCRIPTPATH=$( cd $(dirname $0) ; pwd -P )
 SCRIPT=$SCRIPTPATH/${0##*/}
 BASEDIR=$SCRIPTPATH
 BUILD_CONFIG=$BASEDIR/rocksdb/make_config.mk
 
 ROCKSDB_VSN="4.13"
-SNAPPY_VSN="1.1.1"
+SNAPPY_VSN="1.1.3"
 
 set -e
 
@@ -70,27 +77,36 @@ case "$1" in
             curl -L -o $ROCKSDBTARGZ $ROCKSDBURL
             tar -xzf $ROCKSDBTARGZ
             mv rocksdb-v$ROCKSDB_VSN-* rocksdb
+            patch -p0 < rocksdb-util-env_posix.cc.patch
         fi
         ;;
 
     *)
         if [ ! -d snappy-$SNAPPY_VSN ]; then
             tar -xzf snappy-$SNAPPY_VSN.tar.gz
-            (cd snappy-$SNAPPY_VSN && ./configure --prefix=$BASEDIR/system --libdir=$BASEDIR/system/lib --with-pic)
+            (cd snappy-$SNAPPY_VSN && ./configure --prefix=$BASEDIR/system --libdir=$BASEDIR/system/lib --with-pic --disable-gtest)
         fi
 
         if [ ! -f system/lib/libsnappy.a ]; then
             (cd snappy-$SNAPPY_VSN && $MAKE && $MAKE install)
         fi
 
-        export CFLAGS="$CFLAGS -I $BASEDIR/system/include"
-        export CXXFLAGS="$CXXFLAGS -I $BASEDIR/system/include"
+        export CXXFLAGS="-std=c++11 -pthread -D_GLIBCXX_USE_C99"
+        export CFLAGS="$CFLAGS -I$BASEDIR/system/include"
         export LDFLAGS="$LDFLAGS -L$BASEDIR/system/lib"
         export LD_LIBRARY_PATH="$BASEDIR/system/lib:$LD_LIBRARY_PATH"
 
+        if [ `uname -s` = "OpenBSD" ]; then
+            export CXXFLAGS="$CXXFLAGS -DOS_OPENBSD"
+            export CFLAGS="$CFLAGS -DOS_OPENBSD"
+            export LDFLAGS="$LDFLAGS -lstdc++"
+            export CPPFLAGS="-DOS_OPENBSD"
+        fi
+	    export CXXFLAGS="$CXXFLAGS -fPIC -I$BASEDIR/system/include"
+
         sh $SCRIPT get-deps
         if [ ! -f rocksdb/librocksdb.a ]; then
-            (cd rocksdb && CXXFLAGS=-fPIC PORTABLE=1 $MAKE -j 3 static_lib)
+            (cd rocksdb && CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE -j 3 static_lib)
         fi
         ;;
 esac
