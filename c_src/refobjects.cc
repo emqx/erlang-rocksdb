@@ -635,8 +635,8 @@ SnapshotObject::SnapshotObjectResourceCleanup(
 
     snapshot_ptr=(SnapshotObject *)Arg;
 
-    if(NULL!=snapshot_ptr->m_Snapshot)
-        snapshot_ptr->m_DbPtr->m_Db->ReleaseSnapshot(snapshot_ptr->m_Snapshot);
+//    if(NULL!=snapshot_ptr->m_Snapshot)
+//        snapshot_ptr->m_DbPtr->m_Db->ReleaseSnapshot(snapshot_ptr->m_Snapshot);
 
     // vtable for snapshot_ptr could be invalid if close already
     //  occurred
