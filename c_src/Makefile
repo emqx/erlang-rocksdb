@@ -28,7 +28,7 @@ else ifeq ($(UNAME_SYS), FreeBSD)
 	CFLAGS ?= -O3 -std=c99 -Wall -Wmissing-prototypes 
 	CFLAGS += -D_GCLIBCXX_USE_C99
 	CXXFLAGS ?= -O3 -Wall
-	CXXFLAGS += -std=c++11 -stdlib=lstc++ -D_GCLIBCXX_USE_C99
+	CXXFLAGS += -std=c++11 -stdlib=libc++ -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), OpenBSD)
 	CC = egcc 
 	CXX = eg++ 
