@@ -438,10 +438,12 @@ public:
     {
         SnapshotObject* snapshot = m_SnapshotPtr.get();
 
-        snapshot->m_DbPtr->m_Db->ReleaseSnapshot(snapshot->m_Snapshot);
+        //snapshot->m_DbPtr->m_Db->ReleaseSnapshot(snapshot->m_Snapshot);
 
         // set closing flag
         ErlRefObject::InitiateCloseRequest(snapshot);
+
+        m_SnapshotPtr = NULL;
 
         return work_result(ATOM_OK);
 
