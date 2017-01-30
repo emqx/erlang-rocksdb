@@ -666,9 +666,6 @@ SnapshotObject::~SnapshotObject()
 
     if (NULL!=m_DbPtr.get())
     {
-        if(NULL!=m_Snapshot)
-            m_DbPtr->m_Db->ReleaseSnapshot(m_Snapshot);
-
         m_DbPtr->RemoveSnapshotReference(this);
     }
 

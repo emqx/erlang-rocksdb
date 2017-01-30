@@ -436,17 +436,15 @@ public:
 
     virtual work_result operator()()
     {
-        SnapshotObject* snapshot = m_SnapshotPtr.get();
-
-        //snapshot->m_DbPtr->m_Db->ReleaseSnapshot(snapshot->m_Snapshot);
-
-        // set closing flag
-        ErlRefObject::InitiateCloseRequest(snapshot);
-
-        m_SnapshotPtr = NULL;
-
+        if(NULL!=m_SnapshotPtr.get())
+        {
+            SnapshotObject* snapshot = m_SnapshotPtr.get();
+            // release db snapshot
+            snapshot->m_DbPtr->m_Db->ReleaseSnapshot(snapshot->m_Snapshot);
+            // set closing flag
+            ErlRefObject::InitiateCloseRequest(snapshot);
+        }
         return work_result(ATOM_OK);
-
     }   // operator()
 
 };  // class GetSnapshotTask
