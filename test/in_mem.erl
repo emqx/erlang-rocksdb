@@ -24,3 +24,18 @@ basic_test() ->
   ok = rocksdb:close(Db),
   ok = rocksdb:close(Db1),
   ok.
+
+prev_test() ->
+  os:cmd("rm -rf ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("ltest", [{in_memory, true}]),
+  try
+    rocksdb:put(Ref, <<"a">>, <<"x">>, []),
+    rocksdb:put(Ref, <<"b">>, <<"y">>, []),
+    {ok, I} = rocksdb:iterator(Ref, []),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
+    ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I, next)),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, prev)),
+    ?assertEqual(ok, rocksdb:iterator_close(I))
+  after
+    rocksdb:close(Ref)
+  end.

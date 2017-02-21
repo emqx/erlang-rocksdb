@@ -528,7 +528,7 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
             {
                 opts.env = rocksdb::NewMemEnv(rocksdb::Env::Default());
                 opts.create_if_missing = true;
-                opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewPlainTableFactory());
+                //opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewPlainTableFactory());
             }
         }
     }
