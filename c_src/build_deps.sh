@@ -30,6 +30,8 @@ BUILD_CONFIG=$BASEDIR/rocksdb/make_config.mk
 
 ROCKSDB_VSN="4.13"
 SNAPPY_VSN="1.1.3"
+ROCKSDB_PREFIX="v4-13"
+
 
 set -e
 
@@ -76,7 +78,7 @@ case "$1" in
             echo Downloading $ROCKSDBURL...
             curl -L -o $ROCKSDBTARGZ $ROCKSDBURL
             tar -xzf $ROCKSDBTARGZ
-            mv rocksdb-v$ROCKSDB_VSN-* rocksdb
+            mv rocksdb-$ROCKSDB_PREFIX-* rocksdb
             patch -p0 < rocksdb-util-env_posix.cc.patch
         fi
         ;;
