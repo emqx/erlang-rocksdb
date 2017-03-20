@@ -28,7 +28,7 @@ SCRIPT=$SCRIPTPATH/${0##*/}
 BASEDIR=$SCRIPTPATH
 BUILD_CONFIG=$BASEDIR/rocksdb/make_config.mk
 
-ROCKSDB_VSN="4.13"
+ROCKSDB_VSN="4.13.5"
 SNAPPY_VSN="1.1.3"
 ROCKSDB_PREFIX="v4-13"
 
@@ -73,12 +73,12 @@ case "$1" in
 
     get-deps)
         if [ ! -d rocksdb ]; then
-            ROCKSDBURL="https://gitlab.com/barrel-db/rocksdb/repository/archive.tar.gz?ref=v$ROCKSDB_VSN"
-            ROCKSDBTARGZ="rocksdb-$ROCKSDB_VSN.tar.gz"
+            ROCKSDBURL="http://dl.barrel-db.org/rocksdb/rocksdb-v$ROCKSDB_VSN.tar.gz"
+            ROCKSDBTARGZ="rocksdb-v$ROCKSDB_VSN.tar.gz"
             echo Downloading $ROCKSDBURL...
             curl -L -o $ROCKSDBTARGZ $ROCKSDBURL
             tar -xzf $ROCKSDBTARGZ
-            mv rocksdb-$ROCKSDB_PREFIX-* rocksdb
+            mv rocksdb-$ROCKSDB_VSN rocksdb
             patch -p0 < rocksdb-util-env_posix.cc.patch
         fi
         ;;
