@@ -60,6 +60,8 @@ static ErlNifFunc nif_funcs[] =
   {"async_open", 3, erocksdb::AsyncOpen},
   {"async_open_with_cf", 4, erocksdb::AsyncOpenWithCf},
   {"async_close", 2, erocksdb::AsyncClose},
+  {"get_approximate_size", 4, erocksdb::GetApproximateSize},
+
   {"get_property", 2, erocksdb::GetProperty},
   {"get_property", 3, erocksdb::GetProperty},
   {"async_destroy", 3, erocksdb::AsyncDestroy},
@@ -485,7 +487,7 @@ try
       erocksdb::PrivData *priv = new erocksdb::PrivData(load_options);
       *priv_data = priv;
       return 0;
-  } 
+  }
   return 1;
 }
 catch(std::exception& e)

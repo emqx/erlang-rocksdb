@@ -91,3 +91,50 @@ close_fold_test_Z() ->
   ok = rocksdb:put(Ref, <<"k">>,<<"v">>,[]),
   ?assertException(throw, {iterator_closed, ok}, % ok is returned by close as the acc
   rocksdb:fold(Ref, fun(_,_A) -> rocksdb:close(Ref) end, undefined, [])).
+
+destroy_reopen(DbName, Options) ->
+  _ = rocksdb:destroy(DbName, []),
+  os:cmd("rm -rf " ++ DbName),
+  {ok, Db} = rocksdb:open(DbName, Options),
+  Db.
+
+randomstring(Len) ->
+  list_to_binary([rand:uniform(95) || _I <- lists:seq(0, Len - 1)]).
+
+key(I) when is_integer(I) ->
+  <<I:128/unsigned>>.
+
+approximate_size_test() ->
+  Db = destroy_reopen("erocksdb_approximate_size.db",
+                      [{create_if_missing, true},
+                       {write_buffer_size, 100000000},
+                       {compression, none}]),
+  try
+    N = 128,
+    rand:seed_s(exsplus),
+    lists:foreach(fun(I) ->
+                      ok = rocksdb:put(Db, key(I), randomstring(1024), [])
+                  end, lists:seq(0, N)),
+    Start = key(50),
+    End = key(60),
+    Size = rocksdb:get_approximate_size(Db, Start, End, true),
+    ?assert(Size >= 6000),
+    ?assert(Size =< 204800),
+    Size2 = rocksdb:get_approximate_size(Db, Start, End, false),
+    ?assertEqual(0, Size2),
+    Start2 = key(500),
+    End2 = key(600),
+    Size3 = rocksdb:get_approximate_size(Db, Start2, End2, true),
+    ?assertEqual(0, Size3),
+    lists:foreach(fun(I) ->
+                      ok = rocksdb:put(Db, key(I+1000), randomstring(1024), [])
+                  end, lists:seq(0, N)),
+    Size4 = rocksdb:get_approximate_size(Db, Start2, End2, true),
+    ?assertEqual(0, Size4),
+    Start3 = key(1000),
+    End3 = key(1020),
+    Size5 = rocksdb:get_approximate_size(Db, Start3, End3, true),
+    ?assert(Size5 >= 6000)
+  after
+    rocksdb:close(Db)
+  end.

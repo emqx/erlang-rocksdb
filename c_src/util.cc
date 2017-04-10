@@ -27,6 +27,7 @@
     #include "atoms.h"
 #endif
 
+#include "rocksdb/db.h"
 
 // Erlang helpers:
 ERL_NIF_TERM error_einval(ErlNifEnv* env)
@@ -62,6 +63,16 @@ ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply)
     enif_send(env, &pid, msg_env, msg);
     enif_free_env(msg_env);
     return erocksdb::ATOM_OK;
+}
+
+int
+binary_to_slice(ErlNifEnv* env, ERL_NIF_TERM val, rocksdb::Slice* slice)
+{
+    ErlNifBinary bin;
+    if(!enif_inspect_binary(env, val, &bin))
+        return 0;
+    *slice = rocksdb::Slice((const char *)bin.data, bin.size);
+    return 1;
 }
 
 int

@@ -1021,6 +1021,32 @@ AsyncClose(
 }  // erocksdb::AsyncClose
 
 ERL_NIF_TERM
+GetApproximateSize(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
+    bool include_memtable;
+    if (!enif_is_binary(env, argv[1]) || !enif_is_binary(env, argv[2]))
+        return enif_make_badarg(env);
+    if (argv[3] == erocksdb::ATOM_TRUE) {
+        include_memtable = true;
+    }
+    else
+    {
+        include_memtable = false;
+    }
+    rocksdb::Slice s;
+    rocksdb::Slice e;
+    if(!binary_to_slice(env, argv[1], &s) || !binary_to_slice(env, argv[2], &e))
+        return enif_make_badarg(env);
+    uint64_t result;
+    const rocksdb::Range r(s, e);
+    db_ptr->m_Db->GetApproximateSizes(&r, 1, &result, include_memtable);
+    return enif_make_uint64(env, result);
+}
+
+ERL_NIF_TERM
 GetProperty(
     ErlNifEnv* env,
     int argc,
