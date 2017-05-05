@@ -51,8 +51,13 @@ else ifeq ($(UNAME_SYS), NetBSD)
 	CXXFLAGS ?= -O3 -finline-functions -Wall
 	CXXFLAGS += -D_GCLIBCXX_USE_C99 
 else ifeq ($(UNAME_SYS), SunOS)
-	CC = c++48
-	CXX = c++48
+	ifeq ($(shell uname -v | sed 's/_.*$$//'), joyent)
+		CC = gcc
+		CXX = g++
+	else
+		CC = c++48
+		CXX = c++48
+	endif
 	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes 
 	CFLAGS += -D_GCLIBCXX_USE_C99
 	CXXFLAGS ?= -O3 -finline-functions -Wall
