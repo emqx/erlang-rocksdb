@@ -34,10 +34,6 @@
 
 #include "erocksdb.h"
 
-#ifndef INCL_THREADING_H
-    #include "threading.h"
-#endif
-
 #ifndef ATOMS_H
     #include "atoms.h"
 #endif
@@ -57,40 +53,42 @@ static ErlNifFunc nif_funcs[] =
 {
 
 
-  {"async_open", 3, erocksdb::AsyncOpen},
-  {"async_open_with_cf", 4, erocksdb::AsyncOpenWithCf},
-  {"async_close", 2, erocksdb::AsyncClose},
-  {"get_approximate_size", 4, erocksdb::GetApproximateSize},
-
-  {"get_property", 2, erocksdb::GetProperty},
-  {"get_property", 3, erocksdb::GetProperty},
-  {"async_destroy", 3, erocksdb::AsyncDestroy},
-
-  // column families
-  {"async_list_column_families", 3, erocksdb::AsyncListColumnFamilies},
-  {"async_create_column_family", 4, erocksdb::AsyncCreateColumnFamily},
-  {"async_drop_column_family", 2, erocksdb::AsyncDropColumnFamily},
-
-  // kv operations
-  {"async_write", 4, erocksdb::AsyncWrite},
-  {"async_get", 4, erocksdb::AsyncGet},
-  {"async_get", 5, erocksdb::AsyncGet},
-
-  {"async_snapshot", 2, erocksdb::AsyncSnapshot},
-  {"async_release_snapshot", 2, erocksdb::AsyncReleaseSnapshot},
-
-  // iterator operations
-  {"async_iterator", 3, erocksdb::AsyncIterator},
-  {"async_iterator", 4, erocksdb::AsyncIterator},
-  {"async_iterator_move", 3, erocksdb::AsyncIteratorMove},
-  {"async_iterator_close", 2, erocksdb::AsyncIteratorClose},
-  {"async_iterators", 4, erocksdb::AsyncIterators},
-  {"async_iterators", 5, erocksdb::AsyncIterators},
+  {"open", 2, erocksdb::Open, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"open_with_cf", 3, erocksdb::OpenWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"get_approximate_size", 4, erocksdb::GetApproximateSize, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
   // db management
-  {"async_checkpoint", 3, erocksdb::AsyncCheckpoint},
-  {"async_repair", 3, erocksdb::AsyncRepair},
-  {"async_is_empty", 2, erocksdb::AsyncIsEmpty},
+  {"checkpoint", 2, erocksdb::Checkpoint, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"repair", 2, erocksdb::Repair, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"is_empty", 1, erocksdb::IsEmpty, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"destroy", 2, erocksdb::Destroy, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"get_property", 2, erocksdb::GetProperty},
+  {"get_property", 3, erocksdb::GetProperty},
+  
+  // column families
+  {"list_column_families", 2, erocksdb::ListColumnFamilies, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"create_column_family", 3, erocksdb::CreateColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"drop_column_family", 1, erocksdb::DropColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
+  // kv operations
+  {"write", 3, erocksdb::Write, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"get", 3, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"get", 4, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
+  {"snapshot", 1, erocksdb::Snapshot},
+  {"release_snapshot", 1, erocksdb::ReleaseSnapshot},
+
+  // iterator operations
+  {"iterator", 2, erocksdb::Iterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"iterator", 3, erocksdb::Iterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"iterators", 3, erocksdb::Iterators, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"iterators", 4, erocksdb::Iterators, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"iterator_move", 2, erocksdb::IteratorMove, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"iterator_close", 1, erocksdb::IteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND}
+
+
+  
 
 };
 
@@ -263,29 +261,6 @@ ERL_NIF_TERM ATOM_WRITE_THREADS;
 
 
 using std::nothrow;
-
-ERL_NIF_TERM parse_init_option(ErlNifEnv* env, ERL_NIF_TERM item, erocksdb::DbOptions& opts)
-{
-    int arity;
-    const ERL_NIF_TERM* option;
-    if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
-    {
-        if (option[0] == erocksdb::ATOM_WRITE_THREADS)
-        {
-            unsigned long temp;
-            if (enif_get_ulong(env, option[1], &temp))
-            {
-                if (temp != 0)
-                {
-                    opts.m_DbThreads = temp;
-                }   // if
-            }   // if
-        }   // if
-    }
-
-    return erocksdb::ATOM_OK;
-}
-
 
 static void on_unload(ErlNifEnv *env, void *priv_data)
 {
@@ -478,17 +453,10 @@ try
   ATOM(erocksdb::ATOM_WRITE_THREADS, "write_threads");
 #undef ATOM
 
-  // read options that apply to global erocksdb environment
-  if(enif_is_list(env, load_info))
-  {
-      erocksdb::DbOptions load_options;
-      fold(env, load_info, parse_init_option, load_options);
-      /* Spin up the thread pool, set up all private data: */
-      erocksdb::PrivData *priv = new erocksdb::PrivData(load_options);
-      *priv_data = priv;
-      return 0;
-  }
-  return 1;
+erocksdb::PrivData *priv = new erocksdb::PrivData();
+*priv_data = priv;
+
+return 0;
 }
 catch(std::exception& e)
 {

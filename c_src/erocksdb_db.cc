@@ -27,24 +27,17 @@
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/slice_transform.h"
+#include "rocksdb/utilities/checkpoint.h"
+
 
 #ifndef ATOMS_H
     #include "atoms.h"
-#endif
-
-#ifndef INCL_THREADING_H
-    #include "threading.h"
-#endif
-
-#ifndef INCL_WORKITEMS_H
-    #include "workitems.h"
 #endif
 
 #ifndef INCL_REFOBJECTS_H
     #include "refobjects.h"
 #endif
 
-#include "work_result.hpp"
 #include "detail.hpp"
 
 #ifndef INCL_UTIL_H
@@ -916,61 +909,61 @@ parse_cf_descriptor(ErlNifEnv* env, ERL_NIF_TERM item,
 namespace erocksdb {
 
 ERL_NIF_TERM
-AsyncOpen(
+Open(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
+    DbObject * db_ptr;
+    rocksdb::DB *db(0);
 
-    if(!enif_get_string(env, argv[1], db_name, sizeof(db_name), ERL_NIF_LATIN1) || !enif_is_list(env, argv[2]))
+    if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) || 
+       !enif_is_list(env, argv[1]))
     {
         return enif_make_badarg(env);
     }
 
-    ERL_NIF_TERM caller_ref = argv[0];
-
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-
-    rocksdb::Options *opts = new rocksdb::Options;
-    fold(env, argv[2], parse_db_option, *opts);
-
-    erocksdb::WorkTask *work_item = new erocksdb::OpenTask(env, caller_ref, db_name, opts);
-
-    if(false == priv.thread_pool.submit(work_item))
+    if((argc == 3) && !enif_is_list(env, argv[2]))
     {
-        delete work_item;
-        return send_reply(env, caller_ref,
-                          enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
+        return enif_make_badarg(env);
     }
-    return erocksdb::ATOM_OK;
-}   // async_open
+    rocksdb::Options *opts = new rocksdb::Options;
+    fold(env, argv[1], parse_db_option, *opts);
+
+    // initialize the database
+    rocksdb::Status status = rocksdb::DB::Open(*opts, db_name, &db);
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+
+    db_ptr = DbObject::CreateDbObject(db, opts);
+    ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
+    enif_release_resource(db_ptr);
+    return enif_make_tuple2(env, ATOM_OK, result);
+}   // Open
 
 ERL_NIF_TERM
-AsyncOpenWithCf(
+OpenWithCf(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
+    DbObject * db_ptr;
+    rocksdb::DB *db(0);
 
-    if(!enif_get_string(env, argv[1], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
-       !enif_is_list(env, argv[2]) ||
-       !enif_is_list(env, argv[3]))
+    if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+       !enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]))
     {
         return enif_make_badarg(env);
     }   // if
 
-    ERL_NIF_TERM caller_ref = argv[0];
-
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-
     // read db options
     rocksdb::Options *opts = new rocksdb::Options;
-    fold(env, argv[2], parse_db_option, *opts);
+    fold(env, argv[1], parse_db_option, *opts);
 
     std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
-    ERL_NIF_TERM head, tail = argv[3];
+    ERL_NIF_TERM head, tail = argv[2];
     while(enif_get_list_cell(env, tail, &head, &tail))
     {
         ERL_NIF_TERM result = parse_cf_descriptor(env, head, column_families);
@@ -980,45 +973,60 @@ AsyncOpenWithCf(
         }
     }
 
-    unsigned int num_cols;
-    enif_get_list_length(env, argv[3], &num_cols);
+    std::vector<rocksdb::ColumnFamilyHandle*> handles;
+    rocksdb::Status status = rocksdb::DB::Open(*opts, db_name, column_families, &handles, &db);
 
-    // send task
-    erocksdb::WorkTask *work_item = new erocksdb::OpenCfTask(env, caller_ref, db_name, opts, column_families, num_cols);
-    if(false == priv.thread_pool.submit(work_item))
-    {
-        delete work_item;
-        return send_reply(env, caller_ref,
-                          enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+
+    // create db respirce
+    db_ptr = DbObject::CreateDbObject(db, opts);
+    ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
+
+    unsigned int num_cols;
+    enif_get_list_length(env, argv[2], &num_cols);
+
+    ERL_NIF_TERM cf_list = enif_make_list(env, 0);
+    try {
+        for (unsigned int i = 0; i < num_cols; ++i)
+        {
+            ColumnFamilyObject * handle_ptr;
+            handle_ptr = ColumnFamilyObject::CreateColumnFamilyObject(db_ptr, handles[i]);
+            ERL_NIF_TERM cf = enif_make_resource(env, handle_ptr);
+            enif_release_resource(handle_ptr);
+            handle_ptr = NULL;
+            cf_list = enif_make_list_cell(env, cf, cf_list);
+        }
+    } catch (const std::exception& e) {
+        // pass through
     }
-    return erocksdb::ATOM_OK;
+    // clear the automatic reference from enif_alloc_resource in CreateDbObject
+    enif_release_resource(db_ptr);
+
+    ERL_NIF_TERM cf_list_out;
+    enif_make_reverse_list(env, cf_list, &cf_list_out);
+
+    return enif_make_tuple3(env, ATOM_OK, result, cf_list_out);
 }   // async_open
 
 
 ERL_NIF_TERM
-AsyncClose(
+Close(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    erocksdb::DbObject * db_ptr;
-    const ERL_NIF_TERM& caller_ref = argv[0];
-    const ERL_NIF_TERM& handle_ref = argv[1];
+    DbObject * db_ptr;
+    db_ptr = DbObject::RetrieveDbObject(env, argv[0]);
 
-    db_ptr = erocksdb::DbObject::RetrieveDbObject(env, handle_ref);
-    if (db_ptr==NULL || 0!=db_ptr->m_CloseRequested)
+    if (NULL==db_ptr)
         return enif_make_badarg(env);
 
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-    erocksdb::WorkTask* work_item = new erocksdb::CloseTask(env, caller_ref, db_ptr);
-    if(false == priv.thread_pool.submit(work_item))
-    {
-        delete work_item;
-        return send_reply(env, caller_ref,
-                          enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
-    }
-    return erocksdb::ATOM_OK;
-}  // erocksdb::AsyncClose
+    // set closing flag
+    ErlRefObject::InitiateCloseRequest(db_ptr);
+    db_ptr=NULL;
+    return ATOM_OK;
+}  // erocksdb::Close
 
 ERL_NIF_TERM
 GetApproximateSize(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
@@ -1091,253 +1099,199 @@ GetProperty(
 
 
 ERL_NIF_TERM
-AsyncWrite(
+Write(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    const ERL_NIF_TERM& caller_ref = argv[0];
-    const ERL_NIF_TERM& handle_ref = argv[1];
-    const ERL_NIF_TERM& action_ref = argv[2];
-    const ERL_NIF_TERM& opts_ref   = argv[3];
-
     ReferencePtr<DbObject> db_ptr;
-
-    db_ptr.assign(DbObject::RetrieveDbObject(env, handle_ref));
-
-    if(NULL==db_ptr.get()
-       || !enif_is_list(env, action_ref)
-       || !enif_is_list(env, opts_ref))
-    {
+    if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
-    }
 
-    // is this even possible?
-    if(NULL == db_ptr->m_Db)
-        return send_reply(env, caller_ref, error_einval(env));
+    if(!enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]))
+        return enif_make_badarg(env);
 
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
 
     // Construct a write batch:
     rocksdb::WriteBatch* batch = new rocksdb::WriteBatch;
-
-    // Seed the batch's data:
-    ERL_NIF_TERM result = fold(env, argv[2], write_batch_item, *batch);
-    if(erocksdb::ATOM_OK != result)
+    ERL_NIF_TERM result = fold(env, argv[1], write_batch_item, *batch);
+    if(ATOM_OK != result)
     {
-        return send_reply(env, caller_ref,
-                          enif_make_tuple3(env, erocksdb::ATOM_ERROR, caller_ref,
-                                           enif_make_tuple2(env, erocksdb::ATOM_BAD_WRITE_ACTION,
-                                                            result)));
+        return enif_make_tuple2(env, ATOM_ERROR,
+                enif_make_tuple2(env, ATOM_BAD_WRITE_ACTION, result));
     }   // if
 
     rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
-    fold(env, argv[3], parse_write_option, *opts);
+    fold(env, argv[2], parse_write_option, *opts);
 
-    erocksdb::WorkTask* work_item = new erocksdb::WriteTask(env, caller_ref,
-                                                            db_ptr.get(), batch, opts);
+    rocksdb::Status status = db_ptr->m_Db->Write(*opts, batch);
 
-    if(false == priv.thread_pool.submit(work_item))
+    delete batch;
+    delete opts;
+
+    if (status.ok())
     {
-        delete work_item;
-        return send_reply(env, caller_ref,
-                          enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
-    }   // if
+        return ATOM_OK;
+    }
 
-    return erocksdb::ATOM_OK;
-} // erocksdb::AsyncWrite
+    return error_tuple(env, ATOM_ERROR, status);
+} // erocksdb::Write
 
 ERL_NIF_TERM
-AsyncGet(
+Get(
   ErlNifEnv* env,
   int argc,
   const ERL_NIF_TERM argv[])
 {
-  const ERL_NIF_TERM& caller_ref = argv[0];
-  const ERL_NIF_TERM& dbh_ref    = argv[1];
-  ERL_NIF_TERM cf_ref;
-  ERL_NIF_TERM key_ref;
-  ERL_NIF_TERM opts_ref;
+      ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
 
-  ReferencePtr<DbObject> db_ptr;
-  ReferencePtr<ColumnFamilyObject> cf_ptr;
+    int i = 1;
+    if(argc == 4)
+        i = 2;
 
-  db_ptr.assign(DbObject::RetrieveDbObject(env, dbh_ref));
-  if(NULL==db_ptr.get())
-    return enif_make_badarg(env);
+    rocksdb::Slice key;
+    if(!binary_to_slice(env, argv[i], &key))
+    {
+        return enif_make_badarg(env);
+    }
 
-  if(argc  == 4)
-  {
-      key_ref = argv[2];
-      opts_ref = argv[3];
-  }
-  else
-  {
-      cf_ref = argv[2];
-      key_ref = argv[3];
-      opts_ref = argv[4];
-      // we use a column family assign the value
-      cf_ptr.assign(ColumnFamilyObject::RetrieveColumnFamilyObject(env, cf_ref));
-  }
+    rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
+    fold(env, argv[i+1], parse_read_option, *opts);
 
-  if(NULL==db_ptr.get()
-       || !enif_is_list(env, opts_ref)
-       || !enif_is_binary(env, key_ref))
-  {
-      return enif_make_badarg(env);
-  }
+    rocksdb::Status status;
+    std::string value;
+    if(argc==4)
+    {
+        ReferencePtr<ColumnFamilyObject> cf_ptr;
+        if(!enif_get_cf(env, argv[1], &cf_ptr))
+            return enif_make_badarg(env);
 
-  if(NULL == db_ptr->m_Db)
-      return send_reply(env, caller_ref, error_einval(env));
+        status = db_ptr->m_Db->Get(*opts, cf_ptr->m_ColumnFamily, key, &value);
+    }
+    else
+    {
+        status = db_ptr->m_Db->Get(*opts, key, &value);
+    }
 
-  rocksdb::ReadOptions opts;
-  ERL_NIF_TERM fold_result = fold(env, opts_ref, parse_read_option, opts);
-  if(fold_result!=erocksdb::ATOM_OK)
-      return enif_make_badarg(env);
+    if (!status.ok())
+    {
+        return ATOM_NOT_FOUND;
+    }
 
-  erocksdb::WorkTask *work_item;
-  if(argc==4)
-  {
-    work_item = new erocksdb::GetTask(env, caller_ref, db_ptr.get(), key_ref, opts);
-  }
-  else
-  {
-    work_item = new erocksdb::GetTask(env, caller_ref, db_ptr.get(), cf_ptr.get(), key_ref, opts);
-  }
-  
-  erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
+    ERL_NIF_TERM value_bin;
+    unsigned char* v = enif_make_new_binary(env, value.size(), &value_bin);
+    memcpy(v, value.c_str(), value.size());
 
-  if(false == priv.thread_pool.submit(work_item))
-  {
-      delete work_item;
-      return send_reply(env, caller_ref,
-                        enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
-  }   // if
+    return enif_make_tuple2(env, ATOM_OK, value_bin);
 
-  return erocksdb::ATOM_OK;
-
-}   // erocksdb::AsyncGet
+}   // erocksdb::Get
 
 
 ERL_NIF_TERM
-AsyncCheckpoint(
+Checkpoint(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    const ERL_NIF_TERM& caller_ref = argv[0];
-    const ERL_NIF_TERM& handle_ref = argv[1];
-
-    char path[4096];
-
+        char path[4096];
+    rocksdb::Checkpoint* checkpoint;
+    rocksdb::Status status;
 
     ReferencePtr<DbObject> db_ptr;
-
-    db_ptr.assign(DbObject::RetrieveDbObject(env, handle_ref));
-
-    if(NULL==db_ptr.get())
-    {
+    if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
-    }
 
-    // is this even possible?
-    if(NULL == db_ptr->m_Db)
-        return send_reply(env, caller_ref, error_einval(env));
-
-    if(!enif_get_string(env, argv[2], path, sizeof(path), ERL_NIF_LATIN1))
-    {
+    if(!enif_get_string(env, argv[1], path, sizeof(path), ERL_NIF_LATIN1))
         return enif_make_badarg(env);
-    }
 
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-    erocksdb::WorkTask* work_item = new erocksdb::CheckpointTask(env, caller_ref, db_ptr.get(), path);
-    if(false == priv.thread_pool.submit(work_item))
+    status = rocksdb::Checkpoint::Create(db_ptr->m_Db, &checkpoint);
+    if (status.ok())
     {
-        delete work_item;
-        return send_reply(env, caller_ref,
-                          enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
+        status = checkpoint->CreateCheckpoint(path);
+        if (status.ok())
+        {
+            return ATOM_OK;
+        }
     }
-    return erocksdb::ATOM_OK;
+    delete checkpoint;
 
-}   // async_checkpoint
+    return error_tuple(env, ATOM_ERROR, status);
+
+}   // Checkpoint
 
 ERL_NIF_TERM
-AsyncDestroy(
+Destroy(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    char db_name[4096];
-    const ERL_NIF_TERM& caller_ref = argv[0];
-    if (!enif_get_string(env, argv[1], db_name, sizeof(db_name), ERL_NIF_LATIN1) &&
-        ! enif_is_list(env, argv[2]))
-    {
+    char name[4096];
+    if (!enif_get_string(env, argv[0], name, sizeof(name), ERL_NIF_LATIN1) ||
+            !enif_is_list(env, argv[1]))
         return enif_make_badarg(env);
-    }
 
     // Parse out the options
     rocksdb::Options opts;
-    fold(env, argv[2], parse_db_option, opts);
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-    erocksdb::WorkTask* work_item = new erocksdb::DestroyTask(env, caller_ref, db_name, opts);
-    if(false == priv.thread_pool.submit(work_item))
+    fold(env, argv[1], parse_db_option, opts);
+
+    rocksdb::Status status = rocksdb::DestroyDB(name, opts);
+    if (!status.ok())
     {
-        delete work_item;
-        return send_reply(env, caller_ref,
-                            enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
+        return error_tuple(env, ATOM_ERROR_DB_DESTROY, status);
     }
-    return erocksdb::ATOM_OK;
-}   // erocksdb_destroy
+    return ATOM_OK;
+}   // Destroy
 
 ERL_NIF_TERM
-AsyncRepair(
+Repair(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    char db_name[4096];
-    const ERL_NIF_TERM& caller_ref = argv[0];
-    if (!enif_get_string(env, argv[1], db_name, sizeof(db_name), ERL_NIF_LATIN1) &&
-        ! enif_is_list(env, argv[2]))
-    {
+    char name[4096];
+    if (!enif_get_string(env, argv[0], name, sizeof(name), ERL_NIF_LATIN1) ||
+            !enif_is_list(env, argv[1]))
         return enif_make_badarg(env);
-    }
 
     // Parse out the options
     rocksdb::Options opts;
-    fold(env, argv[2], parse_db_option, opts);
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-    erocksdb::WorkTask* work_item = new erocksdb::RepairTask(env, caller_ref, db_name, opts);
-    if(false == priv.thread_pool.submit(work_item))
+    fold(env, argv[1], parse_db_option, opts);
+
+    rocksdb::Status status = rocksdb::RepairDB(name, opts);
+    if (!status.ok())
     {
-        delete work_item;
-        return send_reply(env, caller_ref,
-                            enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
+        return error_tuple(env, erocksdb::ATOM_ERROR_DB_REPAIR, status);
     }
     return erocksdb::ATOM_OK;
 }   // erocksdb_repair
 
 ERL_NIF_TERM
-AsyncIsEmpty(
+IsEmpty(
     ErlNifEnv* env,
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    const ERL_NIF_TERM& caller_ref = argv[0];
-
     ReferencePtr<DbObject> db_ptr;
-    if(!enif_get_db(env, argv[1], &db_ptr))
+    if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
 
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-    erocksdb::WorkTask* work_item = new erocksdb::IsEmptyTask(env, caller_ref, db_ptr.get());
-    if(false == priv.thread_pool.submit(work_item))
+    rocksdb::ReadOptions opts;
+    rocksdb::Iterator* itr = db_ptr->m_Db->NewIterator(opts);
+    itr->SeekToFirst();
+    ERL_NIF_TERM result;
+    if (itr->Valid())
     {
-        delete work_item;
-        return send_reply(env, caller_ref,
-                          enif_make_tuple2(env, erocksdb::ATOM_ERROR, caller_ref));
+        result = erocksdb::ATOM_FALSE;
     }
-    return erocksdb::ATOM_OK;
+    else
+    {
+        result = erocksdb::ATOM_TRUE;
+    }
+    delete itr;
+
+    return result;
 }   // erocksdb_is_empty
 
 
