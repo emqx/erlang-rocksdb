@@ -23,7 +23,7 @@
 -export([snapshot/1, release_snapshot/1]).
 -export([list_column_families/2, create_column_family/3, drop_column_family/1]).
 -export([put/4, put/5, delete/3, delete/4, write/3, get/3, get/4]).
--export([iterator/2, iterators/3, iterator_move/2, iterator_close/1]).
+-export([iterator/2, iterator/3, iterators/3, iterator_move/2, iterator_close/1]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
 -export([destroy/2, repair/2, is_empty/1]).
 -export([checkpoint/2]).
@@ -322,6 +322,17 @@ get(_DBHandle, _CFHandle, _Key, _ReadOpts) ->
 iterator(_DBHandle, _ReadOpts) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc Return a iterator over the contents of the database.
+%% The result of iterator() is initially invalid (caller must
+%% call iterator_move function on the iterator before using it).
+-spec iterator(DBHandle, CFHandle, ReadOpts) -> Res when
+  DBHandle::db_handle(),
+  CFHandle::cf_handle(),
+  ReadOpts::read_options(),
+  Res :: {ok, itr_handle()} | {error, any()}.
+iterator(_DBHandle, _CfHandle, _ReadOpts) ->
+  erlang:nif_error({error, not_loaded}).
+
 %% @doc
 %% Return a iterator over the contents of the specified column family.
 -spec(iterators(DBHandle, CFHandle, ReadOpts) ->
@@ -393,7 +404,7 @@ fold(_DBHandle, _CFHandle, _Fun, _Acc0, _ReadOpts) ->
   AccOut :: any().
 fold_keys(DBHandle, UserFun, Acc0, ReadOpts) ->
   WrapperFun = fun({K, _V}, Acc) -> UserFun(K, Acc);
-                  (Else, Acc) -> UserFun(Else, Acc) end, 
+                  (Else, Acc) -> UserFun(Else, Acc) end,
   {ok, Itr} = iterator(DBHandle, ReadOpts),
   do_fold(Itr, WrapperFun, Acc0).
 

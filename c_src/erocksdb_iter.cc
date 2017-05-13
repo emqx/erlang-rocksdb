@@ -71,11 +71,14 @@ Iterator(
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
 
-    if(!enif_is_list(env, argv[1]))
+    int i = 1;
+    if(argc==3) i = 2;
+
+    if(!enif_is_list(env, argv[i]))
         return enif_make_badarg(env);
 
     ERL_NIF_TERM fold_result;
-    fold_result = fold(env, argv[1], parse_read_option, *opts);
+    fold_result = fold(env, argv[i], parse_read_option, *opts);
     if(fold_result!=erocksdb::ATOM_OK)
         return enif_make_badarg(env);
 
@@ -83,7 +86,21 @@ Iterator(
     rocksdb::Iterator * iterator;
 
     iterator = db_ptr->m_Db->NewIterator(*opts);
-    itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
+
+    if(argc==3)
+    {
+        ReferencePtr<ColumnFamilyObject> cf_ptr;
+        if(!enif_get_cf(env, argv[1], &cf_ptr))
+            return enif_make_badarg(env);
+
+        iterator = db_ptr->m_Db->NewIterator(*opts, cf_ptr->m_ColumnFamily);
+        itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator, cf_ptr.get());
+    }
+    else
+    {
+        iterator = db_ptr->m_Db->NewIterator(*opts);
+        itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
+    }
 
     ERL_NIF_TERM result = enif_make_resource(env, itr_ptr);
 
@@ -194,7 +211,7 @@ IteratorMove(
         return error_tuple(env, ATOM_ERROR, status);
     }
 
-    
+
     return enif_make_tuple3(env, ATOM_OK, slice_to_binary(env, itr->key()), slice_to_binary(env, itr->value()));
 
 }   // erocksdb::IteratorMove
@@ -210,7 +227,7 @@ IteratorClose(
     ERL_NIF_TERM ret_term;
 
     ret_term=ATOM_OK;
-    
+
     itr_ptr=ItrObject::RetrieveItrObject(env, argv[0], true);
     if (NULL!=itr_ptr)
     {
