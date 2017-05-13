@@ -307,66 +307,12 @@ private:
 
 
 /**
- * A self deleting wrapper to contain rocksdb iterator.
- *   Used when an ItrObject needs to skip around and might
- *   have a background MoveItem performing a prefetch on existing
- *   iterator.
- */
-
-class RocksIteratorWrapper : public RefObject
-{
-public:
-    ReferencePtr<DbObject> m_DbPtr;           //!< need to keep db open for delete of this object
-    rocksdb::Iterator * m_Iterator;
-    volatile uint32_t m_HandoffAtomic;        //!< matthew's atomic foreground/background prefetch flag.
-    bool m_KeysOnly;                          //!< only return key values
-    bool m_PrefetchStarted;                   //!< true after first prefetch command
-
-    ERL_NIF_TERM itr_ref;
-    ErlNifEnv *itr_ref_env;
-
-    RocksIteratorWrapper(DbObject * DbPtr, rocksdb::Iterator * Iterator, bool KeysOnly)
-        : m_DbPtr(DbPtr), m_Iterator(Iterator), m_HandoffAtomic(0), 
-        m_KeysOnly(KeysOnly), m_PrefetchStarted(false), itr_ref_env(NULL)
-    {
-    };
-
-    virtual ~RocksIteratorWrapper()
-    {
-        if (NULL!=itr_ref_env) {
-            enif_free_env(itr_ref_env);
-            itr_ref_env = NULL;
-        }
-
-        if (NULL!=m_Iterator)
-        {
-            delete m_Iterator;
-            m_Iterator=NULL;
-        }   // if
-    }   // ~RocksIteratorWrapper
-
-    rocksdb::Iterator * get() {return(m_Iterator);};
-    rocksdb::Iterator * operator->() {return(m_Iterator);};
-
-    bool Valid() {return(m_Iterator->Valid());};
-    rocksdb::Slice key() {return(m_Iterator->key());};
-    rocksdb::Slice value() {return(m_Iterator->value());};
-
-private:
-    RocksIteratorWrapper(const RocksIteratorWrapper &);            // no copy
-    RocksIteratorWrapper& operator=(const RocksIteratorWrapper &); // no assignment
-
-
-};  // RocksIteratorWrapper
-
-/**
  * Per Iterator object.  Created as erlang reference.
  */
 class ItrObject : public ErlRefObject
 {
 public:
     ReferencePtr<ColumnFamilyObject> m_ColumnFamilyPtr;
-    bool keys_only;
     rocksdb::Iterator * m_Iterator;
     ReferencePtr<DbObject> m_DbPtr;
 
@@ -374,8 +320,8 @@ protected:
     static ErlNifResourceType* m_Itr_RESOURCE;
 
 public:
-    ItrObject(DbObject *, rocksdb::Iterator * Iterator, bool key_only);
-    ItrObject(DbObject *, rocksdb::Iterator * Iterator, bool key_only, ColumnFamilyObject *);
+    ItrObject(DbObject *, rocksdb::Iterator * Iterator);
+    ItrObject(DbObject *, rocksdb::Iterator * Iterator, ColumnFamilyObject *);
 
     virtual ~ItrObject(); // needs to perform free_itr
 
@@ -383,11 +329,9 @@ public:
 
     static void CreateItrObjectType(ErlNifEnv * Env);
 
-    static ItrObject * CreateItrObject(DbObject * Db,  rocksdb::Iterator * Iterator,
-                                       bool KeysOnly);
+    static ItrObject * CreateItrObject(DbObject * Db,  rocksdb::Iterator * Iterator);
 
-    static ItrObject * CreateItrObject(DbObject * Db,  rocksdb::Iterator * Iterator,
-                                           bool KeysOnly, ColumnFamilyObject * Cf);
+    static ItrObject * CreateItrObject(DbObject * Db,  rocksdb::Iterator * Iterator, ColumnFamilyObject * Cf);
 
     static ItrObject * RetrieveItrObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm,
                                          bool ItrClosing=false);
@@ -399,6 +343,7 @@ private:
     ItrObject(const ItrObject &);            // no copy
     ItrObject & operator=(const ItrObject &); // no assignment
 };  // class ItrObject
+
 
 } // namespace erocksdb
 

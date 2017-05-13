@@ -65,8 +65,6 @@ Iterator(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    const bool keys_only = ((argc == 3) && (argv[2] == ATOM_KEYS_ONLY));
-
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
 
     ReferencePtr<DbObject> db_ptr;
@@ -85,7 +83,7 @@ Iterator(
     rocksdb::Iterator * iterator;
 
     iterator = db_ptr->m_Db->NewIterator(*opts);
-    itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator, keys_only);
+    itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
 
     ERL_NIF_TERM result = enif_make_resource(env, itr_ptr);
 
@@ -103,8 +101,6 @@ Iterators(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    const bool keys_only = ((argc == 4) && (argv[3] == ATOM_KEYS_ONLY));
-
     ReferencePtr<DbObject> db_ptr;
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
@@ -136,7 +132,7 @@ Iterators(
         for (size_t i = 0; i < iterators.size(); i++) {
             ItrObject * itr_ptr;
             ColumnFamilyObject* cf = cf_objects[i];
-            itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterators[i], keys_only, cf);
+            itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterators[i], cf);
             ERL_NIF_TERM itr_res = enif_make_resource(env, itr_ptr);
             result = enif_make_list_cell(env, itr_res, result);
             enif_release_resource(itr_ptr);
@@ -198,16 +194,8 @@ IteratorMove(
         return error_tuple(env, ATOM_ERROR, status);
     }
 
-    if(itr_ptr->keys_only)
-    {
-        return enif_make_tuple2(env, ATOM_OK, slice_to_binary(env, itr->key()));
-    }
-    else
-    {
-        return enif_make_tuple3(env, ATOM_OK,
-                                slice_to_binary(env, itr->key()),
-                                slice_to_binary(env, itr->value()));
-    }
+    
+    return enif_make_tuple3(env, ATOM_OK, slice_to_binary(env, itr->key()), slice_to_binary(env, itr->value()));
 
 }   // erocksdb::IteratorMove
 

@@ -753,15 +753,14 @@ ItrObject::CreateItrObjectType(
 ItrObject *
 ItrObject::CreateItrObject(
         DbObject *DbPtr,
-        rocksdb::Iterator *Iterator,
-        bool KeysOnly) {
+        rocksdb::Iterator *Iterator) {
     ItrObject *ret_ptr;
     void *alloc_ptr;
 
     // the alloc call initializes the reference count to "one"
     alloc_ptr = enif_alloc_resource(m_Itr_RESOURCE, sizeof(ItrObject));
 
-    ret_ptr = new(alloc_ptr) ItrObject(DbPtr, Iterator, KeysOnly);
+    ret_ptr = new(alloc_ptr) ItrObject(DbPtr, Iterator);
 
     // manual reference increase to keep active until "close" called
     //  only inc local counter
@@ -777,7 +776,6 @@ ItrObject *
 ItrObject::CreateItrObject(
         DbObject *DbPtr,
         rocksdb::Iterator *Iterator,
-        bool KeysOnly,
         ColumnFamilyObject *ColumnFamilyPtr) {
     ItrObject *ret_ptr;
     void *alloc_ptr;
@@ -785,7 +783,7 @@ ItrObject::CreateItrObject(
     // the alloc call initializes the reference count to "one"
     alloc_ptr = enif_alloc_resource(m_Itr_RESOURCE, sizeof(ItrObject));
 
-    ret_ptr = new(alloc_ptr) ItrObject(DbPtr, Iterator, KeysOnly, ColumnFamilyPtr);
+    ret_ptr = new(alloc_ptr) ItrObject(DbPtr, Iterator, ColumnFamilyPtr);
 
     // manual reference increase to keep active until "close" called
     //  only inc local counter
@@ -842,9 +840,8 @@ ItrObject::ItrObjectResourceCleanup(
 
 ItrObject::ItrObject(
         DbObject *DbPtr,
-        rocksdb::Iterator *Iterator,
-        bool KeysOnly)
-        : keys_only(KeysOnly), m_Iterator(Iterator), m_DbPtr(DbPtr) {
+        rocksdb::Iterator *Iterator)
+        : m_Iterator(Iterator), m_DbPtr(DbPtr) {
     if (NULL != DbPtr)
         DbPtr->AddReference(this);
 
@@ -854,9 +851,8 @@ ItrObject::ItrObject(
 ItrObject::ItrObject(
         DbObject *DbPtr,
         rocksdb::Iterator *Iterator,
-        bool KeysOnly,
         ColumnFamilyObject *ColumnFamilyPtr)
-        : m_ColumnFamilyPtr(ColumnFamilyPtr), keys_only(KeysOnly), m_Iterator(Iterator), m_DbPtr(DbPtr) {
+        : m_ColumnFamilyPtr(ColumnFamilyPtr), m_Iterator(Iterator), m_DbPtr(DbPtr) {
     if (NULL != DbPtr)
         DbPtr->AddReference(this);
 
@@ -894,6 +890,7 @@ ItrObject::Shutdown() {
     return;
 
 }   // ItrObject::CloseRequest
+
 
 
 } // namespace erocksdb

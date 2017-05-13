@@ -1143,7 +1143,7 @@ Get(
   int argc,
   const ERL_NIF_TERM argv[])
 {
-      ReferencePtr<DbObject> db_ptr;
+    ReferencePtr<DbObject> db_ptr;
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
 

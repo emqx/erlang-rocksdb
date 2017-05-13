@@ -23,7 +23,7 @@
 -export([snapshot/1, release_snapshot/1]).
 -export([list_column_families/2, create_column_family/3, drop_column_family/1]).
 -export([put/4, put/5, delete/3, delete/4, write/3, get/3, get/4]).
--export([iterator/2, iterator/3, iterators/3, iterators/4, iterator_move/2, iterator_close/1]).
+-export([iterator/2, iterators/3, iterator_move/2, iterator_close/1]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
 -export([destroy/2, repair/2, is_empty/1]).
 -export([checkpoint/2]).
@@ -322,14 +322,6 @@ get(_DBHandle, _CFHandle, _Key, _ReadOpts) ->
 iterator(_DBHandle, _ReadOpts) ->
   erlang:nif_error({error, not_loaded}).
 
--spec iterator(DBHandle, ReadOpts, keys_only) -> Res when
-  DBHandle::db_handle(),
-  ReadOpts::read_options(),
-  Res :: {ok, itr_handle()} | {error, any()}.
-
-iterator(_DBHandle, _ReadOpts, keys_only) ->
-  erlang:nif_error({error, not_loaded}).
-
 %% @doc
 %% Return a iterator over the contents of the specified column family.
 -spec(iterators(DBHandle, CFHandle, ReadOpts) ->
@@ -337,9 +329,6 @@ iterator(_DBHandle, _ReadOpts, keys_only) ->
                                                       CFHandle::cf_handle(),
                                                       ReadOpts::read_options()).
 iterators(_DBHandle, _CFHandle, _ReadOpts) ->
-    erlang:nif_error({error, not_loaded}).
-
-iterators(_DBHandle, _CFHandle, _ReadOpts, keys_only) ->
     erlang:nif_error({error, not_loaded}).
 
 
@@ -402,9 +391,11 @@ fold(_DBHandle, _CFHandle, _Fun, _Acc0, _ReadOpts) ->
   AccIn::any(),
   ReadOpts::read_options(),
   AccOut :: any().
-fold_keys(DBHandle, Fun, Acc0, ReadOpts) ->
-  {ok, Itr} = iterator(DBHandle, ReadOpts, keys_only),
-  do_fold(Itr, Fun, Acc0).
+fold_keys(DBHandle, UserFun, Acc0, ReadOpts) ->
+  WrapperFun = fun({K, _V}, Acc) -> UserFun(K, Acc);
+                  (Else, Acc) -> UserFun(Else, Acc) end, 
+  {ok, Itr} = iterator(DBHandle, ReadOpts),
+  do_fold(Itr, WrapperFun, Acc0).
 
 %% @doc Calls Fun(Elem, AccIn) on successive elements in the specified column family
 %% Other specs are same with fold_keys/4
