@@ -49,6 +49,8 @@
   #include "env.h"
 #endif
 
+#include "rocksdb/db.h"
+
 static ErlNifFunc nif_funcs[] =
 {
 

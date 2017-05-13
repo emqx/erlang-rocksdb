@@ -1,6 +1,6 @@
 // -------------------------------------------------------------------
 // Copyright (c) 2011-2013 Basho Technologies, Inc. All Rights Reserved.
-// Copyright (c) 2016 Benoit Chesneau. All Rights Reserved.
+// Copyright (c) 2016-2017 Benoit Chesneau. All Rights Reserved.
 //
 // This file is provided to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file
@@ -31,20 +31,15 @@
     #include "refobjects.h"
 #endif
 
-
 #include "rocksdb/db.h"
 #include "rocksdb/slice_transform.h"
 
 ERL_NIF_TERM error_einval(ErlNifEnv* env);
-ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error,
-rocksdb::Status& status);
+ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error, rocksdb::Status& status);
 ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s);
-ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply);
-
 
 int binary_to_slice(ErlNifEnv* env, ERL_NIF_TERM val, rocksdb::Slice *slice);
 int enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::DbObject>* db_ptr);
 int enif_get_cf(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::ColumnFamilyObject>* cf_ptr);
-
 
 #endif

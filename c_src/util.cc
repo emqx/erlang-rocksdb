@@ -52,19 +52,6 @@ ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s)
     return result;
 }
 
-ERL_NIF_TERM send_reply(ErlNifEnv *env, ERL_NIF_TERM ref, ERL_NIF_TERM reply)
-{
-    ErlNifPid pid;
-    ErlNifEnv *msg_env = enif_alloc_env();
-    ERL_NIF_TERM msg = enif_make_tuple2(msg_env,
-                                        enif_make_copy(msg_env, ref),
-                                        enif_make_copy(msg_env, reply));
-    enif_self(env, &pid);
-    enif_send(env, &pid, msg_env, msg);
-    enif_free_env(msg_env);
-    return erocksdb::ATOM_OK;
-}
-
 int
 binary_to_slice(ErlNifEnv* env, ERL_NIF_TERM val, rocksdb::Slice* slice)
 {
