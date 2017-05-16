@@ -37,10 +37,6 @@
     #include "util.h"
 #endif
 
-#ifndef INCL_ENV_H
-  #include "env.h"
-#endif
-
 #ifndef INCL_EROCKSB_DB_H
     #include "erocksdb_db.h"
 #endif

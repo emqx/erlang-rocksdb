@@ -42,10 +42,6 @@
     #include "util.h"
 #endif
 
-#ifndef INCL_ENV_H
-  #include "env.h"
-#endif
-
 
 namespace erocksdb {
 
@@ -101,4 +97,4 @@ ReleaseSnapshot(
     return ATOM_OK;
 }   // erocksdb::ReleaseSnapShot
 
-} 
+}

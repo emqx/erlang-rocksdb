@@ -22,6 +22,8 @@
 #ifndef INCL_EROCKSDB_H
 #define INCL_EROCKSDB_H
 
+#include "rocksdb/db.h"
+#include "rocksdb/cache.h"
 
 extern "C" {
 
@@ -79,6 +81,20 @@ ERL_NIF_TERM Checkpoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM Destroy(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM Repair(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM IsEmpty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+class PrivData
+{
+
+public:
+    std::shared_ptr<rocksdb::Cache> block_cache;
+
+    explicit PrivData();
+
+private:
+    PrivData(const PrivData&);             // nocopy
+    PrivData& operator=(const PrivData&);  // nocopyassign
+
+};
 
 } // namespace erocksdb
 

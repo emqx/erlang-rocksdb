@@ -45,11 +45,8 @@
     #include "util.h"
 #endif
 
-#ifndef INCL_ENV_H
-  #include "env.h"
-#endif
-
 #include "rocksdb/db.h"
+#include "rocksdb/cache.h"
 
 static ErlNifFunc nif_funcs[] =
 {
@@ -92,6 +89,11 @@ static ErlNifFunc nif_funcs[] =
 };
 
 namespace erocksdb {
+
+
+static int kCapacity = 4194304; // default values, can be overridden
+
+PrivData::PrivData() { block_cache = rocksdb::NewLRUCache(kCapacity); }
 
 // Atoms (initialized in on_load)
 // Related to Erlang
