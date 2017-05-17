@@ -25,12 +25,28 @@ access_hint() = normal | sequential | willneed | none
 
 
 
+### <a name="type-batch_handle">batch_handle()</a> ###
+
+
+__abstract datatype__: `batch_handle()`
+
+
+
+
 ### <a name="type-block_based_table_options">block_based_table_options()</a> ###
 
 
 <pre><code>
-block_based_table_options() = [{no_block_cache, boolean()} | {block_size, pos_integer()} | {block_cache_size, pos_integer()} | {bloom_filter_policy, BitsPerKey::pos_integer()} | {format_version, 0 | 1 | 2} | {skip_table_builder_flush, boolean()} | {cache_index_and_filter_blocks, boolean()}]
+block_based_table_options() = [{no_block_cache, boolean()} | {block_size, pos_integer()} | {block_cache, <a href="#type-cache_handle">cache_handle()</a>} | {block_cache_size, pos_integer()} | {bloom_filter_policy, BitsPerKey::pos_integer()} | {format_version, 0 | 1 | 2} | {skip_table_builder_flush, boolean()} | {cache_index_and_filter_blocks, boolean()}]
 </code></pre>
+
+
+
+
+### <a name="type-cache_handle">cache_handle()</a> ###
+
+
+__abstract datatype__: `cache_handle()`
 
 
 
@@ -85,7 +101,25 @@ __abstract datatype__: `db_handle()`
 
 
 <pre><code>
-db_options() = [{total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {disable_data_sync, boolean()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="file.md#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_os_buffer, boolean()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {in_memory, boolean()}]
+db_options() = [{env, <a href="#type-env_handle">env_handle()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {disable_data_sync, boolean()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="file.md#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_os_buffer, boolean()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {in_memory, boolean()}]
+</code></pre>
+
+
+
+
+### <a name="type-env_handle">env_handle()</a> ###
+
+
+__abstract datatype__: `env_handle()`
+
+
+
+
+### <a name="type-env_priority">env_priority()</a> ###
+
+
+<pre><code>
+env_priority() = priority_high | priority_low
 </code></pre>
 
 
@@ -179,21 +213,138 @@ write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {timeout_hint_
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#checkpoint-2">checkpoint/2</a></td><td>take a snapshot of a running RocksDB database in a separate directory
-http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>Close RocksDB.</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
-Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch-0">batch/0</a></td><td>create a new batch in memory.</td></tr><tr><td valign="top"><a href="#batch_clear-1">batch_clear/1</a></td><td>reset the batch, clear all operations.</td></tr><tr><td valign="top"><a href="#batch_count-1">batch_count/1</a></td><td>return the number of operations in the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-2">batch_delete/2</a></td><td>add a delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-3">batch_delete/3</a></td><td>like <code>delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_put-3">batch_put/3</a></td><td>add a put operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_put-4">batch_put/4</a></td><td>like <code>put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_rollback-1">batch_rollback/1</a></td><td>rollback the operations to the latest checkpoint.</td></tr><tr><td valign="top"><a href="#batch_savepoint-1">batch_savepoint/1</a></td><td>store a checkpoint in the batch to which you can rollback later.</td></tr><tr><td valign="top"><a href="#batch_tolist-1">batch_tolist/1</a></td><td>return all the operation sin the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#checkpoint-2">checkpoint/2</a></td><td>take a snapshot of a running RocksDB database in a separate directory
+http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>Close RocksDB.</td></tr><tr><td valign="top"><a href="#close_batch-1">close_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
+Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#default_env-0">default_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold-5">fold/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
 Other specs are same with fold/4.</td></tr><tr><td valign="top"><a href="#fold_keys-4">fold_keys/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold_keys-5">fold_keys/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
-Other specs are same with fold_keys/4.</td></tr><tr><td valign="top"><a href="#get-3">get/3</a></td><td>Retrieve a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#get-4">get/4</a></td><td>Retrieve a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#get_property-2">get_property/2</a></td><td>Return the RocksDB internal status of the default column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_property-3">get_property/3</a></td><td>Return the RocksDB internal status of the specified column family specified at Property.</td></tr><tr><td valign="top"><a href="#is_empty-1">is_empty/1</a></td><td>is the database empty.</td></tr><tr><td valign="top"><a href="#iterator-2">iterator/2</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator-3">iterator/3</a></td><td></td></tr><tr><td valign="top"><a href="#iterator_close-1">iterator_close/1</a></td><td>Close a iterator.</td></tr><tr><td valign="top"><a href="#iterator_move-2">iterator_move/2</a></td><td> Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>Return a iterator over the contents of the specified column families.</td></tr><tr><td valign="top"><a href="#iterators-4">iterators/4</a></td><td>Return keys iterator over the contents of the specified column families.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#snapshot-1">snapshot/1</a></td><td>return a database snapshot
+Other specs are same with fold_keys/4.</td></tr><tr><td valign="top"><a href="#get-3">get/3</a></td><td>Retrieve a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#get-4">get/4</a></td><td>Retrieve a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#get_approximate_size-4">get_approximate_size/4</a></td><td>for each stores retun the approximate size in a range.</td></tr><tr><td valign="top"><a href="#get_latest_sequence_number-1">get_latest_sequence_number/1</a></td><td>get latest sequence from the log.</td></tr><tr><td valign="top"><a href="#get_property-2">get_property/2</a></td><td>Return the RocksDB internal status of the default column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_property-3">get_property/3</a></td><td>Return the RocksDB internal status of the specified column family specified at Property.</td></tr><tr><td valign="top"><a href="#is_empty-1">is_empty/1</a></td><td>is the database empty.</td></tr><tr><td valign="top"><a href="#iterator-2">iterator/2</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator-3">iterator/3</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator_close-1">iterator_close/1</a></td><td>
+Close a iterator.</td></tr><tr><td valign="top"><a href="#iterator_move-2">iterator_move/2</a></td><td>
+Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>
+Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td>return a memory environment.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td>create a new CLOCK cache, for more concurrency in some cases.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td>create a new LRU cache to use for the block cache.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td>like binary update but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#set_background_threads-2">set_background_threads/2</a></td><td>set background threads of an environment.</td></tr><tr><td valign="top"><a href="#set_background_threads-3">set_background_threads/3</a></td><td>set background threads of low and high prioriry threads pool of an environment
+Flush threads are in the HIGH priority pool, while compaction threads are in the
+LOW priority pool.</td></tr><tr><td valign="top"><a href="#snapshot-1">snapshot/1</a></td><td>return a database snapshot
 Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stats-2">stats/2</a></td><td>Return the current stats of the specified column family
-Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr></table>
+Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr></table>
 
 
 <a name="functions"></a>
 
 ## Function Details ##
+
+<a name="batch-0"></a>
+
+### batch/0 ###
+
+<pre><code>
+batch() -&gt; {ok, Batch::<a href="#type-batch_handle">batch_handle()</a>}
+</code></pre>
+<br />
+
+create a new batch in memory. A batch is a nif resource attached to the current process. Pay attention when you
+share it with other processes as it may not been released. To force its release you will need to use the close_batch
+function.
+
+<a name="batch_clear-1"></a>
+
+### batch_clear/1 ###
+
+<pre><code>
+batch_clear(Batch::<a href="#type-batch_handle">batch_handle()</a>) -&gt; ok
+</code></pre>
+<br />
+
+reset the batch, clear all operations.
+
+<a name="batch_count-1"></a>
+
+### batch_count/1 ###
+
+<pre><code>
+batch_count(_Batch::<a href="#type-batch_handle">batch_handle()</a>) -&gt; Count::non_neg_integer()
+</code></pre>
+<br />
+
+return the number of operations in the batch
+
+<a name="batch_delete-2"></a>
+
+### batch_delete/2 ###
+
+<pre><code>
+batch_delete(Batch::<a href="#type-batch_handle">batch_handle()</a>, Key::binary()) -&gt; ok
+</code></pre>
+<br />
+
+add a delete operation to the batch
+
+<a name="batch_delete-3"></a>
+
+### batch_delete/3 ###
+
+<pre><code>
+batch_delete(Batch::<a href="#type-batch_handle">batch_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary()) -&gt; ok
+</code></pre>
+<br />
+
+like `delete/2` but apply the operation to a column family
+
+<a name="batch_put-3"></a>
+
+### batch_put/3 ###
+
+<pre><code>
+batch_put(Batch::<a href="#type-batch_handle">batch_handle()</a>, Key::binary(), Value::binary()) -&gt; ok
+</code></pre>
+<br />
+
+add a put operation to the batch
+
+<a name="batch_put-4"></a>
+
+### batch_put/4 ###
+
+<pre><code>
+batch_put(Batch::<a href="#type-batch_handle">batch_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary(), Value::binary()) -&gt; ok
+</code></pre>
+<br />
+
+like `put/3` but apply the operation to a column family
+
+<a name="batch_rollback-1"></a>
+
+### batch_rollback/1 ###
+
+<pre><code>
+batch_rollback(Batch::<a href="#type-batch_handle">batch_handle()</a>) -&gt; ok
+</code></pre>
+<br />
+
+rollback the operations to the latest checkpoint
+
+<a name="batch_savepoint-1"></a>
+
+### batch_savepoint/1 ###
+
+<pre><code>
+batch_savepoint(Batch::<a href="#type-batch_handle">batch_handle()</a>) -&gt; ok
+</code></pre>
+<br />
+
+store a checkpoint in the batch to which you can rollback later
+
+<a name="batch_tolist-1"></a>
+
+### batch_tolist/1 ###
+
+<pre><code>
+batch_tolist(Batch::<a href="#type-batch_handle">batch_handle()</a>) -&gt; Ops::<a href="#type-write_actions">write_actions()</a>
+</code></pre>
+<br />
+
+return all the operation sin the batch as a list of operations
 
 <a name="checkpoint-2"></a>
 
@@ -218,6 +369,23 @@ close(DBHandle) -&gt; Res
 <ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
 
 Close RocksDB
+
+<a name="close_batch-1"></a>
+
+### close_batch/1 ###
+
+<pre><code>
+close_batch(Batch::<a href="#type-batch_handle">batch_handle()</a>) -&gt; ok
+</code></pre>
+<br />
+
+<a name="close_updates_iterator-1"></a>
+
+### close_updates_iterator/1 ###
+
+`close_updates_iterator(Iterator) -> any()`
+
+close the transaction log
 
 <a name="count-1"></a>
 
@@ -254,6 +422,17 @@ create_column_family(DBHandle, Name, CFOpts) -&gt; Res
 
 Create a new column family
 
+<a name="default_env-0"></a>
+
+### default_env/0 ###
+
+<pre><code>
+default_env() -&gt; <a href="#type-env_handle">env_handle()</a>
+</code></pre>
+<br />
+
+return a default db environment
+
 <a name="delete-3"></a>
 
 ### delete/3 ###
@@ -289,6 +468,17 @@ destroy(Name::<a href="file.md#type-filename_all">file:filename_all()</a>, DBOpt
 
 Destroy the contents of the specified database.
 Be very careful using this method.
+
+<a name="destroy_env-1"></a>
+
+### destroy_env/1 ###
+
+<pre><code>
+destroy_env(Env::<a href="#type-env_handle">env_handle()</a>) -&gt; ok
+</code></pre>
+<br />
+
+destroy an environment
 
 <a name="drop_column_family-1"></a>
 
@@ -384,6 +574,28 @@ get(DBHandle, CFHandle, Key, ReadOpts) -&gt; Res
 
 Retrieve a key/value pair in the specified column family
 
+<a name="get_approximate_size-4"></a>
+
+### get_approximate_size/4 ###
+
+<pre><code>
+get_approximate_size(DbHandle::<a href="#type-db_handle">db_handle()</a>, SKey::binary(), EKey::binary(), IncludeMemtable::boolean()) -&gt; integer()
+</code></pre>
+<br />
+
+for each stores retun the approximate size in a range
+
+<a name="get_latest_sequence_number-1"></a>
+
+### get_latest_sequence_number/1 ###
+
+<pre><code>
+get_latest_sequence_number(Db::<a href="#type-db_handle">db_handle()</a>) -&gt; Seq::non_neg_integer()
+</code></pre>
+<br />
+
+get latest sequence from the log
+
 <a name="get_property-2"></a>
 
 ### get_property/2 ###
@@ -436,19 +648,24 @@ call iterator_move function on the iterator before using it).
 ### iterator/3 ###
 
 <pre><code>
-iterator(DBHandle, ReadOpts, X3::keys_only) -&gt; Res
+iterator(DBHandle, CFHandle, ReadOpts) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
+
+Return a iterator over the contents of the database.
+The result of iterator() is initially invalid (caller must
+call iterator_move function on the iterator before using it).
 
 <a name="iterator_close-1"></a>
 
 ### iterator_close/1 ###
 
 <pre><code>
-iterator_close(ITRHandle::<a href="#type-itr_handle">itr_handle()</a>) -&gt; ok
+iterator_close(ITRHandle) -&gt; ok
 </code></pre>
-<br />
+
+<ul class="definitions"><li><code>ITRHandle = <a href="#type-itr_handle">itr_handle()</a></code></li></ul>
 
 Close a iterator
 
@@ -457,10 +674,10 @@ Close a iterator
 ### iterator_move/2 ###
 
 <pre><code>
-iterator_move(ITRHandle, ITRAction) -&gt; Res
+iterator_move(ITRHandle, ITRAction) -&gt; {ok, Key::binary(), Value::binary()} | {ok, Key::binary()} | {error, invalid_iterator} | {error, iterator_closed}
 </code></pre>
 
-<ul class="definitions"><li><code>ITRHandle = <a href="#type-itr_handle">itr_handle()</a></code></li><li><code>ITRAction = <a href="#type-iterator_action">iterator_action()</a></code></li><li><code>Res = {ok, Key::binary(), Value::binary()} | {ok, Key::binary()} | {error, invalid_iterator} | {error, iterator_closed}</code></li></ul>
+<ul class="definitions"><li><code>ITRHandle = <a href="#type-itr_handle">itr_handle()</a></code></li><li><code>ITRAction = <a href="#type-iterator_action">iterator_action()</a></code></li></ul>
 
 Move to the specified place
 
@@ -469,20 +686,12 @@ Move to the specified place
 ### iterators/3 ###
 
 <pre><code>
-iterators(DBHandle, CFHandles, ReadOpts) -&gt; Res
+iterators(DBHandle, CFHandle, ReadOpts) -&gt; {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandles = [<a href="#type-cf_handle">cf_handle()</a>]</code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li></ul>
 
-Return a iterator over the contents of the specified column families.
-
-<a name="iterators-4"></a>
-
-### iterators/4 ###
-
-`iterators(DBHandle, CFHandles, ReadOpts, X4) -> any()`
-
-Return keys iterator over the contents of the specified column families.
+Return a iterator over the contents of the specified column family.
 
 <a name="list_column_families-2"></a>
 
@@ -495,6 +704,61 @@ list_column_families(Name, DBOpts) -&gt; Res
 <ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>Res = {ok, [string()]} | {error, any()}</code></li></ul>
 
 List column families
+
+<a name="mem_env-0"></a>
+
+### mem_env/0 ###
+
+<pre><code>
+mem_env() -&gt; <a href="#type-env_handle">env_handle()</a>
+</code></pre>
+<br />
+
+return a memory environment
+
+<a name="new_clock_cache-1"></a>
+
+### new_clock_cache/1 ###
+
+<pre><code>
+new_clock_cache(Capacity::non_neg_integer()) -&gt; {ok, <a href="#type-cache_handle">cache_handle()</a>}
+</code></pre>
+<br />
+
+create a new CLOCK cache, for more concurrency in some cases
+
+<a name="new_lru_cache-1"></a>
+
+### new_lru_cache/1 ###
+
+<pre><code>
+new_lru_cache(Capacity::non_neg_integer()) -&gt; {ok, <a href="#type-cache_handle">cache_handle()</a>}
+</code></pre>
+<br />
+
+create a new LRU cache to use for the block cache
+
+<a name="next_binary_update-1"></a>
+
+### next_binary_update/1 ###
+
+<pre><code>
+next_binary_update(Iterator::term()) -&gt; {ok, LastSeq::non_neg_integer(), BinLog::binary()} | {error, term()}
+</code></pre>
+<br />
+
+go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.
+
+<a name="next_update-1"></a>
+
+### next_update/1 ###
+
+<pre><code>
+next_update(Iterator::term()) -&gt; {ok, LastSeq::non_neg_integer(), Log::<a href="#type-write_actions">write_actions()</a>, BinLog::binary()} | {error, term()}
+</code></pre>
+<br />
+
+like binary update but also return the batch as a list of operations
 
 <a name="open-2"></a>
 
@@ -567,6 +831,30 @@ repair(Name::<a href="file.md#type-filename_all">file:filename_all()</a>, DBOpts
 Try to repair as much of the contents of the database as possible.
 Some data may be lost, so be careful when calling this function
 
+<a name="set_background_threads-2"></a>
+
+### set_background_threads/2 ###
+
+<pre><code>
+set_background_threads(Env::<a href="#type-env_handle">env_handle()</a>, N::non_neg_integer()) -&gt; ok
+</code></pre>
+<br />
+
+set background threads of an environment
+
+<a name="set_background_threads-3"></a>
+
+### set_background_threads/3 ###
+
+<pre><code>
+set_background_threads(Env::<a href="#type-env_handle">env_handle()</a>, N::non_neg_integer(), Priority::<a href="#type-env_priority">env_priority()</a>) -&gt; ok
+</code></pre>
+<br />
+
+set background threads of low and high prioriry threads pool of an environment
+Flush threads are in the HIGH priority pool, while compaction threads are in the
+LOW priority pool. To increase the number of threads in each pool call:
+
 <a name="snapshot-1"></a>
 
 ### snapshot/1 ###
@@ -603,6 +891,17 @@ stats(DBHandle::<a href="#type-db_handle">db_handle()</a>, CFHandle::<a href="#t
 Return the current stats of the specified column family
 Implemented by calling GetProperty with "rocksdb.stats"
 
+<a name="updates_iterator-2"></a>
+
+### updates_iterator/2 ###
+
+<pre><code>
+updates_iterator(Db::<a href="#type-db_handle">db_handle()</a>, Since::non_neg_integer()) -&gt; {ok, Iterator::term()}
+</code></pre>
+<br />
+
+create a new iterator to retrive ethe transaction log since a sequce
+
 <a name="write-3"></a>
 
 ### write/3 ###
@@ -614,4 +913,27 @@ write(DBHandle, WriteActions, WriteOpts) -&gt; Res
 <ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>WriteActions = <a href="#type-write_actions">write_actions()</a></code></li><li><code>WriteOpts = <a href="#type-write_options">write_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
 
 Apply the specified updates to the database.
+
+<a name="write_batch-3"></a>
+
+### write_batch/3 ###
+
+<pre><code>
+write_batch(Db::<a href="#type-db_handle">db_handle()</a>, Batch::<a href="#type-batch_handle">batch_handle()</a>, WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; ok | {error, term()}
+</code></pre>
+<br />
+
+write the batch to the database
+
+<a name="write_binary_update-3"></a>
+
+### write_binary_update/3 ###
+
+<pre><code>
+write_binary_update(Iterator::term(), BinLog::binary(), WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; ok | {error, term()}
+</code></pre>
+<br />
+
+apply a set of operation coming from a transaction log to another database. Can be useful to use it in slave
+mode.
 

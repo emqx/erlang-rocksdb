@@ -1,7 +1,7 @@
 %%% -*- erlang -*-
 %%
 %% Copyright (c) 2012-2015 Rakuten, Inc.
-%% Copyright (c) 2016 Benoit Chesneau
+%% Copyright (c) 2016-2017 Benoit Chesneau
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@
               itr_handle/0,
               snapshot_handle/0,
               cache_handle/0,
+              batch_handle/0,
               compression_type/0,
               compaction_style/0,
               access_hint/0,
@@ -115,6 +116,8 @@ init() ->
 -opaque itr_handle() :: binary().
 -opaque snapshot_handle() :: binary().
 -opaque cache_handle() :: binary().
+-opaque batch_handle() :: binary().
+
 
 -type env_priority() :: priority_high | priority_low.
 
@@ -561,66 +564,112 @@ set_background_threads(_Env, _N, _PRIORITY) ->
 destroy_env(_Env) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc create a new LRU cache to use for the block cache
 -spec new_lru_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
 new_lru_cache(_Capacity) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc create a new CLOCK cache, for more concurrency in some cases
 -spec new_clock_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
 new_clock_cache(_Capacity) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc get latest sequence from the log
+-spec get_latest_sequence_number(Db :: db_handle()) -> Seq :: non_neg_integer().
 get_latest_sequence_number(_DbHandle) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc create a new iterator to retrive ethe transaction log since a sequce
+-spec updates_iterator(Db :: db_handle(),Since :: non_neg_integer()) -> {ok, Iterator :: term()}.
 updates_iterator(_DbHandle, _Since) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc close the transaction log
 close_updates_iterator(_Iterator) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.
+-spec next_binary_update(
+        Iterator :: term()
+       ) -> {ok, LastSeq :: non_neg_integer(), BinLog :: binary()} | {error, term()}.
 next_binary_update(_Iterator) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc apply a set of operation coming from a transaction log to another database. Can be useful to use it in slave
+%% mode.
+%%
+-spec write_binary_update(
+        Iterator :: term(), BinLog :: binary(), WriteOptions :: write_options()
+       ) -> ok | {error, term()}.
 write_binary_update(_Iterator, _Update, _WriteOptions) ->
   erlang:nif_error({error, not_loaded}).
 
+
+%% @doc like binary update but also return the batch as a list of operations
+-spec next_update(
+        Iterator :: term()
+       ) -> {ok, LastSeq :: non_neg_integer(), Log :: write_actions(), BinLog :: binary()} | {error, term()}.
 next_update(_Iterator) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc create a new batch in memory. A batch is a nif resource attached to the current process. Pay attention when you
+%% share it with other processes as it may not been released. To force its release you will need to use the close_batch
+%% function.
+-spec batch() -> {ok, Batch :: batch_handle()}.
 batch() ->
     erlang:nif_error({error, not_loaded}).
 
+-spec close_batch(Batch :: batch_handle()) -> ok.
 close_batch(_Batch) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc write the batch to the database
+-spec write_batch(Db :: db_handle(), Batch :: batch_handle(), WriteOptions :: write_options()) -> ok | {error, term()}.
 write_batch(_DbHandle, _Batch, _WriteOptions) ->
     erlang:nif_error({error, not_loaded}).
 
-
+%% @doc add a put operation to the batch
+-spec batch_put(Batch :: batch_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_put(_Batch, _Key, _Value) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc like `put/3' but apply the operation to a column family
+-spec batch_put(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_put(_Batch, _ColumnFamily, _Key, _Value) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc add a delete operation to the batch
+-spec batch_delete(Batch :: batch_handle(), Key :: binary()) -> ok.
 batch_delete(_Batch, _Key) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc like `delete/2' but apply the operation to a column family
+-spec batch_delete(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
 batch_delete(_Batch, _ColumnFamily, _Key) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc return the number of operations in the batch
+-spec batch_count(_Batch :: batch_handle()) -> Count :: non_neg_integer().
 batch_count(_Batch) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc reset the batch, clear all operations.
+-spec batch_clear(Batch :: batch_handle()) -> ok.
 batch_clear(_Batch) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc store a checkpoint in the batch to which you can rollback later
+-spec batch_savepoint(Batch :: batch_handle()) -> ok.
 batch_savepoint(_Batch) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc rollback the operations to the latest checkpoint
+-spec batch_rollback(Batch :: batch_handle()) -> ok.
 batch_rollback(_Batch) ->
     erlang:nif_error({error, not_loaded}).
 
+%% @doc return all the operation sin the batch as a list of operations
+-spec batch_tolist(Batch :: batch_handle()) -> Ops :: write_actions().
 batch_tolist(_Batch) ->
     erlang:nif_error({error, not_loaded}).
 
