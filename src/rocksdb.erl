@@ -538,12 +538,12 @@ get_property(_DBHandle, _CFHandle, _Property) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc return a default db environment
--spec default_env() -> env_handle().
+-spec default_env() -> {ok, env_handle()}.
 default_env() ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc return a memory environment
--spec mem_env() -> env_handle().
+-spec mem_env() -> {ok, env_handle()}.
 mem_env() ->
   erlang:nif_error({error, not_loaded}).
 

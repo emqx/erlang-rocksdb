@@ -427,7 +427,7 @@ Create a new column family
 ### default_env/0 ###
 
 <pre><code>
-default_env() -&gt; <a href="#type-env_handle">env_handle()</a>
+default_env() -&gt; {ok, <a href="#type-env_handle">env_handle()</a>}
 </code></pre>
 <br />
 
@@ -710,7 +710,7 @@ List column families
 ### mem_env/0 ###
 
 <pre><code>
-mem_env() -&gt; <a href="#type-env_handle">env_handle()</a>
+mem_env() -&gt; {ok, <a href="#type-env_handle">env_handle()</a>}
 </code></pre>
 <br />
 
