@@ -37,12 +37,16 @@
          set_background_threads/2, set_background_threads/3,
          destroy_env/1]).
 
+-export([new_lru_cache/1,
+         new_clock_cache/1]).
+
 
 -export_type([env_handle/0,
               db_handle/0,
               cf_handle/0,
               itr_handle/0,
               snapshot_handle/0,
+              cache_handle/0,
               compression_type/0,
               compaction_style/0,
               access_hint/0,
@@ -91,11 +95,13 @@ init() ->
 -opaque cf_handle() :: binary().
 -opaque itr_handle() :: binary().
 -opaque snapshot_handle() :: binary().
+-opaque cache_handle() :: binary().
 
 -type env_priority() :: priority_high | priority_low.
 
 -type block_based_table_options() :: [{no_block_cache, boolean()} |
                     {block_size, pos_integer()} |
+                    {block_cache, cache_handle()} |
                     {block_cache_size, pos_integer()} |
                     {bloom_filter_policy, BitsPerKey :: pos_integer()} |
                     {format_version, 0 | 1 | 2} |
@@ -134,8 +140,8 @@ init() ->
              {block_based_table_options, block_based_table_options()}].
 
 -type db_options() :: [
-            {env, env_handle()} |
-            {total_threads, pos_integer()} |
+             {env, env_handle()} |
+             {total_threads, pos_integer()} |
              {create_if_missing, boolean()} |
              {create_missing_column_families, boolean()} |
              {error_if_exists, boolean()} |
@@ -536,6 +542,13 @@ set_background_threads(_Env, _N, _PRIORITY) ->
 destroy_env(_Env) ->
   erlang:nif_error({error, not_loaded}).
 
+-spec new_lru_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
+new_lru_cache(_Capacity) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec new_clock_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
+new_clock_cache(_Capacity) ->
+  erlang:nif_error({error, not_loaded}).
 
 %% ===================================================================
 %% Internal functions

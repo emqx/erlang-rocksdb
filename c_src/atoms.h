@@ -194,6 +194,8 @@ extern ERL_NIF_TERM ATOM_PRIORITY_HIGH;
 extern ERL_NIF_TERM ATOM_PRIORITY_LOW;
 extern ERL_NIF_TERM ATOM_ENV;
 
+extern ERL_NIF_TERM ATOM_BLOCK_CACHE;
+
 }   // namespace erocksdb
 
 
