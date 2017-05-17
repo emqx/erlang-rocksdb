@@ -50,6 +50,8 @@
     #include "erocksdb_db.h"
 #endif
 
+#include "cache.h"
+
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
     const ERL_NIF_TERM* option;
@@ -57,28 +59,39 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
     {
         if (option[0] == erocksdb::ATOM_NO_BLOCK_CACHE) {
             opts.no_block_cache = (option[1] == erocksdb::ATOM_TRUE);
-        } else if (option[0] == erocksdb::ATOM_BLOCK_SIZE) {
+        }
+        if (option[0] == erocksdb::ATOM_BLOCK_CACHE) {
+             erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
+            if(NULL!=cache_ptr)
+                opts.block_cache = cache_ptr->cache();
+        }
+        else if (option[0] == erocksdb::ATOM_BLOCK_SIZE) {
             int block_size;
             if (enif_get_int(env, option[1], &block_size))
                 opts.block_size = block_size;
-        } else if (option[0] == erocksdb::ATOM_BLOCK_CACHE_SIZE) {
+        }
+        else if (option[0] == erocksdb::ATOM_BLOCK_CACHE_SIZE) {
             ErlNifUInt64 block_cache_size;
             if (enif_get_uint64(env, option[1], &block_cache_size)) {
                 erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
                 priv.block_cache->SetCapacity(block_cache_size);
                 opts.block_cache = priv.block_cache;
             }
-        } else if (option[0] == erocksdb::ATOM_BLOOM_FILTER_POLICY) {
+        }
+        else if (option[0] == erocksdb::ATOM_BLOOM_FILTER_POLICY) {
             int bits_per_key;
             if (enif_get_int(env, option[1], &bits_per_key))
                 opts.filter_policy = std::shared_ptr<const rocksdb::FilterPolicy>(rocksdb::NewBloomFilterPolicy(bits_per_key));
-        } else if (option[0] == erocksdb::ATOM_FORMAT_VERSION) {
+        }
+        else if (option[0] == erocksdb::ATOM_FORMAT_VERSION) {
             int format_version;
             if (enif_get_int(env, option[1], &format_version))
                 opts.format_version = format_version;
-        } else if (option[0] == erocksdb::ATOM_SKIP_TABLE_BUILDER_FLUSH) {
+        }
+        else if (option[0] == erocksdb::ATOM_SKIP_TABLE_BUILDER_FLUSH) {
             opts.skip_table_builder_flush = (option[1] == erocksdb::ATOM_TRUE);
-        } else if (option[0] == erocksdb::ATOM_CACHE_INDEX_AND_FILTER_BLOCKS) {
+        }
+        else if (option[0] == erocksdb::ATOM_CACHE_INDEX_AND_FILTER_BLOCKS) {
             opts.cache_index_and_filter_blocks = (option[1] == erocksdb::ATOM_TRUE);
         }
     }

@@ -32,6 +32,10 @@
 #include <algorithm>
 #include <vector>
 
+
+#include "rocksdb/db.h"
+#include "rocksdb/cache.h"
+
 #include "erocksdb.h"
 
 #ifndef ATOMS_H
@@ -46,9 +50,7 @@
 #endif
 
 #include "env.h"
-
-#include "rocksdb/db.h"
-#include "rocksdb/cache.h"
+#include "cache.h"
 
 static ErlNifFunc nif_funcs[] =
 {
@@ -91,7 +93,10 @@ static ErlNifFunc nif_funcs[] =
   {"mem_env", 0, erocksdb::MemEnv},
   {"set_background_threads", 2, erocksdb::SetBackgroundThreads},
   {"set_background_threads", 3, erocksdb::SetBackgroundThreads},
-  {"destroy_env", 1, erocksdb::DestroyEnv}
+  {"destroy_env", 1, erocksdb::DestroyEnv},
+
+  {"new_lru_cache", 1, erocksdb::NewLRUCache},
+  {"new_clock_cache", 1, erocksdb::NewClockCache}
 
 
 };
@@ -189,6 +194,7 @@ ERL_NIF_TERM ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD;
 
 // Related to BlockBasedTable Options
 ERL_NIF_TERM ATOM_NO_BLOCK_CACHE;
+ERL_NIF_TERM ATOM_BLOCK_CACHE;
 ERL_NIF_TERM ATOM_BLOCK_SIZE;
 ERL_NIF_TERM ATOM_BLOCK_CACHE_SIZE;
 ERL_NIF_TERM ATOM_BLOOM_FILTER_POLICY;
@@ -301,6 +307,7 @@ try
   erocksdb::ColumnFamilyObject::CreateColumnFamilyObjectType(env);
   erocksdb::ItrObject::CreateItrObjectType(env);
   erocksdb::SnapshotObject::CreateSnapshotObjectType(env);
+  erocksdb::Cache::CreateCacheType(env);
 
   // must initialize atoms before processing options
 #define ATOM(Id, Value) { Id = enif_make_atom(env, Value); }
@@ -389,6 +396,8 @@ try
 
   // Related to BlockBasedTable Options
   ATOM(erocksdb::ATOM_NO_BLOCK_CACHE, "no_block_cache");
+  ATOM(erocksdb::ATOM_BLOCK_CACHE, "block_cache");
+
   ATOM(erocksdb::ATOM_BLOCK_SIZE, "block_size");
   ATOM(erocksdb::ATOM_BLOCK_CACHE_SIZE, "block_cache_size");
   ATOM(erocksdb::ATOM_BLOOM_FILTER_POLICY, "bloom_filter_policy");
