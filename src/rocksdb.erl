@@ -19,8 +19,8 @@
 %% @doc Erlang Wrapper for RocksDB
 -module(rocksdb).
 
--export([open/2, open/3,
-         open_with_cf/3, open_with_cf/4,
+-export([open/2,
+         open_with_cf/3,
          close/1]).
 
 -export([snapshot/1, release_snapshot/1]).
@@ -133,7 +133,9 @@ init() ->
              {in_memory_mode, boolean()} |
              {block_based_table_options, block_based_table_options()}].
 
--type db_options() :: [{total_threads, pos_integer()} |
+-type db_options() :: [
+            {env, env_handle()} |
+            {total_threads, pos_integer()} |
              {create_if_missing, boolean()} |
              {create_missing_column_families, boolean()} |
              {error_if_exists, boolean()} |
@@ -203,9 +205,6 @@ init() ->
 open(_Name, _DBOpts) ->
   erlang:nif_error({error, not_loaded}).
 
-open(_Env, _Name, _DbOpts) ->
-  erlang:nif_error({error, not_loaded}).
-
 %% @doc Open RocksDB with the specified column families
 -spec(open_with_cf(Name, DBOpts, CFDescriptors) ->
        {ok, db_handle(), list(cf_handle())} | {error, any()}
@@ -213,10 +212,6 @@ open(_Env, _Name, _DbOpts) ->
           DBOpts :: db_options(),
           CFDescriptors :: list(#cf_descriptor{})).
 open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
-  erlang:nif_error({error, not_loaded}).
-
-
-open_with_cf(_Env, _Name, _DbOpts, _CFDescriptors) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc Close RocksDB

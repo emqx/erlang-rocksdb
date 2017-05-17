@@ -166,45 +166,6 @@ private:
 
 };  // ReferencePtr
 
-/**
- * Per Env object.  Created as erlang reference.
- */
-class EnvObject : public ErlRefObject
-{
-public:
-    rocksdb::Env* m_Env;
-
-    Mutex m_DbMutex;                         //!< mutex protecting m_ItrList
-    std::list<class DbObject *> m_DbList;   //!< ItrObjects holding ref count to this
-
-protected:
-    static ErlNifResourceType* m_Env_RESOURCE;
-
-public:
-    EnvObject(rocksdb::Env * Env);
-
-    virtual ~EnvObject(); // needs to perform free_itr
-
-    virtual void Shutdown();
-
-    static void CreateEnvObjectType(ErlNifEnv * Env);
-
-    static EnvObject * CreateEnvObject(rocksdb::Env * Env);
-
-    static EnvObject * RetrieveEnvObject(ErlNifEnv * Env, const ERL_NIF_TERM & EnvTerm);
-
-    static void EnvObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
-
-    void AddReference(class DbObject *);
-    void RemoveReference(class DbObject *);
-
-private:
-    EnvObject();
-    EnvObject(const EnvObject &);            // no copy
-    EnvObject & operator=(const EnvObject &); // no assignment
-};  // class SnapshotObject
-
-
 
 /**
  * Per database object.  Created as erlang reference.
@@ -216,7 +177,6 @@ class DbObject : public ErlRefObject
 public:
     rocksdb::DB* m_Db;                                   // NULL or rocksdb database object
     rocksdb::Options *m_DbOptions;
-    ReferencePtr<EnvObject> m_EnvPtr;
 
 
     Mutex m_ItrMutex;                         //!< mutex protecting m_ItrList
@@ -232,7 +192,6 @@ protected:
 
 public:
     DbObject(rocksdb::DB * DbPtr, rocksdb::Options * Options); // Open with default CF
-    DbObject(rocksdb::DB * DbPtr, rocksdb::Options * Options, EnvObject *); // Open with default CF
 
     virtual ~DbObject();
 
@@ -257,8 +216,6 @@ public:
     static void CreateDbObjectType(ErlNifEnv * Env);
 
     static DbObject * CreateDbObject(rocksdb::DB * Db, rocksdb::Options * Options);
-    static DbObject * CreateDbObject(rocksdb::DB * Db, rocksdb::Options * Options, EnvObject * EnvPtr);
-
 
     static DbObject * RetrieveDbObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
 

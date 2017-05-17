@@ -36,7 +36,68 @@
     #include "util.h"
 #endif
 
+#include "env.h"
+
 namespace erocksdb {
+
+ErlNifResourceType * ManagedEnv::m_Env_RESOURCE(NULL);
+
+void
+ManagedEnv::CreateEnvType(
+    ErlNifEnv * env)
+{
+    ErlNifResourceFlags flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
+    m_Env_RESOURCE = enif_open_resource_type(env, NULL, "erocksdb_Env",
+                                            &ManagedEnv::EnvResourceCleanup,
+                                            flags, NULL);
+    return;
+}   // ManagedEnv::CreateEnvType
+
+
+void
+ManagedEnv::EnvResourceCleanup(
+    ErlNifEnv * Env,
+    void * Arg)
+{
+    return;
+}   // EnvObject::EnvObjectResourceCleanup
+
+
+ManagedEnv *
+ManagedEnv::CreateEnvResource(rocksdb::Env * env)
+{
+    ManagedEnv * ret_ptr;
+    void * alloc_ptr;
+
+    alloc_ptr=enif_alloc_resource(m_Env_RESOURCE, sizeof(ManagedEnv));
+    ret_ptr=new (alloc_ptr) ManagedEnv(env);
+    return(ret_ptr);
+}
+
+ManagedEnv *
+ManagedEnv::RetrieveEnvResource(ErlNifEnv * Env, const ERL_NIF_TERM & EnvTerm)
+{
+    ManagedEnv * ret_ptr;
+    if (!enif_get_resource(Env, EnvTerm, m_Env_RESOURCE, (void **)&ret_ptr))
+        return NULL;
+    return ret_ptr;
+}
+
+ManagedEnv::ManagedEnv(rocksdb::Env * Env) : env_(Env) {}
+
+ManagedEnv::~ManagedEnv()
+{
+    if(env_)
+    {
+        delete env_;
+        env_ = NULL;
+    }
+    
+    return;
+}
+
+const rocksdb::Env* ManagedEnv::env() { return env_; }
+
 
 ERL_NIF_TERM
 DefaultEnv(
@@ -44,10 +105,10 @@ DefaultEnv(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    EnvObject* env_ptr;
+    ManagedEnv* env_ptr;
     rocksdb::Env* default_env = rocksdb::Env::Default();
 
-    env_ptr = EnvObject::CreateEnvObject(default_env);
+    env_ptr = ManagedEnv::CreateEnvResource(default_env);
 
     // create a resource reference to send erlang
     ERL_NIF_TERM result = enif_make_resource(env, env_ptr);
@@ -65,10 +126,10 @@ MemEnv(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    EnvObject* env_ptr;
+    ManagedEnv* env_ptr;
     rocksdb::Env* mem_env = rocksdb::NewMemEnv(rocksdb::Env::Default());
 
-    env_ptr = EnvObject::CreateEnvObject(mem_env);
+    env_ptr = ManagedEnv::CreateEnvResource(mem_env);
 
     // create a resource reference to send erlang
     ERL_NIF_TERM result = enif_make_resource(env, env_ptr);
@@ -86,28 +147,30 @@ SetBackgroundThreads(
         int argc,
         const ERL_NIF_TERM argv[])
 {
-    ReferencePtr<EnvObject> env_ptr;
-    int n;
+    ManagedEnv* env_ptr = ManagedEnv::RetrieveEnvResource(env, argv[0]);
+    
 
-    // retrieve env pointer
-    if(!enif_get_db_env(env, argv[0], &env_ptr))
+     if(NULL==env_ptr)
         return enif_make_badarg(env);
+    rocksdb::Env* rdb_env = (rocksdb::Env* )env_ptr->env();
 
+    int n;
     if(!enif_get_int(env, argv[1], &n))
         return enif_make_badarg(env);
+
 
     if(argc==3)
     {
         if(argv[2] == ATOM_PRIORITY_HIGH)
-             env_ptr->m_Env->SetBackgroundThreads(n, rocksdb::Env::Priority::HIGH);
+            rdb_env->SetBackgroundThreads(n, rocksdb::Env::Priority::HIGH);
         else if((argv[2] == ATOM_PRIORITY_LOW))
-            env_ptr->m_Env->SetBackgroundThreads(n, rocksdb::Env::Priority::LOW);
+            rdb_env->SetBackgroundThreads(n, rocksdb::Env::Priority::LOW);
         else
             return enif_make_badarg(env);
     }
     else
     {
-        env_ptr->m_Env->SetBackgroundThreads(n);
+        rdb_env->SetBackgroundThreads(n);
     }
 
     return ATOM_OK;
@@ -120,14 +183,12 @@ DestroyEnv(
         int argc,
         const ERL_NIF_TERM argv[])
 {
-    ReferencePtr<EnvObject> env_ptr;
 
-    // retrieve env pointer
-    env_ptr.assign(EnvObject::RetrieveEnvObject(env, argv[0]));
-    if(NULL==env_ptr.get())
+    ManagedEnv* env_ptr = ManagedEnv::RetrieveEnvResource(env, argv[0]);
+    if(NULL==env_ptr)
         return ATOM_OK;
 
-    ErlRefObject::InitiateCloseRequest(env_ptr.get());
+    delete env_ptr;
     return ATOM_OK;
 }   // erocksdb::DestroyEnv
 

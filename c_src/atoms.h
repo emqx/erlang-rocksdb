@@ -192,6 +192,7 @@ extern ERL_NIF_TERM ATOM_WRITE_THREADS;
 // thread priority
 extern ERL_NIF_TERM ATOM_PRIORITY_HIGH;
 extern ERL_NIF_TERM ATOM_PRIORITY_LOW;
+extern ERL_NIF_TERM ATOM_ENV;
 
 }   // namespace erocksdb
 
