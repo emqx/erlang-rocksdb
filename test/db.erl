@@ -94,7 +94,7 @@ close_fold_test_Z() ->
 
 destroy_reopen(DbName, Options) ->
   _ = rocksdb:destroy(DbName, []),
-  os:cmd("rm -rf " ++ DbName),
+  _ = os:cmd("rm -rf " ++ DbName),
   {ok, Db} = rocksdb:open(DbName, Options),
   Db.
 
@@ -104,7 +104,7 @@ randomstring(Len) ->
 key(I) when is_integer(I) ->
   <<I:128/unsigned>>.
 
-approximate_size_test() ->
+approximate_size_() ->
   Db = destroy_reopen("erocksdb_approximate_size.db",
                       [{create_if_missing, true},
                        {write_buffer_size, 100000000},
