@@ -81,7 +81,7 @@ Cache::~Cache()
     {
         cache_ = NULL;
     }
-    
+
     return;
 }
 
@@ -94,9 +94,9 @@ NewLRUCache(
         int argc,
         const ERL_NIF_TERM argv[])
 {
-    int capacity;
+    ErlNifUInt64 capacity;
     Cache* cache_ptr;
-    if(!enif_get_int(env, argv[0], &capacity))
+    if(!enif_get_uint64(env, argv[0], &capacity))
         return enif_make_badarg(env);
     std::shared_ptr<rocksdb::Cache> cache = rocksdb::NewLRUCache(capacity);
     cache_ptr = Cache::CreateCacheResource(cache);
@@ -114,9 +114,9 @@ NewClockCache(
         int argc,
         const ERL_NIF_TERM argv[])
 {
-    int capacity;
+    ErlNifUInt64 capacity;
     Cache* cache_ptr;
-    if(!enif_get_int(env, argv[0], &capacity))
+    if(!enif_get_uint64(env, argv[0], &capacity))
         return enif_make_badarg(env);
     std::shared_ptr<rocksdb::Cache> cache = rocksdb::NewClockCache(capacity);
     cache_ptr = Cache::CreateCacheResource(cache);
