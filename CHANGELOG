@@ -1,0 +1,8 @@
+erlang-rocksdb 0.8.0 beta, released on 2017/05/17
+=================================================
+
+- replace custom pool by dirty-nif calls
+- allows a cache to be shared between databases (option `block_cache``from the block options)
+- allows an environment to be set and shared across databases (option `env`)
+- add support of batch operations, allows to incrumentatly update a mutanle emory object
+- addsupport for transaction log operations (riteration and replication)
