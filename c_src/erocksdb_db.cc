@@ -44,6 +44,8 @@
     #include "util.h"
 #endif
 
+#include "env.h"
+
 #ifndef INCL_EROCKSB_DB_H
     #include "erocksdb_db.h"
 #endif
@@ -90,7 +92,13 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
     const ERL_NIF_TERM* option;
     if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
     {
-        if (option[0] == erocksdb::ATOM_TOTAL_THREADS)
+        if (option[0] == erocksdb::ATOM_ENV)
+        {
+            erocksdb::ManagedEnv* env_ptr = erocksdb::ManagedEnv::RetrieveEnvResource(env,option[1]);
+            if(NULL!=env_ptr)
+                opts.env = (rocksdb::Env*)env_ptr->env();
+        }
+        else if (option[0] == erocksdb::ATOM_TOTAL_THREADS)
         {
             int total_threads;
             if (enif_get_int(env, option[1], &total_threads))
@@ -914,42 +922,20 @@ Open(
     DbObject * db_ptr;
     rocksdb::DB *db(0);
 
-    int i=0;
-    if(argc==3) i=1;
 
-    if(!enif_get_string(env, argv[i], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
-       !enif_is_list(env, argv[i+1]))
+    if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+       !enif_is_list(env, argv[1]))
     {
         return enif_make_badarg(env);
     }
 
     rocksdb::Options *opts = new rocksdb::Options;
-    fold(env, argv[i+1], parse_db_option, *opts);
+    fold(env, argv[1], parse_db_option, *opts);
 
-    rocksdb::Status status;
-    if(argc==3)
-    {
-        ReferencePtr<EnvObject> env_ptr;
-        // retrieve env pointer
-        if(!enif_get_db_env(env, argv[0], &env_ptr))
-            return enif_make_badarg(env);
-
-        // pass env to options
-        opts->env = env_ptr->m_Env;
-        // create the db
-        status = rocksdb::DB::Open(*opts, db_name, &db);
-        if(!status.ok())
-            return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
-        db_ptr = DbObject::CreateDbObject(db, opts, env_ptr.get());
-    }
-    else
-    {
-        // initialize the database
-        status = rocksdb::DB::Open(*opts, db_name, &db);
-        if(!status.ok())
-            return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
-        db_ptr = DbObject::CreateDbObject(db, opts);
-    }
+    rocksdb::Status status = rocksdb::DB::Open(*opts, db_name, &db);
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+    db_ptr = DbObject::CreateDbObject(db, opts);
 
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
     enif_release_resource(db_ptr);
@@ -966,21 +952,19 @@ OpenWithCf(
     DbObject * db_ptr;
     rocksdb::DB *db(0);
 
-    int i=0;
-    if (argc==4) i=1;
 
-    if(!enif_get_string(env, argv[i], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
-       !enif_is_list(env, argv[i+1]) || !enif_is_list(env, argv[i+2]))
+    if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+       !enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]))
     {
         return enif_make_badarg(env);
     }   // if
 
     // read db options
     rocksdb::Options *opts = new rocksdb::Options;
-    fold(env, argv[i+1], parse_db_option, *opts);
+    fold(env, argv[1], parse_db_option, *opts);
 
     std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
-    ERL_NIF_TERM head, tail = argv[i+2];
+    ERL_NIF_TERM head, tail = argv[2];
     while(enif_get_list_cell(env, tail, &head, &tail))
     {
         ERL_NIF_TERM result = parse_cf_descriptor(env, head, column_families);
@@ -991,30 +975,10 @@ OpenWithCf(
     }
 
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
-    rocksdb::Status status;
-    if(argc==4)
-    {
-        ReferencePtr<EnvObject> env_ptr;
-        // retrieve env pointer
-        if(!enif_get_db_env(env, argv[0], &env_ptr))
-            return enif_make_badarg(env);
-
-        // pass env to options
-        opts->env = env_ptr->m_Env;
-        // create the db
-        status = rocksdb::DB::Open(*opts, db_name, column_families, &handles, &db);
-        if(!status.ok())
-            return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
-        db_ptr = DbObject::CreateDbObject(db, opts, env_ptr.get());
-    }
-    else
-    {
-        // initialize the database
-        status = rocksdb::DB::Open(*opts, db_name, column_families, &handles, &db);
-        if(!status.ok())
-            return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
-        db_ptr = DbObject::CreateDbObject(db, opts);
-    }
+    rocksdb::Status status = rocksdb::DB::Open(*opts, db_name, column_families, &handles, &db);
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+    db_ptr = DbObject::CreateDbObject(db, opts);
 
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
 

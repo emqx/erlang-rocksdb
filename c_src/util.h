@@ -45,7 +45,6 @@ ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s);
 
 int binary_to_slice(ErlNifEnv* env, ERL_NIF_TERM val, rocksdb::Slice *slice);
 
-int enif_get_db_env(ErlNifEnv* env, ERL_NIF_TERM envval, erocksdb::ReferencePtr<erocksdb::EnvObject>* env_ptr);
 int enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::DbObject>* db_ptr);
 int enif_get_cf(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::ColumnFamilyObject>* cf_ptr);
 

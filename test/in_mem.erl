@@ -15,10 +15,10 @@
 
 basic_test() ->
   {ok, MemEnv} = rocksdb:mem_env(),
-  {ok, Db} = rocksdb:open(MemEnv, "test", [{create_if_missing, true}]),
+  {ok, Db} = rocksdb:open("test", [{env, MemEnv}, {create_if_missing, true}]),
   ok = rocksdb:put(Db, <<"a">>, <<"1">>, []),
   ?assertEqual({ok, <<"1">>}, rocksdb:get(Db, <<"a">>, [])),
-  {ok, Db1} = rocksdb:open(MemEnv, "test1", [{create_if_missing, true}]),
+  {ok, Db1} = rocksdb:open("test1", [{env, MemEnv}, {create_if_missing, true}]),
   ok = rocksdb:put(Db1, <<"a">>, <<"2">>, []),
   ?assertEqual({ok, <<"1">>}, rocksdb:get(Db, <<"a">>, [])),
   ?assertEqual({ok, <<"2">>}, rocksdb:get(Db1, <<"a">>, [])),
@@ -29,7 +29,7 @@ basic_test() ->
 prev_test() ->
   {ok, MemEnv} = rocksdb:mem_env(),
   os:cmd("rm -rf ltest"),  % NOTE
-  {ok, Ref} = rocksdb:open(MemEnv, "ltest", [{create_if_missing, true}]),
+  {ok, Ref} = rocksdb:open("ltest", [{env, MemEnv}, {create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
     rocksdb:put(Ref, <<"b">>, <<"y">>, []),

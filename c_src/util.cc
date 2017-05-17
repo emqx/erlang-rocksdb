@@ -65,20 +65,6 @@ binary_to_slice(ErlNifEnv* env, ERL_NIF_TERM val, rocksdb::Slice* slice)
 }
 
 int
-enif_get_db_env(ErlNifEnv* env, ERL_NIF_TERM envval, erocksdb::ReferencePtr<erocksdb::EnvObject>* env_ptr)
-{
-    env_ptr->assign(erocksdb::EnvObject::RetrieveEnvObject(env, envval));
-
-    if(NULL==env_ptr->get())
-        return 0;
-
-    if(NULL==env_ptr->get()->m_Env)
-        return 0;
-
-    return 1;
-}
-
-int
 enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::DbObject>* db_ptr)
 {
     db_ptr->assign(erocksdb::DbObject::RetrieveDbObject(env, dbval));
