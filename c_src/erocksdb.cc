@@ -96,7 +96,30 @@ static ErlNifFunc nif_funcs[] =
   {"destroy_env", 1, erocksdb::DestroyEnv},
 
   {"new_lru_cache", 1, erocksdb::NewLRUCache},
-  {"new_clock_cache", 1, erocksdb::NewClockCache}
+  {"new_clock_cache", 1, erocksdb::NewClockCache},
+
+  {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber},
+
+  // transactions
+  {"updates_iterator", 2, erocksdb::UpdatesIterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"close_updates_iterator", 1, erocksdb::UpdatesIteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"next_binary_update", 1, erocksdb::NextBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"write_binary_update", 3, erocksdb::WriteBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"next_update", 1, erocksdb::NextUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
+  // Batch
+  {"batch", 0, erocksdb::NewBatch},
+  {"close_batch", 1, erocksdb::CloseBatch},
+  {"write_batch", 3, erocksdb::WriteBatch, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"batch_put", 3, erocksdb::PutBatch},
+  {"batch_put", 4, erocksdb::PutBatch},
+  {"batch_delete", 2, erocksdb::DeleteBatch},
+  {"batch_delete", 3, erocksdb::DeleteBatch},
+  {"batch_clear", 1, erocksdb::ClearBatch},
+  {"batch_savepoint", 1, erocksdb::BatchSetSavePoint},
+  {"batch_rollback", 1, erocksdb::BatchRollbackToSavePoint},
+  {"batch_count", 1, erocksdb::BatchCount},
+  {"batch_tolist", 1, erocksdb::BatchToList, ERL_NIF_DIRTY_JOB_CPU_BOUND}
 
 
 };
@@ -308,6 +331,8 @@ try
   erocksdb::ItrObject::CreateItrObjectType(env);
   erocksdb::SnapshotObject::CreateSnapshotObjectType(env);
   erocksdb::Cache::CreateCacheType(env);
+  erocksdb::CreateBatchType(env);
+  erocksdb::TLogItrObject::CreateTLogItrObjectType(env);
 
   // must initialize atoms before processing options
 #define ATOM(Id, Value) { Id = enif_make_atom(env, Value); }

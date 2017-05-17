@@ -1,0 +1,161 @@
+%%%-------------------------------------------------------------------
+%%% @author benoitc
+%%% @copyright (C) 2016, <COMPANY>
+%%% @doc
+%%%
+%%% @end
+%%% Created : 19. May 2016 22:42
+%%%-------------------------------------------------------------------
+-module(transaction_log).
+-author("benoitc").
+
+-compile([export_all/1]).
+-include_lib("eunit/include/eunit.hrl").
+
+destroy_reopen(DbName, Options) ->
+  _ = rocksdb:destroy(DbName, []),
+  {ok, Db} = rocksdb:open(DbName, Options),
+  Db.
+
+close_destroy(Db, DbName) ->
+  rocksdb:close(Db),
+  rocksdb:destroy(DbName, []).
+
+basic_test() ->
+  Db = destroy_reopen("test.db", [{create_if_missing, true}]),
+  Db1 = destroy_reopen("test1.db", [{create_if_missing, true}]),
+
+  ok = rocksdb:put(Db, <<"a">>, <<"v1">>, []),
+  ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db, <<"a">>, [])),
+  ?assertEqual(1, rocksdb:get_latest_sequence_number(Db)),
+  ?assertEqual(0, rocksdb:get_latest_sequence_number(Db1)),
+
+  {ok, Itr} = rocksdb:updates_iterator(Db, 0),
+  {ok, Last, TransactionBin} = rocksdb:next_binary_update(Itr),
+  ?assertEqual(1, Last),
+
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"a">>, [])),
+  ok = rocksdb:write_binary_update(Db1, TransactionBin, []),
+  ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
+  ?assertEqual(1, rocksdb:get_latest_sequence_number(Db1)),
+  ok = rocksdb:close_updates_iterator(Itr),
+
+  close_destroy(Db, "test.db"),
+  close_destroy(Db1, "test1.db"),
+  ok.
+
+iterator_test() ->
+  Db = destroy_reopen("test.db", [{create_if_missing, true}]),
+  Db1 = destroy_reopen("test1.db", [{create_if_missing, true}]),
+
+  ok = rocksdb:put(Db, <<"a">>, <<"v1">>, []),
+  ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db, <<"a">>, [])),
+  ?assertEqual(1, rocksdb:get_latest_sequence_number(Db)),
+
+  ok = rocksdb:put(Db, <<"b">>, <<"v2">>, []),
+  ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db, <<"b">>, [])),
+  ?assertEqual(2, rocksdb:get_latest_sequence_number(Db)),
+
+  {ok, Itr} = rocksdb:updates_iterator(Db, 0),
+  {ok, Last, TransactionBin} = rocksdb:next_binary_update(Itr),
+  ?assertEqual(1, Last),
+
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"a">>, [])),
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"b">>, [])),
+
+
+  ok = rocksdb:write_binary_update(Db1, TransactionBin, []),
+  ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"b">>, [])),
+
+  {ok, Last2, TransactionBin2} = rocksdb:next_binary_update(Itr),
+  ?assertEqual(2, Last2),
+  ok = rocksdb:write_binary_update(Db1, TransactionBin2, []),
+  ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
+  ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
+
+  ?assertEqual({error, invalid_iterator}, rocksdb:next_binary_update(Itr)),
+
+  ok = rocksdb:close_updates_iterator(Itr),
+
+  close_destroy(Db, "test.db"),
+  close_destroy(Db1, "test1.db"),
+  ok.
+
+
+iterator_with_batch_test() ->
+
+  Db = destroy_reopen("test.db", [{create_if_missing, true}]),
+  Db1 = destroy_reopen("test1.db", [{create_if_missing, true}]),
+
+  ok = rocksdb:write(Db, [{put, <<"a">>, <<"v1">>},
+    {put, <<"b">>, <<"v2">>}], []),
+  ?assertEqual(2, rocksdb:get_latest_sequence_number(Db)),
+
+  ok = rocksdb:write(Db, [{put, <<"c">>, <<"v3">>}, {delete, <<"a">>}], []),
+
+  ?assertEqual(4, rocksdb:get_latest_sequence_number(Db)),
+
+  {ok, Itr} = rocksdb:updates_iterator(Db, 0),
+
+  {ok, Last, TransactionBin} = rocksdb:next_binary_update(Itr),
+  ?assertEqual(1, Last),
+  ok = rocksdb:write_binary_update(Db1, TransactionBin, []),
+  ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
+  ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"c">>, [])),
+  ?assertEqual(2, rocksdb:get_latest_sequence_number(Db1)),
+
+  {ok, Last2, TransactionBin2} = rocksdb:next_binary_update(Itr),
+  ?assertEqual(3, Last2),
+  ok = rocksdb:write_binary_update(Db1, TransactionBin2, []),
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"a">>, [])),
+  ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
+  ?assertEqual({ok, <<"v3">>}, rocksdb:get(Db1, <<"c">>, [])),
+
+  ?assertEqual(4, rocksdb:get_latest_sequence_number(Db1)),
+
+  close_destroy(Db, "test.db"),
+  close_destroy(Db1, "test1.db"),
+  ok.
+
+iterator_with_batch2_test() ->
+
+  Db = destroy_reopen("test.db", [{create_if_missing, true}]),
+  Db1 = destroy_reopen("test1.db", [{create_if_missing, true}]),
+
+  W1 = [{put, <<"a">>, <<"v1">>}, {put, <<"b">>, <<"v2">>}],
+  W2 = [{put, <<"c">>, <<"v3">>}, {delete, <<"a">>}],
+
+  ok = rocksdb:write(Db, W1, []),
+  ?assertEqual(2, rocksdb:get_latest_sequence_number(Db)),
+
+  ok = rocksdb:write(Db, W2, []),
+
+  ?assertEqual(4, rocksdb:get_latest_sequence_number(Db)),
+
+  {ok, Itr} = rocksdb:updates_iterator(Db, 0),
+
+  {ok, Last, Log, BinLog} = rocksdb:next_update(Itr),
+  ?assertEqual(1, Last),
+  ?assertEqual(W1, Log),
+
+  ok = rocksdb:write_binary_update(Db1, BinLog, []),
+  ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
+  ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"c">>, [])),
+  ?assertEqual(2, rocksdb:get_latest_sequence_number(Db1)),
+
+
+  {ok, Last2, Log2, BinLog2} = rocksdb:next_update(Itr),
+  ?assertEqual(3, Last2),
+  ?assertEqual(W2, Log2),
+  ok = rocksdb:write_binary_update(Db1, BinLog2, []),
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"a">>, [])),
+  ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
+  ?assertEqual({ok, <<"v3">>}, rocksdb:get(Db1, <<"c">>, [])),
+  ?assertEqual(4, rocksdb:get_latest_sequence_number(Db1)),
+
+  close_destroy(Db, "test.db"),
+  close_destroy(Db1, "test1.db"),
+  ok.

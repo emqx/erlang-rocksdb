@@ -40,6 +40,25 @@
 -export([new_lru_cache/1,
          new_clock_cache/1]).
 
+-export([get_latest_sequence_number/1]).
+-export([updates_iterator/2]).
+-export([close_updates_iterator/1]).
+-export([next_binary_update/1]).
+-export([write_binary_update/3]).
+-export([next_update/1]).
+
+%% batch functions
+-export([batch/0,
+         close_batch/1,
+         write_batch/3,
+         batch_put/3, batch_put/4,
+         batch_delete/2, batch_delete/3,
+         batch_clear/1,
+         batch_savepoint/1,
+         batch_rollback/1,
+         batch_count/1,
+         batch_tolist/1]).
+
 
 -export_type([env_handle/0,
               db_handle/0,
@@ -549,6 +568,62 @@ new_lru_cache(_Capacity) ->
 -spec new_clock_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
 new_clock_cache(_Capacity) ->
   erlang:nif_error({error, not_loaded}).
+
+get_latest_sequence_number(_DbHandle) ->
+  erlang:nif_error({error, not_loaded}).
+
+updates_iterator(_DbHandle, _Since) ->
+  erlang:nif_error({error, not_loaded}).
+
+close_updates_iterator(_Iterator) ->
+  erlang:nif_error({error, not_loaded}).
+
+next_binary_update(_Iterator) ->
+  erlang:nif_error({error, not_loaded}).
+
+write_binary_update(_Iterator, _Update, _WriteOptions) ->
+  erlang:nif_error({error, not_loaded}).
+
+next_update(_Iterator) ->
+  erlang:nif_error({error, not_loaded}).
+
+batch() ->
+    erlang:nif_error({error, not_loaded}).
+
+close_batch(_Batch) ->
+    erlang:nif_error({error, not_loaded}).
+
+write_batch(_DbHandle, _Batch, _WriteOptions) ->
+    erlang:nif_error({error, not_loaded}).
+
+
+batch_put(_Batch, _Key, _Value) ->
+    erlang:nif_error({error, not_loaded}).
+
+batch_put(_Batch, _ColumnFamily, _Key, _Value) ->
+    erlang:nif_error({error, not_loaded}).
+
+batch_delete(_Batch, _Key) ->
+    erlang:nif_error({error, not_loaded}).
+
+batch_delete(_Batch, _ColumnFamily, _Key) ->
+    erlang:nif_error({error, not_loaded}).
+
+batch_count(_Batch) ->
+    erlang:nif_error({error, not_loaded}).
+
+batch_clear(_Batch) ->
+    erlang:nif_error({error, not_loaded}).
+
+batch_savepoint(_Batch) ->
+    erlang:nif_error({error, not_loaded}).
+
+batch_rollback(_Batch) ->
+    erlang:nif_error({error, not_loaded}).
+
+batch_tolist(_Batch) ->
+    erlang:nif_error({error, not_loaded}).
+
 
 %% ===================================================================
 %% Internal functions

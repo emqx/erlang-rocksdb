@@ -305,6 +305,7 @@ DbObject::Shutdown()
     ColumnFamilyObject *column_family_ptr;
     ItrObject * itr_ptr;
     SnapshotObject * snapshot_ptr;
+    TLogItrObject *tlog_ptr;
 
     do
     {
@@ -377,6 +378,31 @@ DbObject::Shutdown()
             SnapshotObject::InitiateCloseRequest(snapshot_ptr);
 
     } while(again);
+
+    // clean transaction log iterators
+    again = true;
+    do {
+        again = false;
+        tlog_ptr = NULL;
+
+        // lock the SnapshotList
+        {
+            MutexLock lock(m_TLogItrMutex);
+
+            if (!m_TLogItrList.empty()) {
+                again = true;
+                tlog_ptr = m_TLogItrList.front();
+                m_TLogItrList.pop_front();
+            }   // if
+        }
+
+        // must be outside lock so SnapshotObject can attempt
+        //  RemoveReference
+        if (again)
+            TLogItrObject::InitiateCloseRequest(tlog_ptr);
+
+    } while (again);
+
 #endif
 
     RefDec();
@@ -447,8 +473,28 @@ DbObject::RemoveSnapshotReference(
     m_SnapshotList.remove(SnapshotPtr);
 
     return;
-
 }   // DbObject::RemoveSnapshotReference
+
+void
+DbObject::AddTLogReference(TLogItrObject *TLogItrPtr) {
+    MutexLock lock(m_TLogItrMutex);
+
+    m_TLogItrList.push_back(TLogItrPtr);
+
+    return;
+
+}   // DbObject::AddTLogReference
+
+
+void
+DbObject::RemoveTLogReference(TLogItrObject *TLogItrPtr) {
+    MutexLock lock(m_TLogItrMutex);
+
+    m_TLogItrList.remove(TLogItrPtr);
+
+    return;
+
+}   // DbObject::RemoveTLogReference
 
 /**
 * ColumnFamily object
@@ -889,6 +935,123 @@ ItrObject::Shutdown() {
     return;
 
 }   // ItrObject::CloseRequest
+
+/**
+* transaction log object
+*/
+
+ErlNifResourceType *TLogItrObject::m_TLogItr_RESOURCE(NULL);
+
+
+void
+TLogItrObject::CreateTLogItrObjectType(
+        ErlNifEnv *Env) {
+    ErlNifResourceFlags flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
+
+    m_TLogItr_RESOURCE = enif_open_resource_type(Env, NULL, "erocksdb_TLogItrObject",
+                                                 &TLogItrObject::TLogItrObjectResourceCleanup,
+                                                 flags, NULL);
+
+    return;
+
+}   // SnapshotObject::CreateSnapshotObjectType
+
+
+TLogItrObject *
+TLogItrObject::CreateTLogItrObject(
+        DbObject *DbPtr,
+        rocksdb::TransactionLogIterator * Itr) {
+    TLogItrObject *ret_ptr;
+    void *alloc_ptr;
+
+    // the alloc call initializes the reference count to "one"
+    alloc_ptr = enif_alloc_resource(m_TLogItr_RESOURCE, sizeof(TLogItrObject));
+
+    ret_ptr = new(alloc_ptr) TLogItrObject(DbPtr, Itr);
+
+    // manual reference increase to keep active until "close" called
+    //  only inc local counter
+    ret_ptr->RefInc();
+
+    // see IterTask::operator() for release of reference count
+
+    return (ret_ptr);
+
+}   // TLogItrObject::CreateTLogItrObject
+
+
+TLogItrObject *
+TLogItrObject::RetrieveTLogItrObject(
+        ErlNifEnv *Env,
+        const ERL_NIF_TERM &TLogItrTerm) {
+    TLogItrObject *ret_ptr;
+
+    ret_ptr = NULL;
+
+    if (enif_get_resource(Env, TLogItrTerm, m_TLogItr_RESOURCE, (void **) &ret_ptr)) {
+        // has close been requested?
+        if (ret_ptr->m_CloseRequested) {
+            // object already closing
+            ret_ptr = NULL;
+        }   // else
+    }   // if
+
+    return (ret_ptr);
+
+}   // TLogItrObject::RetrieveTLogItrObject
+
+
+void
+TLogItrObject::TLogItrObjectResourceCleanup(
+        ErlNifEnv *Env,
+        void *Arg) {
+    TLogItrObject *tlog_ptr;
+
+    tlog_ptr = (TLogItrObject *) Arg;
+
+    // vtable for snapshot_ptr could be invalid if close already
+    //  occurred
+    InitiateCloseRequest(tlog_ptr);
+
+    // YES this can be called after snapshot_ptr destructor.  Don't panic.
+    AwaitCloseAndDestructor(tlog_ptr);
+
+    return;
+
+}   // SnapshotObject::SnapshotObjectResourceCleanup
+
+
+TLogItrObject::TLogItrObject(
+        DbObject *DbPtr,
+        rocksdb::TransactionLogIterator * Itr)
+        : m_Iter(Itr), m_DbPtr(DbPtr) {
+
+    if (NULL != DbPtr)
+        DbPtr->AddTLogReference(this);
+
+}   // TLogItrObject::TLogItrObject
+
+
+TLogItrObject::~TLogItrObject() {
+
+    if (NULL != m_DbPtr.get())
+        m_DbPtr->RemoveTLogReference(this);
+
+    m_Iter = NULL;
+
+    // do not clean up m_CloseMutex and m_CloseCond
+
+    return;
+
+}   // TLogItrObject::~TLogItrObject
+
+
+void
+TLogItrObject::Shutdown() {
+    RefDec();
+
+    return;
+}   // TLogItrObject::CloseRequest
 
 
 } // namespace erocksdb
