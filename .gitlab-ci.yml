@@ -8,3 +8,7 @@ before_script:
 test:
   script:
     - ./rebar3 eunit
+  cache:
+    paths:
+    - c_src/rocksdb
+    - c_src/system
