@@ -39,3 +39,23 @@ prev_test() ->
   after
     rocksdb:close(Ref)
   end.
+
+seek_for_prev_test() ->
+  os:cmd("rm -rf ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
+  try
+    rocksdb:put(Ref, <<"a">>, <<"1">>, []),
+    rocksdb:put(Ref, <<"b">>, <<"2">>, []),
+    rocksdb:put(Ref, <<"c">>, <<"3">>, []),
+    rocksdb:put(Ref, <<"e">>, <<"4">>, []),
+
+    {ok, I} = rocksdb:iterator(Ref, []),
+    ?assertEqual({ok, <<"b">>, <<"2">>},rocksdb:iterator_move(I, {seek_for_prev, <<"b">>})),
+    ?assertEqual({ok, <<"c">>, <<"3">>},rocksdb:iterator_move(I, {seek_for_prev, <<"d">>})),
+    ?assertEqual({ok, <<"e">>, <<"4">>},rocksdb:iterator_move(I, next)),
+    ?assertEqual(ok, rocksdb:iterator_close(I))
+  after
+    rocksdb:close(Ref)
+  end.
+
+

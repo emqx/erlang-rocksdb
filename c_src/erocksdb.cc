@@ -191,7 +191,6 @@ ERL_NIF_TERM ATOM_TABLE_CACHE_NUMSHARDBITS;
 ERL_NIF_TERM ATOM_WAL_TTL_SECONDS;
 ERL_NIF_TERM ATOM_WAL_SIZE_LIMIT_MB;
 ERL_NIF_TERM ATOM_MANIFEST_PREALLOCATION_SIZE;
-ERL_NIF_TERM ATOM_ALLOW_OS_BUFFER;
 ERL_NIF_TERM ATOM_ALLOW_MMAP_READS;
 ERL_NIF_TERM ATOM_ALLOW_MMAP_WRITES;
 ERL_NIF_TERM ATOM_IS_FD_CLOSE_ON_EXEC;
@@ -215,7 +214,6 @@ ERL_NIF_TERM ATOM_BLOCK_SIZE;
 ERL_NIF_TERM ATOM_BLOCK_CACHE_SIZE;
 ERL_NIF_TERM ATOM_BLOOM_FILTER_POLICY;
 ERL_NIF_TERM ATOM_FORMAT_VERSION;
-ERL_NIF_TERM ATOM_SKIP_TABLE_BUILDER_FLUSH;
 ERL_NIF_TERM ATOM_CACHE_INDEX_AND_FILTER_BLOCKS;
 
 // Related to Read Options
@@ -242,6 +240,8 @@ ERL_NIF_TERM ATOM_FIRST;
 ERL_NIF_TERM ATOM_LAST;
 ERL_NIF_TERM ATOM_NEXT;
 ERL_NIF_TERM ATOM_PREV;
+ERL_NIF_TERM ATOM_SEEK_FOR_PREV;
+ERL_NIF_TERM ATOM_SEEK;
 
 // Related to Iterator Value to be retrieved
 ERL_NIF_TERM ATOM_KEYS_ONLY;
@@ -392,7 +392,6 @@ try
   ATOM(erocksdb::ATOM_WAL_TTL_SECONDS, "wal_ttl_seconds");
   ATOM(erocksdb::ATOM_WAL_SIZE_LIMIT_MB, "wal_size_limit_mb");
   ATOM(erocksdb::ATOM_MANIFEST_PREALLOCATION_SIZE, "manifest_preallocation_size");
-  ATOM(erocksdb::ATOM_ALLOW_OS_BUFFER, "allow_os_buffer");
   ATOM(erocksdb::ATOM_ALLOW_MMAP_READS, "allow_mmap_reads");
   ATOM(erocksdb::ATOM_ALLOW_MMAP_WRITES, "allow_mmap_writes");
   ATOM(erocksdb::ATOM_IS_FD_CLOSE_ON_EXEC, "is_fd_close_on_exec");
@@ -417,7 +416,6 @@ try
   ATOM(erocksdb::ATOM_BLOCK_CACHE_SIZE, "block_cache_size");
   ATOM(erocksdb::ATOM_BLOOM_FILTER_POLICY, "bloom_filter_policy");
   ATOM(erocksdb::ATOM_FORMAT_VERSION, "format_version");
-  ATOM(erocksdb::ATOM_SKIP_TABLE_BUILDER_FLUSH, "skip_table_builder_flush");
   ATOM(erocksdb::ATOM_CACHE_INDEX_AND_FILTER_BLOCKS, "cache_index_and_filter_blocks");
 
   // Related to Read Options
@@ -444,6 +442,8 @@ try
   ATOM(erocksdb::ATOM_LAST, "last");
   ATOM(erocksdb::ATOM_NEXT, "next");
   ATOM(erocksdb::ATOM_PREV, "prev");
+  ATOM(erocksdb::ATOM_SEEK_FOR_PREV, "seek_for_prev");
+  ATOM(erocksdb::ATOM_SEEK, "seek");
 
   // Related to Iterator Value to be retrieved
   ATOM(erocksdb::ATOM_KEYS_ONLY, "keys_only");

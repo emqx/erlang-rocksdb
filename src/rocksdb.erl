@@ -216,7 +216,7 @@ init() ->
               {delete, ColumnFamilyHandle::cf_handle(), Key::binary()} |
               clear].
 
--type iterator_action() :: first | last | next | prev | binary().
+-type iterator_action() :: first | last | next | prev | binary() | {seek, binary()} | {seek_for_prev, binary()}.
 
 
 

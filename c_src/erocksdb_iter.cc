@@ -179,6 +179,7 @@ IteratorMove(
     }
 
     rocksdb::Iterator* itr = itr_ptr->m_Iterator;
+    rocksdb::Slice key;
 
     if(enif_is_atom(env, action_or_target))
     {
@@ -187,9 +188,36 @@ IteratorMove(
         if(ATOM_NEXT == action_or_target) itr->Next();
         if(ATOM_PREV == action_or_target) itr->Prev();
     }
+    else if(enif_is_tuple(env, action_or_target))
+    {
+        int arity;
+        const ERL_NIF_TERM* seek;
+        if(enif_get_tuple(env, action_or_target, &arity, &seek) && 2==arity)
+        {
+            if(seek[0] == erocksdb::ATOM_SEEK_FOR_PREV)
+            {
+                if(!binary_to_slice(env, seek[1], &key))
+                    return error_einval(env);
+                itr->SeekForPrev(key);
+            }
+            else if(seek[0] == erocksdb::ATOM_SEEK)
+            {
+                if(!binary_to_slice(env, seek[1], &key))
+                    return error_einval(env);
+                itr->Seek(key);
+            }
+            else
+            {
+                return enif_make_badarg(env);
+            }
+        }
+        else
+        {
+            return enif_make_badarg(env);
+        }
+    }
     else
     {
-        rocksdb::Slice key;
         if(!binary_to_slice(env, action_or_target, &key))
             return error_einval(env);
         itr->Seek(key);

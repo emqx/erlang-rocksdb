@@ -133,6 +133,8 @@ extern ERL_NIF_TERM ATOM_FIRST;
 extern ERL_NIF_TERM ATOM_LAST;
 extern ERL_NIF_TERM ATOM_NEXT;
 extern ERL_NIF_TERM ATOM_PREV;
+extern ERL_NIF_TERM ATOM_SEEK_FOR_PREV;
+extern ERL_NIF_TERM ATOM_SEEK;
 
 // Related to Iterator Value to be retrieved
 extern ERL_NIF_TERM ATOM_KEYS_ONLY;
