@@ -127,7 +127,6 @@ init() ->
                     {block_cache_size, pos_integer()} |
                     {bloom_filter_policy, BitsPerKey :: pos_integer()} |
                     {format_version, 0 | 1 | 2} |
-                    {skip_table_builder_flush, boolean()} |
                     {cache_index_and_filter_blocks, boolean()}].
 
 -type cf_options() :: [{block_cache_size_mb_for_point_lookup, non_neg_integer()} |
@@ -152,7 +151,6 @@ init() ->
              {disable_auto_compactions,  boolean()} |
              {purge_redundant_kvs_while_flush,  boolean()} |
              {compaction_style,  compaction_style()} |
-             {verify_checksums_in_compaction,  boolean()} |
              {filter_deletes,  boolean()} |
              {max_sequential_skip_in_iterations,  pos_integer()} |
              {inplace_update_support,  boolean()} |
@@ -170,7 +168,6 @@ init() ->
              {paranoid_checks, boolean()} |
              {max_open_files, integer()} |
              {max_total_wal_size, non_neg_integer()} |
-             {disable_data_sync, boolean()} |
              {use_fsync, boolean()} |
              {db_paths, list(#db_path{})} |
              {db_log_dir, file:filename_all()} |
@@ -186,7 +183,6 @@ init() ->
              {wal_ttl_seconds, non_neg_integer()} |
              {wal_size_limit_mb, non_neg_integer()} |
              {manifest_preallocation_size, pos_integer()} |
-             {allow_os_buffer, boolean()} |
              {allow_mmap_reads, boolean()} |
              {allow_mmap_writes, boolean()} |
              {is_fd_close_on_exec, boolean()} |
@@ -212,7 +208,6 @@ init() ->
 
 -type write_options() :: [{sync, boolean()} |
               {disable_wal, boolean()} |
-              {timeout_hint_us, non_neg_integer()} |
               {ignore_missing_column_families, boolean()}].
 
 -type write_actions() :: [{put, Key::binary(), Value::binary()} |

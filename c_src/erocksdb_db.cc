@@ -88,9 +88,6 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
             if (enif_get_int(env, option[1], &format_version))
                 opts.format_version = format_version;
         }
-        else if (option[0] == erocksdb::ATOM_SKIP_TABLE_BUILDER_FLUSH) {
-            opts.skip_table_builder_flush = (option[1] == erocksdb::ATOM_TRUE);
-        }
         else if (option[0] == erocksdb::ATOM_CACHE_INDEX_AND_FILTER_BLOCKS) {
             opts.cache_index_and_filter_blocks = (option[1] == erocksdb::ATOM_TRUE);
         }
@@ -136,10 +133,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
             ErlNifUInt64 max_total_wal_size;
             if (enif_get_uint64(env, option[1], &max_total_wal_size))
                 opts.max_total_wal_size = max_total_wal_size;
-        }
-        else if (option[0] == erocksdb::ATOM_DISABLE_DATA_SYNC)
-        {
-            opts.disableDataSync = (option[1] == erocksdb::ATOM_TRUE);
         }
         else if (option[0] == erocksdb::ATOM_USE_FSYNC)
         {
@@ -236,10 +229,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
             unsigned int manifest_preallocation_size;
             if (enif_get_uint(env, option[1], &manifest_preallocation_size))
                 opts.manifest_preallocation_size = manifest_preallocation_size;
-        }
-        else if (option[0] == erocksdb::ATOM_ALLOW_OS_BUFFER)
-        {
-            opts.allow_os_buffer = (option[1] == erocksdb::ATOM_TRUE);
         }
         else if (option[0] == erocksdb::ATOM_ALLOW_MMAP_READS)
         {
@@ -474,10 +463,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
                 opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleNone;
             }
         }
-        else if (option[0] == erocksdb::ATOM_VERIFY_CHECKSUMS_IN_COMPACTION)
-        {
-            opts.verify_checksums_in_compaction = (option[1] == erocksdb::ATOM_TRUE);
-        }
         else if (option[0] == erocksdb::ATOM_MAX_SEQUENTIAL_SKIP_IN_ITERATIONS)
         {
             ErlNifUInt64 max_sequential_skip_in_iterations;
@@ -528,7 +513,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
                 opts.write_buffer_size = 32 << 20;
                 opts.max_write_buffer_number = 2;
                 opts.min_write_buffer_number_to_merge = 1;
-                opts.disableDataSync = 1;
                 opts.bytes_per_sync = 2 << 20;
             }
         }
@@ -653,7 +637,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             if (enif_get_int(env, option[1], &max_bytes_for_level_multiplier))
                 opts.max_bytes_for_level_multiplier = max_bytes_for_level_multiplier;
         }
-
         else if (option[0] == erocksdb::ATOM_MAX_COMPACTION_BYTES)
         {
             int max_compaction_bytes;
@@ -700,10 +683,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             else if (option[1] == erocksdb::ATOM_COMPACTION_STYLE_NONE) {
                 opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleNone;
             }
-        }
-        else if (option[0] == erocksdb::ATOM_VERIFY_CHECKSUMS_IN_COMPACTION)
-        {
-            opts.verify_checksums_in_compaction = (option[1] == erocksdb::ATOM_TRUE);
         }
         else if (option[0] == erocksdb::ATOM_MAX_SEQUENTIAL_SKIP_IN_ITERATIONS)
         {
@@ -809,12 +788,6 @@ ERL_NIF_TERM parse_write_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Writ
             opts.sync = (option[1] == erocksdb::ATOM_TRUE);
         else if (option[0] == erocksdb::ATOM_DISABLE_WAL)
             opts.disableWAL = (option[1] == erocksdb::ATOM_TRUE);
-        else if (option[0] == erocksdb::ATOM_TIMEOUT_HINT_US)
-        {
-            ErlNifUInt64 timeout_hint_us;
-            if (enif_get_uint64(env, option[1], &timeout_hint_us))
-                opts.timeout_hint_us = timeout_hint_us;
-        }
         else if (option[0] == erocksdb::ATOM_IGNORE_MISSING_COLUMN_FAMILIES)
             opts.ignore_missing_column_families = (option[1] == erocksdb::ATOM_TRUE);
     }

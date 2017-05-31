@@ -1,5 +1,5 @@
---- rocksdb/util/env_posix.cc.orig	Fri Dec  9 21:59:51 2016
-+++ rocksdb/util/env_posix.cc	Thu Dec 22 14:44:45 2016
+--- rocksdb/env/env_posix.cc.orig	Fri Dec  9 21:59:51 2016
++++ rocksdb/env/env_posix.cc	Thu Dec 22 14:44:45 2016
 @@ -157,7 +157,7 @@
        *result = nullptr;
        return IOError(fname, errno);

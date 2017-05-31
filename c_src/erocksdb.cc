@@ -159,7 +159,6 @@ ERL_NIF_TERM ATOM_ARENA_BLOCK_SIZE;
 ERL_NIF_TERM ATOM_DISABLE_AUTO_COMPACTIONS;
 ERL_NIF_TERM ATOM_PURGE_REDUNDANT_KVS_WHILE_FLUSH;
 ERL_NIF_TERM ATOM_COMPACTION_STYLE;
-ERL_NIF_TERM ATOM_VERIFY_CHECKSUMS_IN_COMPACTION;
 ERL_NIF_TERM ATOM_FILTER_DELETES;
 ERL_NIF_TERM ATOM_MAX_SEQUENTIAL_SKIP_IN_ITERATIONS;
 ERL_NIF_TERM ATOM_INPLACE_UPDATE_SUPPORT;
@@ -177,7 +176,6 @@ ERL_NIF_TERM ATOM_ERROR_IF_EXISTS;
 ERL_NIF_TERM ATOM_PARANOID_CHECKS;
 ERL_NIF_TERM ATOM_MAX_OPEN_FILES;
 ERL_NIF_TERM ATOM_MAX_TOTAL_WAL_SIZE;
-ERL_NIF_TERM ATOM_DISABLE_DATA_SYNC;
 ERL_NIF_TERM ATOM_USE_FSYNC;
 ERL_NIF_TERM ATOM_DB_PATHS;
 ERL_NIF_TERM ATOM_DB_LOG_DIR;
@@ -232,7 +230,6 @@ ERL_NIF_TERM ATOM_BAD_SNAPSHOT;
 // Related to Write Options
 ERL_NIF_TERM ATOM_SYNC;
 ERL_NIF_TERM ATOM_DISABLE_WAL;
-ERL_NIF_TERM ATOM_TIMEOUT_HINT_US;
 ERL_NIF_TERM ATOM_IGNORE_MISSING_COLUMN_FAMILIES;
 
 // Related to Write Actions
@@ -363,7 +360,6 @@ try
   ATOM(erocksdb::ATOM_DISABLE_AUTO_COMPACTIONS, "disable_auto_compactions");
   ATOM(erocksdb::ATOM_PURGE_REDUNDANT_KVS_WHILE_FLUSH, "purge_redundant_kvs_while_flush");
   ATOM(erocksdb::ATOM_COMPACTION_STYLE, "compaction_style");
-  ATOM(erocksdb::ATOM_VERIFY_CHECKSUMS_IN_COMPACTION, "verify_checksums_in_compaction");
   ATOM(erocksdb::ATOM_FILTER_DELETES, "filter_deletes");
   ATOM(erocksdb::ATOM_MAX_SEQUENTIAL_SKIP_IN_ITERATIONS, "max_sequential_skip_in_iterations");
   ATOM(erocksdb::ATOM_INPLACE_UPDATE_SUPPORT, "inplace_update_support");
@@ -381,7 +377,6 @@ try
   ATOM(erocksdb::ATOM_PARANOID_CHECKS, "paranoid_checks");
   ATOM(erocksdb::ATOM_MAX_OPEN_FILES, "max_open_files");
   ATOM(erocksdb::ATOM_MAX_TOTAL_WAL_SIZE, "max_total_wal_size");
-  ATOM(erocksdb::ATOM_DISABLE_DATA_SYNC, "disable_data_sync");
   ATOM(erocksdb::ATOM_USE_FSYNC, "use_fsync");
   ATOM(erocksdb::ATOM_DB_PATHS, "db_paths");
   ATOM(erocksdb::ATOM_DB_LOG_DIR, "db_log_dir");
@@ -437,7 +432,6 @@ try
   // Related to Write Options
   ATOM(erocksdb::ATOM_SYNC, "sync");
   ATOM(erocksdb::ATOM_DISABLE_WAL, "disable_wal");
-  ATOM(erocksdb::ATOM_TIMEOUT_HINT_US, "timeout_hint_us");
   ATOM(erocksdb::ATOM_IGNORE_MISSING_COLUMN_FAMILIES, "ignore_missing_column_families");
 
   // Related to Write Options

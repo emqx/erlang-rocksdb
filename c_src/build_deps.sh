@@ -28,9 +28,9 @@ SCRIPT=$SCRIPTPATH/${0##*/}
 BASEDIR=$SCRIPTPATH
 BUILD_CONFIG=$BASEDIR/rocksdb/make_config.mk
 
-ROCKSDB_VSN="4.13.5"
+ROCKSDB_VSN="5.4.5"
 SNAPPY_VSN="1.1.3"
-ROCKSDB_PREFIX="v4-13"
+ROCKSDB_PREFIX="v5.4.5"
 
 
 set -e
@@ -51,7 +51,7 @@ MAKE=${MAKE:-make}
 
 case "$1" in
     rm-deps)
-        rm -rf rocksdb system snappy-$SNAPPY_VSN rocksdb-$ROCKSDB_VSN.tar.gz
+        rm -rf rocksdb system snappy-$SNAPPY_VSN
         ;;
 
     clean)
@@ -73,12 +73,13 @@ case "$1" in
 
     get-deps)
         if [ ! -d rocksdb ]; then
-            ROCKSDBURL="http://dl.barrel-db.org/rocksdb/rocksdb-v$ROCKSDB_VSN.tar.gz"
-            ROCKSDBTARGZ="rocksdb-v$ROCKSDB_VSN.tar.gz"
-            echo Downloading $ROCKSDBURL...
-            curl -L -o $ROCKSDBTARGZ $ROCKSDBURL
+            #ROCKSDBURL="https://github.com/facebook/rocksdb/archive/rocksdb-$ROCKSDB_VSN.tar.gz"
+            ROCKSDBTARGZ="rocksdb-$ROCKSDB_VSN.tar.gz"
+            #echo Downloading $ROCKSDBURL...
+            #curl -L -o $ROCKSDBTARGZ $ROCKSDBURL
+            echo "==> Building rocksdb"
             tar -xzf $ROCKSDBTARGZ
-            mv rocksdb-$ROCKSDB_VSN rocksdb
+            mv rocksdb-v$ROCKSDB_VSN* rocksdb
             patch -p0 < rocksdb-util-env_posix.cc.patch
             patch -p0 < rocksdb-port-stack_trace.cc.patch
 

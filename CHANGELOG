@@ -1,3 +1,13 @@
+erlang-rocksdb 0.9.0 beta, unreleased
+=================================================
+
+- bump to rocksdb 5.4.5
+- remove `disable_data_sync` db option, optimisations removed in rocksdb 
+- remove `timeout_hint_us` db option, was useless since 2 years
+- remove `verify_checksums_in_compaction` db option. it's always done.
+- remove `skip_table_builder_flush` db option
+-remove `allow_os_buffer` db option
+
 erlang-rocksdb 0.8.2 beta, released on 2017/05/17
 =================================================
 
