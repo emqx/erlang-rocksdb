@@ -4,13 +4,13 @@
 
 Copyright (c) 2016-2017 Benoît Chesneau.
 
-__Version:__ 0.8.2 Erlang wrapper for RocksDB.
+__Version:__ 0.9.0 Erlang wrapper for RocksDB.
 
 Feedback and pull requests welcome! If a particular feature of RocksDB is important to you, please let me know by opening an issue, and I'll prioritize it.
 
 ## Features
 
-- rocksdb 4.13
+- rocksdb 5.4.5
 - Erlang 19.3 and sup with dirty-nifs enabled
 - all basics db operations
 - batchs support

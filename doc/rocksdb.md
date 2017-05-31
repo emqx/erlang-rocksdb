@@ -37,7 +37,7 @@ __abstract datatype__: `batch_handle()`
 
 
 <pre><code>
-block_based_table_options() = [{no_block_cache, boolean()} | {block_size, pos_integer()} | {block_cache, <a href="#type-cache_handle">cache_handle()</a>} | {block_cache_size, pos_integer()} | {bloom_filter_policy, BitsPerKey::pos_integer()} | {format_version, 0 | 1 | 2} | {skip_table_builder_flush, boolean()} | {cache_index_and_filter_blocks, boolean()}]
+block_based_table_options() = [{no_block_cache, boolean()} | {block_size, pos_integer()} | {block_cache, <a href="#type-cache_handle">cache_handle()</a>} | {block_cache_size, pos_integer()} | {bloom_filter_policy, BitsPerKey::pos_integer()} | {format_version, 0 | 1 | 2} | {cache_index_and_filter_blocks, boolean()}]
 </code></pre>
 
 
@@ -63,7 +63,7 @@ __abstract datatype__: `cf_handle()`
 
 
 <pre><code>
-cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {memtable_memory_budget, pos_integer()} | {write_buffer_size, pos_integer()} | {max_write_buffer_number, pos_integer()} | {min_write_buffer_number_to_merge, pos_integer()} | {compression, <a href="#type-compression_type">compression_type()</a>} | {num_levels, pos_integer()} | {level0_file_num_compaction_trigger, integer()} | {level0_slowdown_writes_trigger, integer()} | {level0_stop_writes_trigger, integer()} | {max_mem_compaction_level, pos_integer()} | {target_file_size_base, pos_integer()} | {target_file_size_multiplier, pos_integer()} | {max_bytes_for_level_base, pos_integer()} | {max_bytes_for_level_multiplier, pos_integer()} | {max_compaction_bytes, pos_integer()} | {soft_rate_limit, float()} | {hard_rate_limit, float()} | {arena_block_size, integer()} | {disable_auto_compactions, boolean()} | {purge_redundant_kvs_while_flush, boolean()} | {compaction_style, <a href="#type-compaction_style">compaction_style()</a>} | {verify_checksums_in_compaction, boolean()} | {filter_deletes, boolean()} | {max_sequential_skip_in_iterations, pos_integer()} | {inplace_update_support, boolean()} | {inplace_update_num_locks, pos_integer()} | {table_factory_block_cache_size, pos_integer()} | {in_memory_mode, boolean()} | {block_based_table_options, <a href="#type-block_based_table_options">block_based_table_options()</a>}]
+cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {memtable_memory_budget, pos_integer()} | {write_buffer_size, pos_integer()} | {max_write_buffer_number, pos_integer()} | {min_write_buffer_number_to_merge, pos_integer()} | {compression, <a href="#type-compression_type">compression_type()</a>} | {num_levels, pos_integer()} | {level0_file_num_compaction_trigger, integer()} | {level0_slowdown_writes_trigger, integer()} | {level0_stop_writes_trigger, integer()} | {max_mem_compaction_level, pos_integer()} | {target_file_size_base, pos_integer()} | {target_file_size_multiplier, pos_integer()} | {max_bytes_for_level_base, pos_integer()} | {max_bytes_for_level_multiplier, pos_integer()} | {max_compaction_bytes, pos_integer()} | {soft_rate_limit, float()} | {hard_rate_limit, float()} | {arena_block_size, integer()} | {disable_auto_compactions, boolean()} | {purge_redundant_kvs_while_flush, boolean()} | {compaction_style, <a href="#type-compaction_style">compaction_style()</a>} | {filter_deletes, boolean()} | {max_sequential_skip_in_iterations, pos_integer()} | {inplace_update_support, boolean()} | {inplace_update_num_locks, pos_integer()} | {table_factory_block_cache_size, pos_integer()} | {in_memory_mode, boolean()} | {block_based_table_options, <a href="#type-block_based_table_options">block_based_table_options()</a>}]
 </code></pre>
 
 
@@ -101,7 +101,7 @@ __abstract datatype__: `db_handle()`
 
 
 <pre><code>
-db_options() = [{env, <a href="#type-env_handle">env_handle()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {disable_data_sync, boolean()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="file.md#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_os_buffer, boolean()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {in_memory, boolean()}]
+db_options() = [{env, <a href="#type-env_handle">env_handle()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="file.md#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {in_memory, boolean()}]
 </code></pre>
 
 
@@ -149,7 +149,7 @@ fold_keys_fun() = fun((Key::binary(), any()) -&gt; any())
 
 
 <pre><code>
-iterator_action() = first | last | next | prev | binary()
+iterator_action() = first | last | next | prev | binary() | {seek, binary()} | {seek_for_prev, binary()}
 </code></pre>
 
 
@@ -205,7 +205,7 @@ write_actions() = [{put, Key::binary(), Value::binary()} | {put, ColumnFamilyHan
 
 
 <pre><code>
-write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {timeout_hint_us, non_neg_integer()} | {ignore_missing_column_families, boolean()}]
+write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {ignore_missing_column_families, boolean()}]
 </code></pre>
 
 <a name="index"></a>

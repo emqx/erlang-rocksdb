@@ -1,4 +1,4 @@
-erlang-rocksdb 0.9.0 beta, unreleased
+erlang-rocksdb 0.9.0 beta, released on 2017/05/31
 =================================================
 
 - bump to rocksdb 5.4.5
