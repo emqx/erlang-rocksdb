@@ -8,6 +8,7 @@ erlang-rocksdb 0.9.0 beta, unreleased
 - remove `skip_table_builder_flush` db option
 - remove `allow_os_buffer` db option
 - add `{seek_for_prev, Prev}` db option
+- allows to fold a column familly
 
 erlang-rocksdb 0.8.2 beta, released on 2017/05/17
 =================================================
