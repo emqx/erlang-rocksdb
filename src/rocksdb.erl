@@ -423,8 +423,9 @@ fold(DBHandle, Fun, Acc0, ReadOpts) ->
   AccIn::any(),
   ReadOpts::read_options(),
   AccOut :: any().
-fold(_DBHandle, _CFHandle, _Fun, _Acc0, _ReadOpts) ->
-  _Acc0.
+fold(DbHandle, CFHandle, Fun, Acc0, ReadOpts) ->
+  {ok, Itr} = iterator(DbHandle, CFHandle, ReadOpts),
+  do_fold(Itr, Fun, Acc0).
 
 -type fold_keys_fun() :: fun((Key::binary(), any()) -> any()).
 
@@ -454,8 +455,11 @@ fold_keys(DBHandle, UserFun, Acc0, ReadOpts) ->
   AccIn::any(),
   ReadOpts::read_options(),
   AccOut :: any().
-fold_keys(_DBHandle, _CFHandle, _Fun, _Acc0, _ReadOpts) ->
-  _Acc0.
+fold_keys(DBHandle, CFHandle, UserFun, Acc0, ReadOpts) ->
+  WrapperFun = fun({K, _V}, Acc) -> UserFun(K, Acc);
+                  (Else, Acc) -> UserFun(Else, Acc) end,
+  {ok, Itr} = iterator(DBHandle, CFHandle, ReadOpts),
+  do_fold(Itr, WrapperFun, Acc0).
 
 %% @doc is the database empty
 -spec  is_empty(DBHandle::db_handle()) -> true | false.
