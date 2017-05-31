@@ -377,7 +377,7 @@ iterator(_DBHandle, _CfHandle, _ReadOpts) ->
                                                       CFHandle::cf_handle(),
                                                       ReadOpts::read_options()).
 iterators(_DBHandle, _CFHandle, _ReadOpts) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 
 %% @doc
@@ -389,7 +389,7 @@ iterators(_DBHandle, _CFHandle, _ReadOpts) ->
              {error, iterator_closed} when ITRHandle::itr_handle(),
                                            ITRAction::iterator_action()).
 iterator_move(_ITRHandle, _ITRAction) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc
 %% Close a iterator
@@ -611,61 +611,61 @@ next_update(_Iterator) ->
 %% function.
 -spec batch() -> {ok, Batch :: batch_handle()}.
 batch() ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 -spec close_batch(Batch :: batch_handle()) -> ok.
 close_batch(_Batch) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc write the batch to the database
 -spec write_batch(Db :: db_handle(), Batch :: batch_handle(), WriteOptions :: write_options()) -> ok | {error, term()}.
 write_batch(_DbHandle, _Batch, _WriteOptions) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc add a put operation to the batch
 -spec batch_put(Batch :: batch_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_put(_Batch, _Key, _Value) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc like `put/3' but apply the operation to a column family
 -spec batch_put(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_put(_Batch, _ColumnFamily, _Key, _Value) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc add a delete operation to the batch
 -spec batch_delete(Batch :: batch_handle(), Key :: binary()) -> ok.
 batch_delete(_Batch, _Key) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc like `delete/2' but apply the operation to a column family
 -spec batch_delete(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
 batch_delete(_Batch, _ColumnFamily, _Key) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc return the number of operations in the batch
 -spec batch_count(_Batch :: batch_handle()) -> Count :: non_neg_integer().
 batch_count(_Batch) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc reset the batch, clear all operations.
 -spec batch_clear(Batch :: batch_handle()) -> ok.
 batch_clear(_Batch) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc store a checkpoint in the batch to which you can rollback later
 -spec batch_savepoint(Batch :: batch_handle()) -> ok.
 batch_savepoint(_Batch) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc rollback the operations to the latest checkpoint
 -spec batch_rollback(Batch :: batch_handle()) -> ok.
 batch_rollback(_Batch) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc return all the operation sin the batch as a list of operations
 -spec batch_tolist(Batch :: batch_handle()) -> Ops :: write_actions().
 batch_tolist(_Batch) ->
-    erlang:nif_error({error, not_loaded}).
+  erlang:nif_error({error, not_loaded}).
 
 
 %% ===================================================================
