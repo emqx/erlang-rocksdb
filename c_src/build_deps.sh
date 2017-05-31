@@ -80,7 +80,7 @@ case "$1" in
             echo "==> Building rocksdb"
             tar -xzf $ROCKSDBTARGZ
             mv rocksdb-v$ROCKSDB_VSN* rocksdb
-            patch -p0 < rocksdb-util-env_posix.cc.patch
+            patch -p0 < rocksdb-env-env_posix.cc.patch
             patch -p0 < rocksdb-port-stack_trace.cc.patch
 
         fi
