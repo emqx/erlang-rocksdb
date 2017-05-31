@@ -122,99 +122,98 @@ init() ->
 -type env_priority() :: priority_high | priority_low.
 
 -type block_based_table_options() :: [{no_block_cache, boolean()} |
-                    {block_size, pos_integer()} |
-                    {block_cache, cache_handle()} |
-                    {block_cache_size, pos_integer()} |
-                    {bloom_filter_policy, BitsPerKey :: pos_integer()} |
-                    {format_version, 0 | 1 | 2} |
-                    {cache_index_and_filter_blocks, boolean()}].
+                                      {block_size, pos_integer()} |
+                                      {block_cache, cache_handle()} |
+                                      {block_cache_size, pos_integer()} |
+                                      {bloom_filter_policy, BitsPerKey :: pos_integer()} |
+                                      {format_version, 0 | 1 | 2} |
+                                      {cache_index_and_filter_blocks, boolean()}].
 
 -type cf_options() :: [{block_cache_size_mb_for_point_lookup, non_neg_integer()} |
-             {memtable_memory_budget, pos_integer()} |
-             {write_buffer_size,  pos_integer()} |
-             {max_write_buffer_number,  pos_integer()} |
-             {min_write_buffer_number_to_merge,  pos_integer()} |
-             {compression,  compression_type()} |
-             {num_levels,  pos_integer()} |
-             {level0_file_num_compaction_trigger,  integer()} |
-             {level0_slowdown_writes_trigger,  integer()} |
-             {level0_stop_writes_trigger,  integer()} |
-             {max_mem_compaction_level,  pos_integer()} |
-             {target_file_size_base,  pos_integer()} |
-             {target_file_size_multiplier,  pos_integer()} |
-             {max_bytes_for_level_base,  pos_integer()} |
-             {max_bytes_for_level_multiplier,  pos_integer()} |
-             {max_compaction_bytes,  pos_integer()} |
-             {soft_rate_limit,  float()} |
-             {hard_rate_limit,  float()} |
-             {arena_block_size,  integer()} |
-             {disable_auto_compactions,  boolean()} |
-             {purge_redundant_kvs_while_flush,  boolean()} |
-             {compaction_style,  compaction_style()} |
-             {filter_deletes,  boolean()} |
-             {max_sequential_skip_in_iterations,  pos_integer()} |
-             {inplace_update_support,  boolean()} |
-             {inplace_update_num_locks,  pos_integer()} |
-             {table_factory_block_cache_size, pos_integer()} |
-             {in_memory_mode, boolean()} |
-             {block_based_table_options, block_based_table_options()}].
+                       {memtable_memory_budget, pos_integer()} |
+                       {write_buffer_size,  pos_integer()} |
+                       {max_write_buffer_number,  pos_integer()} |
+                       {min_write_buffer_number_to_merge,  pos_integer()} |
+                       {compression,  compression_type()} |
+                       {num_levels,  pos_integer()} |
+                       {level0_file_num_compaction_trigger,  integer()} |
+                       {level0_slowdown_writes_trigger,  integer()} |
+                       {level0_stop_writes_trigger,  integer()} |
+                       {max_mem_compaction_level,  pos_integer()} |
+                       {target_file_size_base,  pos_integer()} |
+                       {target_file_size_multiplier,  pos_integer()} |
+                       {max_bytes_for_level_base,  pos_integer()} |
+                       {max_bytes_for_level_multiplier,  pos_integer()} |
+                       {max_compaction_bytes,  pos_integer()} |
+                       {soft_rate_limit,  float()} |
+                       {hard_rate_limit,  float()} |
+                       {arena_block_size,  integer()} |
+                       {disable_auto_compactions,  boolean()} |
+                       {purge_redundant_kvs_while_flush,  boolean()} |
+                       {compaction_style,  compaction_style()} |
+                       {filter_deletes,  boolean()} |
+                       {max_sequential_skip_in_iterations,  pos_integer()} |
+                       {inplace_update_support,  boolean()} |
+                       {inplace_update_num_locks,  pos_integer()} |
+                       {table_factory_block_cache_size, pos_integer()} |
+                       {in_memory_mode, boolean()} |
+                       {block_based_table_options, block_based_table_options()}].
 
--type db_options() :: [
-             {env, env_handle()} |
-             {total_threads, pos_integer()} |
-             {create_if_missing, boolean()} |
-             {create_missing_column_families, boolean()} |
-             {error_if_exists, boolean()} |
-             {paranoid_checks, boolean()} |
-             {max_open_files, integer()} |
-             {max_total_wal_size, non_neg_integer()} |
-             {use_fsync, boolean()} |
-             {db_paths, list(#db_path{})} |
-             {db_log_dir, file:filename_all()} |
-             {wal_dir, file:filename_all()} |
-             {delete_obsolete_files_period_micros, pos_integer()} |
-             {max_background_compactions, pos_integer()} |
-             {max_background_flushes, pos_integer()} |
-             {max_log_file_size, non_neg_integer()} |
-             {log_file_time_to_roll, non_neg_integer()} |
-             {keep_log_file_num, pos_integer()} |
-             {max_manifest_file_size, pos_integer()} |
-             {table_cache_numshardbits, pos_integer()} |
-             {wal_ttl_seconds, non_neg_integer()} |
-             {wal_size_limit_mb, non_neg_integer()} |
-             {manifest_preallocation_size, pos_integer()} |
-             {allow_mmap_reads, boolean()} |
-             {allow_mmap_writes, boolean()} |
-             {is_fd_close_on_exec, boolean()} |
-             {skip_log_error_on_recovery, boolean()} |
-             {stats_dump_period_sec, non_neg_integer()} |
-             {advise_random_on_open, boolean()} |
-             {access_hint, access_hint()} |
-             {compaction_readahead_size, non_neg_integer()} |
-             {use_adaptive_mutex, boolean()} |
-             {bytes_per_sync, non_neg_integer()} |
-             {skip_stats_update_on_db_open, boolean()} |
-             {wal_recovery_mode, wal_recovery_mode()} |
-             {allow_concurrent_memtable_write, boolean()} |
-             {enable_write_thread_adaptive_yield, boolean()} |
-             {in_memory, boolean()}].
+-type db_options() :: [{env, env_handle()} |
+                       {total_threads, pos_integer()} |
+                       {create_if_missing, boolean()} |
+                       {create_missing_column_families, boolean()} |
+                       {error_if_exists, boolean()} |
+                       {paranoid_checks, boolean()} |
+                       {max_open_files, integer()} |
+                       {max_total_wal_size, non_neg_integer()} |
+                       {use_fsync, boolean()} |
+                       {db_paths, list(#db_path{})} |
+                       {db_log_dir, file:filename_all()} |
+                       {wal_dir, file:filename_all()} |
+                       {delete_obsolete_files_period_micros, pos_integer()} |
+                       {max_background_compactions, pos_integer()} |
+                       {max_background_flushes, pos_integer()} |
+                       {max_log_file_size, non_neg_integer()} |
+                       {log_file_time_to_roll, non_neg_integer()} |
+                       {keep_log_file_num, pos_integer()} |
+                       {max_manifest_file_size, pos_integer()} |
+                       {table_cache_numshardbits, pos_integer()} |
+                       {wal_ttl_seconds, non_neg_integer()} |
+                       {wal_size_limit_mb, non_neg_integer()} |
+                       {manifest_preallocation_size, pos_integer()} |
+                       {allow_mmap_reads, boolean()} |
+                       {allow_mmap_writes, boolean()} |
+                       {is_fd_close_on_exec, boolean()} |
+                       {skip_log_error_on_recovery, boolean()} |
+                       {stats_dump_period_sec, non_neg_integer()} |
+                       {advise_random_on_open, boolean()} |
+                       {access_hint, access_hint()} |
+                       {compaction_readahead_size, non_neg_integer()} |
+                       {use_adaptive_mutex, boolean()} |
+                       {bytes_per_sync, non_neg_integer()} |
+                       {skip_stats_update_on_db_open, boolean()} |
+                       {wal_recovery_mode, wal_recovery_mode()} |
+                       {allow_concurrent_memtable_write, boolean()} |
+                       {enable_write_thread_adaptive_yield, boolean()} |
+                       {in_memory, boolean()}].
 
 -type read_options() :: [{verify_checksums, boolean()} |
-             {fill_cache, boolean()} |
-             {iterate_upper_bound, binary()} |
-             {tailing, boolean()} |
-             {total_order_seek, boolean()} |
-             {snapshot, snapshot_handle()}].
+                         {fill_cache, boolean()} |
+                         {iterate_upper_bound, binary()} |
+                         {tailing, boolean()} |
+                         {total_order_seek, boolean()} |
+                         {snapshot, snapshot_handle()}].
 
 -type write_options() :: [{sync, boolean()} |
-              {disable_wal, boolean()} |
-              {ignore_missing_column_families, boolean()}].
+                          {disable_wal, boolean()} |
+                          {ignore_missing_column_families, boolean()}].
 
 -type write_actions() :: [{put, Key::binary(), Value::binary()} |
-              {put, ColumnFamilyHandle::cf_handle(), Key::binary(), Value::binary()} |
-              {delete, Key::binary()} |
-              {delete, ColumnFamilyHandle::cf_handle(), Key::binary()} |
-              clear].
+                          {put, ColumnFamilyHandle::cf_handle(), Key::binary(), Value::binary()} |
+                          {delete, Key::binary()} |
+                          {delete, ColumnFamilyHandle::cf_handle(), Key::binary()} |
+                          clear].
 
 -type iterator_action() :: first | last | next | prev | binary() | {seek, binary()} | {seek_for_prev, binary()}.
 
