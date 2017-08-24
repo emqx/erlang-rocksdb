@@ -25,7 +25,7 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 
 ## Features
 
-- rocksdb 5.4.5
+- rocksdb 5.7.2
 - Erlang 19.3 and sup with dirty-nifs enabled
 - all basics db operations
 - batchs support

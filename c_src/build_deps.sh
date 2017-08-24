@@ -28,9 +28,9 @@ SCRIPT=$SCRIPTPATH/${0##*/}
 BASEDIR=$SCRIPTPATH
 BUILD_CONFIG=$BASEDIR/rocksdb/make_config.mk
 
-ROCKSDB_VSN="5.4.5"
+ROCKSDB_VSN="5.7.2"
 SNAPPY_VSN="1.1.3"
-ROCKSDB_PREFIX="v5.4.5"
+ROCKSDB_PREFIX="v5.7.2"
 
 
 set -e
@@ -79,8 +79,8 @@ case "$1" in
             #curl -L -o $ROCKSDBTARGZ $ROCKSDBURL
             echo "==> Building rocksdb"
             tar -xzf $ROCKSDBTARGZ
-            mv rocksdb-v$ROCKSDB_VSN* rocksdb
-            patch -p0 < rocksdb-env-env_posix.cc.patch
+            mv rocksdb-$ROCKSDB_VSN rocksdb
+            #patch -p0 < rocksdb-env-env_posix.cc.patch
             patch -p0 < rocksdb-port-stack_trace.cc.patch
 
         fi
