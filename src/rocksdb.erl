@@ -30,7 +30,7 @@
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
 -export([destroy/2, repair/2, is_empty/1]).
 -export([checkpoint/2]).
--export([count/1, count/2, stats/1, stats/2, get_approximate_size/4, get_property/2, get_property/3]).
+-export([count/1, count/2, stats/1, stats/2, get_property/2, get_property/3]).
 
 -export([default_env/0,
          mem_env/0,
@@ -515,11 +515,6 @@ stats(DBHandle) ->
 ) -> {ok, any()} | {error, any()}.
 stats(DBHandle, CfHandle) ->
   get_property(DBHandle, CfHandle, <<"rocksdb.stats">>).
-
-%% @doc for each stores retun the approximate size in a range
--spec get_approximate_size(db_handle(), binary(), binary(), boolean()) -> integer().
-get_approximate_size(_DbHandle, _SKey, _EKey, _IncludeMemtable) ->
-  erlang:nif_error({error, not_loaded}).
 
 %% @doc Return the RocksDB internal status of the default column family specified at Property
 -spec get_property(

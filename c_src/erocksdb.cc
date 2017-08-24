@@ -54,7 +54,6 @@ static ErlNifFunc nif_funcs[] =
   {"open", 2, erocksdb::Open, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"open_with_cf", 3, erocksdb::OpenWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"get_approximate_size", 4, erocksdb::GetApproximateSize, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
   // db management
   {"checkpoint", 2, erocksdb::Checkpoint, ERL_NIF_DIRTY_JOB_IO_BOUND},
