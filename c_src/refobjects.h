@@ -172,7 +172,12 @@ class DbObject : public ErlRefObject
 public:
     rocksdb::DB* m_Db;                                   // NULL or rocksdb database object
     rocksdb::Options *m_DbOptions;
-    Mutex m_DbMutex;                         //!< mutex protecting the deps
+
+
+    Mutex m_ItrMutex;                         //!< mutex protecting m_ItrList
+    Mutex m_SnapshotMutex;                    //!< mutext protecting m_SnapshotList
+    Mutex m_ColumnFamilyMutex;                //!< mutex ptotecting m_ColumnFamily
+    Mutex m_TLogItrMutex;              //!< mutex ptotecting m_TransactionLogList
 
     std::list<class ItrObject *> m_ItrList;   //!< ItrObjects holding ref count to this
     std::list<class SnapshotObject *> m_SnapshotList;
@@ -233,6 +238,9 @@ public:
     rocksdb::ColumnFamilyHandle* m_ColumnFamily;
     ReferencePtr<DbObject> m_DbPtr;
 
+    Mutex m_ItrMutex;                         //!< mutex protecting m_ItrList
+    std::list<class ItrObject *> m_ItrList;   //!< ItrObjects holding ref count to this
+
 protected:
     static ErlNifResourceType* m_ColumnFamily_RESOURCE;
 
@@ -250,6 +258,11 @@ public:
     static ColumnFamilyObject * RetrieveColumnFamilyObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
 
     static void ColumnFamilyObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
+
+    // manual back link to ItrObjects holding reference to this
+    void AddItrReference(class ItrObject *);
+
+    void RemoveItrReference(class ItrObject *);
 
 private:
     ColumnFamilyObject();
@@ -301,6 +314,7 @@ private:
 class ItrObject : public ErlRefObject
 {
 public:
+    ReferencePtr<ColumnFamilyObject> m_ColumnFamilyPtr;
     rocksdb::Iterator * m_Iterator;
     ReferencePtr<DbObject> m_DbPtr;
 
@@ -309,6 +323,7 @@ protected:
 
 public:
     ItrObject(DbObject *, rocksdb::Iterator * Iterator);
+    ItrObject(DbObject *, rocksdb::Iterator * Iterator, ColumnFamilyObject *);
 
     virtual ~ItrObject(); // needs to perform free_itr
 
@@ -317,6 +332,8 @@ public:
     static void CreateItrObjectType(ErlNifEnv * Env);
 
     static ItrObject * CreateItrObject(DbObject * Db,  rocksdb::Iterator * Iterator);
+
+    static ItrObject * CreateItrObject(DbObject * Db,  rocksdb::Iterator * Iterator, ColumnFamilyObject * Cf);
 
     static ItrObject * RetrieveItrObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm,
                                          bool ItrClosing=false);

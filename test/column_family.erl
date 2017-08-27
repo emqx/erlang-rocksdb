@@ -134,19 +134,3 @@ iterators_test() ->
   after
     rocksdb:close(Ref)
   end.
-
-  open_close_iterators_test() ->
-    os:cmd("rm -rf ltest"),  % NOTE
-    os:cmd("mkdir -p ltest"),
-    lists:foreach(fun (I) -> 
-      {ok, Ref, [_, AnotherCF]} = rocksdb:open_with_cf("ltest/" ++ integer_to_list(I), [{create_if_missing, true}, {create_missing_column_families, true}], [{"default", []}, {"another", []}]),
-      rocksdb:put(Ref, AnotherCF, integer_to_binary(I), <<"value">>, []),
-      {ok, Iter} = rocksdb:iterator(Ref, AnotherCF, []),
-      try
-        ?assertEqual({ok, integer_to_binary(I), <<"value">>}, rocksdb:iterator_move(Iter, first))
-      after
-        rocksdb:iterator_close(Iter),
-        rocksdb:close(Ref)
-      end
-    end, lists:seq(1, 10)).
-  
