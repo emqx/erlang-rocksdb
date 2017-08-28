@@ -18,6 +18,7 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 - checkpoint support
 - column families support
 - transaction logs
+- backup support
 - Tested on macosx, freebsd, solaris and linux
 
 ## Usage
