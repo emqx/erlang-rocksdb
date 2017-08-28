@@ -35,6 +35,19 @@ basic_test() ->
 
   ok.
 
+destroy_test() ->
+  rocksdb:destroy("test.db", []),
+  ColumnFamilies = [{"default", []}],
+  {ok, Db, Handles1} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
+  ?assertEqual(1, length(Handles1)),
+  ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
+  {ok, Handle} = rocksdb:create_column_family(Db, "test", []),
+  ?assertEqual({ok, ["default", "test"]}, rocksdb:list_column_families("test.db", [])),
+  ok = rocksdb:destroy_column_family(Handle),
+  ?assertEqual({ok, ["default", "test"]}, rocksdb:list_column_families("test.db", [])),
+  rocksdb:close(Db),
+  ok.
+
 column_order_test() ->
   rocksdb:destroy("test.db", []),
   ColumnFamilies = [{"default", []}],
@@ -86,67 +99,3 @@ basic_kvs_test() ->
   ?assertEqual(1, rocksdb:count(Db, TestH)),
   rocksdb:close(Db),
   ok.
-
-iterator_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
-  {ok, Ref, [DefaultH]} = rocksdb:open_with_cf("ltest", [{create_if_missing, true}], [{"default", []}]),
-  {ok, TestH} = rocksdb:create_column_family(Ref, "test", []),
-  try
-    rocksdb:put(Ref, DefaultH, <<"a">>, <<"x">>, []),
-    rocksdb:put(Ref, DefaultH, <<"b">>, <<"y">>, []),
-    rocksdb:put(Ref, TestH, <<"a">>, <<"x1">>, []),
-    rocksdb:put(Ref, TestH, <<"b">>, <<"y1">>, []),
-
-    {ok, DefaultIt} = rocksdb:iterator(Ref, DefaultH, []),
-    {ok, TestIt} = rocksdb:iterator(Ref, TestH, []),
-
-    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(DefaultIt, <<>>)),
-    ?assertEqual({ok, <<"a">>, <<"x1">>},rocksdb:iterator_move(TestIt, <<>>)),
-    ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(DefaultIt, next)),
-    ?assertEqual({ok, <<"b">>, <<"y1">>},rocksdb:iterator_move(TestIt, next)),
-    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(DefaultIt, prev)),
-    ?assertEqual({ok, <<"a">>, <<"x1">>},rocksdb:iterator_move(TestIt, prev)),
-    ok = rocksdb:iterator_close(TestIt),
-    ok = rocksdb:iterator_close(DefaultIt)
-  after
-    rocksdb:close(Ref)
-  end.
-
-iterators_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
-  {ok, Ref, [DefaultH]} = rocksdb:open_with_cf("ltest", [{create_if_missing, true}], [{"default", []}]),
-  {ok, TestH} = rocksdb:create_column_family(Ref, "test", []),
-  try
-    rocksdb:put(Ref, DefaultH, <<"a">>, <<"x">>, []),
-    rocksdb:put(Ref, DefaultH, <<"b">>, <<"y">>, []),
-    rocksdb:put(Ref, TestH, <<"a">>, <<"x1">>, []),
-    rocksdb:put(Ref, TestH, <<"b">>, <<"y1">>, []),
-
-    {ok, [DefaultIt, TestIt]} = rocksdb:iterators(Ref, [DefaultH, TestH], []),
-    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(DefaultIt, <<>>)),
-    ?assertEqual({ok, <<"a">>, <<"x1">>},rocksdb:iterator_move(TestIt, <<>>)),
-    ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(DefaultIt, next)),
-    ?assertEqual({ok, <<"b">>, <<"y1">>},rocksdb:iterator_move(TestIt, next)),
-    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(DefaultIt, prev)),
-    ?assertEqual({ok, <<"a">>, <<"x1">>},rocksdb:iterator_move(TestIt, prev)),
-    ok = rocksdb:iterator_close(TestIt),
-    ok = rocksdb:iterator_close(DefaultIt)
-  after
-    rocksdb:close(Ref)
-  end.
-
-  open_close_iterators_test() ->
-    os:cmd("rm -rf ltest"),  % NOTE
-    os:cmd("mkdir -p ltest"),
-    lists:foreach(fun (I) -> 
-      {ok, Ref, [_, AnotherCF]} = rocksdb:open_with_cf("ltest/" ++ integer_to_list(I), [{create_if_missing, true}, {create_missing_column_families, true}], [{"default", []}, {"another", []}]),
-      rocksdb:put(Ref, AnotherCF, integer_to_binary(I), <<"value">>, []),
-      {ok, Iter} = rocksdb:iterator(Ref, AnotherCF, []),
-      try
-        ?assertEqual({ok, integer_to_binary(I), <<"value">>}, rocksdb:iterator_move(Iter, first))
-      after
-        rocksdb:iterator_close(Iter),
-        rocksdb:close(Ref)
-      end
-    end, lists:seq(1, 10)).
-  

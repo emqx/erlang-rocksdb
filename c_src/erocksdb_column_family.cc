@@ -19,6 +19,7 @@
 
 
 #include <vector>
+#include <iostream>
 
 #include "erocksdb.h"
 
@@ -130,10 +131,34 @@ DropColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
     // release snapshot object
     ColumnFamilyObject* cf = cf_ptr.get();
+
     rocksdb::Status status = cf->m_DbPtr->m_Db->DropColumnFamily(cf->m_ColumnFamily);
     if(status.ok())
     {
         // set closing flag
+        std::cout << "cf close requested\n";
+        ErlRefObject::InitiateCloseRequest(cf);
+        return ATOM_OK;
+    }
+    return error_tuple(env, ATOM_ERROR, status);
+}   // erocksdb::DropColumnFamily
+
+
+ERL_NIF_TERM
+DestroyColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<ColumnFamilyObject> cf_ptr;
+    if(!enif_get_cf(env, argv[0], &cf_ptr))
+        return enif_make_badarg(env);
+
+    // release snapshot object
+    ColumnFamilyObject* cf = cf_ptr.get();
+
+    rocksdb::Status status = cf->m_DbPtr->m_Db->DestroyColumnFamilyHandle(cf->m_ColumnFamily);
+    if(status.ok())
+    {
+        // set closing flag
+        std::cout << "cf close requested\n";
         ErlRefObject::InitiateCloseRequest(cf);
         return ATOM_OK;
     }

@@ -24,7 +24,17 @@
          close/1]).
 
 -export([snapshot/1, release_snapshot/1]).
--export([list_column_families/2, create_column_family/3, drop_column_family/1]).
+
+
+
+-export([
+  list_column_families/2,
+  create_column_family/3,
+  drop_column_family/1,
+  destroy_column_family/1
+]).
+
+
 -export([put/4, put/5, delete/3, delete/4, write/3, get/3, get/4]).
 -export([iterator/2, iterator/3, iterators/3, iterator_move/2, iterator_close/1]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
@@ -59,18 +69,36 @@
          batch_count/1,
          batch_tolist/1]).
 
+-export([
+  open_backup_engine/1,
+  create_new_backup/2,
+  stop_backup/1,
+  get_backup_info/1,
+  verify_backup/2,
+  delete_backup/2,
+  purge_old_backup/2,
+  restore_db_from_backup/3, restore_db_from_backup/4,
+  restore_db_from_latest_backup/2, restore_db_from_latest_backup/3,
+  garbage_collect_backup/1,
+  close_backup/1
+]).
 
--export_type([env_handle/0,
-              db_handle/0,
-              cf_handle/0,
-              itr_handle/0,
-              snapshot_handle/0,
-              cache_handle/0,
-              batch_handle/0,
-              compression_type/0,
-              compaction_style/0,
-              access_hint/0,
-              wal_recovery_mode/0]).
+
+-export_type([
+  env_handle/0,
+  db_handle/0,
+  cf_handle/0,
+  itr_handle/0,
+  snapshot_handle/0,
+  cache_handle/0,
+  batch_handle/0,
+  compression_type/0,
+  compaction_style/0,
+  access_hint/0,
+  wal_recovery_mode/0,
+  backup_engine/0,
+  backup_info/0
+]).
 
 -on_load(init/0).
 
@@ -110,13 +138,14 @@ init() ->
                point_in_time_recovery |
                skip_any_corrupted_records.
 
--opaque env_handle() :: binary().
--opaque db_handle() :: binary().
--opaque cf_handle() :: binary().
--opaque itr_handle() :: binary().
--opaque snapshot_handle() :: binary().
--opaque cache_handle() :: binary().
--opaque batch_handle() :: binary().
+-opaque env_handle() :: reference() | binary().
+-opaque db_handle() :: reference() | binary().
+-opaque cf_handle() :: reference() | binary().
+-opaque itr_handle() :: reference() | binary().
+-opaque snapshot_handle() :: reference() | binary().
+-opaque cache_handle() :: reference() | binary().
+-opaque batch_handle() :: reference() | binary().
+-opaque backup_engine() :: reference() | binary().
 
 
 -type env_priority() :: priority_high | priority_low.
@@ -217,6 +246,12 @@ init() ->
 
 -type iterator_action() :: first | last | next | prev | binary() | {seek, binary()} | {seek_for_prev, binary()}.
 
+-type backup_info() :: #{
+  id := non_neg_integer(),
+  timestamp := non_neg_integer(),
+  size := non_neg_integer(),
+  number_files := non_neg_integer()
+}.
 
 
 %% @doc Open RocksDB with the defalut column family
@@ -269,6 +304,13 @@ create_column_family(_DBHandle, _Name, _CFOpts) ->
   CFHandle::cf_handle(),
   Res :: ok | {error, any()}.
 drop_column_family(_CFHandle) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Destroy a column family
+-spec destroy_column_family(CFHandle) -> Res when
+  CFHandle::cf_handle(),
+  Res :: ok | {error, any()}.
+destroy_column_family(_CFHandle) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc return a database snapshot
@@ -664,6 +706,101 @@ batch_rollback(_Batch) ->
 %% @doc return all the operation sin the batch as a list of operations
 -spec batch_tolist(Batch :: batch_handle()) -> Ops :: write_actions().
 batch_tolist(_Batch) ->
+  erlang:nif_error({error, not_loaded}).
+
+
+%% ===================================================================
+%% backup functions
+
+%% @doc open a new backup engine
+-spec open_backup_engine(Path :: string) -> {ok, backup_engine()} | {error, term()}.
+open_backup_engine(_Path) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% %% @doc Call this from another process if you want to stop the backup
+%% that is currently happening. It will return immediatelly, will
+%% not wait for the backup to stop.
+%% The backup will stop ASAP and the call to CreateNewBackup will
+%% return Status::Incomplete(). It will not clean up after itself, but
+%% the state will remain consistent. The state will be cleaned up
+%% next time you create BackupableDB or RestoreBackupableDB.
+-spec stop_backup(backup_engine()) -> ok.
+stop_backup(_BackupEngine) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Captures the state of the database in the latest backup
+-spec create_new_backup(BackupEngine :: backup_engine(), Db :: db_handle()) -> ok | {error, term()}.
+create_new_backup(_BackupEngine, _DbHandle) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Returns info about backups in backup_info
+-spec get_backup_info(backup_engine()) -> [backup_info()].
+get_backup_info(_BackupEngine) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc checks that each file exists and that the size of the file matches
+%% our expectations. it does not check file checksum.
+-spec verify_backup(BackupEngine :: backup_engine(), BackupId :: non_neg_integer()) -> ok | {error, any()}.
+verify_backup(_BackupEngine, _BackupId) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc deletes a specific backup
+-spec delete_backup(BackupEngine :: backup_engine(), BackupId :: non_neg_integer()) -> ok | {error, any()}.
+delete_backup(_BackupEngine, _BackupId) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc deletes old backups, keeping latest num_backups_to_keep alive
+-spec purge_old_backup(BackupEngine :: backup_engine(), NumBackupToKeep :: non_neg_integer()) -> ok | {error, any()}.
+purge_old_backup(_BackupEngine, _NumBackupToKeep) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc restore from backup with backup_id
+-spec restore_db_from_backup(BackupEngine, BackupId, DbDir) -> Result when
+  BackupEngine :: backup_engine(),
+  BackupId :: non_neg_integer(),
+  DbDir :: string(),
+  Result :: ok | {error, any()}.
+restore_db_from_backup(_BackupEngine, _BackupId, _DbDir) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc restore from backup with backup_id
+-spec restore_db_from_backup(BackupEngine, BackupId, DbDir, WalDir) -> Result when
+  BackupEngine :: backup_engine(),
+  BackupId :: non_neg_integer(),
+  DbDir :: string(),
+  WalDir :: string(),
+  Result :: ok | {error, any()}.
+restore_db_from_backup(_BackupEngine, _BackupId, _DbDir, _WalDir) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc restore from the latest backup
+-spec restore_db_from_latest_backup(BackupEngine, DbDir) -> Result when
+  BackupEngine :: backup_engine(),
+  DbDir :: string(),
+  Result :: ok | {error, any()}.
+restore_db_from_latest_backup(_BackupEngine, _DbDir) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc restore from the latest backup
+-spec restore_db_from_latest_backup(BackupEngine,  DbDir, WalDir) -> Result when
+  BackupEngine :: backup_engine(),
+  DbDir :: string(),
+  WalDir :: string(),
+  Result :: ok | {error, any()}.
+restore_db_from_latest_backup(_BackupEngine,  _DbDir, _WalDir) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc  Will delete all the files we don't need anymore
+%% It will do the full scan of the files/ directory and delete all the
+%% files that are not referenced.
+-spec garbage_collect_backup(backup_engine()) -> ok.
+garbage_collect_backup(_BackupEngine) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc stop and close the backup
+%% note: experimental for testing only
+-spec close_backup(backup_engine()) -> ok.
+close_backup(_BackupEngine) ->
   erlang:nif_error({error, not_loaded}).
 
 

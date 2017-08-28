@@ -19,6 +19,9 @@
 // under the License.
 //
 // -------------------------------------------------------------------
+
+#include <iostream>
+
 #ifndef __EROCKSDB_DETAIL_HPP
     #include "detail.hpp"
 #endif
@@ -29,6 +32,7 @@
 
 #include "rocksdb/cache.h"
 #include "rocksdb/filter_policy.h"
+#include "rocksdb/utilities/backupable_db.h"
 
 
 namespace erocksdb {
@@ -314,7 +318,7 @@ DbObject::Shutdown()
 
         // lock the ItrList
         {
-            MutexLock lock(m_DbMutex);
+            MutexLock lock(m_ItrMutex);
 
             if (!m_ItrList.empty())
             {
@@ -338,7 +342,7 @@ DbObject::Shutdown()
 
         // lock the SnapshotList
         {
-            MutexLock lock(m_DbMutex);
+            MutexLock lock(m_ColumnFamilyMutex);
 
             if (!m_ColumnFamilyList.empty()) {
                 again = true;
@@ -362,7 +366,7 @@ DbObject::Shutdown()
 
         // lock the SnapshotList
         {
-            MutexLock lock(m_DbMutex);
+            MutexLock lock(m_SnapshotMutex);
 
             if (!m_SnapshotList.empty())
             {
@@ -387,7 +391,7 @@ DbObject::Shutdown()
 
         // lock the SnapshotList
         {
-            MutexLock lock(m_DbMutex);
+            MutexLock lock(m_TLogItrMutex);
 
             if (!m_TLogItrList.empty()) {
                 again = true;
@@ -414,7 +418,7 @@ DbObject::Shutdown()
 void
 DbObject::AddColumnFamilyReference(
         ColumnFamilyObject *ColumnFamilyPtr) {
-    MutexLock lock(m_DbMutex);
+    MutexLock lock(m_ColumnFamilyMutex);
     m_ColumnFamilyList.push_back(ColumnFamilyPtr);
     return;
 }   // DbObject::ColumnFamilyReference
@@ -423,7 +427,7 @@ DbObject::AddColumnFamilyReference(
 void
 DbObject::RemoveColumnFamilyReference(
         ColumnFamilyObject *ColumnFamilyPtr) {
-    MutexLock lock(m_DbMutex);
+    MutexLock lock(m_ColumnFamilyMutex);
     m_ColumnFamilyList.remove(ColumnFamilyPtr);
     return;
 }   // DbObject::RemoveColumnFamilyReference
@@ -433,7 +437,7 @@ DbObject::AddReference(
     ItrObject * ItrPtr)
 {
     bool ret_flag;
-    MutexLock lock(m_DbMutex);
+    MutexLock lock(m_ItrMutex);
 
     ret_flag=(0==m_CloseRequested);
     if (ret_flag)
@@ -447,7 +451,7 @@ void
 DbObject::RemoveReference(
     ItrObject * ItrPtr)
 {
-    MutexLock lock(m_DbMutex);
+    MutexLock lock(m_ItrMutex);
     m_ItrList.remove(ItrPtr);
     return;
 
@@ -457,7 +461,7 @@ void
 DbObject::AddSnapshotReference(
     SnapshotObject * SnapshotPtr)
 {
-    MutexLock lock(m_DbMutex);
+    MutexLock lock(m_SnapshotMutex);
     m_SnapshotList.push_back(SnapshotPtr);
     return;
 
@@ -468,7 +472,7 @@ void
 DbObject::RemoveSnapshotReference(
     SnapshotObject * SnapshotPtr)
 {
-    MutexLock lock(m_DbMutex);
+    MutexLock lock(m_SnapshotMutex);
 
     m_SnapshotList.remove(SnapshotPtr);
 
@@ -477,7 +481,7 @@ DbObject::RemoveSnapshotReference(
 
 void
 DbObject::AddTLogReference(TLogItrObject *TLogItrPtr) {
-    MutexLock lock(m_DbMutex);
+    MutexLock lock(m_TLogItrMutex);
 
     m_TLogItrList.push_back(TLogItrPtr);
 
@@ -488,9 +492,12 @@ DbObject::AddTLogReference(TLogItrObject *TLogItrPtr) {
 
 void
 DbObject::RemoveTLogReference(TLogItrObject *TLogItrPtr) {
-    MutexLock lock(m_DbMutex);
+    MutexLock lock(m_TLogItrMutex);
+
     m_TLogItrList.remove(TLogItrPtr);
+
     return;
+
 }   // DbObject::RemoveTLogReference
 
 /**
@@ -575,6 +582,8 @@ ColumnFamilyObject::ColumnFamilyObject(
         DbObject *DbPtr,
         rocksdb::ColumnFamilyHandle *Handle)
         : m_ColumnFamily(Handle), m_DbPtr(DbPtr) {
+
+
     if (NULL != DbPtr)
         DbPtr->AddColumnFamilyReference(this);
 }   // ColumnFamilyObject::ColumnFamilyObject
@@ -593,6 +602,7 @@ ColumnFamilyObject::Shutdown() {
     RefDec();
     return;
 }   // ColumnFamilyObject::CloseRequest
+
 
 /**
  * snapshot object
@@ -815,19 +825,23 @@ ItrObject::ItrObject(
         DbObject *DbPtr,
         rocksdb::Iterator *Iterator)
         : m_Iterator(Iterator), m_DbPtr(DbPtr) {
+
     if (NULL != DbPtr)
         DbPtr->AddReference(this);
 
 }   // ItrObject::ItrObject
 
+
+
 ItrObject::~ItrObject() {
     // not likely to have active reuse item since it would
     //  block destruction
 
-    if (NULL != m_DbPtr.get())
+
+    if (nullptr != m_DbPtr.get())
         m_DbPtr->RemoveReference(this);
 
-    // do not clean up m_CloseMutex and m_CloseCond
+    m_Iterator = nullptr;
 
     return;
 
@@ -961,6 +975,116 @@ TLogItrObject::Shutdown() {
 
     return;
 }   // TLogItrObject::CloseRequest
+
+
+
+/**
+ * BackupEngineObject Functions
+ */
+
+ErlNifResourceType * BackupEngineObject::m_BackupEngine_RESOURCE(NULL);
+
+
+void
+BackupEngineObject::CreateBackupEngineObjectType(
+    ErlNifEnv * Env)
+{
+    ErlNifResourceFlags flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
+
+    m_BackupEngine_RESOURCE = enif_open_resource_type(Env, NULL, "erocksdb_BackupEngineObject",
+                                            &BackupEngineObject::BackupEngineObjectResourceCleanup,
+                                            flags, NULL);
+
+    return;
+
+}
+
+
+BackupEngineObject *
+BackupEngineObject::CreateBackupEngineObject(
+    rocksdb::BackupEngine * BackupEngine)
+{
+    BackupEngineObject * ret_ptr;
+    void * alloc_ptr;
+
+    // the alloc call initializes the reference count to "one"
+    alloc_ptr=enif_alloc_resource(m_BackupEngine_RESOURCE, sizeof(BackupEngineObject));
+    ret_ptr=new (alloc_ptr) BackupEngineObject(BackupEngine);
+
+    // manual reference increase to keep active until "close" called
+    //  only inc local counter, leave erl ref count alone ... will force
+    //  erlang to call us if process holding ref dies
+    ret_ptr->RefInc();
+
+    // see OpenTask::operator() for release of reference count
+
+    return(ret_ptr);
+
+}
+
+BackupEngineObject *
+BackupEngineObject::RetrieveBackupEngineObject(
+    ErlNifEnv * Env,
+    const ERL_NIF_TERM & BackupEngineTerm)
+{
+    BackupEngineObject * ret_ptr;
+    ret_ptr=NULL;
+    if (enif_get_resource(Env, BackupEngineTerm, m_BackupEngine_RESOURCE, (void **)&ret_ptr))
+    {
+        // has close been requested?
+        if (ret_ptr->m_CloseRequested)
+        {
+            // object already closing
+            ret_ptr=NULL;
+        }   // else
+    }   // if
+    return(ret_ptr);
+}
+
+
+void
+BackupEngineObject::BackupEngineObjectResourceCleanup(
+    ErlNifEnv * Env,
+    void * Arg)
+{
+    BackupEngineObject * engine_ptr;
+
+    engine_ptr=(BackupEngineObject *)Arg;
+
+    // YES, the destructor may already have been called
+    InitiateCloseRequest(engine_ptr);
+
+    // YES, the destructor may already have been called
+    AwaitCloseAndDestructor(engine_ptr);
+
+    return;
+
+}
+
+BackupEngineObject::BackupEngineObject(
+    rocksdb::BackupEngine * BackupEnginePtr)
+    : m_BackupEngine(BackupEnginePtr)
+    {}
+
+
+BackupEngineObject::~BackupEngineObject()
+{
+
+    // close the db
+    delete m_BackupEngine;
+    m_BackupEngine=NULL;
+    return;
+
+}   // BackupEngineObject::~BackupEngineObject
+
+
+void
+BackupEngineObject::Shutdown()
+{
+    RefDec();
+    return;
+
+}   // BackupEngineObject::Shutdown
 
 
 } // namespace erocksdb
