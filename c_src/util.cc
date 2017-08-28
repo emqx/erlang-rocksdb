@@ -88,3 +88,17 @@ enif_get_cf(ErlNifEnv* env, ERL_NIF_TERM cfval, erocksdb::ReferencePtr<erocksdb:
 
     return 1;
 }
+
+
+int
+enif_get_backup_engine(
+    ErlNifEnv* env, ERL_NIF_TERM val,
+    erocksdb::ReferencePtr<erocksdb::BackupEngineObject>* backup_engine_ptr)
+{
+    backup_engine_ptr->assign(erocksdb::BackupEngineObject::RetrieveBackupEngineObject(env, val));
+
+    if(NULL==backup_engine_ptr->get())
+        return 0;
+
+    return 1;
+}

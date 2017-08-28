@@ -32,6 +32,7 @@
 
 #include "rocksdb/cache.h"
 #include "rocksdb/filter_policy.h"
+#include "rocksdb/utilities/backupable_db.h"
 
 
 namespace erocksdb {
@@ -974,6 +975,116 @@ TLogItrObject::Shutdown() {
 
     return;
 }   // TLogItrObject::CloseRequest
+
+
+
+/**
+ * BackupEngineObject Functions
+ */
+
+ErlNifResourceType * BackupEngineObject::m_BackupEngine_RESOURCE(NULL);
+
+
+void
+BackupEngineObject::CreateBackupEngineObjectType(
+    ErlNifEnv * Env)
+{
+    ErlNifResourceFlags flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
+
+    m_BackupEngine_RESOURCE = enif_open_resource_type(Env, NULL, "erocksdb_BackupEngineObject",
+                                            &BackupEngineObject::BackupEngineObjectResourceCleanup,
+                                            flags, NULL);
+
+    return;
+
+}
+
+
+BackupEngineObject *
+BackupEngineObject::CreateBackupEngineObject(
+    rocksdb::BackupEngine * BackupEngine)
+{
+    BackupEngineObject * ret_ptr;
+    void * alloc_ptr;
+
+    // the alloc call initializes the reference count to "one"
+    alloc_ptr=enif_alloc_resource(m_BackupEngine_RESOURCE, sizeof(BackupEngineObject));
+    ret_ptr=new (alloc_ptr) BackupEngineObject(BackupEngine);
+
+    // manual reference increase to keep active until "close" called
+    //  only inc local counter, leave erl ref count alone ... will force
+    //  erlang to call us if process holding ref dies
+    ret_ptr->RefInc();
+
+    // see OpenTask::operator() for release of reference count
+
+    return(ret_ptr);
+
+}
+
+BackupEngineObject *
+BackupEngineObject::RetrieveBackupEngineObject(
+    ErlNifEnv * Env,
+    const ERL_NIF_TERM & BackupEngineTerm)
+{
+    BackupEngineObject * ret_ptr;
+    ret_ptr=NULL;
+    if (enif_get_resource(Env, BackupEngineTerm, m_BackupEngine_RESOURCE, (void **)&ret_ptr))
+    {
+        // has close been requested?
+        if (ret_ptr->m_CloseRequested)
+        {
+            // object already closing
+            ret_ptr=NULL;
+        }   // else
+    }   // if
+    return(ret_ptr);
+}
+
+
+void
+BackupEngineObject::BackupEngineObjectResourceCleanup(
+    ErlNifEnv * Env,
+    void * Arg)
+{
+    BackupEngineObject * engine_ptr;
+
+    engine_ptr=(BackupEngineObject *)Arg;
+
+    // YES, the destructor may already have been called
+    InitiateCloseRequest(engine_ptr);
+
+    // YES, the destructor may already have been called
+    AwaitCloseAndDestructor(engine_ptr);
+
+    return;
+
+}
+
+BackupEngineObject::BackupEngineObject(
+    rocksdb::BackupEngine * BackupEnginePtr)
+    : m_BackupEngine(BackupEnginePtr)
+    {}
+
+
+BackupEngineObject::~BackupEngineObject()
+{
+
+    // close the db
+    delete m_BackupEngine;
+    m_BackupEngine=NULL;
+    return;
+
+}   // BackupEngineObject::~BackupEngineObject
+
+
+void
+BackupEngineObject::Shutdown()
+{
+    RefDec();
+    return;
+
+}   // BackupEngineObject::Shutdown
 
 
 } // namespace erocksdb

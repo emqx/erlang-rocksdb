@@ -114,8 +114,21 @@ static ErlNifFunc nif_funcs[] =
   {"batch_savepoint", 1, erocksdb::BatchSetSavePoint},
   {"batch_rollback", 1, erocksdb::BatchRollbackToSavePoint},
   {"batch_count", 1, erocksdb::BatchCount},
-  {"batch_tolist", 1, erocksdb::BatchToList, ERL_NIF_DIRTY_JOB_CPU_BOUND}
+  {"batch_tolist", 1, erocksdb::BatchToList, ERL_NIF_DIRTY_JOB_CPU_BOUND},
 
+  {"open_backup_engine", 1, erocksdb::OpenBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"create_new_backup", 2, erocksdb::CreateNewBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"get_backup_info", 1, erocksdb::GetBackupInfo, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"verify_backup", 2, erocksdb::VerifyBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"stop_backup", 1, erocksdb::StopBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"delete_backup", 2, erocksdb::DeleteBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"purge_old_backup", 2, erocksdb::PurgeOldBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"restore_db_from_backup", 3, erocksdb::RestoreDBFromBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"restore_db_from_backup", 4, erocksdb::RestoreDBFromBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"restore_db_from_latest_backup", 2, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"restore_db_from_latest_backup", 3, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"garbage_collect_backup", 1, erocksdb::GarbageCollect, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"close_backup", 1, erocksdb::CloseBackup, ERL_NIF_DIRTY_JOB_IO_BOUND}
 
 };
 
@@ -283,6 +296,7 @@ ERL_NIF_TERM ATOM_BAD_WRITE_ACTION;
 ERL_NIF_TERM ATOM_KEEP_RESOURCE_FAILED;
 ERL_NIF_TERM ATOM_ITERATOR_CLOSED;
 ERL_NIF_TERM ATOM_INVALID_ITERATOR;
+ERL_NIF_TERM ATOM_ERROR_BACKUP_ENGINE_OPEN;
 
 // Related to NIF initialize parameters
 ERL_NIF_TERM ATOM_WRITE_THREADS;
@@ -290,6 +304,13 @@ ERL_NIF_TERM ATOM_WRITE_THREADS;
 ERL_NIF_TERM ATOM_ENV;
 ERL_NIF_TERM ATOM_PRIORITY_HIGH;
 ERL_NIF_TERM ATOM_PRIORITY_LOW;
+
+
+// backup info
+ERL_NIF_TERM ATOM_BACKUP_INFO_ID;
+ERL_NIF_TERM ATOM_BACKUP_INFO_TIMESTAMP;
+ERL_NIF_TERM ATOM_BACKUP_INFO_SIZE;
+ERL_NIF_TERM ATOM_BACKUP_INFO_NUMBER_FILES;
 
 }   // namespace erocksdb
 
@@ -325,6 +346,7 @@ try
   erocksdb::Cache::CreateCacheType(env);
   erocksdb::CreateBatchType(env);
   erocksdb::TLogItrObject::CreateTLogItrObjectType(env);
+  erocksdb::BackupEngineObject::CreateBackupEngineObjectType(env);
 
   // must initialize atoms before processing options
 #define ATOM(Id, Value) { Id = enif_make_atom(env, Value); }
@@ -485,6 +507,7 @@ try
   ATOM(erocksdb::ATOM_KEEP_RESOURCE_FAILED, "keep_resource_failed");
   ATOM(erocksdb::ATOM_ITERATOR_CLOSED, "iterator_closed");
   ATOM(erocksdb::ATOM_INVALID_ITERATOR, "invalid_iterator");
+  ATOM(erocksdb::ATOM_ERROR_BACKUP_ENGINE_OPEN, "backup_engine_open");
 
   // Related to NIF initialize parameters
   ATOM(erocksdb::ATOM_WRITE_THREADS, "write_threads");
@@ -492,6 +515,13 @@ try
   ATOM(erocksdb::ATOM_PRIORITY_HIGH, "priority_high");
   ATOM(erocksdb::ATOM_PRIORITY_LOW, "priority_low");
   ATOM(erocksdb::ATOM_ENV, "env");
+
+  // backup info
+  ATOM(erocksdb::ATOM_BACKUP_INFO_ID, "backup_id");
+  ATOM(erocksdb::ATOM_BACKUP_INFO_TIMESTAMP, "timestamp");
+  ATOM(erocksdb::ATOM_BACKUP_INFO_SIZE, "size");
+  ATOM(erocksdb::ATOM_BACKUP_INFO_NUMBER_FILES, "number_files");
+
 #undef ATOM
 
 erocksdb::PrivData *priv = new erocksdb::PrivData();

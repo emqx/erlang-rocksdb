@@ -23,6 +23,7 @@
 
 #include "rocksdb/db.h"
 #include "rocksdb/write_batch.h"
+#include "rocksdb/utilities/backupable_db.h"
 
 
 #ifndef INCL_MUTEX_H
@@ -366,6 +367,42 @@ private:
     TLogItrObject(const TLogItrObject &);            // no copy
     TLogItrObject & operator=(const TLogItrObject &); // no assignment
 };  // class TLogItrObject
+
+
+
+/**
+ * BackupEngine object.  Created as erlang reference.
+ */
+class BackupEngineObject : public ErlRefObject
+{
+public:
+    rocksdb::BackupEngine* m_BackupEngine;                                   // NULL or rocksdb BackupEngine object
+
+
+protected:
+    static ErlNifResourceType* m_BackupEngine_RESOURCE;
+
+public:
+    BackupEngineObject(rocksdb::BackupEngine * BackupEnginePtr);
+
+    virtual ~BackupEngineObject();
+
+    virtual void Shutdown();
+
+    static void CreateBackupEngineObjectType(ErlNifEnv * Env);
+
+    static BackupEngineObject * CreateBackupEngineObject(rocksdb::BackupEngine * BackupEngine);
+
+    static BackupEngineObject * RetrieveBackupEngineObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
+
+    static void BackupEngineObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
+
+private:
+    BackupEngineObject();
+    BackupEngineObject(const BackupEngineObject&);              // nocopy
+    BackupEngineObject& operator=(const BackupEngineObject&);   // nocopyassign
+};  // class BackupEngineObject
+
 
 } // namespace erocksdb
 

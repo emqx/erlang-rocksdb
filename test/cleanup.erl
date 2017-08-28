@@ -192,7 +192,8 @@ open_cf() ->
         [{CF, []} || CF <- CFs]
       );
     false ->
-      rocksdb:open( ?CF_INSTANCE_DIR, [{create_if_missing, true}])
+      {ok, DB}= rocksdb:open( ?CF_INSTANCE_DIR, [{create_if_missing, true}]),
+      {ok, DB, []}
   end.
 
 

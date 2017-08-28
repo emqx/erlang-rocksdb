@@ -47,5 +47,6 @@ int binary_to_slice(ErlNifEnv* env, ERL_NIF_TERM val, rocksdb::Slice *slice);
 
 int enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::DbObject>* db_ptr);
 int enif_get_cf(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::ColumnFamilyObject>* cf_ptr);
+int enif_get_backup_engine(ErlNifEnv* env, ERL_NIF_TERM bal, erocksdb::ReferencePtr<erocksdb::BackupEngineObject>* backup_engine_ptr);
 
 #endif
