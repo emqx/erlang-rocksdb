@@ -42,8 +42,11 @@ ERL_NIF_TERM erocksdb_list_column_families(ErlNifEnv* env, int argc, const ERL_N
 ERL_NIF_TERM erocksdb_create_list_column_family(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_drop_list_column_family(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_destroy_list_column_family(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
 ERL_NIF_TERM erocksdb_snapshot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_release_snapshot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM erocksdb_get_snapshot_sequence(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
 ERL_NIF_TERM erocksdb_get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_iterator(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_iterators(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
@@ -115,7 +118,7 @@ ERL_NIF_TERM Get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM Snapshot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM ReleaseSnapshot(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-
+ERL_NIF_TERM GetSnapshotSequenceNumber(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM Iterator(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM IteratorMove(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);

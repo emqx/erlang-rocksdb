@@ -23,9 +23,11 @@
          open_with_cf/3,
          close/1]).
 
--export([snapshot/1, release_snapshot/1]).
-
-
+-export([
+  snapshot/1,
+  release_snapshot/1,
+  get_snapshot_sequence/1
+]).
 
 -export([
   list_column_families/2,
@@ -329,6 +331,11 @@ snapshot(_DbHandle) ->
 %% @doc release a snapshot
 -spec release_snapshot(SnapshotHandle::snapshot_handle()) -> ok | {error, any()}.
 release_snapshot(_SnapshotHandle) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc returns Snapshot's sequence number
+-spec get_snapshot_sequence(SnapshotHandle::snapshot_handle()) -> Sequence::non_neg_integer().
+get_snapshot_sequence(_SnapshotHandle) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc Put a key/value pair into the default column family

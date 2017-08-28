@@ -16,7 +16,7 @@
 
 
 @copyright 2016-2017 Benoît Chesneau.
-@version 0.10.0 Erlang wrapper for RocksDB.
+@version 0.11.0 Erlang wrapper for RocksDB.
 @title erlang-rocksdb - Erlang wrapper for RocksDB.
 
 @doc
@@ -44,7 +44,6 @@ See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) fo
 ## Support
 
 Support, Design and discussions are done via the [Gitlab Tracker](https://gitlab.com/barrel-db/erlang-rocksdb/issues) or [email](mailto:incoming+barrel-db/erlang-rocksdb@gitlab.com).
-
 
 
 ## License

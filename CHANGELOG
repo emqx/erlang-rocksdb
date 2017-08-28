@@ -1,3 +1,8 @@
+erlang-rocksdb 0.11.0, released on 2017/07/29
+=================================================
+
+- add rocksdb:get_snapshot_sequence/1
+
 erlang-rocksdb 0.10.0, released on 2017/07/28
 =================================================
 

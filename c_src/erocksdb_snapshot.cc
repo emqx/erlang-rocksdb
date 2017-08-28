@@ -97,4 +97,21 @@ ReleaseSnapshot(
     return ATOM_OK;
 }   // erocksdb::ReleaseSnapShot
 
+ERL_NIF_TERM
+GetSnapshotSequenceNumber(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    const ERL_NIF_TERM& handle_ref = argv[0];
+    ReferencePtr<SnapshotObject> snapshot_ptr;
+    snapshot_ptr.assign(SnapshotObject::RetrieveSnapshotObject(env, handle_ref));
+
+    if(NULL==snapshot_ptr.get())
+        return enif_make_badarg(env);
+
+    // release snapshot object
+    SnapshotObject* snapshot = snapshot_ptr.get();
+
+    return enif_make_uint64(env, snapshot->m_Snapshot->GetSequenceNumber());
+}
+
+
 }

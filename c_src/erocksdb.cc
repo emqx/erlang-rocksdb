@@ -78,6 +78,7 @@ static ErlNifFunc nif_funcs[] =
 
   {"snapshot", 1, erocksdb::Snapshot},
   {"release_snapshot", 1, erocksdb::ReleaseSnapshot},
+  {"get_snapshot_sequence", 1, erocksdb::GetSnapshotSequenceNumber},
 
   // iterator operations
   {"iterator", 2, erocksdb::Iterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
