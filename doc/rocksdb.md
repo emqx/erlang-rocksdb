@@ -234,7 +234,8 @@ write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {ignore_missin
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch-0">batch/0</a></td><td>create a new batch in memory.</td></tr><tr><td valign="top"><a href="#batch_clear-1">batch_clear/1</a></td><td>reset the batch, clear all operations.</td></tr><tr><td valign="top"><a href="#batch_count-1">batch_count/1</a></td><td>return the number of operations in the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-2">batch_delete/2</a></td><td>add a delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-3">batch_delete/3</a></td><td>like <code>delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_put-3">batch_put/3</a></td><td>add a put operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_put-4">batch_put/4</a></td><td>like <code>put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_rollback-1">batch_rollback/1</a></td><td>rollback the operations to the latest checkpoint.</td></tr><tr><td valign="top"><a href="#batch_savepoint-1">batch_savepoint/1</a></td><td>store a checkpoint in the batch to which you can rollback later.</td></tr><tr><td valign="top"><a href="#batch_tolist-1">batch_tolist/1</a></td><td>return all the operation sin the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#checkpoint-2">checkpoint/2</a></td><td>take a snapshot of a running RocksDB database in a separate directory
 http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>Close RocksDB.</td></tr><tr><td valign="top"><a href="#close_backup-1">close_backup/1</a></td><td>stop and close the backup
 note: experimental for testing only.</td></tr><tr><td valign="top"><a href="#close_batch-1">close_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
-Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#create_new_backup-2">create_new_backup/2</a></td><td>Captures the state of the database in the latest backup.</td></tr><tr><td valign="top"><a href="#default_env-0">default_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#delete_backup-2">delete_backup/2</a></td><td>deletes a specific backup.</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_column_family-1">destroy_column_family/1</a></td><td>Destroy a column family.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
+Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#create_new_backup-2">create_new_backup/2</a></td><td>Captures the state of the database in the latest backup.</td></tr><tr><td valign="top"><a href="#default_env-0">default_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#delete_backup-2">delete_backup/2</a></td><td>deletes a specific backup.</td></tr><tr><td valign="top"><a href="#delete_range-4">delete_range/4</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
+including "BeginKey" and excluding "EndKey".</td></tr><tr><td valign="top"><a href="#delete_range-5">delete_range/5</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_column_family-1">destroy_column_family/1</a></td><td>Destroy a column family.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold-5">fold/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
 Other specs are same with fold/4.</td></tr><tr><td valign="top"><a href="#fold_keys-4">fold_keys/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold_keys-5">fold_keys/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
@@ -512,6 +513,45 @@ delete_backup(BackupEngine::<a href="#type-backup_engine">backup_engine()</a>, B
 <br />
 
 deletes a specific backup
+
+<a name="delete_range-4"></a>
+
+### delete_range/4 ###
+
+<pre><code>
+delete_range(DBHandle, BeginKey, EndKey, WriteOpts) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>BeginKey = binary()</code></li><li><code>EndKey = binary()</code></li><li><code>WriteOpts = <a href="#type-write_options">write_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
+
+Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
+including "BeginKey" and excluding "EndKey". Returns OK on success, and
+a non-OK status on error. It is not an error if no keys exist in the range
+["BeginKey", "EndKey").
+
+This feature is currently an experimental performance optimization for
+deleting very large ranges of contiguous keys. Invoking it many times or on
+small ranges may severely degrade read performance; in particular, the
+resulting performance can be worse than calling Delete() for each key in
+the range. Note also the degraded read performance affects keys outside the
+deleted ranges, and affects database operations involving scans, like flush
+and compaction.
+
+Consider setting ReadOptions::ignore_range_deletions = true to speed
+up reads for key(s) that are known to be unaffected by range deletions.
+
+<a name="delete_range-5"></a>
+
+### delete_range/5 ###
+
+<pre><code>
+delete_range(DBHandle, CFHandle, BeginKey, EndKey, WriteOpts) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>BeginKey = binary()</code></li><li><code>EndKey = binary()</code></li><li><code>WriteOpts = <a href="#type-write_options">write_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
+
+Removes the database entries in the range ["BeginKey", "EndKey").
+like `delete_range/3` but for a column family
 
 <a name="destroy-2"></a>
 
