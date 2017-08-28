@@ -1,11 +1,19 @@
-erlang-rocksdb 0.9.1, released on 2017/05/28
+erlang-rocksdb 0.10.0, released on 2017/07/28
 =================================================
+
+- bump to rocksdb 5.7.2
+- add: rocksdb:destroy_column_family/1
+- proper fix to handle an iterator with column family issue
+- preliminary support for the backup api
+
+erlang-rocksdb 0.9.1, released on 2017/07/26
+============================================
 
 - fix iterator with column familly issue
 - fix mutex usage in the db object
 
-erlang-rocksdb 0.9.0 beta, released on 2017/05/31
-=================================================
+erlang-rocksdb 0.9.0, released on 2017/05/31
+============================================
 
 - bump to rocksdb 5.4.5
 - remove `disable_data_sync` db option, optimisations removed in rocksdb
@@ -16,18 +24,18 @@ erlang-rocksdb 0.9.0 beta, released on 2017/05/31
 - add `{seek_for_prev, Prev}` db option
 - allows to fold a column familly
 
-erlang-rocksdb 0.8.2 beta, released on 2017/05/17
-=================================================
+erlang-rocksdb 0.8.2, released on 2017/05/17
+============================================
 
 - fix: fix default_env/0 & mem_env/0 spec
 
-erlang-rocksdb 0.8.1 beta, released on 2017/05/17
-=================================================
+erlang-rocksdb 0.8.1, released on 2017/05/17
+============================================
 
 - fix: use an uint64 to set the capacity of LRU or CLOCK caches.
 
-erlang-rocksdb 0.8.0 beta, released on 2017/05/17
-=================================================
+erlang-rocksdb 0.8.0, released on 2017/05/17
+============================================
 
 - replace custom pool by dirty-nif calls
 - allows a cache to be shared between databases (option `block_cache` from the block options)
