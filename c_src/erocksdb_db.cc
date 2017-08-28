@@ -1014,10 +1014,7 @@ Close(
 }  // erocksdb::Close
 
 ERL_NIF_TERM
-GetProperty(
-    ErlNifEnv* env,
-    int argc,
-    const ERL_NIF_TERM argv[])
+GetProperty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
     ErlNifBinary name_bin;
     ERL_NIF_TERM name_ref;
