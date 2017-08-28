@@ -136,7 +136,6 @@ DropColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if(status.ok())
     {
         // set closing flag
-        std::cout << "cf close requested\n";
         ErlRefObject::InitiateCloseRequest(cf);
         return ATOM_OK;
     }
@@ -158,7 +157,6 @@ DestroyColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if(status.ok())
     {
         // set closing flag
-        std::cout << "cf close requested\n";
         ErlRefObject::InitiateCloseRequest(cf);
         return ATOM_OK;
     }
