@@ -35,7 +35,14 @@
 ]).
 
 
--export([put/4, put/5, delete/3, delete/4, write/3, get/3, get/4]).
+-export([
+  put/4, put/5,
+  delete/3, delete/4,
+  write/3,
+  get/3, get/4,
+  delete_range/4, delete_range/5
+]).
+
 -export([iterator/2, iterator/3, iterators/3, iterator_move/2, iterator_close/1]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
 -export([destroy/2, repair/2, is_empty/1]).
@@ -389,6 +396,43 @@ get(_DBHandle, _Key, _ReadOpts) ->
   ReadOpts::read_options(),
   Res :: {ok, binary()} | not_found | {error, any()}.
 get(_DBHandle, _CFHandle, _Key, _ReadOpts) ->
+  erlang:nif_error({error, not_loaded}).
+
+
+%% @doc Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
+%% including "BeginKey" and excluding "EndKey". Returns OK on success, and
+%% a non-OK status on error. It is not an error if no keys exist in the range
+%% ["BeginKey", "EndKey").
+%%
+%% This feature is currently an experimental performance optimization for
+%% deleting very large ranges of contiguous keys. Invoking it many times or on
+%% small ranges may severely degrade read performance; in particular, the
+%% resulting performance can be worse than calling Delete() for each key in
+%% the range. Note also the degraded read performance affects keys outside the
+%% deleted ranges, and affects database operations involving scans, like flush
+%% and compaction.
+%%
+%% Consider setting ReadOptions::ignore_range_deletions = true to speed
+%% up reads for key(s) that are known to be unaffected by range deletions.
+-spec delete_range(DBHandle, BeginKey, EndKey, WriteOpts) -> Res when
+  DBHandle::db_handle(),
+  BeginKey::binary(),
+  EndKey::binary(),
+  WriteOpts::write_options(),
+  Res :: ok | {error, any()}.
+delete_range(_DbHandle, _Start, _End, _WriteOpts) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Removes the database entries in the range ["BeginKey", "EndKey").
+%% like `delete_range/3' but for a column family
+-spec delete_range(DBHandle, CFHandle, BeginKey, EndKey, WriteOpts) -> Res when
+  DBHandle::db_handle(),
+  CFHandle::cf_handle(),
+  BeginKey::binary(),
+  EndKey::binary(),
+  WriteOpts::write_options(),
+  Res :: ok | {error, any()}.
+delete_range(_DbHandle, _CFHandle, _Start, _End, _WriteOpts) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc Return a iterator over the contents of the database.

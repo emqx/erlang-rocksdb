@@ -1266,6 +1266,46 @@ GetLatestSequenceNumber(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return enif_make_uint64(env, seq);
 }
 
+ERL_NIF_TERM
+DeleteRange(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<DbObject> db_ptr;
+    rocksdb::ColumnFamilyHandle* column_family;
+    rocksdb::Slice begin;
+    rocksdb::Slice end;
+    rocksdb::Status status;
+    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
+    ReferencePtr<ColumnFamilyObject> cf_ptr;
+    int i = 1;
+
+    if(!enif_get_db(env, argv[0], &db_ptr))
+       return enif_make_badarg(env);
+
+    if(argc == 5) {
+        if(!enif_get_cf(env, argv[1], &cf_ptr))
+            return enif_make_badarg(env);
+
+        column_family = cf_ptr->m_ColumnFamily;
+        i = 2;
+    } else {
+        column_family = db_ptr->m_Db->DefaultColumnFamily();
+    }
+
+    if(!binary_to_slice(env, argv[i], &begin))
+        return enif_make_badarg(env);
+
+    if(!binary_to_slice(env, argv[i+1], &end))
+        return enif_make_badarg(env);
+
+    // parse read_options
+    fold(env, argv[i+2], parse_write_option, *opts);
+
+    status = db_ptr->m_Db->DeleteRange(*opts, column_family, begin, end);
+    if(!status.ok())
+        return error_tuple(env, erocksdb::ATOM_ERROR_DB_REPAIR, status);
+
+    return erocksdb::ATOM_OK;
+}
 
 }
 

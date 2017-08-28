@@ -2,9 +2,11 @@ erlang-rocksdb 0.10.0, released on 2017/07/28
 =================================================
 
 - bump to rocksdb 5.7.2
+- add: rocksdb:delete_range/{4,5}
+- add: support for the backup api
 - add: rocksdb:destroy_column_family/1
 - proper fix to handle an iterator with column family issue
-- preliminary support for the backup api
+
 
 erlang-rocksdb 0.9.1, released on 2017/07/26
 ============================================

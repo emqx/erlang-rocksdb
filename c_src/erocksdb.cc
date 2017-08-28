@@ -62,6 +62,8 @@ static ErlNifFunc nif_funcs[] =
   {"destroy", 2, erocksdb::Destroy, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"get_property", 2, erocksdb::GetProperty},
   {"get_property", 3, erocksdb::GetProperty},
+  {"delete_range", 4, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"delete_range", 5, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
   // column families
   {"list_column_families", 2, erocksdb::ListColumnFamilies, ERL_NIF_DIRTY_JOB_IO_BOUND},
