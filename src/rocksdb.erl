@@ -24,7 +24,17 @@
          close/1]).
 
 -export([snapshot/1, release_snapshot/1]).
--export([list_column_families/2, create_column_family/3, drop_column_family/1]).
+
+
+
+-export([
+  list_column_families/2,
+  create_column_family/3,
+  drop_column_family/1,
+  destroy_column_family/1
+]).
+
+
 -export([put/4, put/5, delete/3, delete/4, write/3, get/3, get/4]).
 -export([iterator/2, iterator/3, iterators/3, iterator_move/2, iterator_close/1]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
@@ -269,6 +279,13 @@ create_column_family(_DBHandle, _Name, _CFOpts) ->
   CFHandle::cf_handle(),
   Res :: ok | {error, any()}.
 drop_column_family(_CFHandle) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Destroy a column family
+-spec destroy_column_family(CFHandle) -> Res when
+  CFHandle::cf_handle(),
+  Res :: ok | {error, any()}.
+destroy_column_family(_CFHandle) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc return a database snapshot

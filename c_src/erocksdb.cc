@@ -67,6 +67,7 @@ static ErlNifFunc nif_funcs[] =
   {"list_column_families", 2, erocksdb::ListColumnFamilies, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"create_column_family", 3, erocksdb::CreateColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"drop_column_family", 1, erocksdb::DropColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"destroy_column_family", 1, erocksdb::DestroyColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
   // kv operations
   {"write", 3, erocksdb::Write, ERL_NIF_DIRTY_JOB_IO_BOUND},

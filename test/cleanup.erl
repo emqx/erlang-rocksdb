@@ -31,6 +31,9 @@
 
 -define(COMMON_INSTANCE_DIR, "/tmp/erocksdb.cleanup.test").
 
+-define(CF_INSTANCE_DIR, "/tmp/erocksdb_CF.cleanup.test").
+
+
 %% Purposely reopen an already opened database to test failure assumption
 assumption_test() ->
   DB = open(),
@@ -129,6 +132,25 @@ iterator_exit_test() ->
     timer:sleep(500)
   end.
 
+
+iterator_with_cf_exit_test() ->
+  {ok, DB, _} = open_cf(),
+  {ok, CF} = rocksdb:create_column_family(DB, "test", []),
+  try
+    write(100, DB, CF),
+    spawn_wait(fun() ->
+      {ok, Itr} = rocksdb:iterator(DB, CF, []),
+      iterate(Itr)
+               end),
+    rocksdb:close(DB),
+    check_cf(),
+    ok
+  after
+    catch rocksdb:close(DB),
+    timer:sleep(500)
+  end.
+
+
 spawn_wait(F) ->
   spawn_monitor(F),
   wait_down().
@@ -145,10 +167,34 @@ check() ->
   timer:sleep(500),
   ok.
 
+check_cf() ->
+  timer:sleep(500),
+  {ok, DB, _CFs} = open_cf(),
+  rocksdb:close(DB),
+  timer:sleep(500),
+  catch rocksdb:destroy(?CF_INSTANCE_DIR, []),
+  ok.
+
+
 open() ->
   {ok, Ref} = rocksdb:open(?COMMON_INSTANCE_DIR,
                 [{create_if_missing, true}]),
   Ref.
+
+
+open_cf() ->
+  case filelib:is_dir(?CF_INSTANCE_DIR) of
+    true ->
+      {ok, CFs} = rocksdb:list_column_families(?CF_INSTANCE_DIR, []),
+      rocksdb:open_with_cf(
+        ?CF_INSTANCE_DIR,
+        [{create_if_missing, true}],
+        [{CF, []} || CF <- CFs]
+      );
+    false ->
+      rocksdb:open( ?CF_INSTANCE_DIR, [{create_if_missing, true}])
+  end.
+
 
 failed_open() ->
   {error, {db_open, _}} = rocksdb:open(?COMMON_INSTANCE_DIR,
@@ -156,12 +202,20 @@ failed_open() ->
   ok.
 
 write(N, DB) ->
-  write(0, N, DB).
-write(Same, Same, _DB) ->
+  write(0, N, DB, nil).
+
+write(N, DB, CF) ->
+  write(0, N, DB, CF).
+
+
+write(Same, Same, _DB, _CF) ->
   ok;
-write(N, End, DB) ->
+write(N, End, DB, nil) ->
   rocksdb:put(DB, <<N:64/integer>>, <<N:64/integer>>, []),
-  write(N+1, End, DB).
+  write(N+1, End, DB, nil);
+write(N, End, DB, CF) ->
+  rocksdb:put(DB, CF, <<N:64/integer>>, <<N:64/integer>>, []),
+  write(N+1, End, DB, CF).
 
 iterate(Itr) ->
   iterate(Itr, 0).
