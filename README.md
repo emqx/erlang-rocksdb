@@ -4,7 +4,7 @@
 
 Copyright (c) 2016-2017 Benoît Chesneau.
 
-__Version:__ 0.10.0 Erlang wrapper for RocksDB.
+__Version:__ 0.11.0 Erlang wrapper for RocksDB.
 
 Feedback and pull requests welcome! If a particular feature of RocksDB is important to you, please let me know by opening an issue, and I'll prioritize it.
 
