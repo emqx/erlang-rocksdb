@@ -49,6 +49,11 @@
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
 -export([destroy/2, repair/2, is_empty/1]).
 -export([checkpoint/2]).
+
+-export([flush/1, flush/2]).
+
+-export([sync_wal/1]).
+
 -export([count/1, count/2, stats/1, stats/2, get_property/2, get_property/3]).
 
 -export([default_env/0,
@@ -578,6 +583,26 @@ repair(_Name, _DBOpts) ->
 ) -> ok | {error, any()}.
 checkpoint(_DbHandle, _Path) ->
   erlang:nif_error({error, not_loaded}).
+
+%% @doc Flush all mem-table data.
+-spec flush(db_handle()) -> ok | {error, term()}.
+flush(_DbHandle) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Flush all mem-table data.
+-spec flush(db_handle(), cf_handle()) -> ok | {error, term()}.
+flush(_DbHandle, _CfHandle) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc  Sync the wal. Note that Write() followed by SyncWAL() is not exactly the
+%% same as Write() with sync=true: in the latter case the changes won't be
+%% visible until the sync is done.
+%% Currently only works if allow_mmap_writes = false in Options.
+-spec sync_wal(db_handle()) -> ok | {error, term()}.
+sync_wal(_DbHandle) ->
+  erlang:nif_error({error, not_loaded}).
+
+
 
 %% @doc Return the approximate number of keys in the default column family.
 %% Implemented by calling GetIntProperty with "rocksdb.estimate-num-keys"

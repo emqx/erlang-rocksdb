@@ -17,7 +17,7 @@ erlang-rocksdb 0.9.1, released on 2017/07/26
 ============================================
 
 - fix iterator with column familly issue
-- fix mutex usage in the db object
+- fix mutex usage igit push --tagsn the db object
 
 erlang-rocksdb 0.9.0, released on 2017/05/31
 ============================================

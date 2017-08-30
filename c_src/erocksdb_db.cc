@@ -1304,6 +1304,62 @@ DeleteRange(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return erocksdb::ATOM_OK;
 }
 
+ERL_NIF_TERM
+Flush(
+  ErlNifEnv* env,
+  int argc,
+  const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
+
+
+    rocksdb::Status status;
+    rocksdb::FlushOptions flush_opts;
+
+    if(argc==2)
+    {
+        ReferencePtr<ColumnFamilyObject> cf_ptr;
+        if(!enif_get_cf(env, argv[1], &cf_ptr))
+            return enif_make_badarg(env);
+
+        status = db_ptr->m_Db->Flush(flush_opts, cf_ptr->m_ColumnFamily);
+    }
+    else
+    {
+        status = db_ptr->m_Db->Flush(flush_opts);
+    }
+
+    if (!status.ok())
+        return error_tuple(env, ATOM_ERROR, status);
+
+    return ATOM_OK;
+
+}   // erocksdb::Flush
+
+ERL_NIF_TERM
+SyncWal(
+  ErlNifEnv* env,
+  int argc,
+  const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
+
+
+    rocksdb::Status status;
+    status = db_ptr->m_Db->SyncWAL();
+
+    if (!status.ok())
+        return error_tuple(env, ATOM_ERROR, status);
+
+    return ATOM_OK;
+
+}   // erocksdb::Flush
+
+
 }
 
 /**

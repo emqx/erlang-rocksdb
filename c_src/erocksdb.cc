@@ -62,6 +62,10 @@ static ErlNifFunc nif_funcs[] =
   {"destroy", 2, erocksdb::Destroy, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"get_property", 2, erocksdb::GetProperty},
   {"get_property", 3, erocksdb::GetProperty},
+  {"flush", 1, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"flush", 2, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"sync_wal", 1, erocksdb::SyncWal, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
   {"delete_range", 4, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"delete_range", 5, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
