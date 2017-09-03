@@ -1168,6 +1168,7 @@ Checkpoint(
         status = checkpoint->CreateCheckpoint(path);
         if (status.ok())
         {
+            delete checkpoint;
             return ATOM_OK;
         }
     }
