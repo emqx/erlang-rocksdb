@@ -18,6 +18,7 @@
 // -------------------------------------------------------------------
 
 #include <vector>
+#include <iostream>
 
 #include "erocksdb.h"
 
@@ -61,9 +62,11 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
             opts.no_block_cache = (option[1] == erocksdb::ATOM_TRUE);
         }
         if (option[0] == erocksdb::ATOM_BLOCK_CACHE) {
-             erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
-            if(NULL!=cache_ptr)
+            erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
+            if(NULL!=cache_ptr) {
                 opts.block_cache = cache_ptr->cache();
+            }
+
         }
         else if (option[0] == erocksdb::ATOM_BLOCK_SIZE) {
             int block_size;
@@ -490,6 +493,11 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
 
                 opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewBlockBasedTableFactory(bbtOpts));
             }
+        }
+        else if (option[0] == erocksdb::ATOM_BLOCK_BASED_TABLE_OPTIONS) {
+                rocksdb::BlockBasedTableOptions bbtOpts;
+                fold(env, option[1], parse_bbt_option, bbtOpts);
+                opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewBlockBasedTableFactory(bbtOpts));
         }
         else if (option[0] == erocksdb::ATOM_IN_MEMORY_MODE)
         {

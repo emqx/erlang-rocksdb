@@ -99,6 +99,10 @@ static ErlNifFunc nif_funcs[] =
 
   {"new_lru_cache", 1, erocksdb::NewLRUCache},
   {"new_clock_cache", 1, erocksdb::NewClockCache},
+  {"get_usage", 1, erocksdb::GetUsage},
+  {"get_pinned_usage", 1, erocksdb::GetPinnedUsage},
+  {"set_capacity", 2, erocksdb::SetCapacity},
+  {"get_capacity", 1, erocksdb::GetCapacity},
 
   {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber},
 

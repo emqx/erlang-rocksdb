@@ -61,8 +61,14 @@
          set_background_threads/2, set_background_threads/3,
          destroy_env/1]).
 
--export([new_lru_cache/1,
-         new_clock_cache/1]).
+-export([
+  new_lru_cache/1,
+  new_clock_cache/1,
+  get_usage/1,
+  get_pinned_usage/1,
+  set_capacity/2,
+  get_capacity/1
+]).
 
 -export([get_latest_sequence_number/1]).
 -export([updates_iterator/2]).
@@ -684,6 +690,31 @@ new_lru_cache(_Capacity) ->
 -spec new_clock_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
 new_clock_cache(_Capacity) ->
   erlang:nif_error({error, not_loaded}).
+
+%% @doc returns the memory size for a specific entry in the cache.
+-spec get_usage(cache_handle()) -> non_neg_integer().
+get_usage(_Cache) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc  returns the memory size for the entries in use by the system
+-spec get_pinned_usage(cache_handle()) -> non_neg_integer().
+get_pinned_usage(_Cache) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc  returns the maximum configured capacity of the cache.
+-spec get_capacity(cache_handle()) -> non_neg_integer().
+get_capacity(_Cache) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc sets the maximum configured capacity of the cache. When the new
+%% capacity is less than the old capacity and the existing usage is
+%% greater than new capacity, the implementation will do its best job to
+%% purge the released entries from the cache in order to lower the usage
+-spec set_capacity(Cache :: cache_handle(), Capacity :: non_neg_integer()) -> ok.
+set_capacity(_Cache, _Capacity) ->
+  erlang:nif_error({error, not_loaded}).
+
+
 
 %% @doc get latest sequence from the log
 -spec get_latest_sequence_number(Db :: db_handle()) -> Seq :: non_neg_integer().
