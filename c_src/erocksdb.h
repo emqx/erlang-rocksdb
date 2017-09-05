@@ -89,6 +89,15 @@ ERL_NIF_TERM erocksdb_restore_db_from_backup(ErlNifEnv* env, int argc, const ERL
 ERL_NIF_TERM erocksdb_restore_db_from_latest_backup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_garbage_collect_backup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM erocksdb_close_backup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM erocksdb_new_lru_cache(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM erocksdb_new_clock_cache(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM erocksdb_get_usage(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM erocksdb_get_pinned_usage(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM erocksdb_set_capacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM erocksdb_get_capacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM erocksdb_release_cache(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
 }
 
 namespace erocksdb {
@@ -157,25 +166,17 @@ ERL_NIF_TERM RestoreDBFromLatestBackup(ErlNifEnv* env, int argc, const ERL_NIF_T
 ERL_NIF_TERM GarbageCollect(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM CloseBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
+ERL_NIF_TERM NewLRUCache(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM NewClockCache(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM GetUsage(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM GetPinnedUsage(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM SetCapacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM GetCapacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM ReleaseCache(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+
+
 void CreateBatchType(ErlNifEnv* env);
-
-class PrivData
-{
-
-public:
-    std::mutex mu;
-    std::shared_ptr<rocksdb::Cache> block_cache;
-
-    explicit PrivData();
-
-
-
-
-private:
-    PrivData(const PrivData&);             // nocopy
-    PrivData& operator=(const PrivData&);  // nocopyassign
-
-};
 
 } // namespace erocksdb
 

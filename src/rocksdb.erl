@@ -61,6 +61,18 @@
   block_cache_capacity/0, block_cache_capacity/1
 ]).
 
+%% Cache API
+-export([
+  new_lru_cache/1,
+  new_clock_cache/1,
+  get_usage/1,
+  get_pinned_usage/1,
+  set_capacity/2,
+  get_capacity/1,
+  release_cache/1
+]).
+
+
 -export([get_latest_sequence_number/1]).
 -export([updates_iterator/2]).
 -export([close_updates_iterator/1]).
@@ -98,6 +110,7 @@
 -export_type([
   env/0,
   db_handle/0,
+  cache_handle/0,
   cf_handle/0,
   itr_handle/0,
   snapshot_handle/0,
@@ -149,16 +162,19 @@ init() ->
                skip_any_corrupted_records.
 
 -opaque env() :: default | memenv.
+
 -opaque db_handle() :: reference() | binary().
 -opaque cf_handle() :: reference() | binary().
 -opaque itr_handle() :: reference() | binary().
 -opaque snapshot_handle() :: reference() | binary().
 -opaque batch_handle() :: reference() | binary().
 -opaque backup_engine() :: reference() | binary().
+-opaque cache_handle() :: reference() | binary().
 
 
 -type block_based_table_options() :: [{no_block_cache, boolean()} |
                                       {block_size, pos_integer()} |
+                                      {block_cache, cache_handle()} |
                                       {block_cache_size, pos_integer()} |
                                       {bloom_filter_policy, BitsPerKey :: pos_integer()} |
                                       {format_version, 0 | 1 | 2} |
@@ -851,6 +867,51 @@ garbage_collect_backup(_BackupEngine) ->
 %% note: experimental for testing only
 -spec close_backup(backup_engine()) -> ok.
 close_backup(_BackupEngine) ->
+  erlang:nif_error({error, not_loaded}).
+
+
+%% ===================================================================
+%% cache functions
+
+%% @doc // Create a new cache with a fixed size capacity. The cache is sharded
+%% to 2^num_shard_bits shards, by hash of the key. The total capacity
+%% is divided and evenly assigned to each shard.
+-spec new_lru_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
+new_lru_cache(_Capacity) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Similar to NewLRUCache, but create a cache based on CLOCK algorithm with
+%% better concurrent performance in some cases. See util/clock_cache.cc for
+%% more detail.
+-spec new_clock_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
+new_clock_cache(_Capacity) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc returns the memory size for a specific entry in the cache.
+-spec get_usage(cache_handle()) -> non_neg_integer().
+get_usage(_Cache) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc  returns the memory size for the entries in use by the system
+-spec get_pinned_usage(cache_handle()) -> non_neg_integer().
+get_pinned_usage(_Cache) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc  returns the maximum configured capacity of the cache.
+-spec get_capacity(cache_handle()) -> non_neg_integer().
+get_capacity(_Cache) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc sets the maximum configured capacity of the cache. When the new
+%% capacity is less than the old capacity and the existing usage is
+%% greater than new capacity, the implementation will do its best job to
+%% purge the released entries from the cache in order to lower the usage
+-spec set_capacity(Cache :: cache_handle(), Capacity :: non_neg_integer()) -> ok.
+set_capacity(_Cache, _Capacity) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc release the cache
+release_cache(_Cache) ->
   erlang:nif_error({error, not_loaded}).
 
 

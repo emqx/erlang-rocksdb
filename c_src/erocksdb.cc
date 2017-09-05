@@ -44,6 +44,8 @@
     #include "util.h"
 #endif
 
+#include "cache.h"
+
 static ErlNifFunc nif_funcs[] =
 {
 
@@ -63,10 +65,6 @@ static ErlNifFunc nif_funcs[] =
   {"flush", 1, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"flush", 2, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"sync_wal", 1, erocksdb::SyncWal, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"get_block_cache_usage", 0, erocksdb::GetBlockCacheUsage},
-  {"block_cache_capacity", 0, erocksdb::BlockCacheCapacity},
-  {"block_cache_capacity", 1, erocksdb::BlockCacheCapacity},
-
 
   {"delete_range", 4, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"delete_range", 5, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -116,6 +114,8 @@ static ErlNifFunc nif_funcs[] =
   {"batch_count", 1, erocksdb::BatchCount},
   {"batch_tolist", 1, erocksdb::BatchToList, ERL_NIF_DIRTY_JOB_CPU_BOUND},
 
+
+  // backup engine
   {"open_backup_engine", 1, erocksdb::OpenBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"create_new_backup", 2, erocksdb::CreateNewBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"get_backup_info", 1, erocksdb::GetBackupInfo, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -128,16 +128,21 @@ static ErlNifFunc nif_funcs[] =
   {"restore_db_from_latest_backup", 2, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"restore_db_from_latest_backup", 3, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"garbage_collect_backup", 1, erocksdb::GarbageCollect, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"close_backup", 1, erocksdb::CloseBackup, ERL_NIF_DIRTY_JOB_IO_BOUND}
+  {"close_backup", 1, erocksdb::CloseBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
+  // cache
+  {"new_lru_cache", 1, erocksdb::NewLRUCache},
+  {"new_clock_cache", 1, erocksdb::NewClockCache},
+  {"get_usage", 1, erocksdb::GetUsage},
+  {"get_pinned_usage", 1, erocksdb::GetPinnedUsage},
+  {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+  {"get_capacity", 1, erocksdb::GetCapacity},
+  {"release_cache", 1, erocksdb::ReleaseCache}
+
 
 };
 
 namespace erocksdb {
-
-
-static int kCapacity = 4194304; // default values, can be overridden
-
-PrivData::PrivData() { block_cache = rocksdb::NewLRUCache(kCapacity); }
 
 // Atoms (initialized in on_load)
 // Related to Erlang
@@ -326,8 +331,6 @@ using std::nothrow;
 
 static void on_unload(ErlNifEnv *env, void *priv_data)
 {
-    erocksdb::PrivData *p = static_cast<erocksdb::PrivData *>(priv_data);
-    delete p;
 }
 
 static int on_upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data, ERL_NIF_TERM load_info)
@@ -340,8 +343,6 @@ static int on_upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data, ER
 static int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
 try
 {
-  *priv_data = NULL;
-
   rocksdb::Env::Default();
 
   // inform erlang of our two resource types
@@ -352,6 +353,8 @@ try
   erocksdb::CreateBatchType(env);
   erocksdb::TLogItrObject::CreateTLogItrObjectType(env);
   erocksdb::BackupEngineObject::CreateBackupEngineObjectType(env);
+  erocksdb::Cache::CreateCacheType(env);
+
 
   // must initialize atoms before processing options
 #define ATOM(Id, Value) { Id = enif_make_atom(env, Value); }
@@ -534,9 +537,6 @@ try
   ATOM(erocksdb::ATOM_BACKUP_INFO_NUMBER_FILES, "number_files");
 
 #undef ATOM
-
-erocksdb::PrivData *priv = new erocksdb::PrivData();
-*priv_data = priv;
 
 return 0;
 }

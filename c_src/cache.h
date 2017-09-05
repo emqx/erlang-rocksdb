@@ -16,6 +16,7 @@
 //
 
 #include <vector>
+#include <mutex>
 
 #include "erocksdb.h"
 
@@ -30,6 +31,8 @@ namespace erocksdb {
       static ErlNifResourceType* m_Cache_RESOURCE;
 
     public:
+      std::mutex mu;
+
       explicit Cache(std::shared_ptr<rocksdb::Cache> cache);
 
       ~Cache();

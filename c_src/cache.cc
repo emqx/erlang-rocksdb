@@ -127,21 +127,6 @@ NewClockCache(
     cache = NULL;
     return enif_make_tuple2(env, ATOM_OK, result);
 }
-
-
-int
-enif_get_backup_engine(
-    ErlNifEnv* env, ERL_NIF_TERM val,
-    erocksdb::ReferencePtr<erocksdb::BackupEngineObject>* backup_engine_ptr)
-{
-    backup_engine_ptr->assign(erocksdb::BackupEngineObject::RetrieveBackupEngineObject(env, val));
-
-    if(NULL==backup_engine_ptr->get())
-        return 0;
-
-    return 1;
-}
-
 ERL_NIF_TERM
 GetCapacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
@@ -153,6 +138,7 @@ GetCapacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if(NULL==cache_ptr)
         return enif_make_badarg(env);
 
+    std::lock_guard<std::mutex> guard(cache_ptr->mu);
     cache = cache_ptr->cache();
     ERL_NIF_TERM usage = enif_make_uint64(env,cache->GetCapacity());
     return usage;
@@ -173,6 +159,7 @@ SetCapacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if(!enif_get_uint64(env, argv[1], &capacity))
         return enif_make_badarg(env);
 
+    std::lock_guard<std::mutex> guard(cache_ptr->mu);
     cache = cache_ptr->cache();
     cache->SetCapacity(capacity);
     return ATOM_OK;
@@ -210,6 +197,21 @@ GetPinnedUsage(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return usage;
 }
 
+
+ERL_NIF_TERM
+ReleaseCache(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+    Cache* cache_ptr;
+    std::shared_ptr<rocksdb::Cache> cache;
+
+    cache_ptr = erocksdb::Cache::RetrieveCacheResource(env, argv[0]);
+    if(NULL==cache_ptr)
+        return ATOM_OK;
+    cache = cache_ptr->cache();
+    cache = NULL;
+    cache_ptr = NULL;
+    return ATOM_OK;
+}
 
 
 }

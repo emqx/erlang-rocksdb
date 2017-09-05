@@ -49,10 +49,12 @@
     #include "erocksdb_db.h"
 #endif
 
+#include "cache.h"
+
+
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
     const ERL_NIF_TERM* option;
-    std::cout << "\nparse block options \n";
     if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
     {
         if (option[0] == erocksdb::ATOM_NO_BLOCK_CACHE) {
@@ -63,12 +65,10 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
             if (enif_get_int(env, option[1], &block_size))
                 opts.block_size = block_size;
         }
-        else if (option[0] == erocksdb::ATOM_BLOCK_CACHE_SIZE) {
-            erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-            ErlNifUInt64 block_cache_size;
-            if (enif_get_uint64(env, option[1], &block_cache_size)) {
-                priv.block_cache->SetCapacity(block_cache_size);
-                opts.block_cache = priv.block_cache;
+        else if (option[0] == erocksdb::ATOM_BLOCK_CACHE) {
+            erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
+            if(NULL!=cache_ptr) {
+                opts.block_cache = cache_ptr->cache();
             }
         }
         else if (option[0] == erocksdb::ATOM_BLOOM_FILTER_POLICY) {
@@ -499,20 +499,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             unsigned int inplace_update_num_locks;
             if (enif_get_uint(env, option[1], &inplace_update_num_locks))
                 opts.inplace_update_num_locks= inplace_update_num_locks;
-        }
-        else if (option[0] == erocksdb::ATOM_TABLE_FACTORY_BLOCK_CACHE_SIZE)
-        {
-            ErlNifUInt64 table_factory_block_cache_size;
-            if (enif_get_uint64(env, option[1], &table_factory_block_cache_size))
-            {
-                erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-                priv.block_cache->SetCapacity(table_factory_block_cache_size);
-                rocksdb::BlockBasedTableOptions bbtOpts;
-                bbtOpts.block_cache = priv.block_cache;
-                bbtOpts.filter_policy = std::shared_ptr<const rocksdb::FilterPolicy>(rocksdb::NewBloomFilterPolicy(10));
-
-                opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewBlockBasedTableFactory(bbtOpts));
-            }
         }
         else if (option[0] == erocksdb::ATOM_BLOCK_BASED_TABLE_OPTIONS) {
             rocksdb::BlockBasedTableOptions bbtOpts;
@@ -1173,41 +1159,6 @@ SyncWal(
     return ATOM_OK;
 
 }   // erocksdb::Flush
-
-
-ERL_NIF_TERM
-GetBlockCacheUsage(
-  ErlNifEnv* env,
-  int argc,
-  const ERL_NIF_TERM argv[])
-{
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-    const int capacity = priv.block_cache->GetUsage();
-    return enif_make_int(env, capacity);
-}
-
-ERL_NIF_TERM
-BlockCacheCapacity(
-  ErlNifEnv* env,
-  int argc,
-  const ERL_NIF_TERM argv[])
-{
-    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
-    std::lock_guard<std::mutex> guard(priv.mu);
-    if(argc == 1)
-    {
-        ErlNifUInt64 capacity;
-        if (enif_get_uint64(env, argv[0], &capacity))
-        {
-            priv.block_cache->SetCapacity(capacity);
-            return ATOM_OK;
-
-        }
-        return enif_make_badarg(env);
-    }
-    const int capacity = priv.block_cache->GetCapacity();
-    return enif_make_int(env, capacity);
-}
 
 
 
