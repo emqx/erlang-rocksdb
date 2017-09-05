@@ -50,7 +50,7 @@
 #endif
 
 #include "cache.h"
-
+#include "env.h"
 
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
@@ -95,15 +95,22 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
     const ERL_NIF_TERM* option;
     if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
     {
+
         if (option[0] == erocksdb::ATOM_ENV)
         {
-            if(option[1] == erocksdb::ATOM_MEMENV)
+            if (enif_is_atom(env, option[1]))
             {
-                rocksdb::Env* memenv = rocksdb::NewMemEnv(rocksdb::Env::Default());
-                opts.env = memenv;
-                opts.create_if_missing = true;
+                if(option[1] == erocksdb::ATOM_MEMENV)
+                {
+                    rocksdb::Env* memenv = rocksdb::NewMemEnv(rocksdb::Env::Default());
+                    opts.env = memenv;
+                    opts.create_if_missing = true;
+                }
+            } else {
+                erocksdb::ManagedEnv* env_ptr = erocksdb::ManagedEnv::RetrieveEnvResource(env,option[1]);
+                if(NULL!=env_ptr)
+                    opts.env = (rocksdb::Env*)env_ptr->env();
             }
-
         }
         else if (option[0] == erocksdb::ATOM_TOTAL_THREADS)
         {
@@ -1149,7 +1156,6 @@ SyncWal(
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
 
-
     rocksdb::Status status;
     status = db_ptr->m_Db->SyncWAL();
 
@@ -1159,6 +1165,40 @@ SyncWal(
     return ATOM_OK;
 
 }   // erocksdb::Flush
+
+ERL_NIF_TERM
+SetDBBackgroundThreads(
+        ErlNifEnv* env,
+        int argc,
+        const ERL_NIF_TERM argv[])
+{
+
+    ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
+
+    rocksdb::Options options = db_ptr->m_Db->GetOptions();
+
+    int n;
+    if(!enif_get_int(env, argv[1], &n))
+        return enif_make_badarg(env);
+
+    if(argc==3)
+    {
+        if(argv[2] == ATOM_PRIORITY_HIGH)
+             options.env->SetBackgroundThreads(n, rocksdb::Env::Priority::HIGH);
+        else if((argv[2] == ATOM_PRIORITY_LOW))
+             options.env->SetBackgroundThreads(n, rocksdb::Env::Priority::LOW);
+        else
+            return enif_make_badarg(env);
+    }
+    else
+    {
+        options.env->SetBackgroundThreads(n);
+    }
+
+    return ATOM_OK;
+}   // erocksdb::SetDBBackgroundThreads
 
 
 

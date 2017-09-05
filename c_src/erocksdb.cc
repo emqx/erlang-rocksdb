@@ -45,6 +45,7 @@
 #endif
 
 #include "cache.h"
+#include "env.h"
 
 static ErlNifFunc nif_funcs[] =
 {
@@ -65,6 +66,8 @@ static ErlNifFunc nif_funcs[] =
   {"flush", 1, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"flush", 2, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"sync_wal", 1, erocksdb::SyncWal, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"set_db_background_threads", 2, erocksdb::SetDBBackgroundThreads},
+
 
   {"delete_range", 4, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"delete_range", 5, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -137,7 +140,14 @@ static ErlNifFunc nif_funcs[] =
   {"get_pinned_usage", 1, erocksdb::GetPinnedUsage},
   {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
   {"get_capacity", 1, erocksdb::GetCapacity},
-  {"release_cache", 1, erocksdb::ReleaseCache}
+  {"release_cache", 1, erocksdb::ReleaseCache},
+
+  // env
+  {"default_env", 0, erocksdb::DefaultEnv},
+  {"mem_env", 0, erocksdb::MemEnv},
+  {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads},
+  {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads},
+  {"destroy_env", 1, erocksdb::DestroyEnv}
 
 
 };
@@ -346,6 +356,7 @@ try
   rocksdb::Env::Default();
 
   // inform erlang of our two resource types
+  erocksdb::ManagedEnv::CreateEnvType(env);
   erocksdb::DbObject::CreateDbObjectType(env);
   erocksdb::ColumnFamilyObject::CreateColumnFamilyObjectType(env);
   erocksdb::ItrObject::CreateItrObjectType(env);

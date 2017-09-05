@@ -46,3 +46,18 @@ prev_test() ->
   after
     rocksdb:close(Ref)
   end.
+
+
+env_resource_test() ->
+  {ok, Env} = rocksdb:mem_env(),
+  Options = [{env, Env}, {create_if_missing, true}],
+  {ok, Db} = rocksdb:open("test", Options),
+  ok = rocksdb:put(Db, <<"a">>, <<"1">>, []),
+  ?assertEqual({ok, <<"1">>}, rocksdb:get(Db, <<"a">>, [])),
+  {ok, Db1} = rocksdb:open("test1", Options),
+  ok = rocksdb:put(Db1, <<"a">>, <<"2">>, []),
+  ?assertEqual({ok, <<"1">>}, rocksdb:get(Db, <<"a">>, [])),
+  ?assertEqual({ok, <<"2">>}, rocksdb:get(Db1, <<"a">>, [])),
+  ok = rocksdb:close(Db),
+  ok = rocksdb:close(Db1),
+  ok.

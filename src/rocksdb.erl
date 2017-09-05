@@ -19,48 +19,49 @@
 %% @doc Erlang Wrapper for RocksDB
 -module(rocksdb).
 
--export([open/2,
-         open_with_cf/3,
-         close/1]).
+-export([
+  open/2,
+  open_with_cf/3,
+  close/1,
+  set_db_background_threads/2, set_db_background_threads/3,
+  destroy/2,
+  repair/2,
+  is_empty/1,
+  list_column_families/2,
+  create_column_family/3,
+  drop_column_family/1,
+  destroy_column_family/1,
+  checkpoint/2,
+  flush/1, flush/2,
+  sync_wal/1,
+  count/1, count/2,
+  stats/1, stats/2,
+  get_property/2, get_property/3
+]).
 
+
+%% snapshot
 -export([
   snapshot/1,
   release_snapshot/1,
   get_snapshot_sequence/1
 ]).
 
--export([
-  list_column_families/2,
-  create_column_family/3,
-  drop_column_family/1,
-  destroy_column_family/1
-]).
-
-
+%% KV API
 -export([
   put/4, put/5,
   delete/3, delete/4,
   write/3,
   get/3, get/4,
-  delete_range/4, delete_range/5
+  delete_range/4, delete_range/5,
+  iterator/2, iterator/3,
+  iterators/3,
+  iterator_move/2,
+  iterator_close/1
 ]).
 
--export([iterator/2, iterator/3, iterators/3, iterator_move/2, iterator_close/1]).
+
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
--export([destroy/2, repair/2, is_empty/1]).
--export([checkpoint/2]).
-
--export([flush/1, flush/2]).
-
--export([sync_wal/1]).
-
--export([count/1, count/2, stats/1, stats/2, get_property/2, get_property/3]).
-
--export([
-  get_block_cache_usage/0,
-  block_cache_capacity/0, block_cache_capacity/1
-]).
-
 %% Cache API
 -export([
   new_lru_cache/1,
@@ -70,6 +71,14 @@
   set_capacity/2,
   get_capacity/1,
   release_cache/1
+]).
+
+%% env api
+-export([
+  default_env/0,
+  mem_env/0,
+  set_env_background_threads/2, set_env_background_threads/3,
+  destroy_env/1
 ]).
 
 
@@ -109,6 +118,7 @@
 
 -export_type([
   env/0,
+  env_handle/0,
   db_handle/0,
   cache_handle/0,
   cf_handle/0,
@@ -161,8 +171,9 @@ init() ->
                point_in_time_recovery |
                skip_any_corrupted_records.
 
--opaque env() :: default | memenv.
 
+
+-opaque env_handle() :: reference() | binary().
 -opaque db_handle() :: reference() | binary().
 -opaque cf_handle() :: reference() | binary().
 -opaque itr_handle() :: reference() | binary().
@@ -171,6 +182,9 @@ init() ->
 -opaque backup_engine() :: reference() | binary().
 -opaque cache_handle() :: reference() | binary().
 
+-opaque env() :: default | memenv | env_handle().
+
+-type env_priority() :: priority_high | priority_low.
 
 -type block_based_table_options() :: [{no_block_cache, boolean()} |
                                       {block_size, pos_integer()} |
@@ -659,22 +673,6 @@ get_property(_DBHandle, _Property) ->
 get_property(_DBHandle, _CFHandle, _Property) ->
   erlang:nif_error({error, not_loaded}).
 
-%% @doc returns the memory size for a specific entry in the shared cache.
--spec get_block_cache_usage() -> non_neg_integer().
-get_block_cache_usage() ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc returns the capacity shared cache.
--spec block_cache_capacity() -> non_neg_integer().
-block_cache_capacity() ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc set the capacity of the shared cache.
--spec block_cache_capacity(Capacity :: non_neg_integer()) -> ok.
-block_cache_capacity(_Capacity) ->
-  erlang:nif_error({error, not_loaded}).
-
-
 %% @doc get latest sequence from the log
 -spec get_latest_sequence_number(Db :: db_handle()) -> Seq :: non_neg_integer().
 get_latest_sequence_number(_DbHandle) ->
@@ -913,6 +911,50 @@ set_capacity(_Cache, _Capacity) ->
 %% @doc release the cache
 release_cache(_Cache) ->
   erlang:nif_error({error, not_loaded}).
+
+%% ===================================================================
+%% env functions
+
+%% @doc return a default db environment
+-spec default_env() -> {ok, env_handle()}.
+default_env() ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc return a memory environment
+-spec mem_env() -> {ok, env_handle()}.
+mem_env() ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc set background threads of an environment
+-spec set_env_background_threads(Env :: env_handle(), N :: non_neg_integer()) -> ok.
+set_env_background_threads(_Env, _N) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc set background threads of low and high prioriry threads pool of an environment
+%% Flush threads are in the HIGH priority pool, while compaction threads are in the
+%% LOW priority pool. To increase the number of threads in each pool call:
+-spec set_env_background_threads(Env :: env_handle(), N :: non_neg_integer(), Priority :: env_priority()) -> ok.
+set_env_background_threads(_Env, _N, _PRIORITY) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc destroy an environment
+-spec destroy_env(Env :: env_handle()) -> ok.
+destroy_env(_Env) ->
+  erlang:nif_error({error, not_loaded}).
+
+
+%% @doc set background threads of a database
+-spec set_db_background_threads(DB :: db_handle(), N :: non_neg_integer()) -> ok.
+set_db_background_threads(_Db, _N) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc set database background threads of low and high prioriry threads pool of an environment
+%% Flush threads are in the HIGH priority pool, while compaction threads are in the
+%% LOW priority pool. To increase the number of threads in each pool call:
+-spec set_db_background_threads(DB :: db_handle(), N :: non_neg_integer(), Priority :: env_priority()) -> ok.
+set_db_background_threads(_Db, _N, _PRIORITY) ->
+  erlang:nif_error({error, not_loaded}).
+
 
 
 %% ===================================================================
