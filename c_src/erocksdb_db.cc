@@ -101,6 +101,7 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             {
                 rocksdb::Env* memenv = rocksdb::NewMemEnv(rocksdb::Env::Default());
                 opts.env = memenv;
+                opts.create_if_missing = true;
             }
 
         }
