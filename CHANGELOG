@@ -1,3 +1,43 @@
+erlang-rocksdb 0.12.0, released on 2017/09/05
+=================================================
+
+
+- add get_block_cache_usage/1
+- add block_cache_capacity/{1, 0}
+- add new db option {env, Env} where Env can be `default` or `memenv`.
+- add new db option {db_write_buffer_size, INT}
+- fix: cache usahe, correctly reuse the cache among instances
+- fix: options parsing, reuse code where we can and correctly
+handle db optinos
+
+*** BREAKING CHANGE ***
+
+The following cache functions has been removed:
+
+-  new_lru_cache/1,
+-  new_clock_cache/1,
+-  get_usage/1,
+-  get_pinned_usage/1,
+-  set_capacity/2,
+-  get_capacity/1
+
+instead use the new block_cache function to change the
+size of the shared cache. A new api to setup different caches
+will come in the next version.
+
+The following functions has been removed:
+
+- default_env/0,
+- mem_env/0,
+- set_background_threads/2, set_background_threads/3,
+- destroy_env/1]).
+
+For now it's not possible to create a shared environment. also
+the {in_memory, true} setting has been removed.
+
+To set a memory environement use the option {env, memenv}.
+
+
 erlang-rocksdb 0.11.0, released on 2017/07/29
 =================================================
 

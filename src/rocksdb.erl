@@ -56,18 +56,9 @@
 
 -export([count/1, count/2, stats/1, stats/2, get_property/2, get_property/3]).
 
--export([default_env/0,
-         mem_env/0,
-         set_background_threads/2, set_background_threads/3,
-         destroy_env/1]).
-
 -export([
-  new_lru_cache/1,
-  new_clock_cache/1,
-  get_usage/1,
-  get_pinned_usage/1,
-  set_capacity/2,
-  get_capacity/1
+  get_block_cache_usage/0,
+  block_cache_capacity/0, block_cache_capacity/1
 ]).
 
 -export([get_latest_sequence_number/1]).
@@ -105,12 +96,11 @@
 
 
 -export_type([
-  env_handle/0,
+  env/0,
   db_handle/0,
   cf_handle/0,
   itr_handle/0,
   snapshot_handle/0,
-  cache_handle/0,
   batch_handle/0,
   compression_type/0,
   compaction_style/0,
@@ -158,21 +148,17 @@ init() ->
                point_in_time_recovery |
                skip_any_corrupted_records.
 
--opaque env_handle() :: reference() | binary().
+-opaque env() :: default | memenv.
 -opaque db_handle() :: reference() | binary().
 -opaque cf_handle() :: reference() | binary().
 -opaque itr_handle() :: reference() | binary().
 -opaque snapshot_handle() :: reference() | binary().
--opaque cache_handle() :: reference() | binary().
 -opaque batch_handle() :: reference() | binary().
 -opaque backup_engine() :: reference() | binary().
 
 
--type env_priority() :: priority_high | priority_low.
-
 -type block_based_table_options() :: [{no_block_cache, boolean()} |
                                       {block_size, pos_integer()} |
-                                      {block_cache, cache_handle()} |
                                       {block_cache_size, pos_integer()} |
                                       {bloom_filter_policy, BitsPerKey :: pos_integer()} |
                                       {format_version, 0 | 1 | 2} |
@@ -208,7 +194,7 @@ init() ->
                        {in_memory_mode, boolean()} |
                        {block_based_table_options, block_based_table_options()}].
 
--type db_options() :: [{env, env_handle()} |
+-type db_options() :: [{env, env()} |
                        {total_threads, pos_integer()} |
                        {create_if_missing, boolean()} |
                        {create_missing_column_families, boolean()} |
@@ -245,7 +231,10 @@ init() ->
                        {wal_recovery_mode, wal_recovery_mode()} |
                        {allow_concurrent_memtable_write, boolean()} |
                        {enable_write_thread_adaptive_yield, boolean()} |
+                       {db_write_buffer_size, non_neg_integer()}  |
                        {in_memory, boolean()}].
+
+-type options() :: db_options() | cf_options().
 
 -type read_options() :: [{verify_checksums, boolean()} |
                          {fill_cache, boolean()} |
@@ -277,7 +266,7 @@ init() ->
 %% @doc Open RocksDB with the defalut column family
 -spec open(Name, DBOpts) -> Result when
   Name :: file:filename_all(),
-  DBOpts :: db_options(),
+  DBOpts :: options(),
   Result :: {ok, db_handle()} | {error, any()}.
 open(_Name, _DBOpts) ->
   erlang:nif_error({error, not_loaded}).
@@ -654,66 +643,20 @@ get_property(_DBHandle, _Property) ->
 get_property(_DBHandle, _CFHandle, _Property) ->
   erlang:nif_error({error, not_loaded}).
 
-%% @doc return a default db environment
--spec default_env() -> {ok, env_handle()}.
-default_env() ->
+%% @doc returns the memory size for a specific entry in the shared cache.
+-spec get_block_cache_usage() -> non_neg_integer().
+get_block_cache_usage() ->
   erlang:nif_error({error, not_loaded}).
 
-%% @doc return a memory environment
--spec mem_env() -> {ok, env_handle()}.
-mem_env() ->
+%% @doc returns the capacity shared cache.
+-spec block_cache_capacity() -> non_neg_integer().
+block_cache_capacity() ->
   erlang:nif_error({error, not_loaded}).
 
-%% @doc set background threads of an environment
--spec set_background_threads(Env :: env_handle(), N :: non_neg_integer()) -> ok.
-set_background_threads(_Env, _N) ->
+%% @doc set the capacity of the shared cache.
+-spec block_cache_capacity(Capacity :: non_neg_integer()) -> ok.
+block_cache_capacity(_Capacity) ->
   erlang:nif_error({error, not_loaded}).
-
-%% @doc set background threads of low and high prioriry threads pool of an environment
-%% Flush threads are in the HIGH priority pool, while compaction threads are in the
-%% LOW priority pool. To increase the number of threads in each pool call:
--spec set_background_threads(Env :: env_handle(), N :: non_neg_integer(), Priority :: env_priority()) -> ok.
-set_background_threads(_Env, _N, _PRIORITY) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc destroy an environment
--spec destroy_env(Env :: env_handle()) -> ok.
-destroy_env(_Env) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc create a new LRU cache to use for the block cache
--spec new_lru_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
-new_lru_cache(_Capacity) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc create a new CLOCK cache, for more concurrency in some cases
--spec new_clock_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
-new_clock_cache(_Capacity) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc returns the memory size for a specific entry in the cache.
--spec get_usage(cache_handle()) -> non_neg_integer().
-get_usage(_Cache) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc  returns the memory size for the entries in use by the system
--spec get_pinned_usage(cache_handle()) -> non_neg_integer().
-get_pinned_usage(_Cache) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc  returns the maximum configured capacity of the cache.
--spec get_capacity(cache_handle()) -> non_neg_integer().
-get_capacity(_Cache) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc sets the maximum configured capacity of the cache. When the new
-%% capacity is less than the old capacity and the existing usage is
-%% greater than new capacity, the implementation will do its best job to
-%% purge the released entries from the cache in order to lower the usage
--spec set_capacity(Cache :: cache_handle(), Capacity :: non_neg_integer()) -> ok.
-set_capacity(_Cache, _Capacity) ->
-  erlang:nif_error({error, not_loaded}).
-
 
 
 %% @doc get latest sequence from the log

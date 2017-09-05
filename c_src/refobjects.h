@@ -172,8 +172,6 @@ class DbObject : public ErlRefObject
 {
 public:
     rocksdb::DB* m_Db;                                   // NULL or rocksdb database object
-    rocksdb::Options *m_DbOptions;
-
 
     Mutex m_ItrMutex;                         //!< mutex protecting m_ItrList
     Mutex m_SnapshotMutex;                    //!< mutext protecting m_SnapshotList
@@ -189,7 +187,7 @@ protected:
     static ErlNifResourceType* m_Db_RESOURCE;
 
 public:
-    DbObject(rocksdb::DB * DbPtr, rocksdb::Options * Options); // Open with default CF
+    DbObject(rocksdb::DB * DbPtr); // Open with default CF
 
     virtual ~DbObject();
 
@@ -218,7 +216,7 @@ public:
 
     static void CreateDbObjectType(ErlNifEnv * Env);
 
-    static DbObject * CreateDbObject(rocksdb::DB * Db, rocksdb::Options * Options);
+    static DbObject * CreateDbObject(rocksdb::DB * Db);
 
     static DbObject * RetrieveDbObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
 

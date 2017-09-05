@@ -208,16 +208,14 @@ DbObject::CreateDbObjectType(
 
 
 DbObject *
-DbObject::CreateDbObject(
-    rocksdb::DB * Db,
-    rocksdb::Options * Options)
+DbObject::CreateDbObject(rocksdb::DB * Db)
 {
     DbObject * ret_ptr;
     void * alloc_ptr;
 
     // the alloc call initializes the reference count to "one"
     alloc_ptr=enif_alloc_resource(m_Db_RESOURCE, sizeof(DbObject));
-    ret_ptr=new (alloc_ptr) DbObject(Db, Options);
+    ret_ptr=new (alloc_ptr) DbObject(Db);
 
     // manual reference increase to keep active until "close" called
     //  only inc local counter, leave erl ref count alone ... will force
@@ -274,10 +272,8 @@ DbObject::DbObjectResourceCleanup(
 }   // DbObject::DbObjectResourceCleanup
 
 
-DbObject::DbObject(
-    rocksdb::DB * DbPtr,
-    rocksdb::Options * Options)
-    : m_Db(DbPtr), m_DbOptions(Options)
+DbObject::DbObject(rocksdb::DB * DbPtr)
+    : m_Db(DbPtr)
     {}   // DbObject::DbObject
 
 
@@ -287,12 +283,6 @@ DbObject::~DbObject()
     // close the db
     delete m_Db;
     m_Db=NULL;
-
-    if (NULL!=m_DbOptions)
-    {
-        delete m_DbOptions;
-        m_DbOptions = NULL;
-    }   // if
 
     // do not clean up m_CloseMutex and m_CloseCond
 

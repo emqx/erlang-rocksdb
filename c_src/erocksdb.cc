@@ -44,9 +44,6 @@
     #include "util.h"
 #endif
 
-#include "env.h"
-#include "cache.h"
-
 static ErlNifFunc nif_funcs[] =
 {
 
@@ -54,6 +51,7 @@ static ErlNifFunc nif_funcs[] =
   {"open", 2, erocksdb::Open, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"open_with_cf", 3, erocksdb::OpenWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
 
   // db management
   {"checkpoint", 2, erocksdb::Checkpoint, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -65,6 +63,10 @@ static ErlNifFunc nif_funcs[] =
   {"flush", 1, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"flush", 2, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"sync_wal", 1, erocksdb::SyncWal, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"get_block_cache_usage", 0, erocksdb::GetBlockCacheUsage},
+  {"block_cache_capacity", 0, erocksdb::BlockCacheCapacity},
+  {"block_cache_capacity", 1, erocksdb::BlockCacheCapacity},
+
 
   {"delete_range", 4, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"delete_range", 5, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -90,19 +92,6 @@ static ErlNifFunc nif_funcs[] =
   {"iterators", 3, erocksdb::Iterators, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"iterator_move", 2, erocksdb::IteratorMove, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"iterator_close", 1, erocksdb::IteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
-
-  {"default_env", 0, erocksdb::DefaultEnv},
-  {"mem_env", 0, erocksdb::MemEnv},
-  {"set_background_threads", 2, erocksdb::SetBackgroundThreads},
-  {"set_background_threads", 3, erocksdb::SetBackgroundThreads},
-  {"destroy_env", 1, erocksdb::DestroyEnv},
-
-  {"new_lru_cache", 1, erocksdb::NewLRUCache},
-  {"new_clock_cache", 1, erocksdb::NewClockCache},
-  {"get_usage", 1, erocksdb::GetUsage},
-  {"get_pinned_usage", 1, erocksdb::GetPinnedUsage},
-  {"set_capacity", 2, erocksdb::SetCapacity},
-  {"get_capacity", 1, erocksdb::GetCapacity},
 
   {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber},
 
@@ -159,6 +148,12 @@ ERL_NIF_TERM ATOM_ERROR;
 ERL_NIF_TERM ATOM_EINVAL;
 ERL_NIF_TERM ATOM_BADARG;
 ERL_NIF_TERM ATOM_NOT_FOUND;
+ERL_NIF_TERM ATOM_INC;
+ERL_NIF_TERM ATOM_DEC;
+
+// related to envs
+ERL_NIF_TERM ATOM_DEFAULT;
+ERL_NIF_TERM ATOM_MEMENV;
 
 // Related to CFOptions
 ERL_NIF_TERM ATOM_BLOCK_CACHE_SIZE_MB_FOR_POINT_LOOKUP;
@@ -229,6 +224,7 @@ ERL_NIF_TERM ATOM_SKIP_STATS_UPDATE_ON_DB_OPEN;
 ERL_NIF_TERM ATOM_WAL_RECOVERY_MODE;
 ERL_NIF_TERM ATOM_ALLOW_CONCURRENT_MEMTABLE_WRITE;
 ERL_NIF_TERM ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD;
+ERL_NIF_TERM ATOM_DB_WRITE_BUFFER_SIZE;
 
 
 // Related to BlockBasedTable Options
@@ -349,12 +345,10 @@ try
   rocksdb::Env::Default();
 
   // inform erlang of our two resource types
-  erocksdb::ManagedEnv::CreateEnvType(env);
   erocksdb::DbObject::CreateDbObjectType(env);
   erocksdb::ColumnFamilyObject::CreateColumnFamilyObjectType(env);
   erocksdb::ItrObject::CreateItrObjectType(env);
   erocksdb::SnapshotObject::CreateSnapshotObjectType(env);
-  erocksdb::Cache::CreateCacheType(env);
   erocksdb::CreateBatchType(env);
   erocksdb::TLogItrObject::CreateTLogItrObjectType(env);
   erocksdb::BackupEngineObject::CreateBackupEngineObjectType(env);
@@ -369,6 +363,12 @@ try
   ATOM(erocksdb::ATOM_EINVAL, "einval");
   ATOM(erocksdb::ATOM_BADARG, "badarg");
   ATOM(erocksdb::ATOM_NOT_FOUND, "not_found");
+  ATOM(erocksdb::ATOM_INC, "inc");
+  ATOM(erocksdb::ATOM_DEC, "dec");
+
+
+  ATOM(erocksdb::ATOM_DEFAULT, "default");
+  ATOM(erocksdb::ATOM_MEMENV, "memenv");
 
   // Related to CFOptions
   ATOM(erocksdb::ATOM_BLOCK_CACHE_SIZE_MB_FOR_POINT_LOOKUP, "block_cache_size_mb_for_point_lookup");
@@ -439,7 +439,7 @@ try
   ATOM(erocksdb::ATOM_WAL_RECOVERY_MODE, "wal_recovery_mode");
   ATOM(erocksdb::ATOM_ALLOW_CONCURRENT_MEMTABLE_WRITE, "allow_concurrent_memtable_write");
   ATOM(erocksdb::ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD, "enable_write_thread_adaptive_yield");
-
+  ATOM(erocksdb::ATOM_DB_WRITE_BUFFER_SIZE, "db_write_buffer_size");
 
   // Related to BlockBasedTable Options
   ATOM(erocksdb::ATOM_NO_BLOCK_CACHE, "no_block_cache");

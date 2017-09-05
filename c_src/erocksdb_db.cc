@@ -6,7 +6,7 @@
 // except in compliance with the License.  You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+//   http://www.apache.org/licenses/LICENSE-çàooàpç2.0
 //
 // Unless required by applicable law or agreed to in writing,
 // software distributed under the License is distributed on an
@@ -45,28 +45,18 @@
     #include "util.h"
 #endif
 
-#include "env.h"
-
 #ifndef INCL_EROCKSB_DB_H
     #include "erocksdb_db.h"
 #endif
 
-#include "cache.h"
-
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
     const ERL_NIF_TERM* option;
+    std::cout << "\nparse block options \n";
     if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
     {
         if (option[0] == erocksdb::ATOM_NO_BLOCK_CACHE) {
             opts.no_block_cache = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        if (option[0] == erocksdb::ATOM_BLOCK_CACHE) {
-            erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
-            if(NULL!=cache_ptr) {
-                opts.block_cache = cache_ptr->cache();
-            }
-
         }
         else if (option[0] == erocksdb::ATOM_BLOCK_SIZE) {
             int block_size;
@@ -74,9 +64,9 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
                 opts.block_size = block_size;
         }
         else if (option[0] == erocksdb::ATOM_BLOCK_CACHE_SIZE) {
+            erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
             ErlNifUInt64 block_cache_size;
             if (enif_get_uint64(env, option[1], &block_cache_size)) {
-                erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
                 priv.block_cache->SetCapacity(block_cache_size);
                 opts.block_cache = priv.block_cache;
             }
@@ -99,7 +89,7 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
     return erocksdb::ATOM_OK;
 }
 
-ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options& opts)
+ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptions& opts)
 {
     int arity;
     const ERL_NIF_TERM* option;
@@ -107,9 +97,12 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
     {
         if (option[0] == erocksdb::ATOM_ENV)
         {
-            erocksdb::ManagedEnv* env_ptr = erocksdb::ManagedEnv::RetrieveEnvResource(env,option[1]);
-            if(NULL!=env_ptr)
-                opts.env = (rocksdb::Env*)env_ptr->env();
+            if(option[1] == erocksdb::ATOM_MEMENV)
+            {
+                rocksdb::Env* memenv = rocksdb::NewMemEnv(rocksdb::Env::Default());
+                opts.env = memenv;
+            }
+
         }
         else if (option[0] == erocksdb::ATOM_TOTAL_THREADS)
         {
@@ -317,212 +310,11 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
         {
             opts.enable_write_thread_adaptive_yield = (option[1] == erocksdb::ATOM_TRUE);
         }
-        else if (option[0] == erocksdb::ATOM_BLOCK_CACHE_SIZE_MB_FOR_POINT_LOOKUP)
-            // @TODO ignored now
-            ;
-        else if (option[0] == erocksdb::ATOM_MEMTABLE_MEMORY_BUDGET)
+        else if (option[0] == erocksdb::ATOM_DB_WRITE_BUFFER_SIZE)
         {
-            ErlNifUInt64 memtable_memory_budget;
-            if (enif_get_uint64(env, option[1], &memtable_memory_budget))
-                opts.OptimizeLevelStyleCompaction(memtable_memory_budget);
-        }
-        else if (option[0] == erocksdb::ATOM_WRITE_BUFFER_SIZE)
-        {
-            unsigned int write_buffer_size;
-            if (enif_get_uint(env, option[1], &write_buffer_size))
-                opts.write_buffer_size = write_buffer_size;
-        }
-        else if (option[0] == erocksdb::ATOM_MAX_WRITE_BUFFER_NUMBER)
-        {
-            int max_write_buffer_number;
-            if (enif_get_int(env, option[1], &max_write_buffer_number))
-                opts.max_write_buffer_number = max_write_buffer_number;
-        }
-        else if (option[0] == erocksdb::ATOM_MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
-        {
-            int min_write_buffer_number_to_merge;
-            if (enif_get_int(env, option[1], &min_write_buffer_number_to_merge))
-                opts.min_write_buffer_number_to_merge = min_write_buffer_number_to_merge;
-        }
-        else if (option[0] == erocksdb::ATOM_COMPRESSION)
-        {
-            if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_SNAPPY) {
-                opts.compression = rocksdb::CompressionType::kSnappyCompression;
-            }
-            else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_ZLIB) {
-                opts.compression = rocksdb::CompressionType::kZlibCompression;
-            }
-            else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_BZIP2) {
-                opts.compression = rocksdb::CompressionType::kBZip2Compression;
-            }
-            else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4) {
-                opts.compression = rocksdb::CompressionType::kLZ4Compression;
-            }
-            else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4H) {
-                opts.compression = rocksdb::CompressionType::kLZ4HCCompression;
-            }
-            else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_NONE) {
-                opts.compression = rocksdb::CompressionType::kNoCompression;
-            }
-        }
-        else if (option[0] == erocksdb::ATOM_NUM_LEVELS)
-        {
-            int num_levels;
-            if (enif_get_int(env, option[1], &num_levels))
-                opts.num_levels = num_levels;
-        }
-        else if (option[0] == erocksdb::ATOM_LEVEL0_FILE_NUM_COMPACTION_TRIGGER)
-        {
-            int level0_file_num_compaction_trigger;
-            if (enif_get_int(env, option[1], &level0_file_num_compaction_trigger))
-                opts.level0_file_num_compaction_trigger = level0_file_num_compaction_trigger;
-        }
-        else if (option[0] == erocksdb::ATOM_LEVEL0_SLOWDOWN_WRITES_TRIGGER)
-        {
-            int level0_slowdown_writes_trigger;
-            if (enif_get_int(env, option[1], &level0_slowdown_writes_trigger))
-                opts.level0_slowdown_writes_trigger = level0_slowdown_writes_trigger;
-        }
-        else if (option[0] == erocksdb::ATOM_LEVEL0_STOP_WRITES_TRIGGER)
-        {
-            int level0_stop_writes_trigger;
-            if (enif_get_int(env, option[1], &level0_stop_writes_trigger))
-                opts.level0_stop_writes_trigger = level0_stop_writes_trigger;
-        }
-        else if (option[0] == erocksdb::ATOM_MAX_MEM_COMPACTION_LEVEL)
-        {
-            int max_mem_compaction_level;
-            if (enif_get_int(env, option[1], &max_mem_compaction_level))
-                opts.max_mem_compaction_level = max_mem_compaction_level;
-        }
-        else if (option[0] == erocksdb::ATOM_TARGET_FILE_SIZE_BASE)
-        {
-            ErlNifUInt64 target_file_size_base;
-            if (enif_get_uint64(env, option[1], &target_file_size_base))
-                opts.target_file_size_base = target_file_size_base;
-        }
-        else if (option[0] == erocksdb::ATOM_TARGET_FILE_SIZE_MULTIPLIER)
-        {
-            int target_file_size_multiplier;
-            if (enif_get_int(env, option[1], &target_file_size_multiplier))
-                opts.target_file_size_multiplier = target_file_size_multiplier;
-        }
-        else if (option[0] == erocksdb::ATOM_MAX_BYTES_FOR_LEVEL_BASE)
-        {
-            ErlNifUInt64 max_bytes_for_level_base;
-            if (enif_get_uint64(env, option[1], &max_bytes_for_level_base))
-                opts.max_bytes_for_level_base = max_bytes_for_level_base;
-        }
-        else if (option[0] == erocksdb::ATOM_MAX_BYTES_FOR_LEVEL_MULTIPLIER)
-        {
-            int max_bytes_for_level_multiplier;
-            if (enif_get_int(env, option[1], &max_bytes_for_level_multiplier))
-                opts.max_bytes_for_level_multiplier = max_bytes_for_level_multiplier;
-        }
-        else if (option[0] == erocksdb::ATOM_MAX_COMPACTION_BYTES)
-        {
-            int max_compaction_bytes;
-            if (enif_get_int(env, option[1], &max_compaction_bytes))
-                opts.max_compaction_bytes = max_compaction_bytes;
-        }
-        else if (option[0] == erocksdb::ATOM_SOFT_RATE_LIMIT)
-        {
-            double soft_rate_limit;
-            if (enif_get_double(env, option[1], &soft_rate_limit))
-                opts.soft_rate_limit = soft_rate_limit;
-        }
-        else if (option[0] == erocksdb::ATOM_HARD_RATE_LIMIT)
-        {
-            double hard_rate_limit;
-            if (enif_get_double(env, option[1], &hard_rate_limit))
-                opts.hard_rate_limit = hard_rate_limit;
-        }
-        else if (option[0] == erocksdb::ATOM_ARENA_BLOCK_SIZE)
-        {
-            unsigned int arena_block_size;
-            if (enif_get_uint(env, option[1], &arena_block_size))
-                opts.arena_block_size = arena_block_size;
-        }
-        else if (option[0] == erocksdb::ATOM_DISABLE_AUTO_COMPACTIONS)
-        {
-            opts.disable_auto_compactions = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        else if (option[0] == erocksdb::ATOM_PURGE_REDUNDANT_KVS_WHILE_FLUSH)
-        {
-            opts.purge_redundant_kvs_while_flush = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        else if (option[0] == erocksdb::ATOM_COMPACTION_STYLE)
-        {
-            if (option[1] == erocksdb::ATOM_COMPACTION_STYLE_LEVEL) {
-                opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleLevel;
-            }
-            else if (option[1] == erocksdb::ATOM_COMPACTION_STYLE_UNIVERSAL) {
-                opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleUniversal;
-            }
-            else if (option[1] == erocksdb::ATOM_COMPACTION_STYLE_FIFO) {
-                opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleFIFO;
-            }
-            else if (option[1] == erocksdb::ATOM_COMPACTION_STYLE_NONE) {
-                opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleNone;
-            }
-        }
-        else if (option[0] == erocksdb::ATOM_MAX_SEQUENTIAL_SKIP_IN_ITERATIONS)
-        {
-            ErlNifUInt64 max_sequential_skip_in_iterations;
-            if (enif_get_uint64(env, option[1], &max_sequential_skip_in_iterations))
-                opts.max_sequential_skip_in_iterations = max_sequential_skip_in_iterations;
-        }
-        else if (option[0] == erocksdb::ATOM_INPLACE_UPDATE_SUPPORT)
-        {
-            opts.inplace_update_support = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        else if (option[0] == erocksdb::ATOM_INPLACE_UPDATE_NUM_LOCKS)
-        {
-            unsigned int inplace_update_num_locks;
-            if (enif_get_uint(env, option[1], &inplace_update_num_locks))
-                opts.inplace_update_num_locks= inplace_update_num_locks;
-        }
-        else if (option[0] == erocksdb::ATOM_TABLE_FACTORY_BLOCK_CACHE_SIZE)
-        {
-            ErlNifUInt64 table_factory_block_cache_size;
-            if (enif_get_uint64(env, option[1], &table_factory_block_cache_size))
-            {
-                rocksdb::BlockBasedTableOptions bbtOpts;
-                bbtOpts.block_cache = rocksdb::NewLRUCache(table_factory_block_cache_size);
-                bbtOpts.filter_policy = std::shared_ptr<const rocksdb::FilterPolicy>(rocksdb::NewBloomFilterPolicy(10));
-
-                opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewBlockBasedTableFactory(bbtOpts));
-            }
-        }
-        else if (option[0] == erocksdb::ATOM_BLOCK_BASED_TABLE_OPTIONS) {
-                rocksdb::BlockBasedTableOptions bbtOpts;
-                fold(env, option[1], parse_bbt_option, bbtOpts);
-                opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewBlockBasedTableFactory(bbtOpts));
-        }
-        else if (option[0] == erocksdb::ATOM_IN_MEMORY_MODE)
-        {
-            if (option[1] == erocksdb::ATOM_TRUE)
-            {
-                // Set recommended defaults
-                opts.prefix_extractor = std::shared_ptr<const rocksdb::SliceTransform>(rocksdb::NewFixedPrefixTransform(10));
-                opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewPlainTableFactory());
-                opts.allow_mmap_reads = true;
-                opts.compression = rocksdb::CompressionType::kNoCompression;
-                opts.memtable_prefix_bloom_size_ratio = 0.25;
-                opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleUniversal;
-                opts.compaction_options_universal.size_ratio = 10;
-                opts.compaction_options_universal.min_merge_width = 2;
-                opts.compaction_options_universal.max_size_amplification_percent = 50;
-                opts.level0_file_num_compaction_trigger = 0;
-                opts.level0_slowdown_writes_trigger = 8;
-                opts.level0_stop_writes_trigger = 16;
-                opts.bloom_locality = 1;
-                opts.max_open_files = -1;
-                opts.write_buffer_size = 32 << 20;
-                opts.max_write_buffer_number = 2;
-                opts.min_write_buffer_number_to_merge = 1;
-                opts.bytes_per_sync = 2 << 20;
-            }
+            unsigned int db_write_buffer_size;
+            if (enif_get_uint(env, option[1], &db_write_buffer_size))
+                opts.db_write_buffer_size = db_write_buffer_size;
         }
         else if (option[0] == erocksdb::ATOM_IN_MEMORY)
         {
@@ -530,7 +322,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Options
             {
                 opts.env = rocksdb::NewMemEnv(rocksdb::Env::Default());
                 opts.create_if_missing = true;
-                //opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewPlainTableFactory());
             }
         }
     }
@@ -923,14 +714,21 @@ Open(
         return enif_make_badarg(env);
     }
 
-    rocksdb::Options *opts = new rocksdb::Options;
-    fold(env, argv[1], parse_db_option, *opts);
+    // parse db options
+    rocksdb::DBOptions *db_opts = new rocksdb::DBOptions;
+    fold(env, argv[1], parse_db_option, *db_opts);
+
+    // parse column family options
+    rocksdb::ColumnFamilyOptions *cf_opts = new rocksdb::ColumnFamilyOptions;
+    fold(env, argv[1], parse_cf_option, *cf_opts);
+
+    // final options
+    rocksdb::Options *opts = new rocksdb::Options(*db_opts, *cf_opts);
 
     rocksdb::Status status = rocksdb::DB::Open(*opts, db_name, &db);
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
-    db_ptr = DbObject::CreateDbObject(db, opts);
-
+    db_ptr = DbObject::CreateDbObject(db);
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
     enif_release_resource(db_ptr);
     return enif_make_tuple2(env, ATOM_OK, result);
@@ -954,8 +752,8 @@ OpenWithCf(
     }   // if
 
     // read db options
-    rocksdb::Options *opts = new rocksdb::Options;
-    fold(env, argv[1], parse_db_option, *opts);
+    rocksdb::DBOptions *db_opts = new rocksdb::DBOptions;
+    fold(env, argv[1], parse_db_option, *db_opts);
 
     std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
     ERL_NIF_TERM head, tail = argv[2];
@@ -969,10 +767,11 @@ OpenWithCf(
     }
 
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
-    rocksdb::Status status = rocksdb::DB::Open(*opts, db_name, column_families, &handles, &db);
+    rocksdb::Status status = rocksdb::DB::Open(*db_opts, db_name, column_families, &handles, &db);
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
-    db_ptr = DbObject::CreateDbObject(db, opts);
+
+    db_ptr = DbObject::CreateDbObject(db);
 
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
 
@@ -1198,10 +997,13 @@ Destroy(
         return enif_make_badarg(env);
 
     // Parse out the options
-    rocksdb::Options opts;
-    fold(env, argv[1], parse_db_option, opts);
+    rocksdb::DBOptions db_opts;
+    rocksdb::ColumnFamilyOptions cf_opts;
+    fold(env, argv[1], parse_db_option, db_opts);
+    fold(env, argv[1], parse_cf_option, cf_opts);
+    rocksdb::Options *opts = new rocksdb::Options(db_opts, cf_opts);
 
-    rocksdb::Status status = rocksdb::DestroyDB(name, opts);
+    rocksdb::Status status = rocksdb::DestroyDB(name, *opts);
     if (!status.ok())
     {
         return error_tuple(env, ATOM_ERROR_DB_DESTROY, status);
@@ -1221,10 +1023,13 @@ Repair(
         return enif_make_badarg(env);
 
     // Parse out the options
-    rocksdb::Options opts;
-    fold(env, argv[1], parse_db_option, opts);
+    rocksdb::DBOptions db_opts;
+    rocksdb::ColumnFamilyOptions cf_opts;
+    fold(env, argv[1], parse_db_option, db_opts);
+    fold(env, argv[1], parse_cf_option, cf_opts);
+    rocksdb::Options *opts = new rocksdb::Options(db_opts, cf_opts);
 
-    rocksdb::Status status = rocksdb::RepairDB(name, opts);
+    rocksdb::Status status = rocksdb::RepairDB(name, *opts);
     if (!status.ok())
     {
         return error_tuple(env, erocksdb::ATOM_ERROR_DB_REPAIR, status);
@@ -1369,9 +1174,41 @@ SyncWal(
 }   // erocksdb::Flush
 
 
+ERL_NIF_TERM
+GetBlockCacheUsage(
+  ErlNifEnv* env,
+  int argc,
+  const ERL_NIF_TERM argv[])
+{
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
+    const int capacity = priv.block_cache->GetUsage();
+    return enif_make_int(env, capacity);
 }
 
-/**
- * HEY YOU ... please make async
- */
+ERL_NIF_TERM
+BlockCacheCapacity(
+  ErlNifEnv* env,
+  int argc,
+  const ERL_NIF_TERM argv[])
+{
+    erocksdb::PrivData& priv = *static_cast<erocksdb::PrivData *>(enif_priv_data(env));
+    std::lock_guard<std::mutex> guard(priv.mu);
+    if(argc == 1)
+    {
+        ErlNifUInt64 capacity;
+        if (enif_get_uint64(env, argv[0], &capacity))
+        {
+            priv.block_cache->SetCapacity(capacity);
+            return ATOM_OK;
+
+        }
+        return enif_make_badarg(env);
+    }
+    const int capacity = priv.block_cache->GetCapacity();
+    return enif_make_int(env, capacity);
+}
+
+
+
+}
 
