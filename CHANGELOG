@@ -1,3 +1,26 @@
+erlang-rocksdb 0.13.0, released on 2017/09/06
+=================================================
+
+* add new cache api
+
+	-  new_lru_cache/1,
+	-  new_clock_cache/1,
+	-  get_usage/1,
+	-  get_pinned_usage/1,
+	-  set_capacity/2,
+	-  get_capacity/1
+	-  release_cache/1
+
+* add new env api
+
+	- default_env/0,
+	- mem_env/0,
+	- set_env_background_threads/{2, 3},
+	- destroy_env/1
+
+* remove default shared block cache in private env to reduce the vm memory usage.
+
+
 erlang-rocksdb 0.12.0, released on 2017/09/05
 =================================================
 
