@@ -66,6 +66,7 @@ sharedcacheleak_loop(Count, Cache ,Blobs, MaxFinalRSS) ->
       ok
   end,
   RSS = rssmem(),
+  io:format(user, "RSS: ~p, Max: ~p~n", [RSS, MaxFinalRSS]),
   ?assert(MaxFinalRSS > RSS),
   sharedcacheleak_loop(Count-1, Cache, Blobs, MaxFinalRSS).
 
