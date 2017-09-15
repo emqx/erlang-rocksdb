@@ -847,8 +847,7 @@ GetProperty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if (db_ptr->m_Db->GetProperty(name, &value))
     {
         ERL_NIF_TERM result;
-        unsigned char* result_buf = enif_make_new_binary(env, value.size(), &result);
-        memcpy(result_buf, value.c_str(), value.size());
+        memcpy(enif_make_new_binary(env, value.size(), &result), value.c_str(), value.size());
         return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
     }
     return erocksdb::ATOM_ERROR;
@@ -938,9 +937,7 @@ Get(
     }
 
     ERL_NIF_TERM value_bin;
-    unsigned char* v = enif_make_new_binary(env, value.size(), &value_bin);
-    memcpy(v, value.c_str(), value.size());
-
+    memcpy(enif_make_new_binary(env, value.size(), &value_bin), value.c_str(), value.size());
     return enif_make_tuple2(env, ATOM_OK, value_bin);
 
 }   // erocksdb::Get
