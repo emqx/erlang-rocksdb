@@ -61,8 +61,6 @@ Iterator(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
-
     ReferencePtr<DbObject> db_ptr;
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
@@ -73,15 +71,17 @@ Iterator(
     if(!enif_is_list(env, argv[i]))
         return enif_make_badarg(env);
 
+    rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
     ERL_NIF_TERM fold_result;
     fold_result = fold(env, argv[i], parse_read_option, *opts);
-    if(fold_result!=erocksdb::ATOM_OK)
+
+    if(fold_result!=erocksdb::ATOM_OK) {
+        delete opts;
         return enif_make_badarg(env);
+    }
 
     ItrObject * itr_ptr;
     rocksdb::Iterator * iterator;
-
-    iterator = db_ptr->m_Db->NewIterator(*opts);
 
     if(argc==3)
     {
@@ -97,13 +97,12 @@ Iterator(
         iterator = db_ptr->m_Db->NewIterator(*opts);
         itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
     }
-
     ERL_NIF_TERM result = enif_make_resource(env, itr_ptr);
 
     // release reference created during CreateItrObject()
     enif_release_resource(itr_ptr);
-    opts=NULL;  // ptr ownership given to ItrObject
-
+    delete opts;
+    iterator = NULL;
     return enif_make_tuple2(env, ATOM_OK, result);
 
 }   // erocksdb::Iterator

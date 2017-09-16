@@ -68,7 +68,8 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
         else if (option[0] == erocksdb::ATOM_BLOCK_CACHE) {
             erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
             if(NULL!=cache_ptr) {
-                opts.block_cache = cache_ptr->cache();
+                auto cache = cache_ptr->cache();
+                opts.block_cache = cache;
             }
         }
         else if (option[0] == erocksdb::ATOM_BLOOM_FILTER_POLICY) {
@@ -718,10 +719,14 @@ Open(
 
     // final options
     rocksdb::Options *opts = new rocksdb::Options(*db_opts, *cf_opts);
-
     rocksdb::Status status = rocksdb::DB::Open(*opts, db_name, &db);
+    delete opts;
+    delete db_opts;
+    delete cf_opts;
+
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+
     db_ptr = DbObject::CreateDbObject(db);
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
     enif_release_resource(db_ptr);
@@ -762,6 +767,8 @@ OpenWithCf(
 
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
     rocksdb::Status status = rocksdb::DB::Open(*db_opts, db_name, column_families, &handles, &db);
+
+    delete db_opts;
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
 
@@ -917,19 +924,20 @@ Get(
     fold(env, argv[i+1], parse_read_option, *opts);
 
     rocksdb::Status status;
-    std::string value;
+    std::string value = "";
     if(argc==4)
     {
         ReferencePtr<ColumnFamilyObject> cf_ptr;
         if(!enif_get_cf(env, argv[1], &cf_ptr))
             return enif_make_badarg(env);
-
         status = db_ptr->m_Db->Get(*opts, cf_ptr->m_ColumnFamily, key, &value);
     }
     else
     {
         status = db_ptr->m_Db->Get(*opts, key, &value);
     }
+
+    delete opts;
 
     if (!status.ok())
     {
@@ -939,9 +947,7 @@ Get(
     ERL_NIF_TERM value_bin;
     memcpy(enif_make_new_binary(env, value.size(), &value_bin), value.c_str(), value.size());
     return enif_make_tuple2(env, ATOM_OK, value_bin);
-
 }   // erocksdb::Get
-
 
 ERL_NIF_TERM
 Checkpoint(
@@ -949,7 +955,7 @@ Checkpoint(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-        char path[4096];
+    char path[4096];
     rocksdb::Checkpoint* checkpoint;
     rocksdb::Status status;
 
@@ -995,6 +1001,9 @@ Destroy(
     rocksdb::Options *opts = new rocksdb::Options(db_opts, cf_opts);
 
     rocksdb::Status status = rocksdb::DestroyDB(name, *opts);
+
+    delete opts;
+
     if (!status.ok())
     {
         return error_tuple(env, ATOM_ERROR_DB_DESTROY, status);

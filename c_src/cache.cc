@@ -85,7 +85,10 @@ Cache::~Cache()
     return;
 }
 
-std::shared_ptr<rocksdb::Cache> Cache::cache() { return cache_; }
+std::shared_ptr<rocksdb::Cache> Cache::cache() {
+    auto c = cache_;
+    return c;
+}
 
 
 ERL_NIF_TERM
@@ -98,6 +101,7 @@ NewLRUCache(
     Cache* cache_ptr;
     if(!enif_get_uint64(env, argv[0], &capacity))
         return enif_make_badarg(env);
+
     std::shared_ptr<rocksdb::Cache> cache = rocksdb::NewLRUCache(capacity);
     cache_ptr = Cache::CreateCacheResource(cache);
     // create a resource reference to send erlang

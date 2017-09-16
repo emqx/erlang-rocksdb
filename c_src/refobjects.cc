@@ -831,7 +831,8 @@ ItrObject::~ItrObject() {
     if (nullptr != m_DbPtr.get())
         m_DbPtr->RemoveReference(this);
 
-    m_Iterator = nullptr;
+    delete m_Iterator;
+    //m_Iterator = nullptr;
 
     return;
 
