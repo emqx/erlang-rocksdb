@@ -108,6 +108,7 @@ NewLRUCache(
     ERL_NIF_TERM result = enif_make_resource(env, cache_ptr);
     // clear the automatic reference from enif_alloc_resource in EnvObject
     enif_release_resource(cache_ptr);
+    cache.reset();
     cache = NULL;
     return enif_make_tuple2(env, ATOM_OK, result);
 }
@@ -128,6 +129,7 @@ NewClockCache(
     ERL_NIF_TERM result = enif_make_resource(env, cache_ptr);
     // clear the automatic reference from enif_alloc_resource in EnvObject
     enif_release_resource(cache_ptr);
+    cache.reset();
     cache = NULL;
     return enif_make_tuple2(env, ATOM_OK, result);
 }
