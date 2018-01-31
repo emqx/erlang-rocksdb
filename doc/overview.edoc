@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2016-2017 Benoît Chesneau
+%% Copyright 2016-2018 Benoît Chesneau
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@
 %%==============================================================================
 
 
-@copyright 2016-2017 Benoît Chesneau.
-@version 0.13.1 Erlang wrapper for RocksDB.
+@copyright 2016-2018 Benoît Chesneau.
+@version 0.14.0 Erlang wrapper for RocksDB.
 @title erlang-rocksdb - Erlang wrapper for RocksDB.
 
 @doc
@@ -26,7 +26,7 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 
 ## Features
 
-- rocksdb 5.7.2
+- rocksdb 5.7.5 with snappy 1.4.4
 - Erlang 19.3 and sup with dirty-nifs enabled
 - all basics db operations
 - batchs support
