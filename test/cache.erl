@@ -1,6 +1,6 @@
 
 %% Copyright (c) 2010-2013 Basho Technologies, Inc. All Rights Reserved.
-%% Copyright (c) 2017 Benoît Chesneau
+%% Copyright (c) 2017-2018 Benoît Chesneau
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
