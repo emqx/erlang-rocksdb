@@ -667,7 +667,6 @@ parse_cf_descriptor(ErlNifEnv* env, ERL_NIF_TERM item,
                     std::vector<rocksdb::ColumnFamilyDescriptor>& column_families)
 {
     char cf_name[4096];
-    rocksdb::ColumnFamilyOptions *opts = new rocksdb::ColumnFamilyOptions;
     int arity;
     const ERL_NIF_TERM *cf;
 
@@ -677,9 +676,11 @@ parse_cf_descriptor(ErlNifEnv* env, ERL_NIF_TERM item,
         {
             return enif_make_badarg(env);
         }
+        rocksdb::ColumnFamilyOptions *opts = new rocksdb::ColumnFamilyOptions;
         ERL_NIF_TERM result = fold(env, cf[1], parse_cf_option, *opts);
         if (result != erocksdb::ATOM_OK)
         {
+            delete opts;
             return result;
         }
 
@@ -874,12 +875,12 @@ Write(
     if(!enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]))
         return enif_make_badarg(env);
 
-
     // Construct a write batch:
     rocksdb::WriteBatch* batch = new rocksdb::WriteBatch;
     ERL_NIF_TERM result = fold(env, argv[1], write_batch_item, *batch);
     if(ATOM_OK != result)
     {
+        delete batch;
         return enif_make_tuple2(env, ATOM_ERROR,
                 enif_make_tuple2(env, ATOM_BAD_WRITE_ACTION, result));
     }   // if
@@ -1085,7 +1086,6 @@ DeleteRange(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     rocksdb::Slice begin;
     rocksdb::Slice end;
     rocksdb::Status status;
-    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     ReferencePtr<ColumnFamilyObject> cf_ptr;
     int i = 1;
 
@@ -1109,6 +1109,7 @@ DeleteRange(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
         return enif_make_badarg(env);
 
     // parse read_options
+    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     fold(env, argv[i+2], parse_write_option, *opts);
 
     status = db_ptr->m_Db->DeleteRange(*opts, column_family, begin, end);
