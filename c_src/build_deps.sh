@@ -30,6 +30,7 @@ BUILD_CONFIG=$BASEDIR/rocksdb/make_config.mk
 
 ROCKSDB_VSN="5.7.5"
 SNAPPY_VSN="1.1.4"
+LZ4_VSN="1.8.1.2"
 ROCKSDB_PREFIX="v5.7.5"
 
 
@@ -51,11 +52,11 @@ MAKE=${MAKE:-make}
 
 case "$1" in
     rm-deps)
-        rm -rf rocksdb system snappy-$SNAPPY_VSN
+        rm -rf rocksdb system snappy-$SNAPPY_VSN lz4-$LZ4_VSN
         ;;
 
     clean)
-        rm -rf system snappy-$SNAPPY_VSN
+        rm -rf system snappy-$SNAPPY_VSN lz4-$LZ4_VSN
         if [ -d rocksdb ]; then
             (cd rocksdb && $MAKE clean)
         fi
@@ -94,6 +95,14 @@ case "$1" in
 
         if [ ! -f system/lib/libsnappy.a ]; then
             (cd snappy-$SNAPPY_VSN && $MAKE && $MAKE install)
+        fi
+
+        if [ ! -d lz4-$LZ4_VSN ]; then
+            tar -xzf lz4-$LZ4_VSN.tar.gz
+        fi
+
+        if [ ! -f system/lib/liblz4.a ]; then
+            (cd lz4-$LZ4_VSN/lib && $MAKE CFLAGS="-O3 -fPIC" && $MAKE install PREFIX=$BASEDIR/system)
         fi
 
         export CXXFLAGS="-std=c++11 -pthread -D_GLIBCXX_USE_C99"
