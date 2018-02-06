@@ -237,6 +237,7 @@ init() ->
                        {db_log_dir, file:filename_all()} |
                        {wal_dir, file:filename_all()} |
                        {delete_obsolete_files_period_micros, pos_integer()} |
+                       {max_background_jobs, pos_integer()} |
                        {max_background_compactions, pos_integer()} |
                        {max_background_flushes, pos_integer()} |
                        {max_log_file_size, non_neg_integer()} |

@@ -175,6 +175,12 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             if (enif_get_uint64(env, option[1], &delete_obsolete_files_period_micros))
                 opts.delete_obsolete_files_period_micros = delete_obsolete_files_period_micros;
         }
+        else if (option[0] == erocksdb::ATOM_MAX_BACKGROUND_JOBS)
+        {
+            int max_background_jobs;
+            if (enif_get_int(env, option[1], &max_background_jobs))
+                opts.max_background_jobs = max_background_jobs;
+        }
         else if (option[0] == erocksdb::ATOM_MAX_BACKGROUND_COMPACTIONS)
         {
             int max_background_compactions;
