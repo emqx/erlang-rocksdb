@@ -68,9 +68,9 @@ else ifeq ($(UNAME_SYS), Linux)
 	CXXFLAGS ?= -O3 -finline-functions -Wall
 endif
 
-ROCKSDBLIBS = rocksdb/librocksdb.a system/lib/libsnappy.a
+ROCKSDBLIBS = rocksdb/librocksdb.a system/lib/libsnappy.a system/lib/liblz4.a
 
-ROCKSDB_PLATFORM_LDFLAGS=$(shell cat rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//')
+ROCKSDB_PLATFORM_LDFLAGS=$(shell cat rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//' | sed -e 's/-llz4//')
 
 CFLAGS += -g -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include
 CXXFLAGS += -g -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include -std=c++11

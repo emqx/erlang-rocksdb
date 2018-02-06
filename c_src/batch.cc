@@ -161,7 +161,6 @@ WriteBatch(
         const ERL_NIF_TERM argv[])
 {
     rocksdb::WriteBatch* batch_ptr;
-    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     ReferencePtr<DbObject> db_ptr;
 
     if(!enif_get_db(env, argv[0], &db_ptr))
@@ -170,6 +169,7 @@ WriteBatch(
     if(!enif_get_resource(env, argv[1], m_Batch_RESOURCE, (void **) &batch_ptr))
         return enif_make_badarg(env);
 
+    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     fold(env, argv[2], parse_write_option, *opts);
 
     rocksdb::Status status = db_ptr->m_Db->Write(*opts, batch_ptr);
