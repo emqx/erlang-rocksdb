@@ -105,8 +105,8 @@ case "$1" in
             (cd lz4-$LZ4_VSN/lib && $MAKE CFLAGS="-O3 -fPIC" && $MAKE install PREFIX=$BASEDIR/system)
         fi
 
-        export CXXFLAGS="-std=c++11 -pthread -D_GLIBCXX_USE_C99"
-        export CFLAGS="$CFLAGS -I$BASEDIR/system/include"
+        export CXXFLAGS="-std=c++11 -pthread -D_GLIBCXX_USE_C99 -DNDEBUG"
+        export CFLAGS="$CFLAGS -DNDEBUG -I$BASEDIR/system/include"
         export LDFLAGS="$LDFLAGS -L$BASEDIR/system/lib"
         export LD_LIBRARY_PATH="$BASEDIR/system/lib:$LD_LIBRARY_PATH"
 
