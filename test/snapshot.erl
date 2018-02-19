@@ -179,3 +179,26 @@ db_close_test() ->
 
   %% snapshot has been released when the db was closed, it can't be reused
   ?assertError(badarg, rocksdb:get(Db, <<"a">>, [{snapshot, Snapshot2}])).
+
+cleanup_test() ->
+  os:cmd("rm -rf ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
+  rocksdb:put(Ref, <<"a">>, <<"x">>, []),
+  rocksdb:put(Ref, <<"b">>, <<"y">>, []),
+  Server = self(),
+  Pid = spawn_link(
+    fun() ->
+      receive
+        {db, Db} ->
+          {ok, Snapshot} = rocksdb:snapshot(Db),
+          ok = rocksdb:put(Db, <<"b">>, <<"z">>, []),
+          Res = rocksdb:get(Db, <<"b">>, [{snapshot, Snapshot}]),
+          Server ! Res
+      end
+    end
+  ),
+  Pid ! {db, Ref},
+  receive
+    {ok, <<"y">>} -> ok
+  end,
+  rocksdb:close(Ref).
