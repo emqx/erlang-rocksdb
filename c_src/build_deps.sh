@@ -28,10 +28,10 @@ SCRIPT=$SCRIPTPATH/${0##*/}
 BASEDIR=$SCRIPTPATH
 BUILD_CONFIG=$BASEDIR/rocksdb/make_config.mk
 
-ROCKSDB_VSN="5.7.5"
+ROCKSDB_VSN="5.10.4"
 SNAPPY_VSN="1.1.4"
 LZ4_VSN="1.8.1.2"
-ROCKSDB_PREFIX="v5.7.5"
+ROCKSDB_PREFIX="v5.10.4"
 
 
 set -e
@@ -120,7 +120,7 @@ case "$1" in
 
         sh $SCRIPT get-deps
         if [ ! -f rocksdb/librocksdb.a ]; then
-            (cd rocksdb && CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE -j 3 static_lib)
+            (cd rocksdb && USE_RTTI=1 CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE -j 3 static_lib)
         fi
         ;;
 esac
