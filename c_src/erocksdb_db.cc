@@ -25,6 +25,7 @@
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
 #include "rocksdb/cache.h"
+#include "rocksdb/rate_limiter.h"
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/slice_transform.h"
@@ -50,6 +51,7 @@
 #endif
 
 #include "cache.h"
+#include "rate_limiter.h"
 #include "env.h"
 
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
@@ -337,6 +339,13 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             {
                 opts.env = rocksdb::NewMemEnv(rocksdb::Env::Default());
                 opts.create_if_missing = true;
+            }
+        }
+        else if (option[0] == erocksdb::ATOM_RATE_LIMITER) {
+            erocksdb::RateLimiter* rate_limiter_ptr = erocksdb::RateLimiter::RetrieveRateLimiterResource(env,option[1]);
+            if(NULL!=rate_limiter_ptr) {
+                auto rate_limiter = rate_limiter_ptr->rate_limiter();
+                opts.rate_limiter = rate_limiter;
             }
         }
     }
