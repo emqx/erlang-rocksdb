@@ -73,6 +73,12 @@
   release_cache/1
 ]).
 
+%% Limiter API
+-export([
+    new_rate_limiter/2,
+    release_rate_limiter/1
+]).
+
 %% env api
 -export([
   default_env/0,
@@ -125,6 +131,7 @@
   itr_handle/0,
   snapshot_handle/0,
   batch_handle/0,
+  rate_limiter_handle/0,
   compression_type/0,
   compaction_style/0,
   access_hint/0,
@@ -181,6 +188,7 @@ init() ->
 -opaque batch_handle() :: reference() | binary().
 -opaque backup_engine() :: reference() | binary().
 -opaque cache_handle() :: reference() | binary().
+-opaque rate_limiter_handle() :: reference() | binary().
 
 -opaque env() :: default | memenv | env_handle().
 
@@ -263,7 +271,8 @@ init() ->
                        {allow_concurrent_memtable_write, boolean()} |
                        {enable_write_thread_adaptive_yield, boolean()} |
                        {db_write_buffer_size, non_neg_integer()}  |
-                       {in_memory, boolean()}].
+                       {in_memory, boolean()} |
+                       {rate_limiter, rate_limiter_handle()}].
 
 -type options() :: db_options() | cf_options().
 
@@ -912,6 +921,17 @@ set_capacity(_Cache, _Capacity) ->
 %% @doc release the cache
 release_cache(_Cache) ->
   erlang:nif_error({error, not_loaded}).
+
+%% ===================================================================
+%% Limiter functions
+
+%% @doc create new Limiter
+new_rate_limiter(_RateBytesPerSec, _Auto) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% @doc release the limiter
+release_rate_limiter(_Limiter) ->
+    erlang:nif_error({error, not_loaded}).
 
 %% ===================================================================
 %% env functions

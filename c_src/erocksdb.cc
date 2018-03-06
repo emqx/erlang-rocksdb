@@ -142,6 +142,10 @@ static ErlNifFunc nif_funcs[] =
   {"get_capacity", 1, erocksdb::GetCapacity},
   {"release_cache", 1, erocksdb::ReleaseCache},
 
+  // rate limiter
+  {"new_rate_limiter", 2, erocksdb::NewRateLimiter},
+  {"release_rate_limiter", 1, erocksdb::ReleaseRateLimiter},
+
   // env
   {"default_env", 0, erocksdb::DefaultEnv},
   {"mem_env", 0, erocksdb::MemEnv},
@@ -241,6 +245,7 @@ ERL_NIF_TERM ATOM_WAL_RECOVERY_MODE;
 ERL_NIF_TERM ATOM_ALLOW_CONCURRENT_MEMTABLE_WRITE;
 ERL_NIF_TERM ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD;
 ERL_NIF_TERM ATOM_DB_WRITE_BUFFER_SIZE;
+ERL_NIF_TERM ATOM_RATE_LIMITER;
 
 
 // Related to BlockBasedTable Options
@@ -456,6 +461,7 @@ try
   ATOM(erocksdb::ATOM_ALLOW_CONCURRENT_MEMTABLE_WRITE, "allow_concurrent_memtable_write");
   ATOM(erocksdb::ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD, "enable_write_thread_adaptive_yield");
   ATOM(erocksdb::ATOM_DB_WRITE_BUFFER_SIZE, "db_write_buffer_size");
+  ATOM(erocksdb::ATOM_RATE_LIMITER, "rate_limiter");
 
   // Related to BlockBasedTable Options
   ATOM(erocksdb::ATOM_NO_BLOCK_CACHE, "no_block_cache");
