@@ -45,6 +45,7 @@
 #endif
 
 #include "cache.h"
+#include "rate_limiter.h"
 #include "env.h"
 
 static ErlNifFunc nif_funcs[] =
@@ -371,6 +372,7 @@ try
   erocksdb::TLogItrObject::CreateTLogItrObjectType(env);
   erocksdb::BackupEngineObject::CreateBackupEngineObjectType(env);
   erocksdb::Cache::CreateCacheType(env);
+  erocksdb::RateLimiter::CreateRateLimiterType(env);
 
 
   // must initialize atoms before processing options

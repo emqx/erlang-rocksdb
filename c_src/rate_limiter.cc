@@ -44,14 +44,14 @@ RateLimiter::CreateRateLimiterType(ErlNifEnv * env)
                                             &RateLimiter::RateLimiterResourceCleanup,
                                             flags, NULL);
     return;
-}   // Limiter::CreateLimiterType
+}   // RateLimiter::CreateRateLimiterType
 
 
 void
 RateLimiter::RateLimiterResourceCleanup(ErlNifEnv *Env, void * Arg)
 {
     return;
-}   // Limiter::LimiterResourceCleanup
+}   // RateLimiter::RateLimiterResourceCleanup
 
 
 RateLimiter *
