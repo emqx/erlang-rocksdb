@@ -48,6 +48,10 @@ fi
 which gmake 1>/dev/null 2>/dev/null && MAKE=gmake
 MAKE=${MAKE:-make}
 
+if [ "x${ERL_SCHEDULERS}" != "x" ]; then
+    MAKE="${MAKE} -j${ERL_SCHEDULERS}"
+fi
+
 # Changed "make" to $MAKE
 
 case "$1" in
@@ -120,7 +124,7 @@ case "$1" in
 
         sh $SCRIPT get-deps
         if [ ! -f rocksdb/librocksdb.a ]; then
-            (cd rocksdb && USE_RTTI=1 CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE -j 3 static_lib)
+            (cd rocksdb && USE_RTTI=1 CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE static_lib)
         fi
         ;;
 esac
