@@ -33,7 +33,6 @@ SNAPPY_VSN="1.1.4"
 LZ4_VSN="1.8.1.2"
 ROCKSDB_PREFIX="v5.10.4"
 
-
 set -e
 
 if [ `basename $PWD` != "c_src" ]; then
@@ -48,6 +47,7 @@ fi
 which gmake 1>/dev/null 2>/dev/null && MAKE=gmake
 MAKE=${MAKE:-make}
 
+echo "==> makeflags: ${ERL_SCHEDULETS}",
 # Changed "make" to $MAKE
 
 case "$1" in
@@ -94,7 +94,7 @@ case "$1" in
         fi
 
         if [ ! -f system/lib/libsnappy.a ]; then
-            (cd snappy-$SNAPPY_VSN && $MAKE && $MAKE install)
+            (cd snappy-$SNAPPY_VSN && $MAKE -j${ERL_SCHEDULERS} && $MAKE install)
         fi
 
         if [ ! -d lz4-$LZ4_VSN ]; then
@@ -102,7 +102,7 @@ case "$1" in
         fi
 
         if [ ! -f system/lib/liblz4.a ]; then
-            (cd lz4-$LZ4_VSN/lib && $MAKE CFLAGS="-O3 -fPIC" && $MAKE install PREFIX=$BASEDIR/system)
+            (cd lz4-$LZ4_VSN/lib && $MAKE -j${ERL_SCHEDULERS} CFLAGS="-O3 -fPIC" && $MAKE install PREFIX=$BASEDIR/system)
         fi
 
         export CXXFLAGS="-std=c++11 -pthread -D_GLIBCXX_USE_C99 -DNDEBUG"
@@ -120,7 +120,7 @@ case "$1" in
 
         sh $SCRIPT get-deps
         if [ ! -f rocksdb/librocksdb.a ]; then
-            (cd rocksdb && USE_RTTI=1 CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE -j 3 static_lib)
+            (cd rocksdb && USE_RTTI=1 CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE -j${ERL_SCHEDULERS} static_lib)
         fi
         ;;
 esac
