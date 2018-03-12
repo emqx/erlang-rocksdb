@@ -74,8 +74,8 @@ ROCKSDBLIBS = rocksdb/librocksdb.a system/lib/libsnappy.a system/lib/liblz4.a
 
 ROCKSDB_PLATFORM_LDFLAGS=$(shell cat rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//' | sed -e 's/-llz4//')
 
-CFLAGS += -g -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include
-CXXFLAGS += -g -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include -std=c++11
+CFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include
+CXXFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I rocksdb/include -std=c++11
 
 LDLIBS += -L $(ERL_INTERFACE_LIB_DIR) -lerl_interface -lei
 ifeq ($(UNAME_SYS), OpenBSD)
