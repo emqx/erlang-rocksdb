@@ -550,6 +550,10 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
                 opts.min_write_buffer_number_to_merge = 1;
             }
         }
+        else if (option[0] == erocksdb::ATOM_LEVEL_COMPACTION_DYNAMIC_LEVEL_BYTES)
+        {
+            opts.level_compaction_dynamic_level_bytes = (option[1] == erocksdb::ATOM_TRUE);
+        }
     }
     return erocksdb::ATOM_OK;
 }
