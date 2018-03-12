@@ -235,6 +235,28 @@ IteratorMove(
 
 }   // erocksdb::IteratorMove
 
+ERL_NIF_TERM
+IteratorRefresh(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    const ERL_NIF_TERM& itr_handle_ref = argv[0];
+
+    ReferencePtr<ItrObject> itr_ptr;
+    itr_ptr.assign(ItrObject::RetrieveItrObject(env, itr_handle_ref));
+
+    if(NULL==itr_ptr.get())
+    {
+        return enif_make_badarg(env);
+    }
+
+    rocksdb::Iterator* itr = itr_ptr->m_Iterator;
+    itr->Refresh();
+
+    return(ATOM_OK);
+
+}   // erocksdb::IteratorRefresh
 
 ERL_NIF_TERM
 IteratorClose(
@@ -261,6 +283,6 @@ IteratorClose(
     }   // else
 
     return(ret_term);
-}   // erocksdb:AsyncIteratorClose
+}   // erocksdb:IteratorClose
 
 }

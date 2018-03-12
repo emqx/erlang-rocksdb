@@ -138,3 +138,20 @@ drop_cf_with_iterator_test() ->
     rocksdb:close(Ref)
   end.
 
+refresh_test() ->
+  os:cmd("rm -rf ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
+  try
+    rocksdb:put(Ref, <<"a">>, <<"x">>, []),
+    rocksdb:put(Ref, <<"b">>, <<"y">>, []),
+    {ok, I} = rocksdb:iterator(Ref, []),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
+    ?assertEqual(ok, rocksdb:iterator_refresh(I)),
+    ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I, next)),
+    ?assertEqual(ok, rocksdb:iterator_refresh(I)),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, prev)),
+    ?assertEqual(ok, rocksdb:iterator_close(I)),
+    ?assertError(badarg, rocksdb:iterator_refresh(I))
+  after
+    rocksdb:close(Ref)
+  end.
