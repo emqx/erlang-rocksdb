@@ -21,36 +21,36 @@ C_SRC_OUTPUT ?= $(CURDIR)/../priv/$(PROJECT).so
 UNAME_SYS := $(shell uname -s)
 ifeq ($(UNAME_SYS), Darwin)
 	CC ?= cc
-	CFLAGS ?= -O3 -std=c99 -arch x86_64 -Wall -Wmissing-prototypes
-	CXXFLAGS ?= -O3 -arch x86_64 -Wall
+	CFLAGS ?= -O2 -std=c99 -arch x86_64 -Wall -Wmissing-prototypes
+	CXXFLAGS ?= -O2 -arch x86_64 -Wall
 	LDFLAGS ?= -arch x86_64 -flat_namespace -undefined suppress
 else ifeq ($(UNAME_SYS), FreeBSD)
 	CC = clang
 	CXX = clang++
-	CFLAGS ?= -O3 -std=c99 -Wall -Wmissing-prototypes
+	CFLAGS ?= -O2 -std=c99 -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O3 -Wall
+	CXXFLAGS ?= -O2 -Wall
 	CXXFLAGS += -std=c++11 -stdlib=libc++ -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), OpenBSD)
 	CC = egcc
 	CXX = eg++
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
+	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O3 -Wall
+	CXXFLAGS ?= -O2 -Wall
 	CXXFLAGS += -std=c++11 -pthread -finline-functions -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), DragonFly)
 	CC = c++48
 	CXX = c++48
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
+	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS ?= -O2 -finline-functions -Wall
 	CXXFLAGS += -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), NetBSD)
 	CC = c++48
 	CXX = c++48
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
+	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS ?= -O2 -finline-functions -Wall
 	CXXFLAGS += -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), SunOS)
 	ifeq ($(shell uname -v | sed 's/_.*$$//'), joyent)
@@ -60,14 +60,14 @@ else ifeq ($(UNAME_SYS), SunOS)
 		CC = c++48
 		CXX = c++48
 	endif
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
+	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS ?= -O2 -finline-functions -Wall
 	CXXFLAGS += -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), Linux)
 	CC ?= gcc
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
-	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
+	CXXFLAGS ?= -O2 -finline-functions -Wall
 endif
 
 ROCKSDBLIBS = rocksdb/librocksdb.a system/lib/libsnappy.a system/lib/liblz4.a
