@@ -57,6 +57,7 @@
   iterator/2, iterator/3,
   iterators/3,
   iterator_move/2,
+  iterator_refresh/1,
   iterator_close/1
 ]).
 
@@ -524,6 +525,12 @@ iterators(_DBHandle, _CFHandle, _ReadOpts) ->
                                            ITRAction::iterator_action()).
 iterator_move(_ITRHandle, _ITRAction) ->
   erlang:nif_error({error, not_loaded}).
+
+%% @doc
+%% Refresh iterator
+-spec(iterator_refresh(ITRHandle) -> ok when ITRHandle::itr_handle()).
+iterator_refresh(_ITRHandle) ->
+    erlang:nif_error({error, not_loaded}).
 
 %% @doc
 %% Close a iterator
