@@ -19,6 +19,8 @@
 // under the License.
 //
 // -------------------------------------------------------------------
+
+#pragma once
 #ifndef INCL_MUTEX_H
 #define INCL_MUTEX_H
 

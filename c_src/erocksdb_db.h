@@ -18,11 +18,19 @@
 //
 // -------------------------------------------------------------------
 
+#pragma once
 #ifndef INCL_EROCKSB_DB_H
 #define INCL_EROCKSB_DB_H
 
-#include "rocksdb/db.h"
 #include "erl_nif.h"
+
+// Forward declaration
+namespace rocksdb {
+    struct DBOptions;
+    struct ColumnFamilyOptions;
+    struct ReadOptions;
+    struct WriteOptions;
+}
 
 ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptions& opts);
 ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnFamilyOptions& opts);

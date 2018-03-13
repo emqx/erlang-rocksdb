@@ -15,6 +15,7 @@
 // under the License.
 //
 
+#pragma once
 #ifndef INCL_RATELIMITER_H
 #define INCL_RATELIMITER_H
 
@@ -22,8 +23,11 @@
 #include <memory>
 
 #include "erl_nif.h"
-#include "rocksdb/rate_limiter.h"
 
+// Forward declaration
+namespace rocksdb {
+    class RateLimiter;
+}
 
 namespace erocksdb {
 

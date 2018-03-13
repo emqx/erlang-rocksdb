@@ -18,14 +18,26 @@
 //
 // -------------------------------------------------------------------
 
+#pragma once
 #ifndef INCL_UTIL_H
 #define INCL_UTIL_H
 
 #include "erl_nif.h"
-#include "refobjects.h"
 
-#include "rocksdb/db.h"
-#include "rocksdb/slice_transform.h"
+// Forward declaration
+namespace rocksdb {
+    class Status;
+    class Slice;
+}
+
+// Forward declaration
+namespace erocksdb {
+    template <class TargetT>
+    class ReferencePtr;
+    class DbObject;
+    class ColumnFamilyObject;
+    class BackupEngineObject;
+}
 
 ERL_NIF_TERM error_einval(ErlNifEnv* env);
 ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error, rocksdb::Status& status);

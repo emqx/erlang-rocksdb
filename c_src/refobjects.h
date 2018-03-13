@@ -15,14 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#pragma once
 #ifndef INCL_REFOBJECTS_H
 #define INCL_REFOBJECTS_H
 
+#include <stdint.h>
 #include <list>
 
 #include "erl_nif.h"
 #include "mutex.h"
-#include "rocksdb/utilities/backupable_db.h"
+
+namespace rocksdb {
+    class DB;
+    class ColumnFamilyHandle;
+    class Snapshot;
+    class Iterator;
+    class TransactionLogIterator;
+    class BackupEngine;
+}
 
 namespace erocksdb {
 

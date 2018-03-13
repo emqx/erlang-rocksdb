@@ -20,6 +20,7 @@
 //
 // -------------------------------------------------------------------
 
+#include "rocksdb/utilities/backupable_db.h"
 #include "refobjects.h"
 #include "detail.hpp"
 

@@ -19,9 +19,11 @@
 //
 // -------------------------------------------------------------------
 
-#include "util.h"
-
 #include "atoms.h"
+#include "refobjects.h"
+#include "rocksdb/db.h"
+#include "rocksdb/slice_transform.h"
+#include "util.h"
 
 // Erlang helpers:
 ERL_NIF_TERM error_einval(ErlNifEnv* env)

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#pragma once
 #ifndef ATOMS_H
 #define ATOMS_H
 

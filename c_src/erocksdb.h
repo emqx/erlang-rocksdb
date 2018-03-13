@@ -16,6 +16,7 @@
 // under the License.
 //
 
+#pragma once
 #ifndef INCL_EROCKSDB_H
 #define INCL_EROCKSDB_H
 

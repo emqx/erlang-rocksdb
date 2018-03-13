@@ -14,9 +14,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#pragma once
+#ifndef INCL_ENV_H
+#define INCL_ENV_H
+
 #include "erl_nif.h"
 
-#include "rocksdb/db.h"
 #include "rocksdb/env.h"
 
 
@@ -44,3 +47,5 @@ namespace erocksdb {
   };
 
 }
+
+#endif // INCL_ENV_H

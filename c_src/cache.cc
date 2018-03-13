@@ -15,6 +15,7 @@
 // under the License.
 
 #include "atoms.h"
+#include "rocksdb/cache.h"
 #include "cache.h"
 #include "util.h"
 

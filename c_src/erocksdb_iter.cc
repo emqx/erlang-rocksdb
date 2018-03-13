@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "rocksdb/db.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/write_batch.h"
 #include "rocksdb/slice_transform.h"
@@ -26,6 +27,7 @@
 #include "atoms.h"
 #include "erl_nif.h"
 #include "erocksdb_db.h"
+#include "refobjects.h"
 #include "util.h"
 
 namespace erocksdb {
