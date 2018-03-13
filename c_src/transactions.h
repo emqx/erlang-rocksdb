@@ -17,14 +17,15 @@
 //
 // -------------------------------------------------------------------
 
+#ifndef INCL_TRANSACTIONS_H
+#define INCL_TRANSACTIONS_H
 
 #include "rocksdb/db.h"
 #include "rocksdb/write_batch.h"
 #include "rocksdb/transaction_log.h"
-
-#ifndef INCL_UTIL_H
+#include "erl_nif.h"
+#include "atoms.h"
 #include "util.h"
-#endif
 
 namespace erocksdb {
 
@@ -80,3 +81,5 @@ protected:
 }; // class TransactionLogHandler
 
 }
+
+#endif //INCL_TRANSACTIONS_H

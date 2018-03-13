@@ -19,28 +19,12 @@
 
 
 #include <vector>
-#include <iostream>
 
-#include "erocksdb.h"
-
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
-
-#ifndef INCL_REFOBJECTS_H
-    #include "refobjects.h"
-#endif
-
-#ifndef INCL_UTIL_H
-    #include "util.h"
-#endif
-
-#ifndef INCL_EROCKSB_DB_H
-    #include "erocksdb_db.h"
-#endif
+#include "atoms.h"
+#include "erocksdb_db.h"
+#include "erl_nif.h"
+#include "refobjects.h"
+#include "util.h"
 
 namespace erocksdb {
 

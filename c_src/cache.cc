@@ -14,22 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include <vector>
-
-#include "rocksdb/db.h"
-#include "rocksdb/cache.h"
-
-#include "erocksdb.h"
+#include "atoms.h"
 #include "cache.h"
-
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
-
-#ifndef INCL_UTIL_H
-    #include "util.h"
-#endif
-
+#include "util.h"
 
 namespace erocksdb {
 

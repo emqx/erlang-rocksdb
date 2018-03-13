@@ -20,7 +20,7 @@
 
 #include <list>
 
-#include "erocksdb.h"
+#include "erl_nif.h"
 #include "mutex.h"
 #include "rocksdb/utilities/backupable_db.h"
 

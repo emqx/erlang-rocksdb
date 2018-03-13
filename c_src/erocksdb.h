@@ -19,9 +19,6 @@
 #ifndef INCL_EROCKSDB_H
 #define INCL_EROCKSDB_H
 
-#include <mutex>
-#include "rocksdb/db.h"
-#include "rocksdb/cache.h"
 #include "erl_nif.h"
 
 namespace erocksdb {

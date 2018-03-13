@@ -17,42 +17,16 @@
 //
 // -------------------------------------------------------------------
 
-#include <new>
-#include <set>
-#include <stack>
-#include <deque>
-#include <sstream>
-#include <utility>
-#include <stdexcept>
-#include <algorithm>
 #include <vector>
 
-
-#include "erocksdb.h"
-
-#include "rocksdb/db.h"
 #include "rocksdb/comparator.h"
-#include "rocksdb/env.h"
 #include "rocksdb/write_batch.h"
 #include "rocksdb/slice_transform.h"
 
-#ifndef INCL_REFOBJECTS_H
-    #include "refobjects.h"
-#endif
-
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
-
-#include "detail.hpp"
-
-#ifndef INCL_UTIL_H
-    #include "util.h"
-#endif
-
-#ifndef INCL_EROCKSB_DB_H
-    #include "erocksdb_db.h"
-#endif
+#include "atoms.h"
+#include "erl_nif.h"
+#include "erocksdb_db.h"
+#include "util.h"
 
 namespace erocksdb {
   ERL_NIF_TERM

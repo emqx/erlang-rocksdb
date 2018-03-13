@@ -18,12 +18,8 @@
 // -------------------------------------------------------------------
 
 #include <vector>
-#include <iostream>
-
-#include "erocksdb.h"
 
 #include "rocksdb/db.h"
-#include "rocksdb/env.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/rate_limiter.h"
 #include "rocksdb/table.h"
@@ -31,25 +27,10 @@
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/utilities/checkpoint.h"
 
-
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
-
-#ifndef INCL_REFOBJECTS_H
-    #include "refobjects.h"
-#endif
-
-#include "detail.hpp"
-
-#ifndef INCL_UTIL_H
-    #include "util.h"
-#endif
-
-#ifndef INCL_EROCKSB_DB_H
-    #include "erocksdb_db.h"
-#endif
-
+#include "atoms.h"
+#include "refobjects.h"
+#include "util.h"
+#include "erocksdb_db.h"
 #include "cache.h"
 #include "rate_limiter.h"
 #include "env.h"

@@ -15,14 +15,11 @@
 // under the License.
 //
 
-#include <vector>
 #include <mutex>
+#include <memory>
 
-#include "erocksdb.h"
-
-#include "rocksdb/db.h"
+#include "erl_nif.h"
 #include "rocksdb/cache.h"
-
 
 namespace erocksdb {
 

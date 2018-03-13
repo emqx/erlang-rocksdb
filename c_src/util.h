@@ -25,7 +25,6 @@
 #include "refobjects.h"
 
 #include "rocksdb/db.h"
-#include "rocksdb/env.h"
 #include "rocksdb/slice_transform.h"
 
 ERL_NIF_TERM error_einval(ErlNifEnv* env);

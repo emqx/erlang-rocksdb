@@ -15,12 +15,13 @@
 // under the License.
 //
 
-#include <vector>
+#ifndef INCL_RATELIMITER_H
+#define INCL_RATELIMITER_H
+
 #include <mutex>
+#include <memory>
 
-#include "erocksdb.h"
-
-#include "rocksdb/db.h"
+#include "erl_nif.h"
 #include "rocksdb/rate_limiter.h"
 
 
@@ -50,3 +51,5 @@ namespace erocksdb {
   };
 
 }
+
+#endif // INCL_RATELIMITER_H
