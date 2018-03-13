@@ -12,7 +12,7 @@ Vagrant.configure("2") do |config|
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://atlas.hashicorp.com/search.
-  config.vm.box = "freebsd/FreeBSD-10.3-STABLE"
+    config.vm.box = "freebsd/FreeBSD-11.1-STABLE"
 
   config.ssh.shell = "sh"
   config.vm.synced_folder ".", "/vagrant", :nfs => true, id: "vagrant-root"
