@@ -19,17 +19,9 @@
 //
 // -------------------------------------------------------------------
 
-#ifndef INCL_UTIL_H
-    #include "util.h"
-#endif
+#include "util.h"
 
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
-
-#include "rocksdb/db.h"
-#include "rocksdb/env.h"
-
+#include "atoms.h"
 
 // Erlang helpers:
 ERL_NIF_TERM error_einval(ErlNifEnv* env)

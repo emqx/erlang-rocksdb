@@ -18,26 +18,11 @@
 #ifndef INCL_REFOBJECTS_H
 #define INCL_REFOBJECTS_H
 
-#include <stdint.h>
 #include <list>
 
-#include "rocksdb/db.h"
-#include "rocksdb/write_batch.h"
+#include "erocksdb.h"
+#include "mutex.h"
 #include "rocksdb/utilities/backupable_db.h"
-
-
-#ifndef INCL_MUTEX_H
-    #include "mutex.h"
-#endif
-
-#ifndef INCL_EROCKSDB_H
-    #include "erocksdb.h"
-#endif
-
-
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
 
 namespace erocksdb {
 
