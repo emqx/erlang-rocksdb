@@ -141,6 +141,41 @@ DeleteBatch(
 }
 
 ERL_NIF_TERM
+SingleDeleteBatch(
+        ErlNifEnv* env,
+        int argc,
+        const ERL_NIF_TERM argv[])
+{
+    rocksdb::WriteBatch* batch_ptr;
+    ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
+    ErlNifBinary key;
+
+    if(!enif_get_resource(env, argv[0], m_Batch_RESOURCE, (void **) &batch_ptr))
+        return enif_make_badarg(env);
+
+    if (argc > 2)
+    {
+        if(!enif_get_cf(env, argv[1], &cf_ptr) ||
+                !enif_inspect_binary(env, argv[2], &key))
+            return enif_make_badarg(env);
+
+        rocksdb::Slice key_slice((const char*)key.data, key.size);
+        erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
+
+        batch_ptr->SingleDelete(cf->m_ColumnFamily, key_slice);
+    }
+    else
+    {
+        if(!enif_inspect_binary(env, argv[1], &key))
+            return enif_make_badarg(env);
+
+        rocksdb::Slice key_slice((const char*)key.data, key.size);
+        batch_ptr->SingleDelete(key_slice);
+    }
+    return ATOM_OK;
+}
+
+ERL_NIF_TERM
 WriteBatch(
         ErlNifEnv* env,
         int argc,

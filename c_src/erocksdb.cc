@@ -87,6 +87,8 @@ static ErlNifFunc nif_funcs[] =
   {"batch_put", 4, erocksdb::PutBatch},
   {"batch_delete", 2, erocksdb::DeleteBatch},
   {"batch_delete", 3, erocksdb::DeleteBatch},
+  {"batch_single_delete", 2, erocksdb::SingleDeleteBatch},
+  {"batch_single_delete", 3, erocksdb::SingleDeleteBatch},
   {"batch_clear", 1, erocksdb::ClearBatch},
   {"batch_savepoint", 1, erocksdb::BatchSetSavePoint},
   {"batch_rollback", 1, erocksdb::BatchRollbackToSavePoint},
@@ -252,6 +254,7 @@ ERL_NIF_TERM ATOM_IGNORE_MISSING_COLUMN_FAMILIES;
 ERL_NIF_TERM ATOM_CLEAR;
 ERL_NIF_TERM ATOM_PUT;
 ERL_NIF_TERM ATOM_DELETE;
+ERL_NIF_TERM ATOM_SINGLE_DELETE;
 
 // Related to Iterator Actions
 ERL_NIF_TERM ATOM_FIRST;
@@ -470,6 +473,7 @@ try
   ATOM(erocksdb::ATOM_CLEAR, "clear");
   ATOM(erocksdb::ATOM_PUT, "put");
   ATOM(erocksdb::ATOM_DELETE, "delete");
+  ATOM(erocksdb::ATOM_SINGLE_DELETE, "single_delete");
 
   // Related to Iterator Options
   ATOM(erocksdb::ATOM_FIRST, "first");

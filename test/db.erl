@@ -30,6 +30,10 @@ open_test_Z() ->
   not_found = rocksdb:get(Ref, <<"def">>, []),
   ok = rocksdb:delete(Ref, <<"abc">>, []),
   not_found = rocksdb:get(Ref, <<"abc">>, []),
+  ok = rocksdb:put(Ref, <<"abc">>, <<"123">>, []),
+  {ok, <<"123">>} = rocksdb:get(Ref, <<"abc">>, []),
+  ok = rocksdb:single_delete(Ref, <<"abc">>, []),
+  not_found = rocksdb:get(Ref, <<"abc">>, []),
   true = rocksdb:is_empty(Ref).
 
 fold_test() -> [{fold_test_Z(), l} || l <- lists:seq(1, 20)].
