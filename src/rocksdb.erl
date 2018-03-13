@@ -51,6 +51,7 @@
 -export([
   put/4, put/5,
   delete/3, delete/4,
+  single_delete/3, single_delete/4,
   write/3,
   get/3, get/4,
   delete_range/4, delete_range/5,
@@ -102,6 +103,7 @@
          write_batch/3,
          batch_put/3, batch_put/4,
          batch_delete/2, batch_delete/3,
+         batch_single_delete/2, batch_single_delete/3,
          batch_clear/1,
          batch_savepoint/1,
          batch_rollback/1,
@@ -293,6 +295,8 @@ init() ->
                           {put, ColumnFamilyHandle::cf_handle(), Key::binary(), Value::binary()} |
                           {delete, Key::binary()} |
                           {delete, ColumnFamilyHandle::cf_handle(), Key::binary()} |
+                          {single_delete, Key::binary()} |
+                          {single_delete, ColumnFamilyHandle::cf_handle(), Key::binary()} |
                           clear].
 
 -type iterator_action() :: first | last | next | prev | binary() | {seek, binary()} | {seek_for_prev, binary()}.
@@ -418,6 +422,39 @@ delete(DBHandle, Key, WriteOpts) ->
   Res ::  ok | {error, any()}.
 delete(DBHandle, CFHandle, Key, WriteOpts) ->
   write(DBHandle, [{delete, CFHandle, Key}], WriteOpts).
+
+%% @doc Remove the database entry for "key". Requires that the key exists
+%% and was not overwritten. Returns OK on success, and a non-OK status
+%% on error.  It is not an error if "key" did not exist in the database.
+%% 
+%% If a key is overwritten (by calling Put() multiple times), then the result
+%% of calling SingleDelete() on this key is undefined.  SingleDelete() only
+%% behaves correctly if there has been only one Put() for this key since the
+%% previous call to SingleDelete() for this key.
+%% 
+%%  This feature is currently an experimental performance optimization
+%% for a very specific workload.  It is up to the caller to ensure that
+%% SingleDelete is only used for a key that is not deleted using Delete() or
+%% written using Merge().  Mixing SingleDelete operations with Deletes
+%%  can result in undefined behavior.
+%% 
+%% Note: consider setting options `{sync, true}'.
+-spec(single_delete(DBHandle, Key, WriteOpts) ->
+        ok | {error, any()} when DBHandle::db_handle(),
+                    Key::binary(),
+                    WriteOpts::write_options()).
+single_delete(DBHandle, Key, WriteOpts) ->
+  write(DBHandle, [{single_delete, Key}], WriteOpts).
+
+%% @doc like `single_delete/3` but on the specified column family
+-spec single_delete(DBHandle, CFHandle, Key, WriteOpts) -> Res when
+  DBHandle::db_handle(),
+  CFHandle::cf_handle(),
+  Key::binary(),
+  WriteOpts::write_options(),
+  Res ::  ok | {error, any()}.
+single_delete(DBHandle, CFHandle, Key, WriteOpts) ->
+  write(DBHandle, [{single_delete, CFHandle, Key}], WriteOpts).
 
 %% @doc Apply the specified updates to the database.
 -spec write(DBHandle, WriteActions, WriteOpts) -> Res when
@@ -755,14 +792,24 @@ batch_put(_Batch, _Key, _Value) ->
 batch_put(_Batch, _ColumnFamily, _Key, _Value) ->
   erlang:nif_error({error, not_loaded}).
 
-%% @doc add a delete operation to the batch
+%% @doc batch implementation of delete operation to the batch
 -spec batch_delete(Batch :: batch_handle(), Key :: binary()) -> ok.
 batch_delete(_Batch, _Key) ->
   erlang:nif_error({error, not_loaded}).
 
-%% @doc like `delete/2' but apply the operation to a column family
+%% @doc like `batch_delete/2' but apply the operation to a column family
 -spec batch_delete(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
 batch_delete(_Batch, _ColumnFamily, _Key) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc batch implementation of single_delete operation to the batch
+-spec batch_single_delete(Batch :: batch_handle(), Key :: binary()) -> ok.
+batch_single_delete(_Batch, _Key) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc like `batch_single_delete/2' but apply the operation to a column family
+-spec batch_single_delete(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
+batch_single_delete(_Batch, _ColumnFamily, _Key) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc return the number of operations in the batch

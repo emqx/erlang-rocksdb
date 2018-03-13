@@ -85,7 +85,7 @@ basic_kvs_test() ->
   ok = rocksdb:put(Db, DefaultH, <<"a">>, <<"a1">>, []),
   {ok,  <<"a1">>} = rocksdb:get(Db, DefaultH, <<"a">>, []),
   ok = rocksdb:put(Db, DefaultH, <<"b">>, <<"b1">>, []),
- {ok, <<"b1">>} = rocksdb:get(Db, DefaultH, <<"b">>, []),
+  {ok, <<"b1">>} = rocksdb:get(Db, DefaultH, <<"b">>, []),
   ?assertEqual(2, rocksdb:count(Db,DefaultH)),
 
   ok = rocksdb:delete(Db, DefaultH, <<"b">>, []),
@@ -97,5 +97,16 @@ basic_kvs_test() ->
   {ok,  <<"a1">>} = rocksdb:get(Db, DefaultH, <<"a">>, []),
   {ok,  <<"a2">>} = rocksdb:get(Db, TestH, <<"a">>, []),
   ?assertEqual(1, rocksdb:count(Db, TestH)),
+  rocksdb:close(Db),
+  ok.
+
+single_delete_test() ->
+  rocksdb:destroy("test.db", []),
+  ColumnFamilies = [{"default", []}],
+  {ok, Db, [DefaultH]} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
+  ok = rocksdb:put(Db, DefaultH, <<"c">>, <<"c1">>, []),
+  {ok, <<"c1">>} = rocksdb:get(Db, DefaultH, <<"c">>, []),
+  ok = rocksdb:single_delete(Db, DefaultH, <<"c">>, []),
+  not_found = rocksdb:get(Db, DefaultH, <<"c">>, []),
   rocksdb:close(Db),
   ok.

@@ -634,12 +634,18 @@ ERL_NIF_TERM write_batch_item(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::WriteB
             }
         }
 
-        if (action[0] == erocksdb::ATOM_DELETE)
+        if ((action[0] == erocksdb::ATOM_DELETE) || (action[0] == erocksdb::ATOM_SINGLE_DELETE))
         {
             if(arity == 2 && enif_inspect_binary(env, action[1], &key))
             {
                 rocksdb::Slice key_slice((const char*)key.data, key.size);
-                batch.Delete(key_slice);
+                if (action[0] == erocksdb::ATOM_DELETE) {
+                    batch.Delete(key_slice);
+                }
+                else
+                {
+                    batch.SingleDelete(key_slice);
+                }
                 return erocksdb::ATOM_OK;
             }
             else
@@ -647,11 +653,17 @@ ERL_NIF_TERM write_batch_item(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::WriteB
                 const ERL_NIF_TERM& cf_ref = action[1];
                 cf_ptr.assign(erocksdb::ColumnFamilyObject::RetrieveColumnFamilyObject(env, cf_ref));
                 erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
-
                 if(NULL!=cf_ptr.get() && enif_inspect_binary(env, action[2], &key))
                 {
                     rocksdb::Slice key_slice((const char*)key.data, key.size);
-                    batch.Delete(cf->m_ColumnFamily, key_slice);
+
+                    if (action[0] == erocksdb::ATOM_DELETE) {
+                        batch.Delete(cf->m_ColumnFamily, key_slice);
+                    }
+                    else
+                    {
+                        batch.SingleDelete(cf->m_ColumnFamily, key_slice);
+                    }
                     return erocksdb::ATOM_OK;
                 }
             }
