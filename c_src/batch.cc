@@ -18,28 +18,14 @@
 // -------------------------------------------------------------------
 
 
-#include <vector>
-#include <memory>
-
-#include "erocksdb.h"
+#include "erl_nif.h"
 
 #include "rocksdb/db.h"
-#include "rocksdb/env.h"
 #include "rocksdb/write_batch.h"
 
-#ifndef INCL_REFOBJECTS_H
-#include "refobjects.h"
-#endif
-
-#ifndef ATOMS_H
 #include "atoms.h"
-#endif
-
-#ifndef INCL_UTIL_H
+#include "refobjects.h"
 #include "util.h"
-#endif
-
-#include "detail.hpp"
 
 #include "erocksdb_db.h"
 #include "transactions.h"

@@ -20,20 +20,8 @@
 //
 // -------------------------------------------------------------------
 
-#include <iostream>
-
-#ifndef __EROCKSDB_DETAIL_HPP
-    #include "detail.hpp"
-#endif
-
-#ifndef INCL_REFOBJECTS_H
-    #include "refobjects.h"
-#endif
-
-#include "rocksdb/cache.h"
-#include "rocksdb/filter_policy.h"
-#include "rocksdb/utilities/backupable_db.h"
-
+#include "refobjects.h"
+#include "detail.hpp"
 
 namespace erocksdb {
 

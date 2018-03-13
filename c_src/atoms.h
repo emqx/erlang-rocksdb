@@ -18,6 +18,8 @@
 #ifndef ATOMS_H
 #define ATOMS_H
 
+#include "erl_nif.h"
+
 namespace erocksdb {
 
 // Atoms (initialized in on_load)

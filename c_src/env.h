@@ -14,9 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include <vector>
-
-#include "erocksdb.h"
+#include "erl_nif.h"
 
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"

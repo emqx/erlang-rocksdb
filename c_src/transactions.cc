@@ -17,31 +17,11 @@
 //
 // -------------------------------------------------------------------
 
-
-#include <vector>
-#include <memory>
-
-#include "erocksdb.h"
 #include "erocksdb_db.h"
-
-#include "rocksdb/db.h"
-#include "rocksdb/write_batch.h"
-#include "rocksdb/transaction_log.h"
-
-
-#ifndef INCL_REFOBJECTS_H
-#include "refobjects.h"
-#endif
-
-#ifndef ATOMS_H
-#include "atoms.h"
-#endif
-
-#ifndef INCL_UTIL_H
-#include "util.h"
-#endif
-
 #include "transactions.h"
+
+#include "refobjects.h"
+#include "atoms.h"
 
 namespace erocksdb {
 

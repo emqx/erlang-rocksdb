@@ -17,31 +17,14 @@
 //
 // -------------------------------------------------------------------
 
-
-#include <vector>
-
-#include "erocksdb.h"
+#include "erl_nif.h"
+#include "atoms.h"
+#include "refobjects.h"
+#include "util.h"
 
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
-#ifndef INCL_REFOBJECTS_H
-    #include "refobjects.h"
-#endif
-
-#ifndef INCL_REFOBJECTS_H
-    #include "refobjects.h"
-#endif
-
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
-
-#include "detail.hpp"
-
-#ifndef INCL_UTIL_H
-    #include "util.h"
-#endif
-
+#include "rocksdb/slice_transform.h"
 
 namespace erocksdb {
 

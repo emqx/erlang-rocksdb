@@ -14,22 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include <vector>
-#include <memory>
-
-#include "rocksdb/db.h"
-#include "rocksdb/rate_limiter.h"
-
-#include "erocksdb.h"
 #include "rate_limiter.h"
-
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
-
-#ifndef INCL_UTIL_H
-    #include "util.h"
-#endif
+#include "atoms.h"
 
 
 namespace erocksdb {
