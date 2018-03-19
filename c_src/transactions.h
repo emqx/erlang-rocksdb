@@ -17,6 +17,7 @@
 //
 // -------------------------------------------------------------------
 
+#pragma once
 #ifndef INCL_TRANSACTIONS_H
 #define INCL_TRANSACTIONS_H
 

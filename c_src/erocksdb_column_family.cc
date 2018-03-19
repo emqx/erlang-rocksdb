@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include "rocksdb/db.h"
 #include "atoms.h"
 #include "erocksdb_db.h"
 #include "erl_nif.h"

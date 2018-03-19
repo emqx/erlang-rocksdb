@@ -19,7 +19,10 @@
 #include <memory>
 
 #include "erl_nif.h"
-#include "rocksdb/cache.h"
+
+namespace rocksdb {
+    class Cache;
+}
 
 namespace erocksdb {
 

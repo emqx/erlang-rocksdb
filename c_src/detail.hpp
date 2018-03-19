@@ -20,6 +20,7 @@
 //
 // -------------------------------------------------------------------
 
+#pragma once
 #ifndef __EROCKSDB_DETAIL_HPP
  #define __EROCKSDB_DETAIL_HPP 1
 

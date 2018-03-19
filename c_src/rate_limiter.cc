@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include "rocksdb/rate_limiter.h"
 #include "rate_limiter.h"
 #include "atoms.h"
 
