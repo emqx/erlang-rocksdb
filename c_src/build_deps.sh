@@ -50,6 +50,9 @@ MAKE=${MAKE:-make}
 
 MAKEFLAGS=
 
+BUILD_JOBS=$( erl -noshell -s init stop -eval "io:format(\"~p\", [erlang:max(3, erlang:system_info(schedulers))])." )
+
+
 case "$1" in
     rm-deps)
         rm -rf rocksdb system snappy-$SNAPPY_VSN lz4-$LZ4_VSN
@@ -120,7 +123,7 @@ case "$1" in
 
         sh $SCRIPT get-deps
         if [ ! -f rocksdb/librocksdb.a ]; then
-            (cd rocksdb && USE_RTTI=1 CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE  -j${ERL_SCHEDULERS} static_lib)
+            (cd rocksdb && USE_RTTI=1 CXXFLAGS="$CXXFLAGS" PORTABLE=1 $MAKE  -j$BUILD_JOBS static_lib)
         fi
         ;;
 esac

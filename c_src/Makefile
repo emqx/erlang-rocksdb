@@ -133,8 +133,7 @@ ifdef BIN_ROCKSDB
 		tar -xzf $(BIN_ROCKSDB);\
 	fi
 else
-	@echo "==> num schedulers: $(ERL_SCHEDULERS)"
-	env ERL_SCHEDULERS="$(ERL_SCHEDULERS)" ./build_deps.sh
+	./build_deps.sh
 endif
 
 clean: ## Clean all files
