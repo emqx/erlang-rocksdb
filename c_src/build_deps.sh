@@ -48,6 +48,8 @@ fi
 which gmake 1>/dev/null 2>/dev/null && MAKE=gmake
 MAKE=${MAKE:-make}
 
+MAKEFLAGS=
+
 case "$1" in
     rm-deps)
         rm -rf rocksdb system snappy-$SNAPPY_VSN lz4-$LZ4_VSN
