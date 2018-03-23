@@ -81,7 +81,7 @@ distclean:
 .PHONT: distclean
 
 $(SNAPPYLIB):
-	@cd snappy && ./autogen.sh
+	@cd snappy && touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
 	@cd snappy &&  ./configure --with-pic --disable-gtest
 	@cd snappy && $(MAKE)
 
