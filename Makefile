@@ -1,12 +1,12 @@
-REBAR ?= ./rebar3
+REBAR ?= ./deps/rebar3
 
 all: compile test
 
 compile:
-	${REBAR} compile
+	@${REBAR} compile
 
 test: compile
-	${REBAR} eunit
+	@${REBAR} eunit
 
 clean:
-	${REBAR} clean
+	@${REBAR} clean
