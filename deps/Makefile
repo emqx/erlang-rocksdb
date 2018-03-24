@@ -52,10 +52,9 @@ else ifeq ($(UNAME_SYS), Linux)
 	CXXFLAGS ?= -O2 -finline-functions -Wall
 endif
 
-
-RDB_CXXFLAGS="$(CXXFLAGS) -DNDEBUG -Isnappy/ -Ilz4/lib -fPIC"
-RDB_CFLAGS="$(CFLAGS) -DNDEBUG -Isnappy/ -Ilz4/lib"
-RDB_LDFLAGS="$(LDFLAGS) -Lsnappy/.libs -Llz4/lib"
+RDB_CXXFLAGS="$(CXXFLAGS) -DNDEBUG -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib -fPIC"
+RDB_CFLAGS="$(CFLAGS) -DNDEBUG -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib"
+RDB_LDFLAGS="$(LDFLAGS) -L$(CURDIR)/snappy/.libs -L$(CURDIR)/lz4"
 
 ifeq ($(UNAME_SYS),OpenBSD)
 	RDB_CXXFLAGS="$(RDB_CXXFLAGS) -DOS_OPENBSD"
@@ -96,7 +95,7 @@ rocksdb: $(RDBLIB)
 
 $(RDBLIB): $(SNAPPYLIB) $(LZ4LIB)
 	@cd rocksdb && \
-		USE_RTTI=1 CXXFLAGS=$(RDB_CXXFLAGS) LDFLAGS=$(RDB_LDFLAGS) PORTABLE=1 $(MAKE) static_lib
+		USE_RTTI=1 CXXFLAGS=$(RDB_CXXFLAGS) LDFLAGS=$(RDB_LDFLAGS) DISABLE_JEMALLOC=1 DEBUG_LEVEL=0 PORTABLE=1 $(MAKE) static_lib
 
 .PHONY: rocksdb
 
