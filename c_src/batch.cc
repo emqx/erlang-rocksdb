@@ -30,19 +30,6 @@
 #include "erocksdb_db.h"
 #include "transactions.h"
 
-// Cleanup function for C++ object created with enif allocator via C++
-// placement syntax which necessitates explicit invocation of the object's
-// destructor.
-template <typename T>
-void cleanup_obj_ptr(T*& ptr)
-{
-    if (ptr != nullptr) {
-        ptr->~T();
-        enif_free(ptr);
-        ptr = nullptr;
-    }
-}
-
 
 struct Batch
 {

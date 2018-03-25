@@ -464,7 +464,9 @@ single_delete(DBHandle, CFHandle, Key, WriteOpts) ->
    Res :: ok | {error, any()}.
 write(DBHandle, WriteOps, WriteOpts) ->
   {ok, Batch} = batch(),
-  write_1(WriteOps, Batch, DBHandle, WriteOpts).
+  try write_1(WriteOps, Batch, DBHandle, WriteOpts)
+  after close_batch(Batch)
+  end.
 
 write_1([{put, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_put(Batch, Key, Value),
