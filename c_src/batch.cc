@@ -106,6 +106,7 @@ WriteBatch(
     rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     fold(env, argv[2], parse_write_option, *opts);
     rocksdb::Status status = db_ptr->m_Db->Write(*opts, wb);
+    delete opts;
     opts = NULL;
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR, status);

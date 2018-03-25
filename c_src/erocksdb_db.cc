@@ -873,6 +873,7 @@ Put(
         fold(env, argv[3], parse_write_option, *opts);
         status = db_ptr->m_Db->Put(*opts, key_slice, value_slice);
     }
+    delete opts;
     opts = NULL;
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
@@ -910,6 +911,7 @@ Delete(
         fold(env, argv[2], parse_write_option, *opts);
         status = db_ptr->m_Db->Delete(*opts, key_slice);
     }
+    delete opts;
     opts = NULL;
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
@@ -947,6 +949,7 @@ SingleDelete(
         fold(env, argv[2], parse_write_option, *opts);
         status = db_ptr->m_Db->SingleDelete(*opts, key_slice);
     }
+    delete opts;
     opts = NULL;
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
