@@ -81,7 +81,7 @@ distclean:
 
 $(SNAPPYLIB):
 	@cd snappy && touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
-	@cd snappy &&  CXXFLAGS="$(CXXFLAGS)" LDFLAGS="$(LDFLAGS)" ./configure --with-pic --disable-gtest --enable-static --disable-shared
+	@cd snappy && ./configure --with-pic --disable-gtest --enable-static --disable-shared
 	@cd snappy && $(MAKE)
 
 .PHONY: snappy
