@@ -237,7 +237,7 @@ RestoreDBFromLatestBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
         return enif_make_badarg(env);
 
 
-    if(!enif_get_string(env, argv[1], db_dir, sizeof(db_dir), ERL_NIF_LATIN1) || !enif_is_list(env, argv[2])) {
+    if(!enif_get_string(env, argv[1], db_dir, sizeof(db_dir), ERL_NIF_LATIN1) || !enif_is_list(env, argv[1])) {
         return enif_make_badarg(env);
     }
 
