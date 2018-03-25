@@ -99,7 +99,7 @@
 
 %% batch functions
 -export([batch/0,
-         close_batch/1,
+         release_batch/1,
          write_batch/3,
          batch_put/3, batch_put/4,
          batch_delete/2, batch_delete/3,
@@ -465,7 +465,7 @@ single_delete(DBHandle, CFHandle, Key, WriteOpts) ->
 write(DBHandle, WriteOps, WriteOpts) ->
   {ok, Batch} = batch(),
   try write_1(WriteOps, Batch, DBHandle, WriteOpts)
-  after close_batch(Batch)
+  after release_batch(Batch)
   end.
 
 write_1([{put, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
@@ -800,8 +800,8 @@ next_update(_Iterator) ->
 batch() ->
   erlang:nif_error({error, not_loaded}).
 
--spec close_batch(Batch :: batch_handle()) -> ok.
-close_batch(_Batch) ->
+-spec release_batch(Batch :: batch_handle()) -> ok.
+release_batch(_Batch) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc write the batch to the database

@@ -29,7 +29,7 @@ basic_test() ->
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db, <<"a">>, [])),
   ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db, <<"b">>, [])),
 
-  ok = rocksdb:close_batch(Batch),
+  ok = rocksdb:release_batch(Batch),
 
   close_destroy(Db, "test.db"),
   ok.
@@ -52,7 +52,7 @@ delete_test() ->
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db, <<"a">>, [])),
   ?assertEqual(not_found, rocksdb:get(Db, <<"b">>, [])),
 
-  ok = rocksdb:close_batch(Batch),
+  ok = rocksdb:release_batch(Batch),
 
   close_destroy(Db, "test.db"),
   ok.
@@ -63,11 +63,11 @@ single_delete_test() ->
   ok = rocksdb:batch_put(Batch, <<"a">>, <<"v1">>),
   ok = rocksdb:write_batch(Db, Batch, []),
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db, <<"a">>, [])),
-  ok = rocksdb:close_batch(Batch),
+  ok = rocksdb:release_batch(Batch),
   {ok, Batch1} = rocksdb:batch(),
   ok = rocksdb:batch_single_delete(Batch1, <<"a">>),
   ok = rocksdb:write_batch(Db, Batch1, []),
-  ok = rocksdb:close_batch(Batch1),
+  ok = rocksdb:release_batch(Batch1),
   ?assertEqual(not_found, rocksdb:get(Db, <<"a">>, [])),
   close_destroy(Db, "test.db"),
   ok.
@@ -90,7 +90,7 @@ delete_with_notfound_test() ->
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db, <<"a">>, [])),
   ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db, <<"b">>, [])),
 
-  ok = rocksdb:close_batch(Batch),
+  ok = rocksdb:release_batch(Batch),
 
   close_destroy(Db, "test.db"),
   ok.
@@ -101,7 +101,7 @@ tolist_test() ->
   ok = rocksdb:batch_put(Batch, <<"b">>, <<"v2">>),
   ?assertEqual(2, rocksdb:batch_count(Batch)),
   ?assertEqual([{put, <<"a">>, <<"v1">>}, {put, <<"b">>, <<"v2">>}], rocksdb:batch_tolist(Batch)),
-  ok = rocksdb:close_batch(Batch),
+  ok = rocksdb:release_batch(Batch),
   ok.
 
 rollback_test() ->
@@ -118,7 +118,7 @@ rollback_test() ->
   ?assertEqual(2, rocksdb:batch_count(Batch)),
   ?assertEqual([{put, <<"a">>, <<"v1">>},
                 {put, <<"b">>, <<"v2">>}], rocksdb:batch_tolist(Batch)),
-  ok = rocksdb:close_batch(Batch).
+  ok = rocksdb:release_batch(Batch).
 
 
 rollback_over_savepoint_test() ->
@@ -138,4 +138,4 @@ rollback_over_savepoint_test() ->
 
   ?assertMatch({error, _}, rocksdb:batch_rollback(Batch)),
 
-  ok = rocksdb:close_batch(Batch).
+  ok = rocksdb:release_batch(Batch).

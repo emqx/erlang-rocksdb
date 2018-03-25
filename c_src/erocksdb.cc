@@ -80,7 +80,7 @@ static ErlNifFunc nif_funcs[] =
 
   // Batch
   {"batch", 0, erocksdb::NewBatch},
-  {"close_batch", 1, erocksdb::CloseBatch},
+  {"release_batch", 1, erocksdb::ReleaseBatch},
   {"write_batch", 3, erocksdb::WriteBatch, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"batch_put", 3, erocksdb::PutBatch},
   {"batch_put", 4, erocksdb::PutBatch},

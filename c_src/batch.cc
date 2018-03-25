@@ -76,6 +76,43 @@ NewBatch(
 }
 
 ERL_NIF_TERM
+ReleaseBatch(
+        ErlNifEnv* env,
+        int argc,
+        const ERL_NIF_TERM argv[])
+{
+    Batch* batch_ptr = nullptr;
+    if(!enif_get_resource(env, argv[0], m_Batch_RESOURCE, (void **) &batch_ptr))
+        return enif_make_badarg(env);
+    cleanup_batch(batch_ptr);
+    batch_ptr = NULL;
+    return ATOM_OK;
+}
+
+ERL_NIF_TERM
+WriteBatch(
+        ErlNifEnv* env,
+        int argc,
+        const ERL_NIF_TERM argv[])
+{
+    rocksdb::WriteBatch* wb = nullptr;
+    Batch* batch_ptr = nullptr;
+    ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
+    if(!enif_get_resource(env, argv[1], m_Batch_RESOURCE, (void **) &batch_ptr))
+        return enif_make_badarg(env);
+    wb = batch_ptr->wb;
+    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
+    fold(env, argv[2], parse_write_option, *opts);
+    rocksdb::Status status = db_ptr->m_Db->Write(*opts, wb);
+    opts = NULL;
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR, status);
+    return ATOM_OK;
+}
+
+ERL_NIF_TERM
 PutBatch(
         ErlNifEnv* env,
         int argc,
@@ -180,28 +217,7 @@ SingleDeleteBatch(
     return ATOM_OK;
 }
 
-ERL_NIF_TERM
-WriteBatch(
-        ErlNifEnv* env,
-        int argc,
-        const ERL_NIF_TERM argv[])
-{
-    rocksdb::WriteBatch* wb = nullptr;
-    Batch* batch_ptr = nullptr;
-    ReferencePtr<DbObject> db_ptr;
-    if(!enif_get_db(env, argv[0], &db_ptr))
-        return enif_make_badarg(env);
-    if(!enif_get_resource(env, argv[1], m_Batch_RESOURCE, (void **) &batch_ptr))
-        return enif_make_badarg(env);
-    wb = batch_ptr->wb;
-    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
-    fold(env, argv[2], parse_write_option, *opts);
-    rocksdb::Status status = db_ptr->m_Db->Write(*opts, wb);
-    opts = NULL;
-    if(!status.ok())
-        return error_tuple(env, ATOM_ERROR, status);
-    return ATOM_OK;
-}
+
 
 ERL_NIF_TERM
 ClearBatch(
@@ -272,20 +288,6 @@ BatchToList(
     ERL_NIF_TERM log;
     enif_make_reverse_list(env, handler.t_List, &log);
     return log;
-}
-
-ERL_NIF_TERM
-CloseBatch(
-        ErlNifEnv* env,
-        int argc,
-        const ERL_NIF_TERM argv[])
-{
-    Batch* batch_ptr = nullptr;
-    if(!enif_get_resource(env, argv[0], m_Batch_RESOURCE, (void **) &batch_ptr))
-        return enif_make_badarg(env);
-    cleanup_batch(batch_ptr);
-    batch_ptr = NULL;
-    return ATOM_OK;
 }
 
 }
