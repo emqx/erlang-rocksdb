@@ -1,3 +1,13 @@
+erlang-rocksdb 0.17.0, released on 2018/03/25
+================================================
+
+- bump ro rocksdb 5.11.3
+- improve build to make it faster, only use makefiles
+- optimise single operations Get/Put/Delete/DeleteSing: don't call batch
+- optimise write: use batch and do less operations in the the nif: make scheduler happy
+- fix leak in batch
+- breaking change: rename `close_batch/1`  in `relase_batch/1`
+
 erlang-rocksdb 0.16.0, released on 2018/03/13
 =================================================
 
