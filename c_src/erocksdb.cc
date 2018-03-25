@@ -56,6 +56,12 @@ static ErlNifFunc nif_funcs[] =
   // kv operations
   {"get", 3, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"get", 4, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"put", 4, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"put", 5, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"delete", 3, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"delete", 4, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"single_delete", 3, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"single_delete", 4, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
   {"snapshot", 1, erocksdb::Snapshot},
   {"release_snapshot", 1, erocksdb::ReleaseSnapshot},

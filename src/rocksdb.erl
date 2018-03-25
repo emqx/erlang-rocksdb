@@ -391,8 +391,8 @@ get_snapshot_sequence(_SnapshotHandle) ->
   Value::binary(),
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
-put(DBHandle, Key, Value, WriteOpts) ->
-  write(DBHandle, [{put, Key, Value}], WriteOpts).
+put(_DBHandle, _Key, _Value, _WriteOpts) ->
+  erlang:nif_error({error, not_loaded}).
   
 %% @doc Put a key/value pair into the specified column family
 -spec put(DBHandle, CFHandle, Key, Value, WriteOpts) -> Res when
@@ -402,16 +402,16 @@ put(DBHandle, Key, Value, WriteOpts) ->
   Value::binary(),
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
-put(DBHandle, CFHandle, Key, Value, WriteOpts) ->
-   write(DBHandle, [{put, CFHandle, Key, Value}], WriteOpts).
+put(_DBHandle, _CFHandle, _Key, _Value, _WriteOpts) ->
+   erlang:nif_error({error, not_loaded}).
 
 %% @doc Delete a key/value pair in the default column family
 -spec(delete(DBHandle, Key, WriteOpts) ->
        ok | {error, any()} when DBHandle::db_handle(),
                     Key::binary(),
                     WriteOpts::write_options()).
-delete(DBHandle, Key, WriteOpts) ->
-   write(DBHandle, [{delete, Key}], WriteOpts).
+delete(_DBHandle, _Key, _WriteOpts) ->
+   erlang:nif_error({error, not_loaded}).
 
 %% @doc Delete a key/value pair in the specified column family
 -spec delete(DBHandle, CFHandle, Key, WriteOpts) -> Res when
@@ -420,8 +420,8 @@ delete(DBHandle, Key, WriteOpts) ->
   Key::binary(),
   WriteOpts::write_options(),
   Res ::  ok | {error, any()}.
-delete(DBHandle, CFHandle, Key, WriteOpts) ->
-  write(DBHandle, [{delete, CFHandle, Key}], WriteOpts).
+delete(_DBHandle, _CFHandle, _Key, _WriteOpts) ->
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc Remove the database entry for "key". Requires that the key exists
 %% and was not overwritten. Returns OK on success, and a non-OK status
@@ -443,8 +443,8 @@ delete(DBHandle, CFHandle, Key, WriteOpts) ->
         ok | {error, any()} when DBHandle::db_handle(),
                     Key::binary(),
                     WriteOpts::write_options()).
-single_delete(DBHandle, Key, WriteOpts) ->
-  write(DBHandle, [{single_delete, Key}], WriteOpts).
+single_delete(_DBHandle, _Key, _WriteOpts) ->
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc like `single_delete/3' but on the specified column family
 -spec single_delete(DBHandle, CFHandle, Key, WriteOpts) -> Res when
@@ -453,8 +453,8 @@ single_delete(DBHandle, Key, WriteOpts) ->
   Key::binary(),
   WriteOpts::write_options(),
   Res ::  ok | {error, any()}.
-single_delete(DBHandle, CFHandle, Key, WriteOpts) ->
-  write(DBHandle, [{single_delete, CFHandle, Key}], WriteOpts).
+single_delete(_DBHandle, _CFHandle, _Key, _WriteOpts) ->
+  erlang:nif_error({error, not_loaded}).
 
 %% @doc Apply the specified updates to the database.
 -spec write(DBHandle, WriteActions, WriteOpts) -> Res when
