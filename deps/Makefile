@@ -3,22 +3,20 @@
 UNAME_SYS := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 ifeq ($(UNAME_SYS), Darwin)
 	CC ?= cc
-	CFLAGS ?= -O2 -std=c99 -arch x86_64 -Wall -Wmissing-prototypes
-	CXXFLAGS ?= -O2 -arch x86_64 -Wall
-	LDFLAGS ?= -arch x86_64 -flat_namespace -undefined suppress
+	CFLAGS ?= -O2 -std=c99 -Wall -Wmissing-prototypes
+	CXXFLAGS ?= -O2
+	#LDFLAGS ?= -arch x86_64 -flat_namespace -undefined suppress
 else ifeq ($(UNAME_SYS), FreeBSD)
 	CC = clang
 	CXX = clang++
-	CFLAGS ?= -O2 -std=c99 -Wall -Wmissing-prototypes
-	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O2 -Wall
-	CXXFLAGS += -std=c++11 -stdlib=libc++ -D_GCLIBCXX_USE_C99
+	CFLAGS ?= -O2 -D_GCLIBCXX_USE_C99
+	CXXFLAGS ?= -O2 -std=c++11 -stdlib=libc++ -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), OpenBSD)
 	CC = egcc
 	CXX = eg++
 	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O2 -Wall
+	CXXFLAGS ?= -O2
 	CXXFLAGS += -std=c++11 -pthread -finline-functions -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), DragonFly)
 	CC = c++48
@@ -32,7 +30,7 @@ else ifeq ($(UNAME_SYS), NetBSD)
 	CXX = c++48
 	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O2 -finline-functions -Wall
+	CXXFLAGS ?= -O2 -finline-functions
 	CXXFLAGS += -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), SunOS)
 	ifeq ($(shell uname -v | sed 's/_.*$$//'), joyent)
@@ -52,9 +50,13 @@ else ifeq ($(UNAME_SYS), Linux)
 	CXXFLAGS ?= -O2 -finline-functions -Wall
 endif
 
-RDB_CXXFLAGS="$(CXXFLAGS) -DNDEBUG -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib -fPIC"
+SNAPPYLIB=$(CURDIR)/snappy/.libs/libsnappy.a
+LZ4LIB=$(CURDIR)/lz4/lib/liblz4.a
+RDBLIB=$(CURDIR)/rocksdb/librocksdb.a
+
+RDB_CXXFLAGS="$(CXXFLAGS) -DNDEBUG -DSNAPPY -DLZ4 -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib -fPIC"
 RDB_CFLAGS="$(CFLAGS) -DNDEBUG -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib"
-RDB_LDFLAGS="$(LDFLAGS) -L$(CURDIR)/snappy/.libs -L$(CURDIR)/lz4"
+RDB_LDFLAGS="$(SNAPPYLIB) $(LZ4LIB) $(LDFLAGS) -L$(CURDIR)/snappy/.libs -L$(CURDIR)/lz4/lib"
 
 ifeq ($(UNAME_SYS),OpenBSD)
 	RDB_CXXFLAGS="$(RDB_CXXFLAGS) -DOS_OPENBSD"
@@ -63,9 +65,7 @@ ifeq ($(UNAME_SYS),OpenBSD)
 	RDB_CPPFLAGS="-DOS_OPENBSD"
 endif
 
-SNAPPYLIB=snappy/.libs/libsnappy.a
-LZ4LIB=lz4/lib/liblz4.a
-RDBLIB=rocksdb/librocksdb.a
+
 
 default:
 	@echo "Explicit target required"
@@ -81,13 +81,13 @@ distclean:
 
 $(SNAPPYLIB):
 	@cd snappy && touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
-	@cd snappy &&  ./configure --with-pic --disable-gtest
+	@cd snappy &&  CXXFLAGS="$(CXXFLAGS)" LDFLAGS="$(LDFLAGS)" ./configure --with-pic --disable-gtest --enable-static --disable-shared
 	@cd snappy && $(MAKE)
 
 .PHONY: snappy
 
 $(LZ4LIB):
-	@cd lz4 && $(MAKE) CFLAGS="-O3 -fPIC"
+	@cd lz4 && $(MAKE) CFLAGS="-O2 -fPIC"
 
 .PHONY: lz4
 
@@ -95,7 +95,7 @@ rocksdb: $(RDBLIB)
 
 $(RDBLIB): $(SNAPPYLIB) $(LZ4LIB)
 	@cd rocksdb && \
-		USE_RTTI=1 CXXFLAGS=$(RDB_CXXFLAGS) LDFLAGS=$(RDB_LDFLAGS) DISABLE_JEMALLOC=1 DEBUG_LEVEL=0 PORTABLE=1 $(MAKE) static_lib
+		$(MAKE) static_lib EXTRA_CXXFLAGS=$(RDB_CXXFLAGS) EXTRA_LDFLAGS=$(RDB_LDFLAGS) USE_RTTI=1 DISABLE_JEMALLOC=1 DEBUG_LEVEL=0 PORTABLE=1 
 
 .PHONY: rocksdb
 
