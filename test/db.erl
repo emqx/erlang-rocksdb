@@ -124,9 +124,3 @@ close_fold_test_Z() ->
   ok = rocksdb:put(Ref, <<"k">>,<<"v">>,[]),
   ?assertException(throw, {iterator_closed, ok}, % ok is returned by close as the acc
   rocksdb:fold(Ref, fun(_,_A) -> rocksdb:close(Ref) end, undefined, [])).
-
-destroy_reopen(DbName, Options) ->
-  _ = rocksdb:destroy(DbName, []),
-  _ = os:cmd("rm -rf " ++ DbName),
-  {ok, Db} = rocksdb:open(DbName, Options),
-  Db.
