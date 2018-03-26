@@ -13,7 +13,7 @@ ERL_INTERFACE_LIB_DIR ?= $(shell erl -noshell -s init stop -eval "io:format(\"~s
 ERL_SCHEDULERS ?= $(shell erl -noshell -s init stop -eval "io:format(\"~p\", [erlang:max(3, erlang:system_info(schedulers))]).")
 
 C_SRC_DIR = $(CURDIR)
-C_SRC_OUTPUT ?= $(CURDIR)/../priv/$(PROJECT).so
+C_SRC_OUTPUT ?= $(BASEDIR)/priv/$(PROJECT).so
 
 
 # System type and C compiler/flags.
@@ -72,7 +72,7 @@ endif
 
 ROCKSDBLIBS = $(BASEDIR)/deps/rocksdb/librocksdb.a $(BASEDIR)/deps/snappy/.libs/libsnappy.a $(BASEDIR)/deps/lz4/lib/liblz4.a
 
-#ROCKSDB_PLATFORM_LDFLAGS=$(shell cat ../deps/rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//' | sed -e 's/-llz4//')
+#ROCKSDB_PLATFORM_LDFLAGS=$(shell cat $(BASEDIR)/deps/rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//' | sed -e 's/-llz4//')
 
 CFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I $(BASEDIR)/deps/rocksdb/include
 CXXFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -I $(BASEDIR)/deps/rocksdb/include -std=c++11
@@ -111,7 +111,7 @@ help: ## This documentation
 
 all: $(C_SRC_OUTPUT) ## Build all
 
-$(C_SRC_OUTPUT): ROCKSDB_PLATFORM_LDFLAGS=$(shell cat ../deps/rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//' | sed -e 's/-llz4//')
+$(C_SRC_OUTPUT): ROCKSDB_PLATFORM_LDFLAGS=$(shell cat $(BASEDIR)/deps/rocksdb/make_config.mk | grep PLATFORM_LDFLAGS | cut -d' ' -f2- | sed -e 's/-lsnappy//' | sed -e 's/-llz4//')
 
 $(C_SRC_OUTPUT): $(ROCKSDBLIBS) $(OBJECTS)
 	@mkdir -p $(BASEDIR)/priv/
@@ -133,10 +133,10 @@ $(C_SRC_OUTPUT): $(ROCKSDBLIBS) $(OBJECTS)
 $(ROCKSDBLIBS): deps 
 
 deps:
-	@-(cd ../deps && $(MAKE) rocksdb)
+	@-(cd $(BASEDIR)/deps && $(MAKE) rocksdb)
 
 clean: distclean 
 	@rm -f $(C_SRC_OUTPUT) $(OBJECTS)
 
 distclean:
-	@-(cd ../deps && $(MAKE) distclean)
+	@-(cd $(BASEDIR)/deps && $(MAKE) distclean)
