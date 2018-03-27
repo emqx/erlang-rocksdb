@@ -2,6 +2,6 @@ J = integer_to_list(
       erlang:max(3, erlang:system_info(schedulers))
      ),
 PreHooks = {pre_hooks,
-            [{"(linux|darwin|solaris)", compile, "make -j" ++ J ++ " -C c_src all"},
-             {"(freebsd|openbsd)", compile, "gmake -j" ++ J ++ " -C c_src all"}]},
+            [{"(linux|darwin|solaris)", compile, "make -l2.5 -j" ++ J ++ " -C c_src all"},
+             {"(freebsd|openbsd)", compile, "gmake -l2.5 -j" ++ J ++ " -C c_src all"}]},
 lists:keyreplace(pre_hooks, 1, CONFIG, PreHooks).

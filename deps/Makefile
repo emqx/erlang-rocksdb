@@ -81,13 +81,13 @@ distclean:
 
 $(SNAPPYLIB):
 	@cd snappy && touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
-	@cd snappy && ./configure --with-pic --disable-gtest
+	@cd snappy && CXX="$(CXX)" ./configure --with-pic --disable-gtest
 	@cd snappy && $(MAKE)
 
 .PHONY: snappy
 
 $(LZ4LIB):
-	@cd lz4 && $(MAKE) CFLAGS="-O2 -fPIC"
+	@cd lz4 && $(MAKE) CFLAGS="-O2 -fPIC" CXX="$(CXX)" 
 
 .PHONY: lz4
 
@@ -95,7 +95,7 @@ rocksdb: $(RDBLIB)
 
 $(RDBLIB): $(SNAPPYLIB) $(LZ4LIB)
 	@cd rocksdb && \
-		$(MAKE) static_lib EXTRA_CXXFLAGS=$(RDB_CXXFLAGS) EXTRA_LDFLAGS=$(RDB_LDFLAGS) USE_RTTI=1 DISABLE_JEMALLOC=1 DEBUG_LEVEL=0 PORTABLE=1 
+		CXX=$(CXX) CC=$(CC) $(MAKE) static_lib EXTRA_CXXFLAGS=$(RDB_CXXFLAGS) EXTRA_LDFLAGS=$(RDB_LDFLAGS) USE_RTTI=1 DISABLE_JEMALLOC=1 DEBUG_LEVEL=0 PORTABLE=1 
 
 .PHONY: rocksdb
 
