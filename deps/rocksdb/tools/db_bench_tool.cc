@@ -354,7 +354,7 @@ DEFINE_uint64(subcompactions, 1,
               "Maximum number of subcompactions to divide L0-L1 compactions "
               "into.");
 static const bool FLAGS_subcompactions_dummy
-    __attribute__((unused)) = RegisterFlagValidator(&FLAGS_subcompactions,
+    __attribute__((__unused__)) = RegisterFlagValidator(&FLAGS_subcompactions,
                                                     &ValidateUint32Range);
 
 DEFINE_int32(max_background_flushes,
@@ -416,6 +416,8 @@ DEFINE_bool(cache_index_and_filter_blocks, false,
 DEFINE_bool(partition_index_and_filters, false,
             "Partition index and filter blocks.");
 
+DEFINE_bool(partition_index, false, "Partition index blocks");
+
 DEFINE_int64(metadata_block_size,
              rocksdb::BlockBasedTableOptions().metadata_block_size,
              "Max partition size when partitioning index/filters");
@@ -445,6 +447,10 @@ DEFINE_int32(index_block_restart_interval,
 DEFINE_int32(read_amp_bytes_per_bit,
              rocksdb::BlockBasedTableOptions().read_amp_bytes_per_bit,
              "Number of bytes per bit to be used in block read-amp bitmap");
+
+DEFINE_bool(enable_index_compression,
+            rocksdb::BlockBasedTableOptions().enable_index_compression,
+            "Compress the index block");
 
 DEFINE_int64(compressed_cache_size, -1,
              "Number of bytes to use as a cache of compressed data.");
@@ -766,7 +772,7 @@ static bool ValidateCompressionLevel(const char* flagname, int32_t value) {
   return true;
 }
 
-static const bool FLAGS_compression_level_dummy __attribute__((unused)) =
+static const bool FLAGS_compression_level_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_compression_level, &ValidateCompressionLevel);
 
 DEFINE_int32(min_level_to_compress, -1, "If non-negative, compression starts"
@@ -844,6 +850,13 @@ DEFINE_bool(enable_pipelined_write, true,
 
 DEFINE_bool(allow_concurrent_memtable_write, true,
             "Allow multi-writers to update mem tables in parallel.");
+
+DEFINE_bool(inplace_update_support, rocksdb::Options().inplace_update_support,
+            "Support in-place memtable update for smaller or same-size values");
+
+DEFINE_uint64(inplace_update_num_locks,
+              rocksdb::Options().inplace_update_num_locks,
+              "Number of RW locks to protect in-place memtable updates");
 
 DEFINE_bool(enable_write_thread_adaptive_yield, true,
             "Use a yielding spin loop for brief writer thread waits.");
@@ -1030,31 +1043,31 @@ DEFINE_int32(skip_list_lookahead, 0, "Used with skip_list memtablerep; try "
 DEFINE_bool(report_file_operations, false, "if report number of file "
             "operations");
 
-static const bool FLAGS_soft_rate_limit_dummy __attribute__((unused)) =
+static const bool FLAGS_soft_rate_limit_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_soft_rate_limit, &ValidateRateLimit);
 
-static const bool FLAGS_hard_rate_limit_dummy __attribute__((unused)) =
+static const bool FLAGS_hard_rate_limit_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_hard_rate_limit, &ValidateRateLimit);
 
-static const bool FLAGS_prefix_size_dummy __attribute__((unused)) =
+static const bool FLAGS_prefix_size_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_prefix_size, &ValidatePrefixSize);
 
-static const bool FLAGS_key_size_dummy __attribute__((unused)) =
+static const bool FLAGS_key_size_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_key_size, &ValidateKeySize);
 
-static const bool FLAGS_cache_numshardbits_dummy __attribute__((unused)) =
+static const bool FLAGS_cache_numshardbits_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_cache_numshardbits,
                           &ValidateCacheNumshardbits);
 
-static const bool FLAGS_readwritepercent_dummy __attribute__((unused)) =
+static const bool FLAGS_readwritepercent_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_readwritepercent, &ValidateInt32Percent);
 
 DEFINE_int32(disable_seek_compaction, false,
              "Not used, left here for backwards compatibility");
 
-static const bool FLAGS_deletepercent_dummy __attribute__((unused)) =
+static const bool FLAGS_deletepercent_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_deletepercent, &ValidateInt32Percent);
-static const bool FLAGS_table_cache_numshardbits_dummy __attribute__((unused)) =
+static const bool FLAGS_table_cache_numshardbits_dummy __attribute__((__unused__)) =
     RegisterFlagValidator(&FLAGS_table_cache_numshardbits,
                           &ValidateTableCacheNumshardbits);
 
@@ -3064,6 +3077,12 @@ void VerifyDBFromDB(std::string& truth_db_name) {
         fprintf(stderr, "Invalid cuckoo_hash_ratio\n");
         exit(1);
       }
+
+      if (!FLAGS_mmap_read) {
+        fprintf(stderr, "cuckoo table format requires mmap read to operate\n");
+        exit(1);
+      }
+
       rocksdb::CuckooTableOptions table_options;
       table_options.hash_table_ratio = FLAGS_cuckoo_hash_ratio;
       table_options.identity_as_first_hash = FLAGS_identity_as_first_hash;
@@ -3085,16 +3104,18 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       } else {
         block_based_options.index_type = BlockBasedTableOptions::kBinarySearch;
       }
-      if (FLAGS_partition_index_and_filters) {
+      if (FLAGS_partition_index_and_filters || FLAGS_partition_index) {
         if (FLAGS_use_hash_search) {
           fprintf(stderr,
                   "use_hash_search is incompatible with "
-                  "partition_index_and_filters and is ignored");
+                  "partition index and is ignored");
         }
         block_based_options.index_type =
             BlockBasedTableOptions::kTwoLevelIndexSearch;
-        block_based_options.partition_filters = true;
         block_based_options.metadata_block_size = FLAGS_metadata_block_size;
+        if (FLAGS_partition_index_and_filters) {
+          block_based_options.partition_filters = true;
+        }
       }
       if (cache_ == nullptr) {
         block_based_options.no_block_cache = true;
@@ -3116,6 +3137,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       block_based_options.filter_policy = filter_policy_;
       block_based_options.format_version = 2;
       block_based_options.read_amp_bytes_per_bit = FLAGS_read_amp_bytes_per_bit;
+      block_based_options.enable_index_compression =
+          FLAGS_enable_index_compression;
       if (FLAGS_read_cache_path != "") {
 #ifndef ROCKSDB_LITE
         Status rc_status;
@@ -3198,6 +3221,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
     options.delayed_write_rate = FLAGS_delayed_write_rate;
     options.allow_concurrent_memtable_write =
         FLAGS_allow_concurrent_memtable_write;
+    options.inplace_update_support = FLAGS_inplace_update_support;
+    options.inplace_update_num_locks = FLAGS_inplace_update_num_locks;
     options.enable_write_thread_adaptive_yield =
         FLAGS_enable_write_thread_adaptive_yield;
     options.enable_pipelined_write = FLAGS_enable_pipelined_write;
@@ -3495,7 +3520,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
         case RANDOM:
           return rand_->Next() % num_;
         case UNIQUE_RANDOM:
-          assert(next_ + 1 < num_);
+          assert(next_ < num_);
           return values_[next_++];
       }
       assert(false);

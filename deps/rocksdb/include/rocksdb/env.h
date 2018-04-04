@@ -819,8 +819,13 @@ class Logger {
   size_t kDoNotSupportGetLogFileSize = (std::numeric_limits<size_t>::max)();
 
   explicit Logger(const InfoLogLevel log_level = InfoLogLevel::INFO_LEVEL)
-      : log_level_(log_level) {}
+      : closed_(false), log_level_(log_level) {}
   virtual ~Logger();
+
+  // Close the log file. Must be called before destructor. If the return
+  // status is NotSupported(), it means the implementation does cleanup in
+  // the destructor
+  virtual Status Close();
 
   // Write a header to the log file with the specified format
   // It is recommended that you log all header information at the start of the
@@ -847,6 +852,10 @@ class Logger {
   virtual void SetInfoLogLevel(const InfoLogLevel log_level) {
     log_level_ = log_level;
   }
+
+ protected:
+  virtual Status CloseImpl();
+  bool closed_;
 
  private:
   // No copying allowed

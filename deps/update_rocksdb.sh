@@ -1,6 +1,6 @@
 #!/bin/bash
 TAG=$1
-URL="https://github.com/facebook/rocksdb/archive/$TAG.tar.gz"
+URL="https://github.com/facebook/rocksdb/archive/v$TAG.tar.gz"
 echo "Downloading $URL"
 curl -o /tmp/rocksdb.tar.gz -L $URL
 tar xvzf /tmp/rocksdb.tar.gz

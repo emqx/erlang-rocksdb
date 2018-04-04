@@ -483,6 +483,36 @@ TEST_F(DBTest, SingleDeletePutFlush) {
 // Disable because not all platform can run it.
 // It requires more than 9GB memory to run it, With single allocation
 // of more than 3GB.
+TEST_F(DBTest, DISABLED_SanitizeVeryVeryLargeValue) {
+  const size_t kValueSize = 4 * size_t{1024 * 1024 * 1024};  // 4GB value
+  std::string raw(kValueSize, 'v');
+  Options options = CurrentOptions();
+  options.env = env_;
+  options.merge_operator = MergeOperators::CreatePutOperator();
+  options.write_buffer_size = 100000;  // Small write buffer
+  options.paranoid_checks = true;
+  DestroyAndReopen(options);
+
+  ASSERT_OK(Put("boo", "v1"));
+  ASSERT_TRUE(Put("foo", raw).IsInvalidArgument());
+  ASSERT_TRUE(Merge("foo", raw).IsInvalidArgument());
+
+  WriteBatch wb;
+  ASSERT_TRUE(wb.Put("foo", raw).IsInvalidArgument());
+  ASSERT_TRUE(wb.Merge("foo", raw).IsInvalidArgument());
+
+  Slice value_slice = raw;
+  Slice key_slice = "foo";
+  SliceParts sp_key(&key_slice, 1);
+  SliceParts sp_value(&value_slice, 1);
+
+  ASSERT_TRUE(wb.Put(sp_key, sp_value).IsInvalidArgument());
+  ASSERT_TRUE(wb.Merge(sp_key, sp_value).IsInvalidArgument());
+}
+
+// Disable because not all platform can run it.
+// It requires more than 9GB memory to run it, With single allocation
+// of more than 3GB.
 TEST_F(DBTest, DISABLED_VeryLargeValue) {
   const size_t kValueSize = 3221225472u;  // 3GB value
   const size_t kKeySize = 8388608u;       // 8MB key
@@ -503,7 +533,9 @@ TEST_F(DBTest, DISABLED_VeryLargeValue) {
   ASSERT_OK(Put(key2, raw));
   dbfull()->TEST_WaitForFlushMemTable();
 
+#ifndef ROCKSDB_LITE
   ASSERT_EQ(1, NumTableFilesAtLevel(0));
+#endif  // !ROCKSDB_LITE
 
   std::string value;
   Status s = db_->Get(ReadOptions(), key1, &value);
@@ -2191,6 +2223,8 @@ class ModelDB : public DB {
     batch.Put(cf, k, v);
     return Write(o, &batch);
   }
+  using DB::Close;
+  virtual Status Close() override { return Status::OK(); }
   using DB::Delete;
   virtual Status Delete(const WriteOptions& o, ColumnFamilyHandle* cf,
                         const Slice& key) override {
@@ -5054,55 +5088,84 @@ TEST_F(DBTest, PromoteL0Failure) {
   status = experimental::PromoteL0(db_, db_->DefaultColumnFamily());
   ASSERT_TRUE(status.IsInvalidArgument());
 }
-#endif  // ROCKSDB_LITE
 
 // Github issue #596
-TEST_F(DBTest, HugeNumberOfLevels) {
+TEST_F(DBTest, CompactRangeWithEmptyBottomLevel) {
+  const int kNumLevels = 2;
+  const int kNumL0Files = 2;
   Options options = CurrentOptions();
-  options.write_buffer_size = 2 * 1024 * 1024;         // 2MB
-  options.max_bytes_for_level_base = 2 * 1024 * 1024;  // 2MB
-  options.num_levels = 12;
-  options.max_background_compactions = 10;
-  options.max_bytes_for_level_multiplier = 2;
-  options.level_compaction_dynamic_level_bytes = true;
+  options.disable_auto_compactions = true;
+  options.num_levels = kNumLevels;
   DestroyAndReopen(options);
 
   Random rnd(301);
-  for (int i = 0; i < 300000; ++i) {
-    ASSERT_OK(Put(Key(i), RandomString(&rnd, 1024)));
+  for (int i = 0; i < kNumL0Files; ++i) {
+    ASSERT_OK(Put(Key(0), RandomString(&rnd, 1024)));
+    Flush();
   }
+  ASSERT_EQ(NumTableFilesAtLevel(0), kNumL0Files);
+  ASSERT_EQ(NumTableFilesAtLevel(1), 0);
 
   ASSERT_OK(db_->CompactRange(CompactRangeOptions(), nullptr, nullptr));
+  ASSERT_EQ(NumTableFilesAtLevel(0), 0);
+  ASSERT_EQ(NumTableFilesAtLevel(1), kNumL0Files);
 }
+#endif  // ROCKSDB_LITE
 
 TEST_F(DBTest, AutomaticConflictsWithManualCompaction) {
+  const int kNumL0Files = 50;
   Options options = CurrentOptions();
-  options.write_buffer_size = 2 * 1024 * 1024;         // 2MB
-  options.max_bytes_for_level_base = 2 * 1024 * 1024;  // 2MB
-  options.num_levels = 12;
+  options.level0_file_num_compaction_trigger = 4;
+  // never slowdown / stop
+  options.level0_slowdown_writes_trigger = 999999;
+  options.level0_stop_writes_trigger = 999999;
   options.max_background_compactions = 10;
-  options.max_bytes_for_level_multiplier = 2;
-  options.level_compaction_dynamic_level_bytes = true;
   DestroyAndReopen(options);
 
-  Random rnd(301);
-  for (int i = 0; i < 300000; ++i) {
-    ASSERT_OK(Put(Key(i), RandomString(&rnd, 1024)));
-  }
-
+  // schedule automatic compactions after the manual one starts, but before it
+  // finishes to ensure conflict.
+  rocksdb::SyncPoint::GetInstance()->LoadDependency(
+      {{"DBImpl::BackgroundCompaction:Start",
+        "DBTest::AutomaticConflictsWithManualCompaction:PrePuts"},
+       {"DBTest::AutomaticConflictsWithManualCompaction:PostPuts",
+        "DBImpl::BackgroundCompaction:NonTrivial:AfterRun"}});
   std::atomic<int> callback_count(0);
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "DBImpl::BackgroundCompaction()::Conflict",
+      "DBImpl::MaybeScheduleFlushOrCompaction:Conflict",
       [&](void* arg) { callback_count.fetch_add(1); });
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
-  CompactRangeOptions croptions;
-  croptions.exclusive_manual_compaction = false;
-  ASSERT_OK(db_->CompactRange(croptions, nullptr, nullptr));
+
+  Random rnd(301);
+  for (int i = 0; i < 2; ++i) {
+    // put two keys to ensure no trivial move
+    for (int j = 0; j < 2; ++j) {
+      ASSERT_OK(Put(Key(j), RandomString(&rnd, 1024)));
+    }
+    ASSERT_OK(Flush());
+  }
+  std::thread manual_compaction_thread([this]() {
+    CompactRangeOptions croptions;
+    croptions.exclusive_manual_compaction = true;
+    ASSERT_OK(db_->CompactRange(croptions, nullptr, nullptr));
+  });
+
+  TEST_SYNC_POINT("DBTest::AutomaticConflictsWithManualCompaction:PrePuts");
+  for (int i = 0; i < kNumL0Files; ++i) {
+    // put two keys to ensure no trivial move
+    for (int j = 0; j < 2; ++j) {
+      ASSERT_OK(Put(Key(j), RandomString(&rnd, 1024)));
+    }
+    ASSERT_OK(Flush());
+  }
+  TEST_SYNC_POINT("DBTest::AutomaticConflictsWithManualCompaction:PostPuts");
+
   ASSERT_GE(callback_count.load(), 1);
-  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
-  for (int i = 0; i < 300000; ++i) {
+  for (int i = 0; i < 2; ++i) {
     ASSERT_NE("NOT_FOUND", Get(Key(i)));
   }
+  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
+  manual_compaction_thread.join();
+  dbfull()->TEST_WaitForCompact();
 }
 
 // Github issue #595
@@ -5322,12 +5385,15 @@ class WriteStallListener : public EventListener {
  public:
   WriteStallListener() : condition_(WriteStallCondition::kNormal) {}
   void OnStallConditionsChanged(const WriteStallInfo& info) override {
+    MutexLock l(&mutex_);
     condition_ = info.condition.cur;
   }
   bool CheckCondition(WriteStallCondition expected) {
+    MutexLock l(&mutex_);
     return expected == condition_;
   }
  private:
+  port::Mutex mutex_;
   WriteStallCondition condition_;
 };
 

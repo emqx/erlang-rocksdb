@@ -49,6 +49,20 @@ Status WritePreparedTxnDB::Initialize(
   return s;
 }
 
+Status WritePreparedTxnDB::VerifyCFOptions(
+    const ColumnFamilyOptions& cf_options) {
+  Status s = PessimisticTransactionDB::VerifyCFOptions(cf_options);
+  if (!s.ok()) {
+    return s;
+  }
+  if (!cf_options.memtable_factory->CanHandleDuplicatedKey()) {
+    return Status::InvalidArgument(
+        "memtable_factory->CanHandleDuplicatedKey() cannot be false with "
+        "WritePrpeared transactions");
+  }
+  return Status::OK();
+}
+
 Transaction* WritePreparedTxnDB::BeginTransaction(
     const WriteOptions& write_options, const TransactionOptions& txn_options,
     Transaction* old_txn) {
@@ -58,6 +72,102 @@ Transaction* WritePreparedTxnDB::BeginTransaction(
   } else {
     return new WritePreparedTxn(this, write_options, txn_options);
   }
+}
+
+Status WritePreparedTxnDB::Write(
+    const WriteOptions& opts,
+    const TransactionDBWriteOptimizations& optimizations, WriteBatch* updates) {
+  if (optimizations.skip_concurrency_control) {
+    // Skip locking the rows
+    const size_t UNKNOWN_BATCH_CNT = 0;
+    const size_t ONE_BATCH_CNT = 1;
+    const size_t batch_cnt = optimizations.skip_duplicate_key_check
+                                 ? ONE_BATCH_CNT
+                                 : UNKNOWN_BATCH_CNT;
+    WritePreparedTxn* NO_TXN = nullptr;
+    return WriteInternal(opts, updates, batch_cnt, NO_TXN);
+  } else {
+    // TODO(myabandeh): Make use of skip_duplicate_key_check hint
+    // Fall back to unoptimized version
+    return PessimisticTransactionDB::Write(opts, updates);
+  }
+}
+
+Status WritePreparedTxnDB::WriteInternal(const WriteOptions& write_options_orig,
+                                         WriteBatch* batch, size_t batch_cnt,
+                                         WritePreparedTxn* txn) {
+  ROCKS_LOG_DETAILS(db_impl_->immutable_db_options().info_log,
+                    "CommitBatchInternal");
+  if (batch->Count() == 0) {
+    // Otherwise our 1 seq per batch logic will break since there is no seq
+    // increased for this batch.
+    return Status::OK();
+  }
+  if (batch_cnt == 0) {  // not provided, then compute it
+    // TODO(myabandeh): add an option to allow user skipping this cost
+    SubBatchCounter counter(*GetCFComparatorMap());
+    auto s = batch->Iterate(&counter);
+    assert(s.ok());
+    batch_cnt = counter.BatchCount();
+    // TODO(myabandeh): replace me with a stat
+    ROCKS_LOG_WARN(info_log_, "Duplicate key overhead: %" PRIu64 " batches",
+                   static_cast<uint64_t>(batch_cnt));
+  }
+  assert(batch_cnt);
+
+  bool do_one_write = !db_impl_->immutable_db_options().two_write_queues;
+  WriteOptions write_options(write_options_orig);
+  bool sync = write_options.sync;
+  if (!do_one_write) {
+    // No need to sync on the first write
+    write_options.sync = false;
+  }
+  // In the absence of Prepare markers, use Noop as a batch separator
+  WriteBatchInternal::InsertNoop(batch);
+  const bool DISABLE_MEMTABLE = true;
+  const uint64_t no_log_ref = 0;
+  uint64_t seq_used = kMaxSequenceNumber;
+  const size_t ZERO_PREPARES = 0;
+  WritePreparedCommitEntryPreReleaseCallback update_commit_map(
+      this, db_impl_, kMaxSequenceNumber, ZERO_PREPARES, batch_cnt);
+  auto s = db_impl_->WriteImpl(
+      write_options, batch, nullptr, nullptr, no_log_ref, !DISABLE_MEMTABLE,
+      &seq_used, batch_cnt, do_one_write ? &update_commit_map : nullptr);
+  assert(!s.ok() || seq_used != kMaxSequenceNumber);
+  uint64_t& prepare_seq = seq_used;
+  if (txn != nullptr) {
+    txn->SetId(prepare_seq);
+  }
+  if (!s.ok()) {
+    return s;
+  }
+  if (do_one_write) {
+    return s;
+  }  // else do the 2nd write for commit
+  // Set the original value of sync
+  write_options.sync = sync;
+  ROCKS_LOG_DETAILS(db_impl_->immutable_db_options().info_log,
+                    "CommitBatchInternal 2nd write prepare_seq: %" PRIu64,
+                    prepare_seq);
+  // TODO(myabandeh): What if max advances the prepare_seq_ in the meanwhile and
+  // readers assume the prepared data as committed? Almost zero probability.
+
+  // Commit the batch by writing an empty batch to the 2nd queue that will
+  // release the commit sequence number to readers.
+  const size_t ZERO_COMMITS = 0;
+  const bool PREP_HEAP_SKIPPED = true;
+  WritePreparedCommitEntryPreReleaseCallback update_commit_map_with_prepare(
+      this, db_impl_, prepare_seq, batch_cnt, ZERO_COMMITS, PREP_HEAP_SKIPPED);
+  WriteBatch empty_batch;
+  empty_batch.PutLogData(Slice());
+  const size_t ONE_BATCH = 1;
+  // In the absence of Prepare markers, use Noop as a batch separator
+  WriteBatchInternal::InsertNoop(&empty_batch);
+  s = db_impl_->WriteImpl(write_options, &empty_batch, nullptr, nullptr,
+                          no_log_ref, DISABLE_MEMTABLE, &seq_used, ONE_BATCH,
+                          &update_commit_map_with_prepare);
+  assert(!s.ok() || seq_used != kMaxSequenceNumber);
+  return s;
 }
 
 Status WritePreparedTxnDB::Get(const ReadOptions& options,
@@ -76,6 +186,31 @@ Status WritePreparedTxnDB::Get(const ReadOptions& options,
   return db_impl_->GetImpl(options, column_family, key, value, dont_care,
                            &callback);
 }
+
+void WritePreparedTxnDB::UpdateCFComparatorMap(
+    const std::vector<ColumnFamilyHandle*>& handles) {
+  auto cf_map = new std::map<uint32_t, const Comparator*>();
+  for (auto h : handles) {
+    auto id = h->GetID();
+    const Comparator* comparator = h->GetComparator();
+    (*cf_map)[id] = comparator;
+  }
+  cf_map_.store(cf_map);
+  cf_map_gc_.reset(cf_map);
+}
+
+void WritePreparedTxnDB::UpdateCFComparatorMap(
+    const ColumnFamilyHandle* h) {
+  auto old_cf_map_ptr = cf_map_.load();
+  assert(old_cf_map_ptr);
+  auto cf_map = new std::map<uint32_t, const Comparator*>(*old_cf_map_ptr);
+  auto id = h->GetID();
+  const Comparator* comparator = h->GetComparator();
+  (*cf_map)[id] = comparator;
+  cf_map_.store(cf_map);
+  cf_map_gc_.reset(cf_map);
+}
+
 
 std::vector<Status> WritePreparedTxnDB::MultiGet(
     const ReadOptions& options,
@@ -201,6 +336,9 @@ bool WritePreparedTxnDB::IsInSnapshot(uint64_t prep_seq,
   if (!delayed_prepared_empty_.load(std::memory_order_acquire)) {
     // We should not normally reach here
     ReadLock rl(&prepared_mutex_);
+    // TODO(myabandeh): also add a stat
+    ROCKS_LOG_WARN(info_log_, "prepared_mutex_ overhead %" PRIu64,
+                   static_cast<uint64_t>(delayed_prepared_.size()));
     if (delayed_prepared_.find(prep_seq) != delayed_prepared_.end()) {
       // Then it is not committed yet
       ROCKS_LOG_DETAILS(
@@ -262,6 +400,8 @@ bool WritePreparedTxnDB::IsInSnapshot(uint64_t prep_seq,
     // We should not normally reach here unless sapshot_seq is old. This is a
     // rare case and it is ok to pay the cost of mutex ReadLock for such old,
     // reading transactions.
+    // TODO(myabandeh): also add a stat
+    ROCKS_LOG_WARN(info_log_, "old_commit_map_mutex_ overhead");
     ReadLock rl(&old_commit_map_mutex_);
     auto prep_set_entry = old_commit_map_.find(snapshot_seq);
     bool found = prep_set_entry != old_commit_map_.end();
@@ -325,8 +465,10 @@ void WritePreparedTxnDB::RollbackPrepared(uint64_t prep_seq,
 
 void WritePreparedTxnDB::AddCommitted(uint64_t prepare_seq, uint64_t commit_seq,
                                       bool prepare_skipped, uint8_t loop_cnt) {
-  ROCKS_LOG_DETAILS(info_log_, "Txn %" PRIu64 " Committing with %" PRIu64,
-                    prepare_seq, commit_seq);
+  ROCKS_LOG_DETAILS(info_log_,
+                    "Txn %" PRIu64 " Committing with %" PRIu64
+                    "(prepare_skipped=%d)",
+                    prepare_seq, commit_seq, prepare_skipped);
   TEST_SYNC_POINT("WritePreparedTxnDB::AddCommitted:start");
   TEST_SYNC_POINT("WritePreparedTxnDB::AddCommitted:start:pause");
   auto indexed_seq = prepare_seq % COMMIT_CACHE_SIZE;
@@ -403,8 +545,11 @@ bool WritePreparedTxnDB::ExchangeCommitEntry(const uint64_t indexed_seq,
   return succ;
 }
 
-void WritePreparedTxnDB::AdvanceMaxEvictedSeq(SequenceNumber& prev_max,
-                                              SequenceNumber& new_max) {
+void WritePreparedTxnDB::AdvanceMaxEvictedSeq(const SequenceNumber& prev_max,
+                                              const SequenceNumber& new_max) {
+  ROCKS_LOG_DETAILS(info_log_,
+                    "AdvanceMaxEvictedSeq overhead %" PRIu64 " => %" PRIu64,
+                    prev_max, new_max);
   // When max_evicted_seq_ advances, move older entries from prepared_txns_
   // to delayed_prepared_. This guarantees that if a seq is lower than max,
   // then it is not in prepared_txns_ ans save an expensive, synchronized
@@ -415,6 +560,12 @@ void WritePreparedTxnDB::AdvanceMaxEvictedSeq(SequenceNumber& prev_max,
     while (!prepared_txns_.empty() && prepared_txns_.top() <= new_max) {
       auto to_be_popped = prepared_txns_.top();
       delayed_prepared_.insert(to_be_popped);
+      // TODO(myabandeh): also add a stat
+      ROCKS_LOG_WARN(info_log_,
+                     "prepared_mutex_ overhead %" PRIu64 " (prep=%" PRIu64
+                     " new_max=%" PRIu64 " oldmax=%" PRIu64,
+                     static_cast<uint64_t>(delayed_prepared_.size()),
+                     to_be_popped, new_max, prev_max);
       prepared_txns_.pop();
       delayed_prepared_empty_.store(false, std::memory_order_release);
     }
@@ -437,9 +588,11 @@ void WritePreparedTxnDB::AdvanceMaxEvictedSeq(SequenceNumber& prev_max,
   if (update_snapshots) {
     UpdateSnapshots(snapshots, new_snapshots_version);
   }
-  while (prev_max < new_max && !max_evicted_seq_.compare_exchange_weak(
-                                   prev_max, new_max, std::memory_order_acq_rel,
-                                   std::memory_order_relaxed)) {
+  auto updated_prev_max = prev_max;
+  while (updated_prev_max < new_max &&
+         !max_evicted_seq_.compare_exchange_weak(updated_prev_max, new_max,
+                                                 std::memory_order_acq_rel,
+                                                 std::memory_order_relaxed)) {
   };
 }
 
@@ -467,11 +620,15 @@ void WritePreparedTxnDB::ReleaseSnapshotInternal(
     // old_commit_map_. Check and do garbage collection if that is the case.
     bool need_gc = false;
     {
+      // TODO(myabandeh): also add a stat
+      ROCKS_LOG_WARN(info_log_, "old_commit_map_mutex_ overhead");
       ReadLock rl(&old_commit_map_mutex_);
       auto prep_set_entry = old_commit_map_.find(snap_seq);
       need_gc = prep_set_entry != old_commit_map_.end();
     }
     if (need_gc) {
+      // TODO(myabandeh): also add a stat
+      ROCKS_LOG_WARN(info_log_, "old_commit_map_mutex_ overhead");
       WriteLock wl(&old_commit_map_mutex_);
       old_commit_map_.erase(snap_seq);
       old_commit_map_empty_.store(old_commit_map_.empty(),
@@ -490,6 +647,8 @@ void WritePreparedTxnDB::UpdateSnapshots(
 #ifndef NDEBUG
   size_t sync_i = 0;
 #endif
+  // TODO(myabandeh): replace me with a stat
+  ROCKS_LOG_WARN(info_log_, "snapshots_mutex_ overhead");
   WriteLock wl(&snapshots_mutex_);
   snapshots_version_ = version;
   // We update the list concurrently with the readers.
@@ -569,6 +728,8 @@ void WritePreparedTxnDB::CheckAgainstSnapshots(const CommitEntry& evicted) {
   if (UNLIKELY(SNAPSHOT_CACHE_SIZE < cnt && ip1 == SNAPSHOT_CACHE_SIZE &&
                snapshot_seq < evicted.prep_seq)) {
     // Then access the less efficient list of snapshots_
+    // TODO(myabandeh): also add a stat
+    ROCKS_LOG_WARN(info_log_, "snapshots_mutex_ overhead");
     ReadLock rl(&snapshots_mutex_);
     // Items could have moved from the snapshots_ to snapshot_cache_ before
     // accquiring the lock. To make sure that we do not miss a valid snapshot,
@@ -601,6 +762,8 @@ bool WritePreparedTxnDB::MaybeUpdateOldCommitMap(
   }
   // then snapshot_seq < commit_seq
   if (prep_seq <= snapshot_seq) {  // overlapping range
+    ROCKS_LOG_WARN(info_log_, "old_commit_map_mutex_ overhead");
+    // TODO(myabandeh): also add a stat
     WriteLock wl(&old_commit_map_mutex_);
     old_commit_map_empty_.store(false, std::memory_order_release);
     auto& vec = old_commit_map_[snapshot_seq];
@@ -618,6 +781,20 @@ WritePreparedTxnDB::~WritePreparedTxnDB() {
   // SnapshotChecker, which holds a pointer back to WritePreparedTxnDB.
   // Make sure those jobs finished before destructing WritePreparedTxnDB.
   db_impl_->CancelAllBackgroundWork(true /*wait*/);
+}
+
+void SubBatchCounter::AddKey(const uint32_t cf, const Slice& key) {
+  CFKeys& cf_keys = keys_[cf];
+  if (cf_keys.size() == 0) {  // just inserted
+    auto cmp = comparators_[cf];
+    keys_[cf] = CFKeys(SetComparator(cmp));
+  }
+  auto it = cf_keys.insert(key);
+  if (it.second == false) {  // second is false if a element already existed.
+    batches_++;
+    keys_.clear();
+    keys_[cf].insert(key);
+  }
 }
 
 }  //  namespace rocksdb

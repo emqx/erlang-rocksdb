@@ -30,6 +30,7 @@ namespace rocksdb {
 
 class Version;
 class VersionSet;
+class VersionStorageInfo;
 class MemTable;
 class MemTableListVersion;
 class CompactionPicker;
@@ -202,6 +203,10 @@ class ColumnFamilyData {
   void SetLogNumber(uint64_t log_number) { log_number_ = log_number; }
   uint64_t GetLogNumber() const { return log_number_; }
 
+  void SetFlushReason(FlushReason flush_reason) {
+    flush_reason_ = flush_reason;
+  }
+  FlushReason GetFlushReason() const { return flush_reason_; }
   // thread-safe
   const EnvOptions* soptions() const;
   const ImmutableCFOptions* ioptions() const { return &ioptions_; }
@@ -269,6 +274,16 @@ class ColumnFamilyData {
                                   const Slice& largest_user_key,
                                   int level) const;
 
+  // Check if the passed ranges overlap with any unflushed memtables
+  // (immutable or mutable).
+  //
+  // @param super_version A referenced SuperVersion that will be held for the
+  //    duration of this function.
+  //
+  // Thread-safe
+  Status RangesOverlapWithMemtables(const autovector<Range>& ranges,
+                                    SuperVersion* super_version, bool* overlap);
+
   // A flag to tell a manual compaction is to compact all levels together
   // instead of a specific level.
   static const int kCompactAllLevels;
@@ -330,6 +345,17 @@ class ColumnFamilyData {
   void set_pending_compaction(bool value) { pending_compaction_ = value; }
   bool pending_flush() { return pending_flush_; }
   bool pending_compaction() { return pending_compaction_; }
+
+  enum class WriteStallCause {
+    kNone,
+    kMemtableLimit,
+    kL0FileCountLimit,
+    kPendingCompactionBytes,
+  };
+  static std::pair<WriteStallCondition, WriteStallCause>
+  GetWriteStallConditionAndCause(int num_unflushed_memtables, int num_l0_files,
+                                 uint64_t num_compaction_needed_bytes,
+                                 const MutableCFOptions& mutable_cf_options);
 
   // Recalculate some small conditions, which are changed only during
   // compaction, adding new memtable and/or
@@ -403,6 +429,8 @@ class ColumnFamilyData {
   // Column Family. All earlier log files must be ignored and not
   // recovered from
   uint64_t log_number_;
+
+  std::atomic<FlushReason> flush_reason_;
 
   // An object that keeps all the compaction stats
   // and picks the next compaction

@@ -23,7 +23,7 @@ class DBImpl;
 class Env;
 struct SuperVersion;
 class ColumnFamilyData;
-class LevelIterator;
+class ForwardLevelIterator;
 class VersionStorageInfo;
 struct FileMetaData;
 
@@ -85,7 +85,14 @@ class ForwardIterator : public InternalIterator {
 
  private:
   void Cleanup(bool release_sv);
+  // Unreference and, if needed, clean up the current SuperVersion. This is
+  // either done immediately or deferred until this iterator is unpinned by
+  // PinnedIteratorsManager.
   void SVCleanup();
+  static void SVCleanup(
+    DBImpl* db, SuperVersion* sv, bool background_purge_on_iterator_cleanup);
+  static void DeferredSVCleanup(void* arg);
+
   void RebuildIterators(bool refresh_sv);
   void RenewIterators();
   void BuildLevelIterators(const VersionStorageInfo* vstorage);
@@ -119,7 +126,7 @@ class ForwardIterator : public InternalIterator {
   InternalIterator* mutable_iter_;
   std::vector<InternalIterator*> imm_iters_;
   std::vector<InternalIterator*> l0_iters_;
-  std::vector<LevelIterator*> level_iters_;
+  std::vector<ForwardLevelIterator*> level_iters_;
   InternalIterator* current_;
   bool valid_;
 

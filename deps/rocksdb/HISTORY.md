@@ -1,11 +1,42 @@
 # Rocksdb Change Log
-## 5.11.2 (02/24/2018)
+## 5.12.2 (3/23/2018)
 ### Bug Fixes
-* Fix bug in iterator readahead causing blocks to incorrectly be considered truncated (corrupted).
+* Fsync after writing global seq number to the ingestion file in ExternalSstFileIngestionJob.
 
-## 5.11.1 (02/22/2018)
+### Java API Changes
+* Add `BlockBasedTableConfig.setBlockCache` to allow sharing a block cache across DB instances.
+
+## 5.12.1 (3/16/2018)
+### Public API Change
+* RocksDBOptionsParser::Parse()'s `ignore_unknown_options` argument will only be effective if the option file shows it is generated using a higher version of RocksDB than the current version.
+
 ### New Features
-* Follow rsync-style naming convention for BackupEngine tempfiles. This enables some optimizations when run on GlusterFS.
+* Avoid unnecessarily flushing in `CompactRange()` when the range specified by the user does not overlap unflushed memtables.
+
+### Bug Fixes
+* Fix WAL corruption caused by race condition between user write thread and backup/checkpoint thread.
+
+## 5.12.0 (2/14/2018)
+### Public API Change
+* Iterator::SeekForPrev is now a pure virtual method. This is to prevent user who implement the Iterator interface fail to implement SeekForPrev by mistake.
+* Add `include_end` option to make the range end exclusive when `include_end == false` in `DeleteFilesInRange()`.
+* Add `CompactRangeOptions::allow_write_stall`, which makes `CompactRange` start working immediately, even if it causes user writes to stall. The default value is false, meaning we add delay to `CompactRange` calls until stalling can be avoided when possible. Note this delay is not present in previous RocksDB versions.
+* Creating checkpoint with empty directory now returns `Status::InvalidArgument`; previously, it returned `Status::IOError`.
+* Adds a BlockBasedTableOption to turn off index block compression.
+* Close() method now returns a status when closing a db.
+
+### New Features
+* Improve the performance of iterators doing long range scans by using readahead.
+* Add new function `DeleteFilesInRanges()` to delete files in multiple ranges at once for better performance.
+* FreeBSD build support for RocksDB and RocksJava.
+* Improved performance of long range scans with readahead.
+* Updated to and now continuously tested in Visual Studio 2017.
+
+### Bug Fixes
+* Fix `DisableFileDeletions()` followed by `GetSortedWalFiles()` to not return obsolete WAL files that `PurgeObsoleteFiles()` is going to delete.
+* Fix Handle error return from WriteBuffer() during WAL file close and DB close.
+* Fix advance reservation of arena block addresses.
+* Fix handling of empty string as checkpoint directory.
 
 ## 5.11.0 (01/08/2018)
 ### Public API Change
@@ -32,8 +63,6 @@
 * Provide lifetime hints when writing files on Linux. This reduces hardware write-amp on storage devices supporting multiple streams.
 * Add a DB stat, `NUMBER_ITER_SKIP`, which returns how many internal keys were skipped during iterations (e.g., due to being tombstones or duplicate versions of a key).
 * Add PerfContext counters, `key_lock_wait_count` and `key_lock_wait_time`, which measure the number of times transactions wait on key locks and total amount of time waiting.
-* Support dynamically changing `ColumnFamilyOptions::compaction_options_universal`.
-* Batch update stats at the end of each `Get`, rather than for each block cache access.
 
 ### Bug Fixes
 * Fix IOError on WAL write doesn't propagate to write group follower
