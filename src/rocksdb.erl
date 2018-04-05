@@ -468,22 +468,22 @@ write(DBHandle, WriteOps, WriteOpts) ->
   after release_batch(Batch)
   end.
 
-write_1([{put, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
+write_1([{put, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_put(Batch, Key, Value),
   write_1(Rest, Batch, DbHandle, WriteOpts);
-write_1([{put, CfHandle, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
+write_1([{put, CfHandle, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_put(Batch, CfHandle, Key, Value),
   write_1(Rest, Batch, DbHandle, WriteOpts);
-write_1([{delete, Key} | Rest], Batch, DbHandle, WriteOpts) ->
+write_1([{delete, Key} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_delete(Batch, Key),
   write_1(Rest, Batch, DbHandle, WriteOpts);
-write_1([{delete, CfHandle, Key} | Rest], Batch, DbHandle, WriteOpts) ->
+write_1([{delete, CfHandle, Key} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_delete(Batch, CfHandle, Key),
   write_1(Rest, Batch, DbHandle, WriteOpts);
-write_1([{single_delete, Key} | Rest], Batch, DbHandle, WriteOpts) ->
+write_1([{single_delete, Key} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_single_delete(Batch, Key),
   write_1(Rest, Batch, DbHandle, WriteOpts);
-write_1([{single_delete, CfHandle, Key} | Rest], Batch, DbHandle, WriteOpts) ->
+write_1([{single_delete, CfHandle, Key} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_single_delete(Batch, CfHandle, Key),
   write_1(Rest, Batch, DbHandle, WriteOpts);
 write_1([_ | _], _Batch, _DbHandle, _WriteOpts) ->
