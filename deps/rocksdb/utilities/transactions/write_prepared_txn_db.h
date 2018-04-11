@@ -73,6 +73,17 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
                                 const TransactionOptions& txn_options,
                                 Transaction* old_txn) override;
 
+  // Optimized version of ::Write that receives more optimization request such
+  // as skip_concurrency_control.
+  using PessimisticTransactionDB::Write;
+  Status Write(const WriteOptions& opts, const TransactionDBWriteOptimizations&,
+               WriteBatch* updates) override;
+
+  // Write the batch to the underlying DB and mark it as committed. Could be
+  // used by both directly from TxnDB or through a transaction.
+  Status WriteInternal(const WriteOptions& write_options, WriteBatch* batch,
+                       size_t batch_cnt, WritePreparedTxn* txn);
+
   using DB::Get;
   virtual Status Get(const ReadOptions& options,
                      ColumnFamilyHandle* column_family, const Slice& key,
@@ -205,13 +216,28 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
   // Struct to hold ownership of snapshot and read callback for cleanup.
   struct IteratorState;
 
+  std::map<uint32_t, const Comparator*>* GetCFComparatorMap() {
+    return cf_map_.load();
+  }
+  void UpdateCFComparatorMap(
+      const std::vector<ColumnFamilyHandle*>& handles) override;
+  void UpdateCFComparatorMap(const ColumnFamilyHandle* handle) override;
+
+ protected:
+  virtual Status VerifyCFOptions(
+      const ColumnFamilyOptions& cf_options) override;
+
  private:
   friend class WritePreparedTransactionTest_IsInSnapshotTest_Test;
   friend class WritePreparedTransactionTest_CheckAgainstSnapshotsTest_Test;
   friend class WritePreparedTransactionTest_CommitMapTest_Test;
-  friend class WritePreparedTransactionTest_SnapshotConcurrentAccessTest_Test;
-  friend class WritePreparedTransactionTest;
+  friend class
+      WritePreparedTransactionTest_ConflictDetectionAfterRecoveryTest_Test;
+  friend class SnapshotConcurrentAccessTest_SnapshotConcurrentAccessTest_Test;
+  friend class WritePreparedTransactionTestBase;
   friend class PreparedHeap_BasicsTest_Test;
+  friend class PreparedHeap_EmptyAtTheEnd_Test;
+  friend class PreparedHeap_Concurrent_Test;
   friend class WritePreparedTxnDBMock;
   friend class WritePreparedTransactionTest_AdvanceMaxEvictedSeqBasicTest_Test;
   friend class WritePreparedTransactionTest_BasicRecoveryTest_Test;
@@ -228,17 +254,34 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
         heap_;
     std::priority_queue<uint64_t, std::vector<uint64_t>, std::greater<uint64_t>>
         erased_heap_;
+    // True when testing crash recovery
+    bool TEST_CRASH_ = false;
+    friend class WritePreparedTxnDB;
 
    public:
+    ~PreparedHeap() {
+      if (!TEST_CRASH_) {
+        assert(heap_.empty());
+        assert(erased_heap_.empty());
+      }
+    }
     bool empty() { return heap_.empty(); }
     uint64_t top() { return heap_.top(); }
     void push(uint64_t v) { heap_.push(v); }
     void pop() {
       heap_.pop();
       while (!heap_.empty() && !erased_heap_.empty() &&
-             heap_.top() == erased_heap_.top()) {
-        heap_.pop();
+             // heap_.top() > erased_heap_.top() could happen if we have erased
+             // a non-existent entry. Ideally the user should not do that but we
+             // should be resiliant againt it.
+             heap_.top() >= erased_heap_.top()) {
+        if (heap_.top() == erased_heap_.top()) {
+          heap_.pop();
+        }
+        auto erased __attribute__((__unused__)) = erased_heap_.top();
         erased_heap_.pop();
+        // No duplicate prepare sequence numbers
+        assert(erased_heap_.empty() || erased_heap_.top() != erased);
       }
       while (heap_.empty() && !erased_heap_.empty()) {
         erased_heap_.pop();
@@ -250,6 +293,7 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
           // Already popped, ignore it.
         } else if (heap_.top() == seq) {
           pop();
+          assert(heap_.empty() || heap_.top() != seq);
         } else {  // (heap_.top() > seq)
           // Down the heap, remember to pop it later
           erased_heap_.push(seq);
@@ -257,6 +301,8 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
       }
     }
   };
+
+  void TEST_Crash() override { prepared_txns_.TEST_CRASH_ = true; }
 
   // Get the commit entry with index indexed_seq from the commit table. It
   // returns true if such entry exists.
@@ -283,7 +329,8 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
   // concurrently. The concurrent invocations of this function is equivalent to
   // a serial invocation in which the last invocation is the one with the
   // largetst new_max value.
-  void AdvanceMaxEvictedSeq(SequenceNumber& prev_max, SequenceNumber& new_max);
+  void AdvanceMaxEvictedSeq(const SequenceNumber& prev_max,
+                            const SequenceNumber& new_max);
 
   virtual const std::vector<SequenceNumber> GetSnapshotListFromDB(
       SequenceNumber max);
@@ -340,7 +387,7 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
   // A heap of prepared transactions. Thread-safety is provided with
   // prepared_mutex_.
   PreparedHeap prepared_txns_;
-  // 10m entry, 80MB size
+  // 2m entry, 16MB size
   static const size_t DEF_COMMIT_CACHE_BITS = static_cast<size_t>(21);
   const size_t COMMIT_CACHE_BITS;
   const size_t COMMIT_CACHE_SIZE;
@@ -379,6 +426,10 @@ class WritePreparedTxnDB : public PessimisticTransactionDB {
   mutable port::RWMutex old_commit_map_mutex_;
   mutable port::RWMutex commit_cache_mutex_;
   mutable port::RWMutex snapshots_mutex_;
+  // A cache of the cf comparators
+  std::atomic<std::map<uint32_t, const Comparator*>*> cf_map_;
+  // GC of the object above
+  std::unique_ptr<std::map<uint32_t, const Comparator*>> cf_map_gc_;
 };
 
 class WritePreparedTxnReadCallback : public ReadCallback {
@@ -401,30 +452,50 @@ class WritePreparedCommitEntryPreReleaseCallback : public PreReleaseCallback {
  public:
   // includes_data indicates that the commit also writes non-empty
   // CommitTimeWriteBatch to memtable, which needs to be committed separately.
-  WritePreparedCommitEntryPreReleaseCallback(
-      WritePreparedTxnDB* db, DBImpl* db_impl,
-      SequenceNumber prep_seq = kMaxSequenceNumber, bool includes_data = false)
+  WritePreparedCommitEntryPreReleaseCallback(WritePreparedTxnDB* db,
+                                             DBImpl* db_impl,
+                                             SequenceNumber prep_seq,
+                                             size_t prep_batch_cnt,
+                                             size_t data_batch_cnt = 0,
+                                             bool prep_heap_skipped = false)
       : db_(db),
         db_impl_(db_impl),
         prep_seq_(prep_seq),
-        includes_data_(includes_data) {}
+        prep_batch_cnt_(prep_batch_cnt),
+        data_batch_cnt_(data_batch_cnt),
+        prep_heap_skipped_(prep_heap_skipped),
+        includes_data_(data_batch_cnt_ > 0) {
+    assert((prep_batch_cnt_ > 0) != (prep_seq == kMaxSequenceNumber));  // xor
+    assert(prep_batch_cnt_ > 0 || data_batch_cnt_ > 0);
+  }
 
-  virtual Status Callback(SequenceNumber commit_seq) {
+  virtual Status Callback(SequenceNumber commit_seq) override {
     assert(includes_data_ || prep_seq_ != kMaxSequenceNumber);
+    const uint64_t last_commit_seq = LIKELY(data_batch_cnt_ <= 1)
+                                         ? commit_seq
+                                         : commit_seq + data_batch_cnt_ - 1;
     if (prep_seq_ != kMaxSequenceNumber) {
-      db_->AddCommitted(prep_seq_, commit_seq);
+      for (size_t i = 0; i < prep_batch_cnt_; i++) {
+        db_->AddCommitted(prep_seq_ + i, last_commit_seq, prep_heap_skipped_);
+      }
     }  // else there was no prepare phase
     if (includes_data_) {
+      assert(data_batch_cnt_);
       // Commit the data that is accompnaied with the commit request
       const bool PREPARE_SKIPPED = true;
-      db_->AddCommitted(commit_seq, commit_seq, PREPARE_SKIPPED);
+      for (size_t i = 0; i < data_batch_cnt_; i++) {
+        // For commit seq of each batch use the commit seq of the last batch.
+        // This would make debugging easier by having all the batches having
+        // the same sequence number.
+        db_->AddCommitted(commit_seq + i, last_commit_seq, PREPARE_SKIPPED);
+      }
     }
     if (db_impl_->immutable_db_options().two_write_queues) {
       // Publish the sequence number. We can do that here assuming the callback
       // is invoked only from one write queue, which would guarantee that the
       // publish sequence numbers will be in order, i.e., once a seq is
       // published all the seq prior to that are also publishable.
-      db_impl_->SetLastPublishedSequence(commit_seq);
+      db_impl_->SetLastPublishedSequence(last_commit_seq);
     }
     // else SequenceNumber that is updated as part of the write already does the
     // publishing
@@ -436,9 +507,62 @@ class WritePreparedCommitEntryPreReleaseCallback : public PreReleaseCallback {
   DBImpl* db_impl_;
   // kMaxSequenceNumber if there was no prepare phase
   SequenceNumber prep_seq_;
+  size_t prep_batch_cnt_;
+  size_t data_batch_cnt_;
+  // An optimization that indicates that there is no need to update the prepare
+  // heap since the prepare sequence number was not added to it.
+  bool prep_heap_skipped_;
   // Either because it is commit without prepare or it has a
   // CommitTimeWriteBatch
   bool includes_data_;
+};
+
+// A wrapper around Comparator to make it usable in std::set
+struct SetComparator {
+  explicit SetComparator() : user_comparator_(BytewiseComparator()) {}
+  explicit SetComparator(const Comparator* user_comparator)
+      : user_comparator_(user_comparator ? user_comparator
+                                         : BytewiseComparator()) {}
+  bool operator()(const Slice& lhs, const Slice& rhs) const {
+    return user_comparator_->Compare(lhs, rhs) < 0;
+  }
+
+ private:
+  const Comparator* user_comparator_;
+};
+// Count the number of sub-batches inside a batch. A sub-batch does not have
+// duplicate keys.
+struct SubBatchCounter : public WriteBatch::Handler {
+  explicit SubBatchCounter(std::map<uint32_t, const Comparator*>& comparators)
+      : comparators_(comparators), batches_(1) {}
+  std::map<uint32_t, const Comparator*>& comparators_;
+  using CFKeys = std::set<Slice, SetComparator>;
+  std::map<uint32_t, CFKeys> keys_;
+  size_t batches_;
+  size_t BatchCount() { return batches_; }
+  void AddKey(const uint32_t cf, const Slice& key);
+  Status MarkNoop(bool) override { return Status::OK(); }
+  Status MarkEndPrepare(const Slice&) override { return Status::OK(); }
+  Status MarkCommit(const Slice&) override { return Status::OK(); }
+  Status PutCF(uint32_t cf, const Slice& key, const Slice&) override {
+    AddKey(cf, key);
+    return Status::OK();
+  }
+  Status DeleteCF(uint32_t cf, const Slice& key) override {
+    AddKey(cf, key);
+    return Status::OK();
+  }
+  Status SingleDeleteCF(uint32_t cf, const Slice& key) override {
+    AddKey(cf, key);
+    return Status::OK();
+  }
+  Status MergeCF(uint32_t cf, const Slice& key, const Slice&) override {
+    AddKey(cf, key);
+    return Status::OK();
+  }
+  Status MarkBeginPrepare() override { return Status::OK(); }
+  Status MarkRollback(const Slice&) override { return Status::OK(); }
+  bool WriteAfterCommit() const override { return false; }
 };
 
 }  //  namespace rocksdb

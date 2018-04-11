@@ -724,7 +724,6 @@ Status BlockBasedTableBuilder::Finish() {
               : "nullptr";
 
       std::string property_collectors_names = "[";
-      property_collectors_names = "[";
       for (size_t i = 0;
            i < r->ioptions.table_properties_collector_factories.size(); ++i) {
         if (i != 0) {
@@ -783,9 +782,12 @@ Status BlockBasedTableBuilder::Finish() {
     WriteRawBlock(meta_index_builder.Finish(), kNoCompression,
                   &metaindex_block_handle);
 
-    const bool is_data_block = true;
-    WriteBlock(index_blocks.index_block_contents, &index_block_handle,
-               !is_data_block);
+    if (r->table_options.enable_index_compression) {
+      WriteBlock(index_blocks.index_block_contents, &index_block_handle, false);
+    } else {
+      WriteRawBlock(index_blocks.index_block_contents, kNoCompression,
+                    &index_block_handle);
+    }
     // If there are more index partitions, finish them and write them out
     Status& s = index_builder_status;
     while (s.IsIncomplete()) {
@@ -793,8 +795,13 @@ Status BlockBasedTableBuilder::Finish() {
       if (!s.ok() && !s.IsIncomplete()) {
         return s;
       }
-      WriteBlock(index_blocks.index_block_contents, &index_block_handle,
-                 !is_data_block);
+      if (r->table_options.enable_index_compression) {
+        WriteBlock(index_blocks.index_block_contents, &index_block_handle,
+                   false);
+      } else {
+        WriteRawBlock(index_blocks.index_block_contents, kNoCompression,
+                      &index_block_handle);
+      }
       // The last index_block_handle will be for the partition index block
     }
   }

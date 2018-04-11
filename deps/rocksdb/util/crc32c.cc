@@ -39,8 +39,10 @@
 namespace rocksdb {
 namespace crc32c {
 
+#if defined(HAVE_POWER8) && defined(HAS_ALTIVEC)
 #ifdef __powerpc64__
 static int arch_ppc_crc32 = 0;
+#endif /* __powerpc64__ */
 #endif
 
 static const uint32_t table0_[256] = {
@@ -603,6 +605,13 @@ const uint64_t clmul_constants[] = {
 };
 
 // Compute the crc32c value for buffer smaller than 8
+#ifdef ROCKSDB_UBSAN_RUN
+#if defined(__clang__)
+__attribute__((__no_sanitize__("alignment")))
+#elif defined(__GNUC__)
+__attribute__((__no_sanitize_undefined__))
+#endif
+#endif
 inline void align_to_8(
     size_t len,
     uint64_t& crc0, // crc so far, updated on return
@@ -647,6 +656,13 @@ inline uint64_t CombineCRC(
 }
 
 // Compute CRC-32C using the Intel hardware instruction.
+#ifdef ROCKSDB_UBSAN_RUN
+#if defined(__clang__)
+__attribute__((__no_sanitize__("alignment")))
+#elif defined(__GNUC__)
+__attribute__((__no_sanitize_undefined__))
+#endif
+#endif
 uint32_t crc32c_3way(uint32_t crc, const char* buf, size_t len) {
   const unsigned char* next = (const unsigned char*)buf;
   uint64_t count;

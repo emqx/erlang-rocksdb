@@ -963,6 +963,31 @@ class HarnessTest : public testing::Test {
   // Returns nullptr if not running against a DB
   DB* db() const { return constructor_->db(); }
 
+  void RandomizedHarnessTest(size_t part, size_t total) {
+    std::vector<TestArgs> args = GenerateArgList();
+    assert(part);
+    assert(part <= total);
+    size_t start_i = (part - 1) * args.size() / total;
+    size_t end_i = part * args.size() / total;
+    for (unsigned int i = static_cast<unsigned int>(start_i); i < end_i; i++) {
+      Init(args[i]);
+      Random rnd(test::RandomSeed() + 5);
+      for (int num_entries = 0; num_entries < 2000;
+           num_entries += (num_entries < 50 ? 1 : 200)) {
+        if ((num_entries % 10) == 0) {
+          fprintf(stderr, "case %d of %d: num_entries = %d\n", (i + 1),
+                  static_cast<int>(args.size()), num_entries);
+        }
+        for (int e = 0; e < num_entries; e++) {
+          std::string v;
+          Add(test::RandomKey(&rnd, rnd.Skewed(4)),
+              test::RandomString(&rnd, rnd.Skewed(5), &v).ToString());
+        }
+        Test(&rnd);
+      }
+    }
+  }
+
  private:
   Options options_ = Options();
   ImmutableCFOptions ioptions_;
@@ -1003,7 +1028,10 @@ class TableTest : public testing::Test {
 };
 
 class GeneralTableTest : public TableTest {};
-class BlockBasedTableTest : public TableTest {};
+class BlockBasedTableTest : public TableTest {
+ protected:
+  uint64_t IndexUncompressedHelper(bool indexCompress);
+};
 class PlainTableTest : public TableTest {};
 class TablePropertyTest : public testing::Test {};
 
@@ -1064,13 +1092,17 @@ TEST_F(BlockBasedTableTest, BasicBlockBasedTableProperties) {
   stl_wrappers::KVMap kvmap;
   Options options;
   options.compression = kNoCompression;
+  options.statistics = CreateDBStatistics();
+  options.statistics->stats_level_ = StatsLevel::kAll;
   BlockBasedTableOptions table_options;
   table_options.block_restart_interval = 1;
   options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
-  const ImmutableCFOptions ioptions(options);
+  ImmutableCFOptions ioptions(options);
+  ioptions.statistics = options.statistics.get();
   c.Finish(options, ioptions, table_options,
            GetPlainInternalComparator(options.comparator), &keys, &kvmap);
+  ASSERT_EQ(options.statistics->getTickerCount(NUMBER_BLOCK_NOT_COMPRESSED), 0);
 
   auto& props = *c.GetTableReader()->GetTableProperties();
   ASSERT_EQ(kvmap.size(), props.num_entries);
@@ -1093,6 +1125,41 @@ TEST_F(BlockBasedTableTest, BasicBlockBasedTableProperties) {
             props.data_size);
   c.ResetTableReader();
 }
+
+#ifdef SNAPPY
+uint64_t BlockBasedTableTest::IndexUncompressedHelper(bool compressed) {
+  TableConstructor c(BytewiseComparator(), true /* convert_to_internal_key_ */);
+  constexpr size_t kNumKeys = 10000;
+
+  for (size_t k = 0; k < kNumKeys; ++k) {
+    c.Add("key" + ToString(k), "val" + ToString(k));
+  }
+
+  std::vector<std::string> keys;
+  stl_wrappers::KVMap kvmap;
+  Options options;
+  options.compression = kSnappyCompression;
+  options.statistics = CreateDBStatistics();
+  options.statistics->stats_level_ = StatsLevel::kAll;
+  BlockBasedTableOptions table_options;
+  table_options.block_restart_interval = 1;
+  table_options.enable_index_compression = compressed;
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+
+  ImmutableCFOptions ioptions(options);
+  ioptions.statistics = options.statistics.get();
+  c.Finish(options, ioptions, table_options,
+           GetPlainInternalComparator(options.comparator), &keys, &kvmap);
+  c.ResetTableReader();
+  return options.statistics->getTickerCount(NUMBER_BLOCK_COMPRESSED);
+}
+TEST_F(BlockBasedTableTest, IndexUncompressed) {
+  uint64_t tbl1_compressed_cnt = IndexUncompressedHelper(true);
+  uint64_t tbl2_compressed_cnt = IndexUncompressedHelper(false);
+  // tbl1_compressed_cnt should include 1 index block
+  EXPECT_EQ(tbl2_compressed_cnt + 1, tbl1_compressed_cnt);
+}
+#endif  // SNAPPY
 
 TEST_F(BlockBasedTableTest, BlockBasedTableProperties2) {
   TableConstructor c(&reverse_key_comparator);
@@ -2536,25 +2603,50 @@ TEST_F(GeneralTableTest, ApproximateOffsetOfCompressed) {
   }
 }
 
-TEST_F(HarnessTest, Randomized) {
-  std::vector<TestArgs> args = GenerateArgList();
-  for (unsigned int i = 0; i < args.size(); i++) {
-    Init(args[i]);
-    Random rnd(test::RandomSeed() + 5);
-    for (int num_entries = 0; num_entries < 2000;
-         num_entries += (num_entries < 50 ? 1 : 200)) {
-      if ((num_entries % 10) == 0) {
-        fprintf(stderr, "case %d of %d: num_entries = %d\n", (i + 1),
-                static_cast<int>(args.size()), num_entries);
-      }
-      for (int e = 0; e < num_entries; e++) {
-        std::string v;
-        Add(test::RandomKey(&rnd, rnd.Skewed(4)),
-            test::RandomString(&rnd, rnd.Skewed(5), &v).ToString());
-      }
-      Test(&rnd);
-    }
-  }
+// RandomizedHarnessTest is very slow for certain combination of arguments
+// Split into 8 pieces to reduce the time individual tests take.
+TEST_F(HarnessTest, Randomized1n2) {
+  // part 1,2 out of 8
+  const size_t part = 1;
+  const size_t total = 8;
+  RandomizedHarnessTest(part, total);
+  RandomizedHarnessTest(part+1, total);
+}
+
+TEST_F(HarnessTest, Randomized3n4) {
+  // part 3,4 out of 8
+  const size_t part = 3;
+  const size_t total = 8;
+  RandomizedHarnessTest(part, total);
+  RandomizedHarnessTest(part+1, total);
+}
+
+TEST_F(HarnessTest, Randomized5) {
+  // part 5 out of 8
+  const size_t part = 5;
+  const size_t total = 8;
+  RandomizedHarnessTest(part, total);
+}
+
+TEST_F(HarnessTest, Randomized6) {
+  // part 6 out of 8
+  const size_t part = 6;
+  const size_t total = 8;
+  RandomizedHarnessTest(part, total);
+}
+
+TEST_F(HarnessTest, Randomized7) {
+  // part 7 out of 8
+  const size_t part = 7;
+  const size_t total = 8;
+  RandomizedHarnessTest(part, total);
+}
+
+TEST_F(HarnessTest, Randomized8) {
+  // part 8 out of 8
+  const size_t part = 8;
+  const size_t total = 8;
+  RandomizedHarnessTest(part, total);
 }
 
 #ifndef ROCKSDB_LITE

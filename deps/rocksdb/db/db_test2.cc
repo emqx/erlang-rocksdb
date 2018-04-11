@@ -1820,11 +1820,17 @@ TEST_F(DBTest2, ReadAmpBitmap) {
 
 #ifndef OS_SOLARIS // GetUniqueIdFromFile is not implemented
 TEST_F(DBTest2, ReadAmpBitmapLiveInCacheAfterDBClose) {
-  if (dbname_.find("dev/shm") != std::string::npos) {
-    // /dev/shm dont support getting a unique file id, this mean that
-    // running this test on /dev/shm will fail because lru_cache will load
-    // the blocks again regardless of them being already in the cache
-    return;
+  {
+    const int kIdBufLen = 100;
+    char id_buf[kIdBufLen];
+    std::unique_ptr<RandomAccessFile> file;
+    env_->NewRandomAccessFile(dbname_, &file, EnvOptions());
+    if (file->GetUniqueId(id_buf, kIdBufLen) == 0) {
+      // fs holding db directory doesn't support getting a unique file id,
+      // this means that running this test will fail because lru_cache will load
+      // the blocks again regardless of them being already in the cache
+      return;
+    }
   }
   uint32_t bytes_per_bit[2] = {1, 16};
   for (size_t k = 0; k < 2; k++) {
@@ -2429,6 +2435,60 @@ TEST_F(DBTest2, ReadCallbackTest) {
     dbfull()->ReleaseSnapshot(snapshot);
   }
 }
+
+#ifndef ROCKSDB_LITE
+
+TEST_F(DBTest2, LiveFilesOmitObsoleteFiles) {
+  // Regression test for race condition where an obsolete file is returned to
+  // user as a "live file" but then deleted, all while file deletions are
+  // disabled.
+  //
+  // It happened like this:
+  //
+  // 1. [flush thread] Log file "x.log" found by FindObsoleteFiles
+  // 2. [user thread] DisableFileDeletions, GetSortedWalFiles are called and the
+  //    latter returned "x.log"
+  // 3. [flush thread] PurgeObsoleteFiles deleted "x.log"
+  // 4. [user thread] Reading "x.log" failed
+  //
+  // Unfortunately the only regression test I can come up with involves sleep.
+  // We cannot set SyncPoints to repro since, once the fix is applied, the
+  // SyncPoints would cause a deadlock as the repro's sequence of events is now
+  // prohibited.
+  //
+  // Instead, if we sleep for a second between Find and Purge, and ensure the
+  // read attempt happens after purge, then the sequence of events will almost
+  // certainly happen on the old code.
+  rocksdb::SyncPoint::GetInstance()->LoadDependency({
+      {"DBImpl::BackgroundCallFlush:FilesFound",
+       "DBTest2::LiveFilesOmitObsoleteFiles:FlushTriggered"},
+      {"DBImpl::PurgeObsoleteFiles:End",
+       "DBTest2::LiveFilesOmitObsoleteFiles:LiveFilesCaptured"},
+  });
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
+      "DBImpl::PurgeObsoleteFiles:Begin",
+      [&](void* arg) { env_->SleepForMicroseconds(1000000); });
+  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
+
+  Put("key", "val");
+  FlushOptions flush_opts;
+  flush_opts.wait = false;
+  db_->Flush(flush_opts);
+  TEST_SYNC_POINT("DBTest2::LiveFilesOmitObsoleteFiles:FlushTriggered");
+
+  db_->DisableFileDeletions();
+  VectorLogPtr log_files;
+  db_->GetSortedWalFiles(log_files);
+  TEST_SYNC_POINT("DBTest2::LiveFilesOmitObsoleteFiles:LiveFilesCaptured");
+  for (const auto& log_file : log_files) {
+    ASSERT_OK(env_->FileExists(LogFileName(dbname_, log_file->LogNumber())));
+  }
+
+  db_->EnableFileDeletions();
+  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
+}
+
+#endif  // ROCKSDB_LITE
 
 }  // namespace rocksdb
 

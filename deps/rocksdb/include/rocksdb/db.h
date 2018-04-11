@@ -93,11 +93,19 @@ static const int kMinorVersion = __ROCKSDB_MINOR__;
 
 // A range of keys
 struct Range {
-  Slice start;          // Included in the range
-  Slice limit;          // Not included in the range
+  Slice start;
+  Slice limit;
 
   Range() { }
   Range(const Slice& s, const Slice& l) : start(s), limit(l) { }
+};
+
+struct RangePtr {
+  const Slice* start;
+  const Slice* limit;
+
+  RangePtr() : start(nullptr), limit(nullptr) { }
+  RangePtr(const Slice* s, const Slice* l) : start(s), limit(l) { }
 };
 
 // A collections of table properties objects, where
@@ -162,6 +170,16 @@ class DB {
   static Status Open(const DBOptions& db_options, const std::string& name,
                      const std::vector<ColumnFamilyDescriptor>& column_families,
                      std::vector<ColumnFamilyHandle*>* handles, DB** dbptr);
+
+  // Close the DB by releasing resources, closing files etc. This should be
+  // called before calling the desctructor so that the caller can get back a
+  // status in case there are any errors. This will not fsync the WAL files.
+  // If syncing is required, the caller must first call SyncWAL(), or Write()
+  // using an empty write batch with WriteOptions.sync=true.
+  // Regardless of the return status, the DB must be freed. If the return
+  // status is NotSupported(), then the DB implementation does cleanup in the
+  // destructor
+  virtual Status Close() { return Status::NotSupported(); }
 
   // ListColumnFamilies will open the DB specified by argument name
   // and return the list of all column families in that DB
@@ -973,7 +991,7 @@ class DB {
   // the file can fit in, and ingest the file into this level (2). A file that
   // have a key range that overlap with the memtable key range will require us
   // to Flush the memtable first before ingesting the file.
-  // In the second mode we will always ingest in the bottom mode level (see
+  // In the second mode we will always ingest in the bottom most level (see
   // docs to IngestExternalFileOptions::ingest_behind).
   //
   // (1) External SST files can be created using SstFileWriter
