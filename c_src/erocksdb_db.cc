@@ -488,6 +488,18 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
                 opts.compaction_style = rocksdb::CompactionStyle::kCompactionStyleNone;
             }
         }
+        else if (option[0] == erocksdb::ATOM_COMPACTION_PRI)
+        {
+            if (option[1] == erocksdb::ATOM_COMPACTION_PRI_COMPENSATED_SIZE) {
+                opts.compaction_pri = rocksdb::CompactionPri::kByCompensatedSize;
+            }
+            else if (option[1] == erocksdb::ATOM_COMPACTION_PRI_OLDEST_LARGEST_SEQ_FIRST) {
+                opts.compaction_pri = rocksdb::CompactionPri::kOldestLargestSeqFirst;
+            }
+            else if (option[1] == erocksdb::ATOM_COMPACTION_PRI_OLDEST_SMALLEST_SEQ_FIRST) {
+                opts.compaction_pri = rocksdb::CompactionPri::kOldestSmallestSeqFirst;
+            }
+        }
         else if (option[0] == erocksdb::ATOM_MAX_SEQUENTIAL_SKIP_IN_ITERATIONS)
         {
             ErlNifUInt64 max_sequential_skip_in_iterations;

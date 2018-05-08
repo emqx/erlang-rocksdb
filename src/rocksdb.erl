@@ -175,6 +175,7 @@ init() ->
 
 -type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | none.
 -type compaction_style() :: level | universal | fifo | none.
+-type compaction_pri() :: compensated_size | oldest_largest_seq_first | oldest_smallest_seq_first.
 -type access_hint() :: normal | sequential | willneed | none.
 -type wal_recovery_mode() :: tolerate_corrupted_tail_records |
                absolute_consistency |
@@ -227,6 +228,7 @@ init() ->
                        {disable_auto_compactions,  boolean()} |
                        {purge_redundant_kvs_while_flush,  boolean()} |
                        {compaction_style,  compaction_style()} |
+                       {compaction_pri,  compaction_pri()} |
                        {filter_deletes,  boolean()} |
                        {max_sequential_skip_in_iterations,  pos_integer()} |
                        {inplace_update_support,  boolean()} |
