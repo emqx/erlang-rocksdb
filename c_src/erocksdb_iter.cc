@@ -241,9 +241,6 @@ IteratorClose(
     const ERL_NIF_TERM argv[])
 {
     ItrObject * itr_ptr;
-    ERL_NIF_TERM ret_term;
-
-    ret_term=ATOM_OK;
 
     itr_ptr=ItrObject::RetrieveItrObject(env, argv[0], true);
     if (NULL!=itr_ptr)
@@ -251,14 +248,14 @@ IteratorClose(
         // set closing flag ... atomic likely unnecessary (but safer)
         ErlRefObject::InitiateCloseRequest(itr_ptr);
         itr_ptr=NULL;
-        ret_term=ATOM_OK;
+        return(ATOM_OK);
     }   // if
     else
     {
-        ret_term=enif_make_badarg(env);
+        ERL_NIF_TERM bad_arg=enif_make_badarg(env);
+        return(bad_arg);
     }   // else
 
-    return(ret_term);
 }   // erocksdb:IteratorClose
 
 }
