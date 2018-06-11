@@ -860,7 +860,6 @@ Put(
     ErlNifBinary key, value;
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
-    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     rocksdb::Status status;
     if (argc > 4)
     {
@@ -868,25 +867,28 @@ Put(
                 !enif_inspect_binary(env, argv[2], &key) ||
                 !enif_inspect_binary(env, argv[3], &value))
             return enif_make_badarg(env);
+        rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         rocksdb::Slice value_slice((const char*)value.data, value.size);
         erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
         fold(env, argv[4], parse_write_option, *opts);
         status = db_ptr->m_Db->Put(*opts, cf->m_ColumnFamily, key_slice, value_slice);
-
+        delete opts;
+        opts = NULL;
     }
     else
     {
         if(!enif_inspect_binary(env, argv[1], &key) ||
                 !enif_inspect_binary(env, argv[2], &value))
             return enif_make_badarg(env);
+        rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         rocksdb::Slice value_slice((const char*)value.data, value.size);
         fold(env, argv[3], parse_write_option, *opts);
         status = db_ptr->m_Db->Put(*opts, key_slice, value_slice);
+        delete opts;
+        opts = NULL;
     }
-    delete opts;
-    opts = NULL;
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
     return ATOM_OK;
@@ -903,28 +905,31 @@ Delete(
     ErlNifBinary key;
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
-    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     rocksdb::Status status;
     if (argc > 3)
     {
         if(!enif_get_cf(env, argv[1], &cf_ptr) ||
                 !enif_inspect_binary(env, argv[2], &key))
             return enif_make_badarg(env);
+        rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
         fold(env, argv[3], parse_write_option, *opts);
         status = db_ptr->m_Db->Delete(*opts, cf->m_ColumnFamily, key_slice);
+        delete opts;
+        opts = NULL;
     }
     else
     {
         if(!enif_inspect_binary(env, argv[1], &key))
             return enif_make_badarg(env);
+        rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         fold(env, argv[2], parse_write_option, *opts);
         status = db_ptr->m_Db->Delete(*opts, key_slice);
+        delete opts;
+        opts = NULL;
     }
-    delete opts;
-    opts = NULL;
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
     return ATOM_OK;
@@ -941,28 +946,31 @@ SingleDelete(
     ErlNifBinary key;
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
-    rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     rocksdb::Status status;
     if (argc > 3)
     {
         if(!enif_get_cf(env, argv[1], &cf_ptr) ||
                 !enif_inspect_binary(env, argv[2], &key))
             return enif_make_badarg(env);
+        rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
         fold(env, argv[3], parse_write_option, *opts);
         status = db_ptr->m_Db->SingleDelete(*opts, cf->m_ColumnFamily, key_slice);
+        delete opts;
+        opts = NULL;
     }
     else
     {
         if(!enif_inspect_binary(env, argv[1], &key))
             return enif_make_badarg(env);
+        rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         fold(env, argv[2], parse_write_option, *opts);
         status = db_ptr->m_Db->SingleDelete(*opts, key_slice);
+        delete opts;
+        opts = NULL;
     }
-    delete opts;
-    opts = NULL;
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
     return ATOM_OK;
