@@ -25,6 +25,7 @@
 
 shared_cacheleak_test_() ->
   {ok, Cache} = rocksdb:new_lru_cache(83886080),
+  ok = rocksdb:set_strict_capacity_limit(Cache, true),
   {timeout, 10*60, fun() ->
                        [] = os:cmd("rm -rf /tmp/erocksdb.sharedcacheleak.test"),
                        Blobs = [{<<I:128/unsigned>>, compressible_bytes(10240)} ||
