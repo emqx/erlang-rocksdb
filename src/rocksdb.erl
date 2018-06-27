@@ -270,6 +270,7 @@ init() ->
                        {advise_random_on_open, boolean()} |
                        {access_hint, access_hint()} |
                        {compaction_readahead_size, non_neg_integer()} |
+                       {new_table_reader_for_compaction_inputs, boolean()} |
                        {use_adaptive_mutex, boolean()} |
                        {bytes_per_sync, non_neg_integer()} |
                        {skip_stats_update_on_db_open, boolean()} |
