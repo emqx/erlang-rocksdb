@@ -547,6 +547,10 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         {
             opts.level_compaction_dynamic_level_bytes = (option[1] == erocksdb::ATOM_TRUE);
         }
+        else if (option[0] == erocksdb::ATOM_OPTIMIZE_FILTERS_FOR_HITS)
+        {
+            opts.optimize_filters_for_hits = (option[1] == erocksdb::ATOM_TRUE);
+        }
     }
     return erocksdb::ATOM_OK;
 }
