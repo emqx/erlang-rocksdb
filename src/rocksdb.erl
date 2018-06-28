@@ -278,7 +278,8 @@ init() ->
                        {enable_write_thread_adaptive_yield, boolean()} |
                        {db_write_buffer_size, non_neg_integer()}  |
                        {in_memory, boolean()} |
-                       {rate_limiter, rate_limiter_handle()}].
+                       {rate_limiter, rate_limiter_handle()} |
+                       {max_subcompactions, non_neg_integer()}].
 
 -type options() :: db_options() | cf_options().
 
