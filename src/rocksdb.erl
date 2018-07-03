@@ -237,7 +237,8 @@ init() ->
                        {table_factory_block_cache_size, pos_integer()} |
                        {in_memory_mode, boolean()} |
                        {block_based_table_options, block_based_table_options()} |
-                       {level_compaction_dynamic_level_bytes, boolean()}].
+                       {level_compaction_dynamic_level_bytes, boolean()} |
+                       {optimize_filters_for_hits, boolean()}].
 
 -type db_options() :: [{env, env()} |
                        {total_threads, pos_integer()} |

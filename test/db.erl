@@ -43,6 +43,13 @@ open_with_snappy_test() ->
   rocksdb:destroy("/tmp/erocksdb.snapppy.test", []),
   ok.
 
+open_with_optimize_filters_for_hits_test() ->
+  os:cmd("rm -rf /tmp/erocksdb.optimize_filters_for_hits.test"),
+  {ok, Ref} = rocksdb:open("/tmp/erocksdb.optimize_filters_for_hits.test", [{create_if_missing, true}, {optimize_filters_for_hits, true}]),
+  ok = rocksdb:close(Ref),
+  rocksdb:destroy("/tmp/erocksdb.optimize_filters_for_hits.test", []),
+  ok.
+
 open_with_lz4_test() ->
   os:cmd("rm -rf /tmp/erocksdb.lz4.test"),
   {ok, Ref} = rocksdb:open("/tmp/erocksdb.lz4.test", [{create_if_missing, true}, {compression, lz4}]),

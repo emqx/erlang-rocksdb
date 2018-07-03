@@ -191,6 +191,7 @@ ERL_NIF_TERM ATOM_IN_MEMORY_MODE;
 ERL_NIF_TERM ATOM_IN_MEMORY;
 ERL_NIF_TERM ATOM_BLOCK_BASED_TABLE_OPTIONS;
 ERL_NIF_TERM ATOM_LEVEL_COMPACTION_DYNAMIC_LEVEL_BYTES;
+ERL_NIF_TERM ATOM_OPTIMIZE_FILTERS_FOR_HITS;
 
 // Related to DBOptions
 ERL_NIF_TERM ATOM_TOTAL_THREADS;
@@ -416,6 +417,7 @@ try
   ATOM(erocksdb::ATOM_IN_MEMORY, "in_memory");
   ATOM(erocksdb::ATOM_BLOCK_BASED_TABLE_OPTIONS, "block_based_table_options");
   ATOM(erocksdb::ATOM_LEVEL_COMPACTION_DYNAMIC_LEVEL_BYTES, "level_compaction_dynamic_level_bytes");
+  ATOM(erocksdb::ATOM_OPTIMIZE_FILTERS_FOR_HITS, "optimize_filters_for_hits");
 
   // Related to DBOptions
   ATOM(erocksdb::ATOM_TOTAL_THREADS, "total_threads");
