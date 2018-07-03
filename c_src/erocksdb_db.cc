@@ -329,6 +329,12 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
                 opts.rate_limiter = rate_limiter;
             }
         }
+        else if (option[0] == erocksdb::ATOM_MAX_SUBCOMPACTIONS)
+        {
+            unsigned int max_subcompactions;
+            if (enif_get_uint(env, option[1], &max_subcompactions))
+                opts.max_subcompactions = max_subcompactions;
+        }
     }
     return erocksdb::ATOM_OK;
 }

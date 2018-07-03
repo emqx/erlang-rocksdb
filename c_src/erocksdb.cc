@@ -233,7 +233,7 @@ ERL_NIF_TERM ATOM_ALLOW_CONCURRENT_MEMTABLE_WRITE;
 ERL_NIF_TERM ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD;
 ERL_NIF_TERM ATOM_DB_WRITE_BUFFER_SIZE;
 ERL_NIF_TERM ATOM_RATE_LIMITER;
-
+ERL_NIF_TERM ATOM_MAX_SUBCOMPACTIONS;
 
 // Related to BlockBasedTable Options
 ERL_NIF_TERM ATOM_NO_BLOCK_CACHE;
@@ -459,6 +459,7 @@ try
   ATOM(erocksdb::ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD, "enable_write_thread_adaptive_yield");
   ATOM(erocksdb::ATOM_DB_WRITE_BUFFER_SIZE, "db_write_buffer_size");
   ATOM(erocksdb::ATOM_RATE_LIMITER, "rate_limiter");
+  ATOM(erocksdb::ATOM_MAX_SUBCOMPACTIONS, "max_subcompactions");
 
   // Related to BlockBasedTable Options
   ATOM(erocksdb::ATOM_NO_BLOCK_CACHE, "no_block_cache");
