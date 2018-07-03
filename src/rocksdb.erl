@@ -72,6 +72,7 @@
   get_pinned_usage/1,
   set_capacity/2,
   get_capacity/1,
+  set_strict_capacity_limit/2,
   release_cache/1
 ]).
 
@@ -1001,6 +1002,12 @@ get_capacity(_Cache) ->
 -spec set_capacity(Cache :: cache_handle(), Capacity :: non_neg_integer()) -> ok.
 set_capacity(_Cache, _Capacity) ->
   erlang:nif_error({error, not_loaded}).
+
+%% @doc sets strict_capacity_limit flag of the cache. If the flag is set
+%% to true, insert to cache will fail if no enough capacity can be free.
+-spec set_strict_capacity_limit(Cache :: cache_handle(), StrictCapacityLimit :: boolean()) -> ok.
+set_strict_capacity_limit(_Cache, _StrictCapacityLimit) ->
+    erlang:nif_error({error, not_loaded}).
 
 %% @doc release the cache
 release_cache(_Cache) ->

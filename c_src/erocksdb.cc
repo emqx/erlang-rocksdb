@@ -124,6 +124,7 @@ static ErlNifFunc nif_funcs[] =
   {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
   {"get_capacity", 1, erocksdb::GetCapacity},
   {"release_cache", 1, erocksdb::ReleaseCache},
+  {"set_strict_capacity_limit", 2, erocksdb::SetStrictCapacityLimit},
 
   // rate limiter
   {"new_rate_limiter", 2, erocksdb::NewRateLimiter},

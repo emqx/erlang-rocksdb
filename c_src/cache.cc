@@ -159,6 +159,27 @@ SetCapacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return ATOM_OK;
 }
 
+ERL_NIF_TERM
+SetStrictCapacityLimit(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+{
+
+    Cache* cache_ptr;
+    std::shared_ptr<rocksdb::Cache> cache;
+    bool strict_capacity_limit;
+
+    if(argc < 2)
+        return enif_make_badarg(env);
+
+    cache_ptr = erocksdb::Cache::RetrieveCacheResource(env, argv[0]);
+    if(NULL==cache_ptr)
+        return enif_make_badarg(env);
+
+    strict_capacity_limit = (argv[1] == ATOM_TRUE);
+    std::lock_guard<std::mutex> guard(cache_ptr->mu);
+    cache = cache_ptr->cache();
+    cache->SetStrictCapacityLimit(strict_capacity_limit);
+    return ATOM_OK;
+}
 
 ERL_NIF_TERM
 GetUsage(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
