@@ -1,6 +1,15 @@
 erlang-rocksdb 0.18.0, released on 2018/05/03
 ================================================
 
+- bump to rocksdb 5.13.4
+- add `rocksdb:set_strict_capacity_limit/2` for cache
+- add `optimize_filters_for_hits` database option
+- add `new_table_reader_for_compaction_inputs` database option
+- add `max_subcompactions` database option
+
+erlang-rocksdb 0.18.0, released on 2018/05/03
+================================================
+
 - bump to rocksdb 5.12.4
 
 erlang-rocksdb 0.17.0, released on 2018/03/25
