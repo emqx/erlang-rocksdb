@@ -50,6 +50,14 @@ open_with_optimize_filters_for_hits_test() ->
   rocksdb:destroy("/tmp/erocksdb.optimize_filters_for_hits.test", []),
   ok.
 
+open_new_table_reader_for_compaction_inputs_test() ->
+  os:cmd("rm -rf /tmp/erocksdb.new_table_reader_for_compaction_inputs.test"),
+  {ok, Ref} = rocksdb:open("/tmp/erocksdb.new_table_reader_for_compaction_inputs.test",
+                  [{create_if_missing, true}, {new_table_reader_for_compaction_inputs, true}]),
+  ok = rocksdb:close(Ref),
+  rocksdb:destroy("/tmp/erocksdb.new_table_reader_for_compaction_inputs.test", []),
+  ok.
+
 open_with_lz4_test() ->
   os:cmd("rm -rf /tmp/erocksdb.lz4.test"),
   {ok, Ref} = rocksdb:open("/tmp/erocksdb.lz4.test", [{create_if_missing, true}, {compression, lz4}]),

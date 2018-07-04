@@ -17,7 +17,8 @@ Vagrant.configure("2") do |config|
   config.ssh.shell = "sh"
   config.vm.synced_folder ".", "/vagrant", :nfs => true, id: "vagrant-root"
 
-  config.vm.provider "vmware_fusion" do |v|
+  config.vm.provider "vmware_desktop" do |v|
+    v.gui = false
     v.vmx["memsize"] = "4096"
     v.vmx["numvcpus"] = "2"
   end

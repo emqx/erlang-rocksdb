@@ -271,6 +271,10 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             if (enif_get_uint(env, option[1], &compaction_readahead_size))
                 opts.compaction_readahead_size = compaction_readahead_size;
         }
+        else if (option[0] == erocksdb::ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS)
+        {
+            opts.new_table_reader_for_compaction_inputs = (option[1] == erocksdb::ATOM_TRUE);
+        }
         else if (option[0] == erocksdb::ATOM_USE_ADAPTIVE_MUTEX)
         {
             opts.use_adaptive_mutex = (option[1] == erocksdb::ATOM_TRUE);
