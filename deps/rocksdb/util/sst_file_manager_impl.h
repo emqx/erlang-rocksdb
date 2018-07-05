@@ -27,7 +27,8 @@ class SstFileManagerImpl : public SstFileManager {
  public:
   explicit SstFileManagerImpl(Env* env, std::shared_ptr<Logger> logger,
                               int64_t rate_bytes_per_sec,
-                              double max_trash_db_ratio);
+                              double max_trash_db_ratio,
+                              uint64_t bytes_max_delete_chunk);
 
   ~SstFileManagerImpl();
 
@@ -66,7 +67,7 @@ class SstFileManagerImpl : public SstFileManager {
   // estimates how much space is currently being used by compactions (i.e.
   // if a compaction has started, this function bumps the used space by
   // the full compaction size).
-  bool EnoughRoomForCompaction(Compaction* c);
+  bool EnoughRoomForCompaction(const std::vector<CompactionInputFiles>& inputs);
 
   // Bookkeeping so total_file_sizes_ goes back to normal after compaction
   // finishes
@@ -93,7 +94,8 @@ class SstFileManagerImpl : public SstFileManager {
   virtual void SetMaxTrashDBRatio(double ratio) override;
 
   // Mark file as trash and schedule it's deletion.
-  virtual Status ScheduleFileDeletion(const std::string& file_path);
+  virtual Status ScheduleFileDeletion(const std::string& file_path,
+                                      const std::string& dir_to_sync);
 
   // Wait for all files being deleteing in the background to finish or for
   // destructor to be called.

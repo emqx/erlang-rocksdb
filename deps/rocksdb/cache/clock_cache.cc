@@ -13,8 +13,8 @@
 
 namespace rocksdb {
 
-std::shared_ptr<Cache> NewClockCache(size_t capacity, int num_shard_bits,
-                                     bool strict_capacity_limit) {
+std::shared_ptr<Cache> NewClockCache(size_t /*capacity*/, int /*num_shard_bits*/,
+                                     bool /*strict_capacity_limit*/) {
   // Clock cache not supported.
   return nullptr;
 }
@@ -367,7 +367,9 @@ ClockCacheShard::~ClockCacheShard() {
   for (auto& handle : list_) {
     uint32_t flags = handle.flags.load(std::memory_order_relaxed);
     if (InCache(flags) || CountRefs(flags) > 0) {
-      (*handle.deleter)(handle.key, handle.value);
+      if (handle.deleter != nullptr) {
+        (*handle.deleter)(handle.key, handle.value);
+      }
       delete[] handle.key.data();
     }
   }

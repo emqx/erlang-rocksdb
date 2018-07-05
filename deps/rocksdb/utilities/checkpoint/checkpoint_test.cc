@@ -366,7 +366,7 @@ TEST_F(CheckpointTest, CheckpointCFNoFlush) {
   Status s;
   // Take a snapshot
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "DBImpl::BackgroundCallFlush:start", [&](void* arg) {
+      "DBImpl::BackgroundCallFlush:start", [&](void* /*arg*/) {
         // Flush should never trigger.
         FAIL();
       });
@@ -571,6 +571,18 @@ TEST_F(CheckpointTest, CheckpointInvalidDirectoryName) {
     ASSERT_TRUE(checkpoint->CreateCheckpoint("").IsInvalidArgument());
     delete checkpoint;
   }
+}
+
+TEST_F(CheckpointTest, CheckpointWithParallelWrites) {
+  // When run with TSAN, this exposes the data race fixed in
+  // https://github.com/facebook/rocksdb/pull/3603
+  ASSERT_OK(Put("key1", "val1"));
+  port::Thread thread([this]() { ASSERT_OK(Put("key2", "val2")); });
+  Checkpoint* checkpoint;
+  ASSERT_OK(Checkpoint::Create(db_, &checkpoint));
+  ASSERT_OK(checkpoint->CreateCheckpoint(snapshot_name_));
+  delete checkpoint;
+  thread.join();
 }
 
 }  // namespace rocksdb

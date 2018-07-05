@@ -33,6 +33,7 @@ LIB_SOURCES =                                                   \
   db/flush_scheduler.cc                                         \
   db/forward_iterator.cc                                        \
   db/internal_stats.cc                                          \
+  db/logs_with_prep_tracker.cc                                  \
   db/log_reader.cc                                              \
   db/log_writer.cc                                              \
   db/malloc_stats.cc                                            \
@@ -148,6 +149,7 @@ LIB_SOURCES =                                                   \
   util/status_message.cc                                        \
   util/string_util.cc                                           \
   util/sync_point.cc                                            \
+  util/sync_point_impl.cc                                       \
   util/thread_local.cc                                          \
   util/threadpool_imp.cc                                        \
   util/transaction_test_util.cc                                 \
@@ -265,6 +267,7 @@ MAIN_SOURCES =                                                          \
   db/db_inplace_update_test.cc                                          \
   db/db_io_failure_test.cc                                              \
   db/db_iter_test.cc                                                    \
+  db/db_iter_stress_test.cc                                             \
   db/db_iterator_test.cc                                                \
   db/db_log_iter_test.cc                                                \
   db/db_memtable_test.cc                                                \
@@ -281,6 +284,7 @@ MAIN_SOURCES =                                                          \
   db/db_write_test.cc                                                   \
   db/dbformat_test.cc                                                   \
   db/deletefile_test.cc                                                 \
+  db/obsolete_files_test.cc						\
   db/external_sst_file_basic_test.cc                                    \
   db/external_sst_file_test.cc                                          \
   db/fault_injection_test.cc                                            \
@@ -413,6 +417,7 @@ JNI_NATIVE_SOURCES =                                          \
   java/rocksjni/rocksdb_exception_test.cc                     \
   java/rocksjni/slice.cc                                      \
   java/rocksjni/snapshot.cc                                   \
+  java/rocksjni/sst_file_manager.cc                           \
   java/rocksjni/sst_file_writerjni.cc                         \
   java/rocksjni/statistics.cc                                 \
   java/rocksjni/statisticsjni.cc                              \

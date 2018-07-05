@@ -540,6 +540,25 @@ class SnapshotConcurrentAccessTest
   size_t split_cnt_;
 };
 
+class SeqAdvanceConcurrentTest
+    : public WritePreparedTransactionTestBase,
+      virtual public ::testing::WithParamInterface<
+          std::tuple<bool, bool, TxnDBWritePolicy, size_t, size_t>> {
+ public:
+  SeqAdvanceConcurrentTest()
+      : WritePreparedTransactionTestBase(std::get<0>(GetParam()),
+                                         std::get<1>(GetParam()),
+                                         std::get<2>(GetParam())),
+        split_id_(std::get<3>(GetParam())),
+        split_cnt_(std::get<4>(GetParam())){};
+
+ protected:
+  // A test is split into split_cnt_ tests, each identified with split_id_ where
+  // 0 <= split_id_ < split_cnt_
+  size_t split_id_;
+  size_t split_cnt_;
+};
+
 INSTANTIATE_TEST_CASE_P(
     WritePreparedTransactionTest, WritePreparedTransactionTest,
     ::testing::Values(std::make_tuple(false, false, WRITE_PREPARED),
@@ -590,6 +609,32 @@ INSTANTIATE_TEST_CASE_P(
                       std::make_tuple(false, false, WRITE_PREPARED, 17, 20),
                       std::make_tuple(false, false, WRITE_PREPARED, 18, 20),
                       std::make_tuple(false, false, WRITE_PREPARED, 19, 20)));
+
+INSTANTIATE_TEST_CASE_P(
+    TwoWriteQueues, SeqAdvanceConcurrentTest,
+    ::testing::Values(std::make_tuple(false, true, WRITE_PREPARED, 0, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 1, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 2, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 3, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 4, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 5, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 6, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 7, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 8, 10),
+                      std::make_tuple(false, true, WRITE_PREPARED, 9, 10)));
+
+INSTANTIATE_TEST_CASE_P(
+    OneWriteQueue, SeqAdvanceConcurrentTest,
+    ::testing::Values(std::make_tuple(false, false, WRITE_PREPARED, 0, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 1, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 2, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 3, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 4, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 5, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 6, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 7, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 8, 10),
+                      std::make_tuple(false, false, WRITE_PREPARED, 9, 10)));
 
 TEST_P(WritePreparedTransactionTest, CommitMapTest) {
   WritePreparedTxnDB* wp_db = dynamic_cast<WritePreparedTxnDB*>(db);
@@ -698,8 +743,10 @@ TEST_P(WritePreparedTransactionTest, OldCommitMapGC) {
   wp_db->TakeSnapshot(snap_seq1);
   auto commit_seq = ++seq;
   wp_db->AddCommitted(prep_seq, commit_seq);
+  wp_db->RemovePrepared(prep_seq);
   auto commit_seq2 = ++seq;
   wp_db->AddCommitted(prep_seq2, commit_seq2);
+  wp_db->RemovePrepared(prep_seq2);
   // Take the 2nd and 3rd snapshot that overlap with the same txn
   prep_seq = ++seq;
   wp_db->AddPrepared(prep_seq);
@@ -711,12 +758,14 @@ TEST_P(WritePreparedTransactionTest, OldCommitMapGC) {
   seq++;
   commit_seq = ++seq;
   wp_db->AddCommitted(prep_seq, commit_seq);
+  wp_db->RemovePrepared(prep_seq);
   // Make sure max_evicted_seq_ will be larger than 2nd snapshot by evicting the
   // only item in the commit_cache_ via another commit.
   prep_seq = ++seq;
   wp_db->AddPrepared(prep_seq);
   commit_seq = ++seq;
   wp_db->AddCommitted(prep_seq, commit_seq);
+  wp_db->RemovePrepared(prep_seq);
 
   // Verify that the evicted commit entries for all snapshots are in the
   // old_commit_map_
@@ -930,7 +979,45 @@ TEST_P(WritePreparedTransactionTest, AdvanceMaxEvictedSeqBasicTest) {
   }
 }
 
-TEST_P(WritePreparedTransactionTest, SeqAdvanceConcurrentTest) {
+// This tests that transactions with duplicate keys perform correctly after max
+// is advancing their prepared sequence numbers. This will not be the case if
+// for example the txn does not add the prepared seq for the second sub-batch to
+// the PrepareHeap structure.
+TEST_P(WritePreparedTransactionTest, AdvanceMaxEvictedSeqWithDuplicatesTest) {
+  WriteOptions write_options;
+  TransactionOptions txn_options;
+  Transaction* txn0 = db->BeginTransaction(write_options, txn_options);
+  ASSERT_OK(txn0->SetName("xid"));
+  ASSERT_OK(txn0->Put(Slice("key"), Slice("value1")));
+  ASSERT_OK(txn0->Put(Slice("key"), Slice("value2")));
+  ASSERT_OK(txn0->Prepare());
+
+  WritePreparedTxnDB* wp_db = dynamic_cast<WritePreparedTxnDB*>(db);
+  // Ensure that all the prepared sequence numbers will be removed from the
+  // PrepareHeap.
+  SequenceNumber new_max = wp_db->COMMIT_CACHE_SIZE;
+  wp_db->AdvanceMaxEvictedSeq(0, new_max);
+
+  ReadOptions ropt;
+  PinnableSlice pinnable_val;
+  auto s = db->Get(ropt, db->DefaultColumnFamily(), "key", &pinnable_val);
+  ASSERT_TRUE(s.IsNotFound());
+  delete txn0;
+
+  wp_db->db_impl_->FlushWAL(true);
+  wp_db->TEST_Crash();
+  ReOpenNoDelete();
+  wp_db = dynamic_cast<WritePreparedTxnDB*>(db);
+  wp_db->AdvanceMaxEvictedSeq(0, new_max);
+  s = db->Get(ropt, db->DefaultColumnFamily(), "key", &pinnable_val);
+  ASSERT_TRUE(s.IsNotFound());
+
+  txn0 = db->GetTransactionByName("xid");
+  ASSERT_OK(txn0->Rollback());
+  delete txn0;
+}
+
+TEST_P(SeqAdvanceConcurrentTest, SeqAdvanceConcurrentTest) {
   // Given the sequential run of txns, with this timeout we should never see a
   // deadlock nor a timeout unless we have a key conflict, which should be
   // almost infeasible.
@@ -957,6 +1044,7 @@ TEST_P(WritePreparedTransactionTest, SeqAdvanceConcurrentTest) {
   const size_t max_n = static_cast<size_t>(std::pow(type_cnt, txn_cnt));
   printf("Number of cases being tested is %" ROCKSDB_PRIszt "\n", max_n);
   for (size_t n = 0; n < max_n; n++, ReOpen()) {
+    if (n % split_cnt_ != split_id_) continue;
     if (n % 1000 == 0) {
       printf("Tested %" ROCKSDB_PRIszt " cases so far\n", n);
     }
@@ -974,9 +1062,9 @@ TEST_P(WritePreparedTransactionTest, SeqAdvanceConcurrentTest) {
     std::atomic<bool> batch_formed(false);
     rocksdb::SyncPoint::GetInstance()->SetCallBack(
         "WriteThread::EnterAsBatchGroupLeader:End",
-        [&](void* arg) { batch_formed = true; });
+        [&](void* /*arg*/) { batch_formed = true; });
     rocksdb::SyncPoint::GetInstance()->SetCallBack(
-        "WriteThread::JoinBatchGroup:Wait", [&](void* arg) {
+        "WriteThread::JoinBatchGroup:Wait", [&](void* /*arg*/) {
           linked++;
           if (linked == 1) {
             // Wait until the others are linked too.
@@ -995,9 +1083,8 @@ TEST_P(WritePreparedTransactionTest, SeqAdvanceConcurrentTest) {
 
     rocksdb::SyncPoint::GetInstance()->EnableProcessing();
     for (size_t bi = 0; bi < txn_cnt; bi++) {
-      size_t d =
-          (n % base[bi + 1]) /
-          base[bi];  // get the bi-th digit in number system based on type_cnt
+      // get the bi-th digit in number system based on type_cnt
+      size_t d = (n % base[bi + 1]) / base[bi];
       switch (d) {
         case 0:
           threads.emplace_back(txn_t0, bi);
@@ -1020,8 +1107,8 @@ TEST_P(WritePreparedTransactionTest, SeqAdvanceConcurrentTest) {
       // wait to be linked
       while (linked.load() <= bi) {
       }
-      if (bi + 1 ==
-          first_group_size) {  // after a queue of size first_group_size
+      // after a queue of size first_group_size
+      if (bi + 1 == first_group_size) {
         while (!batch_formed) {
         }
         // to make it more deterministic, wait until the commits are linked
@@ -1329,6 +1416,7 @@ TEST_P(WritePreparedTransactionTest, IsInSnapshotTest) {
         } else {                                     // else commit it
           seq++;
           wp_db->AddCommitted(cur_txn, seq);
+          wp_db->RemovePrepared(cur_txn);
           commit_seqs.insert(seq);
           if (!snapshot) {
             committed_before.insert(cur_txn);
@@ -1378,9 +1466,11 @@ TEST_P(WritePreparedTransactionTest, IsInSnapshotTest) {
       // they are committed.
       if (cur_txn) {
         wp_db->AddCommitted(cur_txn, seq);
+        wp_db->RemovePrepared(cur_txn);
       }
       for (auto p : prepared) {
         wp_db->AddCommitted(p, seq);
+        wp_db->RemovePrepared(p);
       }
       ASSERT_TRUE(wp_db->delayed_prepared_.empty());
       ASSERT_TRUE(wp_db->prepared_txns_.empty());

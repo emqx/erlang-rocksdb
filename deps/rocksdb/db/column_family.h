@@ -139,6 +139,9 @@ extern Status CheckCompressionSupported(const ColumnFamilyOptions& cf_options);
 extern Status CheckConcurrentWritesSupported(
     const ColumnFamilyOptions& cf_options);
 
+extern Status CheckCFPathsSupported(const DBOptions& db_options,
+                                    const ColumnFamilyOptions& cf_options);
+
 extern ColumnFamilyOptions SanitizeOptions(const ImmutableDBOptions& db_options,
                                            const ColumnFamilyOptions& src);
 // Wrap user defined table proproties collector factories `from cf_options`
@@ -293,9 +296,9 @@ class ColumnFamilyData {
   // REQUIRES: DB mutex held
   Compaction* CompactRange(const MutableCFOptions& mutable_cf_options,
                            int input_level, int output_level,
-                           uint32_t output_path_id, const InternalKey* begin,
-                           const InternalKey* end, InternalKey** compaction_end,
-                           bool* manual_conflict);
+                           uint32_t output_path_id, uint32_t max_subcompactions,
+                           const InternalKey* begin, const InternalKey* end,
+                           InternalKey** compaction_end, bool* manual_conflict);
 
   CompactionPicker* compaction_picker() { return compaction_picker_.get(); }
   // thread-safe
@@ -342,10 +345,10 @@ class ColumnFamilyData {
   void ResetThreadLocalSuperVersions();
 
   // Protected by DB mutex
-  void set_pending_flush(bool value) { pending_flush_ = value; }
-  void set_pending_compaction(bool value) { pending_compaction_ = value; }
-  bool pending_flush() { return pending_flush_; }
-  bool pending_compaction() { return pending_compaction_; }
+  void set_queued_for_flush(bool value) { queued_for_flush_ = value; }
+  void set_queued_for_compaction(bool value) { queued_for_compaction_ = value; }
+  bool queued_for_flush() { return queued_for_flush_; }
+  bool queued_for_compaction() { return queued_for_compaction_; }
 
   enum class WriteStallCause {
     kNone,
@@ -370,7 +373,15 @@ class ColumnFamilyData {
 
   bool initialized() const { return initialized_.load(); }
 
+  const ColumnFamilyOptions& initial_cf_options() {
+    return initial_cf_options_;
+  }
+
   Env::WriteLifeTimeHint CalculateSSTWriteHint(int level);
+
+  Status AddDirectories();
+
+  Directory* GetDataDir(size_t path_id) const;
 
  private:
   friend class ColumnFamilySet;
@@ -442,11 +453,11 @@ class ColumnFamilyData {
   std::unique_ptr<WriteControllerToken> write_controller_token_;
 
   // If true --> this ColumnFamily is currently present in DBImpl::flush_queue_
-  bool pending_flush_;
+  bool queued_for_flush_;
 
   // If true --> this ColumnFamily is currently present in
   // DBImpl::compaction_queue_
-  bool pending_compaction_;
+  bool queued_for_compaction_;
 
   uint64_t prev_compaction_needed_bytes_;
 
@@ -455,6 +466,9 @@ class ColumnFamilyData {
 
   // Memtable id to track flush.
   std::atomic<uint64_t> last_memtable_id_;
+
+  // Directories corresponding to cf_paths.
+  std::vector<std::unique_ptr<Directory>> data_dirs_;
 };
 
 // ColumnFamilySet has interesting thread-safety requirements

@@ -77,6 +77,7 @@ enum CompressionType : unsigned char {
 };
 
 struct Options;
+struct DbPath;
 
 struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
   // The function recovers options to a previous version. Only 4.6 or later
@@ -197,21 +198,11 @@ struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
   // Typical speeds of kSnappyCompression on an Intel(R) Core(TM)2 2.4GHz:
   //    ~200-500MB/s compression
   //    ~400-800MB/s decompression
-  //
   // Note that these speeds are significantly faster than most
   // persistent storage speeds, and therefore it is typically never
   // worth switching to kNoCompression.  Even if the input data is
   // incompressible, the kSnappyCompression implementation will
   // efficiently detect that and will switch to uncompressed mode.
-  //
-  // If you do not set `compression_opts.level`, or set it to
-  // `CompressionOptions::kDefaultCompressionLevel`, we will attempt to pick the
-  // default corresponding to `compression` as follows:
-  //
-  // - kZSTD: 3
-  // - kZlibCompression: Z_DEFAULT_COMPRESSION (currently -1)
-  // - kLZ4HCCompression: 0
-  // - For all others, we do not specify a compression level
   CompressionType compression;
 
   // Compression algorithm that will be used for the bottommost level that
@@ -272,6 +263,20 @@ struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
   // implementation of TableBuilder and TableReader with default
   // BlockBasedTableOptions.
   std::shared_ptr<TableFactory> table_factory;
+
+  // A list of paths where SST files for this column family
+  // can be put into, with its target size. Similar to db_paths,
+  // newer data is placed into paths specified earlier in the
+  // vector while older data gradually moves to paths specified
+  // later in the vector.
+  // Note that, if a path is supplied to multiple column
+  // families, it would have files and total size from all
+  // the column families combined. User should privision for the
+  // total size(from all the column families) in such cases.
+  //
+  // If left empty, db_paths will be used.
+  // Default: empty
+  std::vector<DbPath> cf_paths;
 
   // Create ColumnFamilyOptions with default values for all fields
   ColumnFamilyOptions();
@@ -418,7 +423,7 @@ struct DBOptions {
 
   // By default, writes to stable storage use fdatasync (on platforms
   // where this function is available). If this option is true,
-  // fsync is used instead. 
+  // fsync is used instead.
   //
   // fsync and fdatasync are equally safe for our purposes and fdatasync is
   // faster, so it is rarely necessary to set this option. It is provided
@@ -599,13 +604,13 @@ struct DBOptions {
   // buffered. The hardware buffer of the devices may however still
   // be used. Memory mapped files are not impacted by these parameters.
 
-  // Use O_DIRECT for user reads
+  // Use O_DIRECT for user and compaction reads.
+  // When true, we also force new_table_reader_for_compaction_inputs to true.
   // Default: false
   // Not supported in ROCKSDB_LITE mode!
   bool use_direct_reads = false;
 
-  // Use O_DIRECT for both reads and writes in background flush and compactions
-  // When true, we also force new_table_reader_for_compaction_inputs to true.
+  // Use O_DIRECT for writes in background flush and compactions.
   // Default: false
   // Not supported in ROCKSDB_LITE mode!
   bool use_direct_io_for_flush_and_compaction = false;
@@ -748,7 +753,7 @@ struct DBOptions {
   // Default: 0, turned off
   uint64_t wal_bytes_per_sync = 0;
 
-  // A vector of EventListeners which call-back functions will be called
+  // A vector of EventListeners which callback functions will be called
   // when specific RocksDB event happens.
   std::vector<std::shared_ptr<EventListener>> listeners;
 
@@ -1028,10 +1033,11 @@ struct ReadOptions {
   // Default: true
   bool verify_checksums;
 
-  // Should the "data block"/"index block"/"filter block" read for this
-  // iteration be cached in memory?
+  // Should the "data block"/"index block"" read for this iteration be placed in
+  // block cache?
   // Callers may wish to set this field to false for bulk scans.
-  // Default: true
+  // This would help not to the change eviction order of existing items in the
+  // block cache. Default: true
   bool fill_cache;
 
   // Specify to create a tailing iterator -- a special iterator that has a
@@ -1179,10 +1185,13 @@ struct CompactionOptions {
   // Compaction will create files of size `output_file_size_limit`.
   // Default: MAX, which means that compaction will create a single file
   uint64_t output_file_size_limit;
+  // If > 0, it will replace the option in the DBOptions for this compaction.
+  uint32_t max_subcompactions;
 
   CompactionOptions()
       : compression(kSnappyCompression),
-        output_file_size_limit(std::numeric_limits<uint64_t>::max()) {}
+        output_file_size_limit(std::numeric_limits<uint64_t>::max()),
+        max_subcompactions(0) {}
 };
 
 // For level based compaction, we can configure if we want to skip/force
@@ -1218,6 +1227,8 @@ struct CompactRangeOptions {
   // If true, will execute immediately even if doing so would cause the DB to
   // enter write stall mode. Otherwise, it'll sleep until load is low enough.
   bool allow_write_stall = false;
+  // If > 0, it will replace the option in the DBOptions for this compaction.
+  uint32_t max_subcompactions = 0;
 };
 
 // IngestExternalFileOptions is used by IngestExternalFile()

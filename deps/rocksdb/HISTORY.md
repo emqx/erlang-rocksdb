@@ -1,24 +1,44 @@
 # Rocksdb Change Log
-## 5.13.4 (6/12/2018)
+## 5.14.2 (7/3/2018)
 ### Bug Fixes
-* Fix regression bug of Prev() with ReadOptions.iterate_upper_bound.
+* Change default value of `bytes_max_delete_chunk` to 0 in NewSstFileManager() as it doesn't work well with checkpoints.
+* Set DEBUG_LEVEL=0 for RocksJava Mac Release build.
 
-## 5.13.3 (6/6/2018)
+## 5.14.1 (6/20/2018)
 ### Bug Fixes
-* Fix assertion when reading bloom filter of SST files containing range deletions but no data
+* Fix block-based table reader pinning blocks throughout its lifetime, causing memory usage increase.
+* Fix bug with prefix search in partition filters where a shared prefix would be ignored from the later partitions. The bug could report an eixstent key as missing. The bug could be triggered if prefix_extractor is set and partition filters is enabled.
 
-## 5.13.2 (5/25/2018)
+## 5.14.0 (5/16/2018)
 ### Public API Change
-* Introduced `CompressionOptions::kDefaultCompressionLevel`, which is a generic way to tell RocksDB to use the compression library's default level. It is now the default value for `CompressionOptions::level`. Previously the level defaulted to -1, which gave poor compression ratios in ZSTD.
+* Add a BlockBasedTableOption to align uncompressed data blocks on the smaller of block size or page size boundary, to reduce flash reads by avoiding reads spanning 4K pages.
+* The background thread naming convention changed (on supporting platforms) to "rocksdb:<thread pool priority><thread number>", e.g., "rocksdb:low0".
+* Add a new ticker stat rocksdb.number.multiget.keys.found to count number of keys successfully read in MultiGet calls
+* Touch-up to write-related counters in PerfContext. New counters added: write_scheduling_flushes_compactions_time, write_thread_wait_nanos. Counters whose behavior was fixed or modified: write_memtable_time, write_pre_and_post_process_time, write_delay_time.
+* Posix Env's NewRandomRWFile() will fail if the file doesn't exist.
+* Now, `DBOptions::use_direct_io_for_flush_and_compaction` only applies to background writes, and `DBOptions::use_direct_reads` applies to both user reads and background reads. This conforms with Linux's `open(2)` manpage, which advises against simultaneously reading a file in buffered and direct modes, due to possibly undefined behavior and degraded performance.
+* Iterator::Valid() always returns false if !status().ok(). So, now when doing a Seek() followed by some Next()s, there's no need to check status() after every operation.
+* Iterator::Seek()/SeekForPrev()/SeekToFirst()/SeekToLast() always resets status().
+
+### New Features
+* Introduce TTL for level compaction so that all files older than ttl go through the compaction process to get rid of old data.
+* TransactionDBOptions::write_policy can be configured to enable WritePrepared 2PC transactions. Read more about them in the wiki.
+* Add DB properties "rocksdb.block-cache-capacity", "rocksdb.block-cache-usage", "rocksdb.block-cache-pinned-usage" to show block cache usage.
+* Add `Env::LowerThreadPoolCPUPriority(Priority)` method, which lowers the CPU priority of background (esp. compaction) threads to minimize interference with foreground tasks.
+* Fsync parent directory after deleting a file in delete scheduler.
+* In level-based compaction, if bottom-pri thread pool was setup via `Env::SetBackgroundThreads()`, compactions to the bottom level will be delegated to that thread pool.
 
 ### Bug Fixes
-* Fix segfault caused by object premature destruction (PR #3898)
-* Fix an issue with unnecessary capture in lambda expressions (PR #3904)
+* Fsync after writing global seq number to the ingestion file in ExternalSstFileIngestionJob.
+* Fix WAL corruption caused by race condition between user write thread and FlushWAL when two_write_queue is not set.
+* Fix `BackupableDBOptions::max_valid_backups_to_open` to not delete backup files when refcount cannot be accurately determined.
+* Fix memory leak when pin_l0_filter_and_index_blocks_in_cache is used with partitioned filters
+* Disable rollback of merge operands in WritePrepared transactions to work around an issue in MyRocks. It can be enabled back by setting TransactionDBOptions::rollback_merge_operands to true.
+* Fix bug with prefix search in partition filters where a shared prefix would be ignored from the later partitions. The bug could report an eixstent key as missing. The bug could be triggered if prefix_extractor is set and partition filters is enabled.
 
-## 5.13.1 (4/30/2018)
-### New Features
-* Add `Env::LowerThreadPoolCPUPriority(Priority)` method, which lowers the CPU priority of background (esp. compaction) threads to minimize interference with foreground tasks.
-* Eliminate use of temporary directories in BackupEngine to improve reliability on distributed file systems.
+### Java API Changes
+* Add `BlockBasedTableConfig.setBlockCache` to allow sharing a block cache across DB instances.
+* Added SstFileManager to the Java API to allow managing SST files across DB instances.
 
 ## 5.13.0 (3/20/2018)
 ### Public API Change
@@ -30,15 +50,11 @@
 * Avoid unnecessarily flushing in `CompactRange()` when the range specified by the user does not overlap unflushed memtables.
 * If `ColumnFamilyOptions::max_subcompactions` is set greater than one, we now parallelize large manual level-based compactions.
 * Add "rocksdb.live-sst-files-size" DB property to return total bytes of all SST files belong to the latest LSM tree.
+* NewSstFileManager to add an argument bytes_max_delete_chunk with default 64MB. With this argument, a file larger than 64MB will be ftruncated multiple times based on this size.
 
 ### Bug Fixes
 * Fix a leak in prepared_section_completed_ where the zeroed entries would not removed from the map.
 * Fix WAL corruption caused by race condition between user write thread and backup/checkpoint thread.
-* Fsync after writing global seq number to the ingestion file in ExternalSstFileIngestionJob.
-* Fix memory leak when pin_l0_filter_and_index_blocks_in_cache is used with partitioned filters
-
-### Java API Changes
-* Add `BlockBasedTableConfig.setBlockCache` to allow sharing a block cache across DB instances.
 
 ## 5.12.0 (2/14/2018)
 ### Public API Change

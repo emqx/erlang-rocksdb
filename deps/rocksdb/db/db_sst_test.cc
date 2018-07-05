@@ -20,6 +20,37 @@ class DBSSTTest : public DBTestBase {
   DBSSTTest() : DBTestBase("/db_sst_test") {}
 };
 
+#ifndef ROCKSDB_LITE
+// A class which remembers the name of each flushed file.
+class FlushedFileCollector : public EventListener {
+ public:
+  FlushedFileCollector() {}
+  ~FlushedFileCollector() {}
+
+  virtual void OnFlushCompleted(DB* /*db*/, const FlushJobInfo& info) override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    flushed_files_.push_back(info.file_path);
+  }
+
+  std::vector<std::string> GetFlushedFiles() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::string> result;
+    for (auto fname : flushed_files_) {
+      result.push_back(fname);
+    }
+    return result;
+  }
+  void ClearFlushedFiles() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    flushed_files_.clear();
+  }
+
+ private:
+  std::vector<std::string> flushed_files_;
+  std::mutex mutex_;
+};
+#endif  // ROCKSDB_LITE
+
 TEST_F(DBSSTTest, DontDeletePendingOutputs) {
   Options options;
   options.env = env_;
@@ -72,7 +103,7 @@ TEST_F(DBSSTTest, SSTsWithLdbSuffixHandling) {
   ASSERT_GT(num_files, 0);
 
   std::vector<std::string> filenames;
-  GetSstFiles(dbname_, &filenames);
+  GetSstFiles(env_, dbname_, &filenames);
   int num_ldb_files = 0;
   for (size_t i = 0; i < filenames.size(); ++i) {
     if (i & 1) {
@@ -231,11 +262,11 @@ TEST_F(DBSSTTest, DBWithSstFileManager) {
   int files_deleted = 0;
   int files_moved = 0;
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "SstFileManagerImpl::OnAddFile", [&](void* arg) { files_added++; });
+      "SstFileManagerImpl::OnAddFile", [&](void* /*arg*/) { files_added++; });
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "SstFileManagerImpl::OnDeleteFile", [&](void* arg) { files_deleted++; });
+      "SstFileManagerImpl::OnDeleteFile", [&](void* /*arg*/) { files_deleted++; });
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "SstFileManagerImpl::OnMoveFile", [&](void* arg) { files_moved++; });
+      "SstFileManagerImpl::OnMoveFile", [&](void* /*arg*/) { files_moved++; });
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
   Options options = CurrentOptions();
@@ -408,12 +439,12 @@ TEST_F(DBSSTTest, DeleteSchedulerMultipleDBPaths) {
   int bg_delete_file = 0;
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "DeleteScheduler::DeleteTrashFile:DeleteFile",
-      [&](void* arg) { bg_delete_file++; });
+      [&](void* /*arg*/) { bg_delete_file++; });
   // The deletion scheduler sometimes skips marking file as trash according to
   // a heuristic. In that case the deletion will go through the below SyncPoint.
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "DeleteScheduler::DeleteFile",
-      [&](void* arg) { bg_delete_file++; });
+      [&](void* /*arg*/) { bg_delete_file++; });
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
   Options options = CurrentOptions();
@@ -483,7 +514,7 @@ TEST_F(DBSSTTest, DestroyDBWithRateLimitedDelete) {
   int bg_delete_file = 0;
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "DeleteScheduler::DeleteTrashFile:DeleteFile",
-      [&](void* arg) { bg_delete_file++; });
+      [&](void* /*arg*/) { bg_delete_file++; });
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
   Status s;
@@ -557,12 +588,13 @@ TEST_F(DBSSTTest, CancellingCompactionsWorks) {
 
   int completed_compactions = 0;
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "DBImpl::BackgroundCompaction():CancelledCompaction", [&](void* arg) {
+      "DBImpl::BackgroundCompaction():CancelledCompaction", [&](void* /*arg*/) {
         sfm->SetMaxAllowedSpaceUsage(0);
+        ASSERT_EQ(sfm->GetCompactionsReservedSize(), 0);
       });
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "DBImpl::BackgroundCompaction:NonTrivial:AfterRun",
-      [&](void* arg) { completed_compactions++; });
+      [&](void* /*arg*/) { completed_compactions++; });
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
   Random rnd(301);
@@ -584,10 +616,84 @@ TEST_F(DBSSTTest, CancellingCompactionsWorks) {
   ASSERT_OK(Flush());
   dbfull()->TEST_WaitForCompact(true);
 
+  // Because we set a callback in CancelledCompaction, we actually
+  // let the compaction run
   ASSERT_GT(completed_compactions, 0);
   ASSERT_EQ(sfm->GetCompactionsReservedSize(), 0);
   // Make sure the stat is bumped
   ASSERT_GT(dbfull()->immutable_db_options().statistics.get()->getTickerCount(COMPACTION_CANCELLED), 0);
+  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
+}
+
+TEST_F(DBSSTTest, CancellingManualCompactionsWorks) {
+  std::shared_ptr<SstFileManager> sst_file_manager(NewSstFileManager(env_));
+  auto sfm = static_cast<SstFileManagerImpl*>(sst_file_manager.get());
+
+  Options options = CurrentOptions();
+  options.sst_file_manager = sst_file_manager;
+  options.statistics = CreateDBStatistics();
+
+  FlushedFileCollector* collector = new FlushedFileCollector();
+  options.listeners.emplace_back(collector);
+
+  DestroyAndReopen(options);
+
+  Random rnd(301);
+
+  // Generate a file containing 10 keys.
+  for (int i = 0; i < 10; i++) {
+    ASSERT_OK(Put(Key(i), RandomString(&rnd, 50)));
+  }
+  ASSERT_OK(Flush());
+  uint64_t total_file_size = 0;
+  auto files_in_db = GetAllSSTFiles(&total_file_size);
+  // Set the maximum allowed space usage to the current total size
+  sfm->SetMaxAllowedSpaceUsage(2 * total_file_size + 1);
+
+  // Generate another file to trigger compaction.
+  for (int i = 0; i < 10; i++) {
+    ASSERT_OK(Put(Key(i), RandomString(&rnd, 50)));
+  }
+  ASSERT_OK(Flush());
+
+  // OK, now trigger a manual compaction
+  dbfull()->CompactRange(CompactRangeOptions(), nullptr, nullptr);
+
+  // Wait for manual compaction to get scheduled and finish
+  dbfull()->TEST_WaitForCompact(true);
+
+  ASSERT_EQ(sfm->GetCompactionsReservedSize(), 0);
+  // Make sure the stat is bumped
+  ASSERT_EQ(dbfull()->immutable_db_options().statistics.get()->getTickerCount(
+                COMPACTION_CANCELLED),
+            1);
+
+  // Now make sure CompactFiles also gets cancelled
+  auto l0_files = collector->GetFlushedFiles();
+  dbfull()->CompactFiles(rocksdb::CompactionOptions(), l0_files, 0);
+
+  // Wait for manual compaction to get scheduled and finish
+  dbfull()->TEST_WaitForCompact(true);
+
+  ASSERT_EQ(dbfull()->immutable_db_options().statistics.get()->getTickerCount(
+                COMPACTION_CANCELLED),
+            2);
+  ASSERT_EQ(sfm->GetCompactionsReservedSize(), 0);
+
+  // Now let the flush through and make sure GetCompactionsReservedSize
+  // returns to normal
+  sfm->SetMaxAllowedSpaceUsage(0);
+  int completed_compactions = 0;
+  rocksdb::SyncPoint::GetInstance()->SetCallBack(
+      "CompactFilesImpl:End", [&](void* /*arg*/) { completed_compactions++; });
+
+  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
+  dbfull()->CompactFiles(rocksdb::CompactionOptions(), l0_files, 0);
+  dbfull()->TEST_WaitForCompact(true);
+
+  ASSERT_EQ(sfm->GetCompactionsReservedSize(), 0);
+  ASSERT_GT(completed_compactions, 0);
+
   rocksdb::SyncPoint::GetInstance()->DisableProcessing();
 }
 
@@ -627,7 +733,7 @@ TEST_F(DBSSTTest, DBWithMaxSpaceAllowedRandomized) {
 
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "CompactionJob::FinishCompactionOutputFile:MaxAllowedSpaceReached",
-      [&](void* arg) {
+      [&](void* /*arg*/) {
         bg_error_set = true;
         GetAllSSTFiles(&total_sst_files_size);
         reached_max_space_on_compaction++;
