@@ -135,6 +135,10 @@ class VersionStorageInfo {
   // ComputeCompactionScore()
   void ComputeFilesMarkedForCompaction();
 
+  // This computes ttl_expired_files_ and is called by
+  // ComputeCompactionScore()
+  void ComputeExpiredTtlFiles(const ImmutableCFOptions& ioptions);
+
   // This computes bottommost_files_marked_for_compaction_ and is called by
   // ComputeCompactionScore() or UpdateOldestSnapshot().
   //
@@ -284,6 +288,13 @@ class VersionStorageInfo {
       const {
     assert(finalized_);
     return files_marked_for_compaction_;
+  }
+
+  // REQUIRES: This version has been saved (see VersionSet::SaveTo)
+  // REQUIRES: DB mutex held during access
+  const autovector<std::pair<int, FileMetaData*>>& ExpiredTtlFiles() const {
+    assert(finalized_);
+    return expired_ttl_files_;
   }
 
   // REQUIRES: This version has been saved (see VersionSet::SaveTo)
@@ -445,6 +456,8 @@ class VersionStorageInfo {
   // currently being compacted. It is protected by DB mutex. It is calculated in
   // ComputeCompactionScore()
   autovector<std::pair<int, FileMetaData*>> files_marked_for_compaction_;
+
+  autovector<std::pair<int, FileMetaData*>> expired_ttl_files_;
 
   // These files are considered bottommost because none of their keys can exist
   // at lower levels. They are not necessarily all in the same level. The marked
@@ -682,6 +695,36 @@ class Version {
   void operator=(const Version&);
 };
 
+struct ObsoleteFileInfo {
+  FileMetaData* metadata;
+  std::string   path;
+
+  ObsoleteFileInfo() noexcept : metadata(nullptr) {}
+  ObsoleteFileInfo(FileMetaData* f, const std::string& file_path)
+      : metadata(f), path(file_path) {}
+
+  ObsoleteFileInfo(const ObsoleteFileInfo&) = delete;
+  ObsoleteFileInfo& operator=(const ObsoleteFileInfo&) = delete;
+
+  ObsoleteFileInfo(ObsoleteFileInfo&& rhs) noexcept :
+    ObsoleteFileInfo() {
+      *this = std::move(rhs);
+  }
+
+  ObsoleteFileInfo& operator=(ObsoleteFileInfo&& rhs) noexcept {
+    path = std::move(rhs.path);
+    metadata = rhs.metadata;
+    rhs.metadata = nullptr;
+
+    return *this;
+  }
+
+  void DeleteMetadata() {
+    delete metadata;
+    metadata = nullptr;
+  }
+};
+
 class VersionSet {
  public:
   VersionSet(const std::string& dbname, const ImmutableDBOptions* db_options,
@@ -759,6 +802,10 @@ class VersionSet {
 
   uint64_t current_next_file_number() const { return next_file_number_.load(); }
 
+  uint64_t min_log_number_to_keep_2pc() const {
+    return min_log_number_to_keep_2pc_.load();
+  }
+
   // Allocate and return a new file number
   uint64_t NewFileNumber() { return next_file_number_.fetch_add(1); }
 
@@ -806,15 +853,31 @@ class VersionSet {
   // REQUIRED: this is only called during single-threaded recovery or repair.
   void MarkFileNumberUsed(uint64_t number);
 
+  // Mark the specified log number as deleted
+  // REQUIRED: this is only called during single-threaded recovery or repair, or
+  // from ::LogAndApply where the global mutex is held.
+  void MarkMinLogNumberToKeep2PC(uint64_t number);
+
   // Return the log file number for the log file that is currently
   // being compacted, or zero if there is no such log file.
   uint64_t prev_log_number() const { return prev_log_number_; }
 
-  // Returns the minimum log number such that all
-  // log numbers less than or equal to it can be deleted
-  uint64_t MinLogNumber() const {
+  // Returns the minimum log number which still has data not flushed to any SST
+  // file.
+  // In non-2PC mode, all the log numbers smaller than this number can be safely
+  // deleted.
+  uint64_t MinLogNumberWithUnflushedData() const {
+    return PreComputeMinLogNumberWithUnflushedData(nullptr);
+  }
+  // Returns the minimum log number which still has data not flushed to any SST
+  // file, except data from `cfd_to_skip`.
+  uint64_t PreComputeMinLogNumberWithUnflushedData(
+      const ColumnFamilyData* cfd_to_skip) const {
     uint64_t min_log_num = std::numeric_limits<uint64_t>::max();
     for (auto cfd : *column_family_set_) {
+      if (cfd == cfd_to_skip) {
+        continue;
+      }
       // It's safe to ignore dropped column families here:
       // cfd->IsDropped() becomes true after the drop is persisted in MANIFEST.
       if (min_log_num > cfd->GetLogNumber() && !cfd->IsDropped()) {
@@ -854,7 +917,7 @@ class VersionSet {
   // This function doesn't support leveldb SST filenames
   void GetLiveFilesMetaData(std::vector<LiveFileMetaData> *metadata);
 
-  void GetObsoleteFiles(std::vector<FileMetaData*>* files,
+  void GetObsoleteFiles(std::vector<ObsoleteFileInfo>* files,
                         std::vector<std::string>* manifest_filenames,
                         uint64_t min_pending_output);
 
@@ -864,6 +927,8 @@ class VersionSet {
     env_options_.writable_file_max_buffer_size =
         new_options.writable_file_max_buffer_size;
   }
+
+  const ImmutableDBOptions* db_options() const { return db_options_; }
 
   static uint64_t GetNumLiveVersions(Version* dummy_versions);
 
@@ -903,6 +968,10 @@ class VersionSet {
   const std::string dbname_;
   const ImmutableDBOptions* const db_options_;
   std::atomic<uint64_t> next_file_number_;
+  // Any log number equal or lower than this should be ignored during recovery,
+  // and is qualified for being deleted in 2PC mode. In non-2PC mode, this
+  // number is ignored.
+  std::atomic<uint64_t> min_log_number_to_keep_2pc_ = {0};
   uint64_t manifest_file_number_;
   uint64_t options_file_number_;
   uint64_t pending_manifest_file_number_;
@@ -935,7 +1004,7 @@ class VersionSet {
   // Current size of manifest file
   uint64_t manifest_file_size_;
 
-  std::vector<FileMetaData*> obsolete_files_;
+  std::vector<ObsoleteFileInfo> obsolete_files_;
   std::vector<std::string> obsolete_manifests_;
 
   // env options for all reads and writes except compactions

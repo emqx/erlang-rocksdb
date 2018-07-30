@@ -170,7 +170,8 @@ Status CuckooTableReader::Get(const ReadOptions& /*readOptions*/,
           Slice full_key(bucket, key_length_);
           ParsedInternalKey found_ikey;
           ParseInternalKey(full_key, &found_ikey);
-          get_context->SaveValue(found_ikey, value);
+          bool dont_care __attribute__((__unused__));
+          get_context->SaveValue(found_ikey, value, &dont_care);
         }
         // We don't support merge operations. So, we return here.
         return Status::OK();
@@ -205,7 +206,7 @@ class CuckooTableIterator : public InternalIterator {
   void Prev() override;
   Slice key() const override;
   Slice value() const override;
-  Status status() const override { return status_; }
+  Status status() const override { return Status::OK(); }
   void InitIfNeeded();
 
  private:
@@ -240,7 +241,6 @@ class CuckooTableIterator : public InternalIterator {
   void PrepareKVAtCurrIdx();
   CuckooTableReader* reader_;
   bool initialized_;
-  Status status_;
   // Contains a map of keys to bucket_id sorted in key order.
   std::vector<uint32_t> sorted_bucket_ids_;
   // We assume that the number of items can be stored in uint32 (4 Billion).

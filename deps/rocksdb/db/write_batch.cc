@@ -405,9 +405,11 @@ Status WriteBatch::Iterate(Handler* handler) const {
   Status s;
   char tag = 0;
   uint32_t column_family = 0;  // default
-  while ((s.ok() || UNLIKELY(s.IsTryAgain())) && !input.empty() &&
+  bool last_was_try_again = false;
+  while (((s.ok() && !input.empty()) || UNLIKELY(s.IsTryAgain())) &&
          handler->Continue()) {
     if (LIKELY(!s.IsTryAgain())) {
+      last_was_try_again = false;
       tag = 0;
       column_family = 0;  // default
 
@@ -418,6 +420,13 @@ Status WriteBatch::Iterate(Handler* handler) const {
       }
     } else {
       assert(s.IsTryAgain());
+      assert(!last_was_try_again); // to detect infinite loop bugs
+      if (UNLIKELY(last_was_try_again)) {
+        return Status::Corruption(
+            "two consecutive TryAgain in WriteBatch handler; this is either a "
+            "software bug or data corruption.");
+      }
+      last_was_try_again = true;
       s = Status::OK();
     }
 
@@ -1716,6 +1725,9 @@ Status WriteBatchInternal::InsertInto(
     ColumnFamilyMemTables* memtables, FlushScheduler* flush_scheduler,
     bool ignore_missing_column_families, uint64_t log_number, DB* db,
     bool concurrent_memtable_writes, bool seq_per_batch, size_t batch_cnt) {
+#ifdef NDEBUG
+  (void)batch_cnt;
+#endif
   assert(writer->ShouldWriteToMemtable());
   MemTableInserter inserter(sequence, memtables, flush_scheduler,
                             ignore_missing_column_families, log_number, db,

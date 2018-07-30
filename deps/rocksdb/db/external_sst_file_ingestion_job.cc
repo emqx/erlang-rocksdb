@@ -94,7 +94,8 @@ Status ExternalSstFileIngestionJob::Prepare(
 
     const std::string path_outside_db = f.external_file_path;
     const std::string path_inside_db =
-        TableFileName(db_options_.db_paths, f.fd.GetNumber(), f.fd.GetPathId());
+        TableFileName(cfd_->ioptions()->cf_paths, f.fd.GetNumber(),
+                      f.fd.GetPathId());
 
     if (ingestion_options_.move_files) {
       status = env_->LinkFile(path_outside_db, path_inside_db);
@@ -102,12 +103,16 @@ Status ExternalSstFileIngestionJob::Prepare(
         // Original file is on a different FS, use copy instead of hard linking
         status = CopyFile(env_, path_outside_db, path_inside_db, 0,
                           db_options_.use_fsync);
+        f.copy_file = true;
+      } else {
+        f.copy_file = false;
       }
     } else {
       status = CopyFile(env_, path_outside_db, path_inside_db, 0,
                         db_options_.use_fsync);
+      f.copy_file = true;
     }
-    TEST_SYNC_POINT("DBImpl::AddFile:FileCopied");
+    TEST_SYNC_POINT("ExternalSstFileIngestionJob::Prepare:FileAdded");
     if (!status.ok()) {
       break;
     }
@@ -117,7 +122,7 @@ Status ExternalSstFileIngestionJob::Prepare(
   if (!status.ok()) {
     // We failed, remove all files that we copied into the db
     for (IngestedFileInfo& f : files_to_ingest_) {
-      if (f.internal_file_path == "") {
+      if (f.internal_file_path.empty()) {
         break;
       }
       Status s = env_->DeleteFile(f.internal_file_path);
@@ -217,9 +222,17 @@ void ExternalSstFileIngestionJob::UpdateStats() {
   uint64_t total_l0_files = 0;
   uint64_t total_time = env_->NowMicros() - job_start_time_;
   for (IngestedFileInfo& f : files_to_ingest_) {
-    InternalStats::CompactionStats stats(1);
+    InternalStats::CompactionStats stats(CompactionReason::kExternalSstIngestion, 1);
     stats.micros = total_time;
-    stats.bytes_written = f.fd.GetFileSize();
+    // If actual copy occured for this file, then we need to count the file
+    // size as the actual bytes written. If the file was linked, then we ignore
+    // the bytes written for file metadata.
+    // TODO (yanqin) maybe account for file metadata bytes for exact accuracy?
+    if (f.copy_file) {
+      stats.bytes_written = f.fd.GetFileSize();
+    } else {
+      stats.bytes_moved = f.fd.GetFileSize();
+    }
     stats.num_output_files = 1;
     cfd_->internal_stats()->AddCompactionStats(f.picked_level, stats);
     cfd_->internal_stats()->AddCFStats(InternalStats::BYTES_INGESTED_ADD_FILE,

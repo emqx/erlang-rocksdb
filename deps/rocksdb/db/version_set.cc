@@ -135,6 +135,9 @@ class FilePicker {
         file_indexer_(file_indexer),
         user_comparator_(user_comparator),
         internal_comparator_(internal_comparator) {
+#ifdef NDEBUG
+    (void)files;
+#endif
     // Setup member variables to search first level.
     search_ended_ = !PrepareNextLevel();
     if (!search_ended_) {
@@ -355,7 +358,11 @@ Version::~Version() {
       assert(f->refs > 0);
       f->refs--;
       if (f->refs <= 0) {
-        vset_->obsolete_files_.push_back(f);
+        assert(cfd_ != nullptr);
+        uint32_t path_id = f->fd.GetPathId();
+        assert(path_id < cfd_->ioptions()->cf_paths.size());
+        vset_->obsolete_files_.push_back(
+            ObsoleteFileInfo(f, cfd_->ioptions()->cf_paths[path_id].path));
       }
     }
   }
@@ -495,13 +502,7 @@ class LevelIterator final : public InternalIterator {
     return file_iter_.value();
   }
   virtual Status status() const override {
-    // It'd be nice if status() returned a const Status& instead of a Status
-    if (!status_.ok()) {
-      return status_;
-    } else if (file_iter_.iter() != nullptr) {
-      return file_iter_.status();
-    }
-    return Status::OK();
+    return file_iter_.iter() ? file_iter_.status() : Status::OK();
   }
   virtual void SetPinnedItersMgr(
       PinnedIteratorsManager* pinned_iters_mgr) override {
@@ -566,7 +567,6 @@ class LevelIterator final : public InternalIterator {
   RangeDelAggregator* range_del_agg_;
   IteratorWrapper file_iter_;  // May be nullptr
   PinnedIteratorsManager* pinned_iters_mgr_;
-  Status status_;
 };
 
 void LevelIterator::Seek(const Slice& target) {
@@ -621,16 +621,9 @@ void LevelIterator::Prev() {
 }
 
 void LevelIterator::SkipEmptyFileForward() {
-  // For an error (IO error, checksum mismatch, etc), we skip the file
-  // and move to the next one and continue reading data.
-  // TODO this behavior is from LevelDB. We should revisit it.
   while (file_iter_.iter() == nullptr ||
-         (!file_iter_.Valid() && !file_iter_.status().IsIncomplete())) {
-    if (file_iter_.iter() != nullptr && !file_iter_.Valid() &&
-        file_iter_.iter()->IsOutOfBound()) {
-      return;
-    }
-
+         (!file_iter_.Valid() && file_iter_.status().ok() &&
+          !file_iter_.iter()->IsOutOfBound())) {
     // Move to next file
     if (file_index_ >= flevel_->num_files - 1) {
       // Already at the last file
@@ -650,7 +643,7 @@ void LevelIterator::SkipEmptyFileForward() {
 
 void LevelIterator::SkipEmptyFileBackward() {
   while (file_iter_.iter() == nullptr ||
-         (!file_iter_.Valid() && !file_iter_.status().IsIncomplete())) {
+         (!file_iter_.Valid() && file_iter_.status().ok())) {
     // Move to previous file
     if (file_index_ == 0) {
       // Already the first file
@@ -665,13 +658,6 @@ void LevelIterator::SkipEmptyFileBackward() {
 }
 
 void LevelIterator::SetFileIterator(InternalIterator* iter) {
-  if (file_iter_.iter() != nullptr && status_.ok()) {
-    // TODO right now we don't invalidate the iterator even if the status is
-    // not OK. We should consider to do that so that it is harder for users to
-    // skip errors.
-    status_ = file_iter_.status();
-  }
-
   if (pinned_iters_mgr_ && iter) {
     iter->SetPinnedItersMgr(pinned_iters_mgr_);
   }
@@ -756,7 +742,7 @@ Status Version::GetTableProperties(std::shared_ptr<const TableProperties>* tp,
     file_name = *fname;
   } else {
     file_name =
-      TableFileName(vset_->db_options_->db_paths, file_meta->fd.GetNumber(),
+      TableFileName(ioptions->cf_paths, file_meta->fd.GetNumber(),
                     file_meta->fd.GetPathId());
   }
   s = ioptions->env->NewRandomAccessFile(file_name, &file, env_options_);
@@ -797,7 +783,7 @@ Status Version::GetPropertiesOfAllTables(TablePropertiesCollection* props,
                                          int level) {
   for (const auto& file_meta : storage_info_.files_[level]) {
     auto fname =
-        TableFileName(vset_->db_options_->db_paths, file_meta->fd.GetNumber(),
+        TableFileName(cfd_->ioptions()->cf_paths, file_meta->fd.GetNumber(),
                       file_meta->fd.GetPathId());
     // 1. If the table is already present in table cache, load table
     // properties from there.
@@ -825,7 +811,7 @@ Status Version::GetPropertiesOfTablesInRange(
                                          false);
       for (const auto& file_meta : files) {
         auto fname =
-            TableFileName(vset_->db_options_->db_paths,
+            TableFileName(cfd_->ioptions()->cf_paths,
                           file_meta->fd.GetNumber(), file_meta->fd.GetPathId());
         if (props->count(fname) == 0) {
           // 1. If the table is already present in table cache, load table
@@ -897,11 +883,11 @@ void Version::GetColumnFamilyMetaData(ColumnFamilyMetaData* cf_meta) {
     for (const auto& file : vstorage->LevelFiles(level)) {
       uint32_t path_id = file->fd.GetPathId();
       std::string file_path;
-      if (path_id < ioptions->db_paths.size()) {
-        file_path = ioptions->db_paths[path_id].path;
+      if (path_id < ioptions->cf_paths.size()) {
+        file_path = ioptions->cf_paths[path_id].path;
       } else {
-        assert(!ioptions->db_paths.empty());
-        file_path = ioptions->db_paths.back().path;
+        assert(!ioptions->cf_paths.empty());
+        file_path = ioptions->cf_paths.back().path;
       }
       files.emplace_back(
           MakeTableFileName("", file->fd.GetNumber()), file_path,
@@ -1667,6 +1653,9 @@ void VersionStorageInfo::ComputeCompactionScore(
   }
   ComputeFilesMarkedForCompaction();
   ComputeBottommostFilesMarkedForCompaction();
+  if (immutable_cf_options.ttl > 0) {
+    ComputeExpiredTtlFiles(immutable_cf_options);
+  }
   EstimateCompactionBytesNeeded(mutable_cf_options);
 }
 
@@ -1688,6 +1677,34 @@ void VersionStorageInfo::ComputeFilesMarkedForCompaction() {
     for (auto* f : files_[level]) {
       if (!f->being_compacted && f->marked_for_compaction) {
         files_marked_for_compaction_.emplace_back(level, f);
+      }
+    }
+  }
+}
+
+void VersionStorageInfo::ComputeExpiredTtlFiles(
+    const ImmutableCFOptions& ioptions) {
+  assert(ioptions.ttl > 0);
+
+  expired_ttl_files_.clear();
+
+  int64_t _current_time;
+  auto status = ioptions.env->GetCurrentTime(&_current_time);
+  if (!status.ok()) {
+    return;
+  }
+  const uint64_t current_time = static_cast<uint64_t>(_current_time);
+
+  for (int level = 0; level < num_levels() - 1; level++) {
+    for (auto f : files_[level]) {
+      if (!f->being_compacted && f->fd.table_reader != nullptr &&
+          f->fd.table_reader->GetTableProperties() != nullptr) {
+        auto creation_time =
+            f->fd.table_reader->GetTableProperties()->creation_time;
+        if (creation_time > 0 &&
+            creation_time < (current_time - ioptions.ttl)) {
+          expired_ttl_files_.emplace_back(level, f);
+        }
       }
     }
   }
@@ -1729,6 +1746,8 @@ void VersionStorageInfo::AddFile(int level, FileMetaData* f, Logger* info_log) {
     }
     assert(false);
   }
+#else
+  (void)info_log;
 #endif
   f->refs++;
   level_files->push_back(f);
@@ -2623,16 +2642,16 @@ struct VersionSet::ManifestWriter {
 };
 
 VersionSet::VersionSet(const std::string& dbname,
-                       const ImmutableDBOptions* db_options,
+                       const ImmutableDBOptions* _db_options,
                        const EnvOptions& storage_options, Cache* table_cache,
                        WriteBufferManager* write_buffer_manager,
                        WriteController* write_controller)
     : column_family_set_(
-          new ColumnFamilySet(dbname, db_options, storage_options, table_cache,
+          new ColumnFamilySet(dbname, _db_options, storage_options, table_cache,
                               write_buffer_manager, write_controller)),
-      env_(db_options->env),
+      env_(_db_options->env),
       dbname_(dbname),
-      db_options_(db_options),
+      db_options_(_db_options),
       next_file_number_(2),
       manifest_file_number_(0),  // Filled by Recover()
       options_file_number_(0),
@@ -2656,12 +2675,12 @@ VersionSet::~VersionSet() {
   Cache* table_cache = column_family_set_->get_table_cache();
   table_cache->ApplyToAllCacheEntries(&CloseTables, false /* thread_safe */);
   column_family_set_.reset();
-  for (auto file : obsolete_files_) {
-    if (file->table_reader_handle) {
-      table_cache->Release(file->table_reader_handle);
-      TableCache::Evict(table_cache, file->fd.GetNumber());
+  for (auto& file : obsolete_files_) {
+    if (file.metadata->table_reader_handle) {
+      table_cache->Release(file.metadata->table_reader_handle);
+      TableCache::Evict(table_cache, file.metadata->fd.GetNumber());
     }
-    delete file;
+    file.DeleteMetadata();
   }
   obsolete_files_.clear();
 }
@@ -2803,6 +2822,9 @@ Status VersionSet::LogAndApply(ColumnFamilyData* column_family_data,
   // because &w is ensuring that all new writes get queued.
   {
     EnvOptions opt_env_opts = env_->OptimizeForManifestWrite(env_options_);
+    // Before releasing mutex, make a copy of mutable_cf_options and pass to
+    // `PrepareApply` to avoided a potential data race with backgroundflush
+    MutableCFOptions mutable_cf_options_copy(mutable_cf_options);
     mu->Unlock();
 
     TEST_SYNC_POINT("VersionSet::LogAndApply:WriteManifest");
@@ -2841,7 +2863,7 @@ Status VersionSet::LogAndApply(ColumnFamilyData* column_family_data,
 
     if (!w.edit_list.front()->IsColumnFamilyManipulation()) {
       // This is cpu-heavy operations, which should be called outside mutex.
-      v->PrepareApply(mutable_cf_options, true);
+      v->PrepareApply(mutable_cf_options_copy, true);
     }
 
     // Write new record to MANIFEST log
@@ -2914,16 +2936,26 @@ Status VersionSet::LogAndApply(ColumnFamilyData* column_family_data,
       }
     } else {
       uint64_t max_log_number_in_batch  = 0;
+      uint64_t last_min_log_number_to_keep = 0;
       for (auto& e : batch_edits) {
         if (e->has_log_number_) {
           max_log_number_in_batch =
               std::max(max_log_number_in_batch, e->log_number_);
+        }
+        if (e->has_min_log_number_to_keep_) {
+          last_min_log_number_to_keep =
+              std::max(last_min_log_number_to_keep, e->min_log_number_to_keep_);
         }
       }
       if (max_log_number_in_batch != 0) {
         assert(column_family_data->GetLogNumber() <= max_log_number_in_batch);
         column_family_data->SetLogNumber(max_log_number_in_batch);
       }
+      if (last_min_log_number_to_keep != 0) {
+        // Should only be set in 2PC mode.
+        MarkMinLogNumberToKeep2PC(last_min_log_number_to_keep);
+      }
+
       AppendVersion(column_family_data, v);
     }
 
@@ -2990,6 +3022,9 @@ void VersionSet::LogAndApplyCFHelper(VersionEdit* edit) {
 void VersionSet::LogAndApplyHelper(ColumnFamilyData* cfd,
                                    VersionBuilder* builder, Version* /*v*/,
                                    VersionEdit* edit, InstrumentedMutex* mu) {
+#ifdef NDEBUG
+  (void)cfd;
+#endif
   mu->AssertHeld();
   assert(!edit->IsColumnFamilyManipulation());
 
@@ -3076,6 +3111,7 @@ Status VersionSet::Recover(
   uint64_t log_number = 0;
   uint64_t previous_log_number = 0;
   uint32_t max_column_family = 0;
+  uint64_t min_log_number_to_keep = 0;
   std::unordered_map<uint32_t, BaseReferencedVersionBuilder*> builders;
 
   // add default column family
@@ -3216,6 +3252,11 @@ Status VersionSet::Recover(
         max_column_family = edit.max_column_family_;
       }
 
+      if (edit.has_min_log_number_to_keep_) {
+        min_log_number_to_keep =
+            std::max(min_log_number_to_keep, edit.min_log_number_to_keep_);
+      }
+
       if (edit.has_last_sequence_) {
         last_sequence = edit.last_sequence_;
         have_last_sequence = true;
@@ -3238,6 +3279,9 @@ Status VersionSet::Recover(
 
     column_family_set_->UpdateMaxColumnFamily(max_column_family);
 
+    // When reading DB generated using old release, min_log_number_to_keep=0.
+    // All log files will be scanned for potential prepare entries.
+    MarkMinLogNumberToKeep2PC(min_log_number_to_keep);
     MarkFileNumberUsed(previous_log_number);
     MarkFileNumberUsed(log_number);
   }
@@ -3309,11 +3353,12 @@ Status VersionSet::Recover(
         "manifest_file_number is %lu, next_file_number is %lu, "
         "last_sequence is %lu, log_number is %lu,"
         "prev_log_number is %lu,"
-        "max_column_family is %u\n",
+        "max_column_family is %u,"
+        "min_log_number_to_keep is %lu\n",
         manifest_filename.c_str(), (unsigned long)manifest_file_number_,
         (unsigned long)next_file_number_.load(), (unsigned long)last_sequence_,
         (unsigned long)log_number, (unsigned long)prev_log_number_,
-        column_family_set_->GetMaxColumnFamily());
+        column_family_set_->GetMaxColumnFamily(), min_log_number_to_keep_2pc());
 
     for (auto cfd : *column_family_set_) {
       if (cfd->IsDropped()) {
@@ -3601,6 +3646,7 @@ Status VersionSet::DumpManifest(Options& options, std::string& dscname,
         cfd->SetLogNumber(edit.log_number_);
       }
 
+
       if (edit.has_prev_log_number_) {
         previous_log_number = edit.prev_log_number_;
         have_prev_log_number = true;
@@ -3618,6 +3664,10 @@ Status VersionSet::DumpManifest(Options& options, std::string& dscname,
 
       if (edit.has_max_column_family_) {
         column_family_set_->UpdateMaxColumnFamily(edit.max_column_family_);
+      }
+
+      if (edit.has_min_log_number_to_keep_) {
+        MarkMinLogNumberToKeep2PC(edit.min_log_number_to_keep_);
       }
     }
   }
@@ -3677,10 +3727,11 @@ Status VersionSet::DumpManifest(Options& options, std::string& dscname,
 
     printf(
         "next_file_number %lu last_sequence "
-        "%lu  prev_log_number %lu max_column_family %u\n",
+        "%lu  prev_log_number %lu max_column_family %u min_log_number_to_keep "
+        "%" PRIu64 "\n",
         (unsigned long)next_file_number_.load(), (unsigned long)last_sequence,
         (unsigned long)previous_log_number,
-        column_family_set_->GetMaxColumnFamily());
+        column_family_set_->GetMaxColumnFamily(), min_log_number_to_keep_2pc());
   }
 
   return s;
@@ -3692,6 +3743,14 @@ void VersionSet::MarkFileNumberUsed(uint64_t number) {
   // works because there can't be concurrent calls
   if (next_file_number_.load(std::memory_order_relaxed) <= number) {
     next_file_number_.store(number + 1, std::memory_order_relaxed);
+  }
+}
+
+// Called only either from ::LogAndApply which is protected by mutex or during
+// recovery which is single-threaded.
+void VersionSet::MarkMinLogNumberToKeep2PC(uint64_t number) {
+  if (min_log_number_to_keep_2pc_.load(std::memory_order_relaxed) < number) {
+    min_log_number_to_keep_2pc_.store(number, std::memory_order_relaxed);
   }
 }
 
@@ -4011,6 +4070,8 @@ bool VersionSet::VerifyCompactionFileConsistency(Compaction* c) {
       }
     }
   }
+#else
+  (void)c;
 #endif
   return true;     // everything good
 }
@@ -4049,11 +4110,11 @@ void VersionSet::GetLiveFilesMetaData(std::vector<LiveFileMetaData>* metadata) {
         LiveFileMetaData filemetadata;
         filemetadata.column_family_name = cfd->GetName();
         uint32_t path_id = file->fd.GetPathId();
-        if (path_id < db_options_->db_paths.size()) {
-          filemetadata.db_path = db_options_->db_paths[path_id].path;
+        if (path_id < cfd->ioptions()->cf_paths.size()) {
+          filemetadata.db_path = cfd->ioptions()->cf_paths[path_id].path;
         } else {
-          assert(!db_options_->db_paths.empty());
-          filemetadata.db_path = db_options_->db_paths.back().path;
+          assert(!cfd->ioptions()->cf_paths.empty());
+          filemetadata.db_path = cfd->ioptions()->cf_paths.back().path;
         }
         filemetadata.name = MakeTableFileName("", file->fd.GetNumber());
         filemetadata.level = level;
@@ -4068,17 +4129,17 @@ void VersionSet::GetLiveFilesMetaData(std::vector<LiveFileMetaData>* metadata) {
   }
 }
 
-void VersionSet::GetObsoleteFiles(std::vector<FileMetaData*>* files,
+void VersionSet::GetObsoleteFiles(std::vector<ObsoleteFileInfo>* files,
                                   std::vector<std::string>* manifest_filenames,
                                   uint64_t min_pending_output) {
   assert(manifest_filenames->empty());
   obsolete_manifests_.swap(*manifest_filenames);
-  std::vector<FileMetaData*> pending_files;
-  for (auto f : obsolete_files_) {
-    if (f->fd.GetNumber() < min_pending_output) {
-      files->push_back(f);
+  std::vector<ObsoleteFileInfo> pending_files;
+  for (auto& f : obsolete_files_) {
+    if (f.metadata->fd.GetNumber() < min_pending_output) {
+      files->push_back(std::move(f));
     } else {
-      pending_files.push_back(f);
+      pending_files.push_back(std::move(f));
     }
   }
   obsolete_files_.swap(pending_files);

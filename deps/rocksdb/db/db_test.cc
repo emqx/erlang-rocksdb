@@ -234,11 +234,11 @@ TEST_F(DBTest, SkipDelay) {
       std::atomic<int> sleep_count(0);
       rocksdb::SyncPoint::GetInstance()->SetCallBack(
           "DBImpl::DelayWrite:Sleep",
-          [&](void* arg) { sleep_count.fetch_add(1); });
+          [&](void* /*arg*/) { sleep_count.fetch_add(1); });
       std::atomic<int> wait_count(0);
       rocksdb::SyncPoint::GetInstance()->SetCallBack(
           "DBImpl::DelayWrite:Wait",
-          [&](void* arg) { wait_count.fetch_add(1); });
+          [&](void* /*arg*/) { wait_count.fetch_add(1); });
       rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
       WriteOptions wo;
@@ -3348,6 +3348,56 @@ TEST_F(DBTest, WriteSingleThreadEntry) {
   }
 }
 
+TEST_F(DBTest, ConcurrentFlushWAL) {
+  const size_t cnt = 100;
+  Options options;
+  WriteOptions wopt;
+  ReadOptions ropt;
+  for (bool two_write_queues : {false, true}) {
+    for (bool manual_wal_flush : {false, true}) {
+      options.two_write_queues = two_write_queues;
+      options.manual_wal_flush = manual_wal_flush;
+      options.create_if_missing = true;
+      DestroyAndReopen(options);
+      std::vector<port::Thread> threads;
+      threads.emplace_back([&] {
+        for (size_t i = 0; i < cnt; i++) {
+          auto istr = ToString(i);
+          db_->Put(wopt, db_->DefaultColumnFamily(), "a" + istr, "b" + istr);
+        }
+      });
+      if (two_write_queues) {
+        threads.emplace_back([&] {
+          for (size_t i = cnt; i < 2 * cnt; i++) {
+            auto istr = ToString(i);
+            WriteBatch batch;
+            batch.Put("a" + istr, "b" + istr);
+            dbfull()->WriteImpl(wopt, &batch, nullptr, nullptr, 0, true);
+          }
+        });
+      }
+      threads.emplace_back([&] {
+        for (size_t i = 0; i < cnt * 100; i++) {  // FlushWAL is faster than Put
+          db_->FlushWAL(false);
+        }
+      });
+      for (auto& t : threads) {
+        t.join();
+      }
+      options.create_if_missing = false;
+      // Recover from the wal and make sure that it is not corrupted
+      Reopen(options);
+      for (size_t i = 0; i < cnt; i++) {
+        PinnableSlice pval;
+        auto istr = ToString(i);
+        ASSERT_OK(
+            db_->Get(ropt, db_->DefaultColumnFamily(), "a" + istr, &pval));
+        ASSERT_TRUE(pval == ("b" + istr));
+      }
+    }
+  }
+}
+
 #ifndef ROCKSDB_LITE
 TEST_F(DBTest, DynamicMemtableOptions) {
   const uint64_t k64KB = 1 << 16;
@@ -3441,7 +3491,7 @@ TEST_F(DBTest, DynamicMemtableOptions) {
 
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "DBImpl::DelayWrite:Wait",
-      [&](void* arg) { sleeping_task_low.WakeUp(); });
+      [&](void* /*arg*/) { sleeping_task_low.WakeUp(); });
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
   while (!sleeping_task_low.WokenUp() && count < 256) {
@@ -5144,7 +5194,7 @@ TEST_F(DBTest, AutomaticConflictsWithManualCompaction) {
   std::atomic<int> callback_count(0);
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
       "DBImpl::MaybeScheduleFlushOrCompaction:Conflict",
-      [&](void* arg) { callback_count.fetch_add(1); });
+      [&](void* /*arg*/) { callback_count.fetch_add(1); });
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
   Random rnd(301);
@@ -5367,7 +5417,7 @@ TEST_F(DBTest, HardLimit) {
 
   std::atomic<int> callback_count(0);
   rocksdb::SyncPoint::GetInstance()->SetCallBack("DBImpl::DelayWrite:Wait",
-                                                 [&](void* arg) {
+                                                 [&](void* /*arg*/) {
                                                    callback_count.fetch_add(1);
                                                    sleeping_task_low.WakeUp();
                                                  });
@@ -5392,7 +5442,7 @@ TEST_F(DBTest, HardLimit) {
   sleeping_task_low.WaitUntilDone();
 }
 
-#ifndef ROCKSDB_LITE
+#if !defined(ROCKSDB_LITE) && !defined(ROCKSDB_DISABLE_STALL_NOTIFICATION)
 class WriteStallListener : public EventListener {
  public:
   WriteStallListener() : cond_(&mutex_), 
@@ -5504,7 +5554,7 @@ TEST_F(DBTest, SoftLimit) {
 
   // Only allow one compactin going through.
   rocksdb::SyncPoint::GetInstance()->SetCallBack(
-      "BackgroundCallCompaction:0", [&](void* arg) {
+      "BackgroundCallCompaction:0", [&](void* /*arg*/) {
         // Schedule a sleeping task.
         sleeping_task_low.Reset();
         env_->Schedule(&test::SleepingBackgroundTask::DoSleepTask,
@@ -5614,7 +5664,7 @@ TEST_F(DBTest, LastWriteBufferDelay) {
   sleeping_task.WakeUp();
   sleeping_task.WaitUntilDone();
 }
-#endif  // ROCKSDB_LITE
+#endif  // !defined(ROCKSDB_LITE) && !defined(ROCKSDB_DISABLE_STALL_NOTIFICATION)
 
 TEST_F(DBTest, FailWhenCompressionNotSupportedTest) {
   CompressionType compressions[] = {kZlibCompression, kBZip2Compression,

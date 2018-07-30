@@ -42,6 +42,7 @@ class SequentialFile;
 class Slice;
 class WritableFile;
 class RandomRWFile;
+struct MemoryMappedFileBuffer;
 class Directory;
 struct DBOptions;
 struct ImmutableDBOptions;
@@ -204,6 +205,16 @@ class Env {
     return Status::NotSupported("RandomRWFile is not implemented in this Env");
   }
 
+  // Opens `fname` as a memory-mapped file for read and write (in-place updates
+  // only, i.e., no appends). On success, stores a raw buffer covering the whole
+  // file in `*result`. The file must exist prior to this call.
+  virtual Status NewMemoryMappedFileBuffer(
+      const std::string& /*fname*/,
+      unique_ptr<MemoryMappedFileBuffer>* /*result*/) {
+    return Status::NotSupported(
+        "MemoryMappedFileBuffer is not implemented in this Env");
+  }
+
   // Create an object that represents a directory. Will fail if directory
   // doesn't exist. If the directory exists, it will open the directory
   // and create a new Directory object.
@@ -246,6 +257,11 @@ class Env {
 
   // Delete the named file.
   virtual Status DeleteFile(const std::string& fname) = 0;
+
+  // Truncate the named file to the specified size.
+  virtual Status Truncate(const std::string& /*fname*/, size_t /*size*/) {
+    return Status::NotSupported("Truncate is not supported for this Env");
+  }
 
   // Create the specified directory. Returns error if directory exists.
   virtual Status CreateDir(const std::string& dirname) = 0;
@@ -301,6 +317,8 @@ class Env {
 
   // Priority for scheduling job in thread pool
   enum Priority { BOTTOM, LOW, HIGH, TOTAL };
+
+  static std::string PriorityToString(Priority priority);
 
   // Priority for requesting bytes in rate limiter scheduler
   enum IOPriority {
@@ -382,6 +400,10 @@ class Env {
   // default number: 1
   virtual void SetBackgroundThreads(int number, Priority pri = LOW) = 0;
   virtual int GetBackgroundThreads(Priority pri = LOW) = 0;
+
+  virtual Status SetAllowNonOwnerAccess(bool /*allow_non_owner_access*/) {
+    return Status::NotSupported("Not supported.");
+  }
 
   // Enlarge number of background worker threads of a specific thread pool
   // for this environment if it is smaller than specified. 'LOW' is the default
@@ -798,6 +820,17 @@ class RandomRWFile {
   RandomRWFile& operator=(const RandomRWFile&) = delete;
 };
 
+// MemoryMappedFileBuffer object represents a memory-mapped file's raw buffer.
+// Subclasses should release the mapping upon destruction.
+struct MemoryMappedFileBuffer {
+  MemoryMappedFileBuffer(void* _base, size_t _length)
+      : base(_base), length(_length) {}
+  virtual ~MemoryMappedFileBuffer() = 0;
+
+  void* const base;
+  const size_t length;
+};
+
 // Directory object represents collection of files and implements
 // filesystem operations that can be executed on directories.
 class Directory {
@@ -806,7 +839,7 @@ class Directory {
   // Fsync directory. Can be called concurrently from multiple threads.
   virtual Status Fsync() = 0;
 
-  virtual size_t GetUniqueId(char* id, size_t max_size) const {
+  virtual size_t GetUniqueId(char* /*id*/, size_t /*max_size*/) const {
     return 0;
   }
 };
@@ -1075,6 +1108,10 @@ class EnvWrapper : public Env {
   }
   int GetBackgroundThreads(Priority pri) override {
     return target_->GetBackgroundThreads(pri);
+  }
+
+  Status SetAllowNonOwnerAccess(bool allow_non_owner_access) override {
+    return target_->SetAllowNonOwnerAccess(allow_non_owner_access);
   }
 
   void IncBackgroundThreadsIfNeeded(int num, Priority pri) override {
