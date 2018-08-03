@@ -1,8 +1,7 @@
-erlang-rocksdb ???, released on ???
+erlang-rocksdb 0.20.0, released on 2018/08/03
 ================================================
 
 - bump to rocksdb 5.14.2
-
 
 erlang-rocksdb 0.19.0, released on 2018/07/04
 ================================================

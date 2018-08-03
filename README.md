@@ -4,13 +4,13 @@
 
 Copyright (c) 2016-2018 Benoît Chesneau.
 
-__Version:__ 0.19.0 Erlang wrapper for RocksDB.
+__Version:__ 0.20.0 Erlang wrapper for RocksDB.
 
 Feedback and pull requests welcome! If a particular feature of RocksDB is important to you, please let me know by opening an issue, and I'll prioritize it.
 
 ## Features
 
-- rocksdb 5.14.2 with snappy 1.4.4, lz4 1.8.2
+- rocksdb 5.14.3 with snappy 1.4.4, lz4 1.8.1.2
 - Erlang 19.3 and sup with dirty-nifs enabled
 - all basics db operations
 - batchs support
@@ -38,6 +38,6 @@ Erlang RocksDB is licensed under the Apache License 2.
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/rocksdb-5.12.4/doc/rocksdb.md" class="module">rocksdb</a></td></tr>
-<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/rocksdb-5.12.4/doc/rocksdb_bump.md" class="module">rocksdb_bump</a></td></tr></table>
+<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/rocksdb.md" class="module">rocksdb</a></td></tr>
+<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/rocksdb_bump.md" class="module">rocksdb_bump</a></td></tr></table>
 
