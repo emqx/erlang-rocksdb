@@ -23,7 +23,7 @@ else ifeq ($(UNAME_SYS), DragonFly)
 	CXX = c++48
 	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O2 -finline-functions -Wall
+	CXXFLAGS ?= -O2 -finline-functions
 	CXXFLAGS += -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), NetBSD)
 	CC = c++48
@@ -42,12 +42,12 @@ else ifeq ($(UNAME_SYS), SunOS)
 	endif
 	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
 	CFLAGS += -D_GCLIBCXX_USE_C99
-	CXXFLAGS ?= -O2 -finline-functions -Wall
+	CXXFLAGS ?= -O2 -finline-functions
 	CXXFLAGS += -D_GCLIBCXX_USE_C99
 else ifeq ($(UNAME_SYS), Linux)
 	CC ?= gcc
 	CFLAGS ?= -O2 -std=c99 -finline-functions -Wall -Wmissing-prototypes
-	CXXFLAGS ?= -O2 -finline-functions -Wall
+	CXXFLAGS ?= -O2 -finline-functions
 endif
 
 SNAPPYLIB=$(CURDIR)/snappy/.libs/libsnappy.a
