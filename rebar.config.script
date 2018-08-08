@@ -1,7 +1,0 @@
-Schedulers = erlang:system_info(schedulers),
-J = integer_to_list(erlang:max(3, Schedulers)),
-L = io_lib:format("~.1f", [(Schedulers * 80/100)]),
-PreHooks = {pre_hooks,
-            [{"(linux|darwin|solaris)", compile, "make -l" ++ L ++  " -j" ++ J ++ " -C c_src all"},
-             {"(freebsd|openbsd)", compile, "gmake -l" ++ L ++  " -j" ++ J ++ " -C c_src all"}]},
-lists:keyreplace(pre_hooks, 1, CONFIG, PreHooks).
