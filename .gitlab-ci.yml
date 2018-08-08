@@ -2,7 +2,7 @@ image: erlang:20
 
 test:
   script:
-    - ./deps/rebar3 eunit
+    - MAKEFLAGS=-j4 ./deps/rebar3 eunit
   cache:
     paths:
     - deps/snappy
