@@ -54,6 +54,7 @@
 #include "util/coding.h"
 #include "util/duplicate_detector.h"
 #include "util/string_util.h"
+#include "util/util.h"
 
 namespace rocksdb {
 
@@ -302,7 +303,7 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
       if (!GetVarint32(input, column_family)) {
         return Status::Corruption("bad WriteBatch Put");
       }
-    // intentional fallthrough
+    FALLTHROUGH_INTENDED;
     case kTypeValue:
       if (!GetLengthPrefixedSlice(input, key) ||
           !GetLengthPrefixedSlice(input, value)) {
@@ -314,7 +315,7 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
       if (!GetVarint32(input, column_family)) {
         return Status::Corruption("bad WriteBatch Delete");
       }
-    // intentional fallthrough
+    FALLTHROUGH_INTENDED;
     case kTypeDeletion:
     case kTypeSingleDeletion:
       if (!GetLengthPrefixedSlice(input, key)) {
@@ -325,7 +326,7 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
       if (!GetVarint32(input, column_family)) {
         return Status::Corruption("bad WriteBatch DeleteRange");
       }
-    // intentional fallthrough
+    FALLTHROUGH_INTENDED;
     case kTypeRangeDeletion:
       // for range delete, "key" is begin_key, "value" is end_key
       if (!GetLengthPrefixedSlice(input, key) ||
@@ -337,7 +338,7 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
       if (!GetVarint32(input, column_family)) {
         return Status::Corruption("bad WriteBatch Merge");
       }
-    // intentional fallthrough
+    FALLTHROUGH_INTENDED;
     case kTypeMerge:
       if (!GetLengthPrefixedSlice(input, key) ||
           !GetLengthPrefixedSlice(input, value)) {
@@ -348,7 +349,7 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
       if (!GetVarint32(input, column_family)) {
         return Status::Corruption("bad WriteBatch BlobIndex");
       }
-    // intentional fallthrough
+    FALLTHROUGH_INTENDED;
     case kTypeBlobIndex:
       if (!GetLengthPrefixedSlice(input, key) ||
           !GetLengthPrefixedSlice(input, value)) {
