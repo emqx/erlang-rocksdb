@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "rocksdb/db.h"
+#include "rocksdb/slice.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/rate_limiter.h"
 #include "rocksdb/table.h"
@@ -838,17 +839,17 @@ Get(
     fold(env, argv[i+1], parse_read_option, *opts);
 
     rocksdb::Status status;
-    std::string value = "";
+    rocksdb::PinnableSlice pvalue;
     if(argc==4)
     {
         ReferencePtr<ColumnFamilyObject> cf_ptr;
         if(!enif_get_cf(env, argv[1], &cf_ptr))
             return enif_make_badarg(env);
-        status = db_ptr->m_Db->Get(*opts, cf_ptr->m_ColumnFamily, key, &value);
+        status = db_ptr->m_Db->Get(*opts, cf_ptr->m_ColumnFamily, key, &pvalue);
     }
     else
     {
-        status = db_ptr->m_Db->Get(*opts, key, &value);
+        status = db_ptr->m_Db->Get(*opts, db_ptr->m_Db->DefaultColumnFamily(), key, &pvalue);
     }
 
     delete opts;
@@ -859,7 +860,8 @@ Get(
     }
 
     ERL_NIF_TERM value_bin;
-    memcpy(enif_make_new_binary(env, value.size(), &value_bin), value.c_str(), value.size());
+    std::memcpy(enif_make_new_binary(env, pvalue.size(), &value_bin), pvalue.data(), pvalue.size());
+    pvalue.Reset();
     return enif_make_tuple2(env, ATOM_OK, value_bin);
 }   // erocksdb::Get
 
