@@ -37,6 +37,9 @@ Cache::CreateCacheType( ErlNifEnv * env)
 void
 Cache::CacheResourceCleanup(ErlNifEnv *Env, void * Arg)
 {
+    Cache* cache_ptr = (Cache *)Arg;
+    cache_ptr->~Cache();
+    cache_ptr = nullptr;
     return;
 }   // Cache::CacheResourceCleanup
 
@@ -67,10 +70,8 @@ Cache::~Cache()
 {
     if(cache_)
     {
-        cache_.reset();
         cache_ = nullptr;
     }
-
     return;
 }
 
