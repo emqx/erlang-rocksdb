@@ -860,7 +860,7 @@ Get(
     }
 
     ERL_NIF_TERM value_bin;
-    std::memcpy(enif_make_new_binary(env, pvalue.size(), &value_bin), pvalue.data(), pvalue.size());
+    memcpy(enif_make_new_binary(env, pvalue.size(), &value_bin), pvalue.data(), pvalue.size());
     pvalue.Reset();
     return enif_make_tuple2(env, ATOM_OK, value_bin);
 }   // erocksdb::Get
