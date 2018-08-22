@@ -349,6 +349,7 @@ ERL_NIF_TERM ATOM_MERGE_LIST_APPEND;
 ERL_NIF_TERM ATOM_MERGE_LIST_SUBSTRACT;
 ERL_NIF_TERM ATOM_MERGE_LIST_SET;
 ERL_NIF_TERM ATOM_MERGE_LIST_DELETE;
+ERL_NIF_TERM ATOM_MERGE_LIST_INSERT;
 
 }   // namespace erocksdb
 
@@ -589,6 +590,8 @@ try
   ATOM(erocksdb::ATOM_MERGE_LIST_SUBSTRACT, "list_substract");
   ATOM(erocksdb::ATOM_MERGE_LIST_SET, "list_set");
   ATOM(erocksdb::ATOM_MERGE_LIST_DELETE, "list_delete");
+  ATOM(erocksdb::ATOM_MERGE_LIST_INSERT, "list_insert");
+
 
 
 #undef ATOM

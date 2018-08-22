@@ -174,7 +174,7 @@ namespace erocksdb {
                     while(enif_get_list_cell(env, tail, &head, &tail)) {
                         if (pos != i) {
                             list_in = enif_make_list_cell(env, head, list_in);
-                        }
+                    }
                         i++;
                     }
                     enif_make_reverse_list(env, list_in, &new_term);
@@ -206,6 +206,68 @@ namespace erocksdb {
                         } else {
                             list_in = enif_make_list_cell(env, head, list_in);
                         }
+                        i++;
+                    }
+                    enif_make_reverse_list(env, list_in, &new_term);
+                }
+                else if (op[0] == ATOM_MERGE_LIST_DELETE) {
+                    ERL_NIF_TERM head, tail, list_in;
+                    unsigned int start, end, i, len;
+                    if(!enif_get_uint(env, op[1], &start) || !enif_get_uint(env, op[2], &end)) {
+                        enif_free_env(env);
+                        return false;
+                    }
+                    if (!enif_get_list_length(env, existing_term, &len)) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    if ((start >= len) || (start >= end) || (end >= len))  {
+                         enif_free_env(env);
+                        return false;
+                    }
+
+                    i = 0;
+                    tail = existing_term;
+                    list_in = enif_make_list(env, 0);
+                    while(enif_get_list_cell(env, tail, &head, &tail)) {
+                        if ((i < start) || (i > end)) {
+                            list_in = enif_make_list_cell(env, head, list_in);
+                        }
+                        i++;
+                    }
+                    enif_make_reverse_list(env, list_in, &new_term);
+                }
+                else if (op[0] == ATOM_MERGE_LIST_INSERT) {
+                    ERL_NIF_TERM head, tail, itail, ihead, list_in;
+                    unsigned int pos, i, len;
+
+                    if(!enif_get_uint(env, op[1], &pos) || !enif_is_list(env, op[2])) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    if (!enif_get_list_length(env, existing_term, &len)) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    if (pos >= len) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    i = 0;
+                    tail = existing_term;
+                    itail = op[2];
+                    list_in = enif_make_list(env, 0);
+                    while(enif_get_list_cell(env, tail, &head, &tail)) {
+                        if (pos == i) {
+                            while(enif_get_list_cell(env, itail, &ihead, &itail)) {
+                                list_in = enif_make_list_cell(env, ihead, list_in);
+                            }
+                        }
+                        list_in = enif_make_list_cell(env, head, list_in);
                         i++;
                     }
                     enif_make_reverse_list(env, list_in, &new_term);
