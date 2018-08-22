@@ -89,7 +89,7 @@ namespace erocksdb {
                     new_term = enif_make_int64(env, old_val + val);
                 }
 
-                if (op[0] == ATOM_MERGE_LIST_APPEND) {
+                else if (op[0] == ATOM_MERGE_LIST_APPEND) {
                     ERL_NIF_TERM head, tail;
                     std::list<ERL_NIF_TERM> q;
                     new_term = enif_make_list(env, 0);
@@ -119,7 +119,7 @@ namespace erocksdb {
                     }
                 }
 
-                if(op[0] == ATOM_MERGE_LIST_SUBSTRACT) {
+                else if(op[0] == ATOM_MERGE_LIST_SUBSTRACT) {
                     ERL_NIF_TERM head, tail;
                     new_term = enif_make_list(env, 0);
                     std::list<ERL_NIF_TERM> q;
@@ -136,7 +136,7 @@ namespace erocksdb {
                         } else {
                             tail = existing_term;
                             while(enif_get_list_cell(env, tail, &head, &tail)) {
-                                q.push_back(head);
+                                q.push_back(std::move(head));
                             }
 
                             tail = op[1];
