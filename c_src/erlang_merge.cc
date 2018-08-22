@@ -18,6 +18,7 @@
 
 
 #include <memory>
+#include <list>
 #include <assert.h>
 
 #include "rocksdb/slice.h"
@@ -87,8 +88,37 @@ namespace erocksdb {
 
                     new_term = enif_make_int64(env, old_val + val);
                 }
-            }
 
+                if (op[0] == ATOM_MERGE_LIST_APPEND) {
+                    ERL_NIF_TERM head, tail;
+                    std::list<ERL_NIF_TERM> q;
+                    new_term = enif_make_list(env, 0);
+                    if (existing_value) {
+                        if(!enif_is_list(env, existing_term)) {
+                            enif_free_env(env);
+                            return false;
+                        } else {
+                            tail  = existing_term;
+                            while(enif_get_list_cell(env, tail, &head, &tail)) {
+                                q.push_back(std::move(head));
+                            }
+                        }
+                    }
+                    if (!enif_is_list(env, op[1])) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    tail = op[1];
+                    while(enif_get_list_cell(env, tail, &head, &tail)) {
+                        q.push_back(std::move(head));
+                    }
+
+                    for(std::list<ERL_NIF_TERM>::reverse_iterator rq = q.rbegin();  rq!=q.rend(); ++rq) {
+                        new_term = enif_make_list_cell(env, *rq, new_term);
+                    }
+                }
+            }
         }
 
         if (new_term) {

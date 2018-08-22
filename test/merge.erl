@@ -51,7 +51,26 @@ merge_int_test() ->
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
 
+merge_list_append_test() ->
+  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+                           [{create_if_missing, true},
+                            {merge_operator, erlang_merge_operator}]),
 
+  ok = rocksdb:put(Db, <<"list">>, term_to_binary([a, b]), []),
+  {ok, Bin0} = rocksdb:get(Db, <<"list">>, []),
+  [a, b] = binary_to_term(Bin0),
+
+  ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_append, [c, d]}), []),
+  {ok, Bin1} = rocksdb:get(Db, <<"list">>, []),
+  [a, b, c, d] = binary_to_term(Bin1),
+
+  ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_append, [d, e]}), []),
+  {ok, Bin2} = rocksdb:get(Db, <<"list">>, []),
+  [a, b, c, d, d, e] = binary_to_term(Bin2),
+
+  ok = rocksdb:close(Db),
+  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
 
 
 
