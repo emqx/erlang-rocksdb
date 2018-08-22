@@ -861,7 +861,15 @@ Get(
 
     if (!status.ok())
     {
-        return ATOM_NOT_FOUND;
+
+        if (status.IsNotFound())
+            return ATOM_NOT_FOUND;
+
+        if (status.IsCorruption())
+            return ATOM_CORRUPTION;
+
+        return error_tuple(env, ATOM_UNKNOWN_STATUS_ERROR, status);
+
     }
 
     ERL_NIF_TERM value_bin;

@@ -155,8 +155,10 @@ ERL_NIF_TERM ATOM_ERROR;
 ERL_NIF_TERM ATOM_EINVAL;
 ERL_NIF_TERM ATOM_BADARG;
 ERL_NIF_TERM ATOM_NOT_FOUND;
+ERL_NIF_TERM ATOM_CORRUPTION;
 ERL_NIF_TERM ATOM_INC;
 ERL_NIF_TERM ATOM_DEC;
+ERL_NIF_TERM ATOM_UNKNOWN_STATUS_ERROR;
 
 // related to envs
 ERL_NIF_TERM ATOM_DEFAULT;
@@ -345,6 +347,8 @@ ERL_NIF_TERM ATOM_ERLANG_MERGE_OPERATOR;
 ERL_NIF_TERM ATOM_MERGE_INT_ADD;
 ERL_NIF_TERM ATOM_MERGE_LIST_APPEND;
 ERL_NIF_TERM ATOM_MERGE_LIST_SUBSTRACT;
+ERL_NIF_TERM ATOM_MERGE_LIST_SET;
+ERL_NIF_TERM ATOM_MERGE_LIST_DELETE;
 
 }   // namespace erocksdb
 
@@ -390,8 +394,11 @@ try
   ATOM(erocksdb::ATOM_EINVAL, "einval");
   ATOM(erocksdb::ATOM_BADARG, "badarg");
   ATOM(erocksdb::ATOM_NOT_FOUND, "not_found");
+  ATOM(erocksdb::ATOM_CORRUPTION, "corruption");
   ATOM(erocksdb::ATOM_INC, "inc");
   ATOM(erocksdb::ATOM_DEC, "dec");
+  ATOM(erocksdb::ATOM_UNKNOWN_STATUS_ERROR, "unknown_status");
+
 
 
   ATOM(erocksdb::ATOM_DEFAULT, "default");
@@ -580,6 +587,8 @@ try
   ATOM(erocksdb::ATOM_MERGE_INT_ADD, "int_add");
   ATOM(erocksdb::ATOM_MERGE_LIST_APPEND, "list_append");
   ATOM(erocksdb::ATOM_MERGE_LIST_SUBSTRACT, "list_substract");
+  ATOM(erocksdb::ATOM_MERGE_LIST_SET, "list_set");
+  ATOM(erocksdb::ATOM_MERGE_LIST_DELETE, "list_delete");
 
 
 #undef ATOM

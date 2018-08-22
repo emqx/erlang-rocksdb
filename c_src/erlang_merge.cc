@@ -67,7 +67,6 @@ namespace erocksdb {
 
 
         if(enif_get_tuple(env, term, &arity, &op)) {
-
             if (arity == 2) {
                 if (op[0] == ATOM_MERGE_INT_ADD) {
                     ErlNifSInt64 old_val;
@@ -154,6 +153,62 @@ namespace erocksdb {
                             }
                         }
                     }
+                }
+                else if (op[0] == ATOM_MERGE_LIST_DELETE) {
+                    ERL_NIF_TERM head, tail, list_in;
+                    unsigned int pos, i, len;
+                    if(!enif_get_uint(env, op[1], &pos)) {
+                        enif_free_env(env);
+                        return false;
+                    }
+                    if (!enif_get_list_length(env, existing_term, &len)) {
+                        enif_free_env(env);
+                        return false;
+                    } else if (pos >= len) {
+                         enif_free_env(env);
+                        return false;
+                    }
+                    i = 0;
+                    tail = existing_term;
+                    list_in = enif_make_list(env, 0);
+                    while(enif_get_list_cell(env, tail, &head, &tail)) {
+                        if (pos != i) {
+                            list_in = enif_make_list_cell(env, head, list_in);
+                        }
+                        i++;
+                    }
+                    enif_make_reverse_list(env, list_in, &new_term);
+                }
+            }
+            else if (arity == 3) {
+                if (op[0] == ATOM_MERGE_LIST_SET) {
+                    ERL_NIF_TERM head, tail, list_in;
+                    unsigned int pos, i, len;
+                    if(!enif_get_uint(env, op[1], &pos)) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    if (!enif_get_list_length(env, existing_term, &len)) {
+                        enif_free_env(env);
+                        return false;
+                    } else if (pos >= len) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    i = 0;
+                    tail = existing_term;
+                    list_in = enif_make_list(env, 0);
+                    while(enif_get_list_cell(env, tail, &head, &tail)) {
+                        if (pos == i) {
+                            list_in = enif_make_list_cell(env, op[2], list_in);
+                        } else {
+                            list_in = enif_make_list_cell(env, head, list_in);
+                        }
+                        i++;
+                    }
+                    enif_make_reverse_list(env, list_in, &new_term);
                 }
             }
         }
