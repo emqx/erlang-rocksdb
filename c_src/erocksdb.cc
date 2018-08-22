@@ -344,6 +344,8 @@ ERL_NIF_TERM ATOM_MERGE_OPERATOR;
 ERL_NIF_TERM ATOM_ERLANG_MERGE_OPERATOR;
 ERL_NIF_TERM ATOM_MERGE_INT_ADD;
 ERL_NIF_TERM ATOM_MERGE_LIST_APPEND;
+ERL_NIF_TERM ATOM_MERGE_LIST_SUBSTRACT;
+
 }   // namespace erocksdb
 
 
@@ -577,6 +579,7 @@ try
   ATOM(erocksdb::ATOM_ERLANG_MERGE_OPERATOR, "erlang_merge_operator");
   ATOM(erocksdb::ATOM_MERGE_INT_ADD, "int_add");
   ATOM(erocksdb::ATOM_MERGE_LIST_APPEND, "list_append");
+  ATOM(erocksdb::ATOM_MERGE_LIST_SUBSTRACT, "list_substract");
 
 
 #undef ATOM

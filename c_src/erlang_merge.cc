@@ -118,6 +118,43 @@ namespace erocksdb {
                         new_term = enif_make_list_cell(env, *rq, new_term);
                     }
                 }
+
+                if(op[0] == ATOM_MERGE_LIST_SUBSTRACT) {
+                    ERL_NIF_TERM head, tail;
+                    new_term = enif_make_list(env, 0);
+                    std::list<ERL_NIF_TERM> q;
+                    unsigned int len;
+                    if (existing_value) {
+                        if (!enif_is_list(env, existing_term) ||
+                                !enif_get_list_length(env, op[1], &len)) {
+                            enif_free_env(env);
+                            return false;
+                        }
+
+                        if(len == 0) {
+                            new_term = existing_term;
+                        } else {
+                            tail = existing_term;
+                            while(enif_get_list_cell(env, tail, &head, &tail)) {
+                                q.push_back(head);
+                            }
+
+                            tail = op[1];
+                            while(enif_get_list_cell(env, tail, &head, &tail)) {
+                                for(auto it = q.begin(); it!=q.end();) {
+                                    if(enif_compare(*it, head) == 0) {
+                                        it = q.erase(it);
+                                    } else {
+                                        ++it;
+                                    }
+                                }
+                            }
+                            for(std::list<ERL_NIF_TERM>::reverse_iterator rq = q.rbegin(); rq!=q.rend(); ++rq) {
+                                new_term = enif_make_list_cell(env, *rq, new_term);
+                            }
+                        }
+                    }
+                }
             }
         }
 
