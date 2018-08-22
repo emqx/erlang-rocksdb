@@ -187,6 +187,8 @@ merge_binary_append_test() ->
   {ok, Bin2} = rocksdb:get(Db, <<"encbin">>, []),
   <<"testabcde">> = binary_to_term(Bin2),
 
+  ok = rocksdb:merge(Db, <<"empty">>, term_to_binary({binary_append, <<"abc">>}), []),
+  {ok, <<"abc">>} = rocksdb:get(Db, <<"empty">>, []),
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).

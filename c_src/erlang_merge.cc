@@ -50,6 +50,10 @@ namespace erocksdb {
 
         bool should_encode = true;
 
+        //clear the new value for writing
+        assert(new_value);
+        new_value->clear();
+
         if (!enif_binary_to_term(env, (const unsigned char *)value.data(), value.size(), &term, 0)) {
             enif_free_env(env);
             return false;
@@ -192,7 +196,7 @@ namespace erocksdb {
                         return false;
                     }
 
-                    if(!should_encode) {
+                    if(!should_encode || !existing_value) {
                         if (!existing_value) {
                             new_value->assign((const char *)bin.data, bin.size);
                         } else {
