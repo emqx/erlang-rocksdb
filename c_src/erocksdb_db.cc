@@ -34,6 +34,7 @@
 #include "cache.h"
 #include "rate_limiter.h"
 #include "env.h"
+#include "erlang_merge.h"
 
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
@@ -560,6 +561,11 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         else if (option[0] == erocksdb::ATOM_OPTIMIZE_FILTERS_FOR_HITS)
         {
             opts.optimize_filters_for_hits = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_MERGE_OPERATOR)
+        {
+            if (option[1] == erocksdb::ATOM_ERLANG_MERGE_OPERATOR)
+                opts.merge_operator = erocksdb::CreateErlangMergeOperator();
         }
     }
     return erocksdb::ATOM_OK;

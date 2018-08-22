@@ -339,10 +339,10 @@ ERL_NIF_TERM ATOM_BACKUP_INFO_TIMESTAMP;
 ERL_NIF_TERM ATOM_BACKUP_INFO_SIZE;
 ERL_NIF_TERM ATOM_BACKUP_INFO_NUMBER_FILES;
 
-ERL_NIF_TERM ATOM_ADD;
-ERL_NIF_TERM ATOM_SET;
+
 ERL_NIF_TERM ATOM_MERGE_OPERATOR;
 ERL_NIF_TERM ATOM_ERLANG_MERGE_OPERATOR;
+ERL_NIF_TERM ATOM_MERGE_INT_ADD;
 }   // namespace erocksdb
 
 
@@ -572,10 +572,9 @@ try
   ATOM(erocksdb::ATOM_BACKUP_INFO_NUMBER_FILES, "number_files");
 
     // Related to Merge OPs
-  ATOM(erocksdb::ATOM_ADD, "add");
-  ATOM(erocksdb::ATOM_SET, "set");
   ATOM(erocksdb::ATOM_MERGE_OPERATOR, "merge_operator");
   ATOM(erocksdb::ATOM_ERLANG_MERGE_OPERATOR, "erlang_merge_operator");
+  ATOM(erocksdb::ATOM_MERGE_INT_ADD, "int_add");
 
 #undef ATOM
 
