@@ -58,6 +58,8 @@ static ErlNifFunc nif_funcs[] =
   {"get", 4, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"put", 4, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"put", 5, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"merge", 4, erocksdb::Merge, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"merge", 5, erocksdb::Merge, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"delete", 3, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"delete", 4, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"single_delete", 3, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -90,6 +92,8 @@ static ErlNifFunc nif_funcs[] =
   {"write_batch", 3, erocksdb::WriteBatch, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"batch_put", 3, erocksdb::PutBatch},
   {"batch_put", 4, erocksdb::PutBatch},
+  {"batch_merge", 3, erocksdb::PutBatch},
+  {"batch_merge", 4, erocksdb::PutBatch},
   {"batch_delete", 2, erocksdb::DeleteBatch},
   {"batch_delete", 3, erocksdb::DeleteBatch},
   {"batch_single_delete", 2, erocksdb::SingleDeleteBatch},
@@ -262,6 +266,7 @@ ERL_NIF_TERM ATOM_IGNORE_MISSING_COLUMN_FAMILIES;
 // Related to Write Actions
 ERL_NIF_TERM ATOM_CLEAR;
 ERL_NIF_TERM ATOM_PUT;
+ERL_NIF_TERM ATOM_MERGE;
 ERL_NIF_TERM ATOM_DELETE;
 ERL_NIF_TERM ATOM_SINGLE_DELETE;
 
@@ -334,6 +339,10 @@ ERL_NIF_TERM ATOM_BACKUP_INFO_TIMESTAMP;
 ERL_NIF_TERM ATOM_BACKUP_INFO_SIZE;
 ERL_NIF_TERM ATOM_BACKUP_INFO_NUMBER_FILES;
 
+ERL_NIF_TERM ATOM_ADD;
+ERL_NIF_TERM ATOM_SET;
+ERL_NIF_TERM ATOM_MERGE_OPERATOR;
+ERL_NIF_TERM ATOM_ERLANG_MERGE_OPERATOR;
 }   // namespace erocksdb
 
 
@@ -490,6 +499,7 @@ try
   // Related to Write Options
   ATOM(erocksdb::ATOM_CLEAR, "clear");
   ATOM(erocksdb::ATOM_PUT, "put");
+  ATOM(erocksdb::ATOM_MERGE, "merge");
   ATOM(erocksdb::ATOM_DELETE, "delete");
   ATOM(erocksdb::ATOM_SINGLE_DELETE, "single_delete");
 
@@ -560,6 +570,12 @@ try
   ATOM(erocksdb::ATOM_BACKUP_INFO_TIMESTAMP, "timestamp");
   ATOM(erocksdb::ATOM_BACKUP_INFO_SIZE, "size");
   ATOM(erocksdb::ATOM_BACKUP_INFO_NUMBER_FILES, "number_files");
+
+    // Related to Merge OPs
+  ATOM(erocksdb::ATOM_ADD, "add");
+  ATOM(erocksdb::ATOM_SET, "set");
+  ATOM(erocksdb::ATOM_MERGE_OPERATOR, "merge_operator");
+  ATOM(erocksdb::ATOM_ERLANG_MERGE_OPERATOR, "erlang_merge_operator");
 
 #undef ATOM
 

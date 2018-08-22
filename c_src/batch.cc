@@ -154,6 +154,46 @@ PutBatch(
 }
 
 ERL_NIF_TERM
+MergeBatch(
+        ErlNifEnv* env,
+        int argc,
+        const ERL_NIF_TERM argv[])
+{
+    rocksdb::WriteBatch* wb = nullptr;
+    Batch* batch_ptr = nullptr;
+    ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
+    ErlNifBinary key, value;
+
+    if(!enif_get_resource(env, argv[0], m_Batch_RESOURCE, (void **) &batch_ptr))
+        return enif_make_badarg(env);
+    wb = batch_ptr->wb;
+    if (argc > 3)
+    {
+        if(!enif_get_cf(env, argv[1], &cf_ptr) ||
+                !enif_inspect_binary(env, argv[2], &key) ||
+                !enif_inspect_binary(env, argv[3], &value))
+            return enif_make_badarg(env);
+
+        rocksdb::Slice key_slice((const char*)key.data, key.size);
+        rocksdb::Slice value_slice((const char*)value.data, value.size);
+        erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
+        wb->Merge(cf->m_ColumnFamily, key_slice, value_slice);
+    }
+    else
+    {
+        if(!enif_inspect_binary(env, argv[1], &key) ||
+                !enif_inspect_binary(env, argv[2], &value))
+            return enif_make_badarg(env);
+
+        rocksdb::Slice key_slice((const char*)key.data, key.size);
+        rocksdb::Slice value_slice((const char*)value.data, value.size);
+        wb->Merge(key_slice, value_slice);
+    }
+    batch_ptr = nullptr;
+    return ATOM_OK;
+}
+
+ERL_NIF_TERM
 DeleteBatch(
         ErlNifEnv* env,
         int argc,

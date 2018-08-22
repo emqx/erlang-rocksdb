@@ -50,6 +50,7 @@
 %% KV API
 -export([
   put/4, put/5,
+  merge/4, merge/5,
   delete/3, delete/4,
   single_delete/3, single_delete/4,
   write/3,
@@ -103,6 +104,7 @@
          release_batch/1,
          write_batch/3,
          batch_put/3, batch_put/4,
+         batch_merge/3, batch_merge/4,
          batch_delete/2, batch_delete/3,
          batch_single_delete/2, batch_single_delete/3,
          batch_clear/1,
@@ -399,7 +401,7 @@ get_snapshot_sequence(_SnapshotHandle) ->
   Res :: ok | {error, any()}.
 put(_DBHandle, _Key, _Value, _WriteOpts) ->
   erlang:nif_error({error, not_loaded}).
-  
+
 %% @doc Put a key/value pair into the specified column family
 -spec put(DBHandle, CFHandle, Key, Value, WriteOpts) -> Res when
   DBHandle::db_handle(),
@@ -409,6 +411,27 @@ put(_DBHandle, _Key, _Value, _WriteOpts) ->
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
 put(_DBHandle, _CFHandle, _Key, _Value, _WriteOpts) ->
+   erlang:nif_error({error, not_loaded}).
+
+%% @doc Merge a key/value pair into the default column family
+-spec merge(DBHandle, Key, Value, WriteOpts) -> Res when
+  DBHandle::db_handle(),
+  Key::binary(),
+  Value::binary(),
+  WriteOpts::write_options(),
+  Res :: ok | {error, any()}.
+merge(_DBHandle, _Key, _Value, _WriteOpts) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Merge a key/value pair into the specified column family
+-spec merge(DBHandle, CFHandle, Key, Value, WriteOpts) -> Res when
+  DBHandle::db_handle(),
+  CFHandle::cf_handle(),
+  Key::binary(),
+  Value::binary(),
+  WriteOpts::write_options(),
+  Res :: ok | {error, any()}.
+merge(_DBHandle, _CFHandle, _Key, _Value, _WriteOpts) ->
    erlang:nif_error({error, not_loaded}).
 
 %% @doc Delete a key/value pair in the default column family
@@ -479,6 +502,12 @@ write_1([{put, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
   write_1(Rest, Batch, DbHandle, WriteOpts);
 write_1([{put, CfHandle, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_put(Batch, CfHandle, Key, Value),
+  write_1(Rest, Batch, DbHandle, WriteOpts);
+write_1([{merge, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
+  batch_merge(Batch, Key, Value),
+  write_1(Rest, Batch, DbHandle, WriteOpts);
+write_1([{merge, CfHandle, Key, Value} | Rest], Batch, DbHandle, WriteOpts) ->
+  batch_merge(Batch, CfHandle, Key, Value),
   write_1(Rest, Batch, DbHandle, WriteOpts);
 write_1([{delete, Key} | Rest], Batch, DbHandle, WriteOpts) ->
   batch_delete(Batch, Key),
@@ -820,9 +849,19 @@ write_batch(_DbHandle, _Batch, _WriteOptions) ->
 batch_put(_Batch, _Key, _Value) ->
   erlang:nif_error({error, not_loaded}).
 
-%% @doc like `put/3' but apply the operation to a column family
+%% @doc like `batch_put/3' but apply the operation to a column family
 -spec batch_put(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_put(_Batch, _ColumnFamily, _Key, _Value) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc add a merge operation to the batch
+-spec batch_merge(Batch :: batch_handle(), Key :: binary(), Value :: binary()) -> ok.
+batch_merge(_Batch, _Key, _Value) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc like `batch_mege/3' but apply the operation to a column family
+-spec batch_merge(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
+batch_merge(_Batch, _ColumnFamily, _Key, _Value) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc batch implementation of delete operation to the batch
