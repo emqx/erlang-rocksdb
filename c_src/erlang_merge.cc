@@ -16,7 +16,6 @@
 
 
 
-
 #include <memory>
 #include <list>
 #include <assert.h>
@@ -27,12 +26,12 @@
 
 #include "erl_nif.h"
 #include "atoms.h"
+#include "util.h"
 #include "erlang_merge.h"
 
 
 // op {add, Value}, {set, Pos, Value}, remove_last, clear
 namespace erocksdb {
-
 
     ErlangMergeOperator::ErlangMergeOperator() {};
 
@@ -49,24 +48,31 @@ namespace erocksdb {
         int arity;
         const ERL_NIF_TERM* op;
 
+        bool should_encode = true;
+
         if (!enif_binary_to_term(env, (const unsigned char *)value.data(), value.size(), &term, 0)) {
             enif_free_env(env);
             return false;
         }
 
 
-        if ((existing_value != nullptr) &&
-                !enif_binary_to_term(env, (const unsigned char *)existing_value->data(), existing_value->size(), &existing_term, 0))
-        {
-            enif_free_env(env);
-            return false;
-        }
-
         ERL_NIF_TERM new_term = 0;
-        ErlNifBinary bin;
+        ErlNifBinary bin, bin_term;
 
 
         if(enif_get_tuple(env, term, &arity, &op)) {
+
+            if ((existing_value != nullptr) &&
+                    !enif_binary_to_term(env, (const unsigned char *)existing_value->data(), existing_value->size(), &existing_term, 0))
+            {
+                if(op[0] != ATOM_MERGE_BINARY_APPEND) {
+                    enif_free_env(env);
+                    return false;
+                }
+
+                should_encode = false;
+            }
+
             if (arity == 2) {
                 if (op[0] == ATOM_MERGE_INT_ADD) {
                     ErlNifSInt64 old_val;
@@ -179,6 +185,31 @@ namespace erocksdb {
                     }
                     enif_make_reverse_list(env, list_in, &new_term);
                 }
+                else if (op[0] == ATOM_MERGE_BINARY_APPEND) {
+
+                    if(!enif_inspect_binary(env, op[1], &bin)) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    if(!should_encode) {
+                        if (!existing_value) {
+                            new_value->assign((const char *)bin.data, bin.size);
+                        } else {
+                            new_value->reserve(existing_value->size() + bin.size);
+                            new_value->assign(existing_value->data(), existing_value->size());
+                            new_value->append((const char *)bin.data, bin.size);
+                        }
+                    } else {
+                        if(!enif_inspect_binary(env, existing_term, &bin_term)) {
+                            enif_free_env(env);
+                            return false;
+                        }
+                        std::string s = std::string((const char*)bin_term.data, bin_term.size);
+                        s.append((const char *)bin.data, bin.size);
+                        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
+                    }
+                }
             }
             else if (arity == 3) {
                 if (op[0] == ATOM_MERGE_LIST_SET) {
@@ -276,16 +307,18 @@ namespace erocksdb {
         }
 
         if (new_term) {
+
             if (!enif_term_to_binary(env, new_term, &bin)) {
                 enif_free_env(env);
                 return false;
             }
-
             rocksdb::Slice term_slice((const char*)bin.data, bin.size);
             new_value->reserve(term_slice.size());
             new_value->assign(term_slice.data(), term_slice.size());
-            enif_free_env(env);
+
         }
+
+        enif_free_env(env);
         return true;
     };
 

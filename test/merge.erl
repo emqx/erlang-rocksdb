@@ -158,3 +158,35 @@ merge_list_insert_test() ->
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+
+merge_binary_append_test() ->
+  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+                           [{create_if_missing, true},
+                            {merge_operator, erlang_merge_operator}]),
+
+  ok = rocksdb:put(Db, <<"bin">>, <<"test">>, []),
+  {ok, <<"test">>} = rocksdb:get(Db, <<"bin">>, []),
+
+  ok = rocksdb:merge(Db, <<"bin">>, term_to_binary({binary_append, <<"abc">>}), []),
+  {ok, <<"testabc">>} = rocksdb:get(Db, <<"bin">>, []),
+
+  ok = rocksdb:merge(Db, <<"bin">>, term_to_binary({binary_append, <<"de">>}), []),
+  {ok, <<"testabcde">>} = rocksdb:get(Db, <<"bin">>, []),
+
+
+  ok = rocksdb:put(Db, <<"encbin">>, term_to_binary(<<"test">>), []),
+  {ok, Bin} = rocksdb:get(Db, <<"encbin">>, []),
+  <<"test">> = binary_to_term(Bin),
+
+  ok = rocksdb:merge(Db, <<"encbin">>, term_to_binary({binary_append, <<"abc">>}), []),
+  {ok, Bin1} = rocksdb:get(Db, <<"encbin">>, []),
+  <<"testabc">> = binary_to_term(Bin1),
+
+  ok = rocksdb:merge(Db, <<"encbin">>, term_to_binary({binary_append, <<"de">>}), []),
+  {ok, Bin2} = rocksdb:get(Db, <<"encbin">>, []),
+  <<"testabcde">> = binary_to_term(Bin2),
+
+
+  ok = rocksdb:close(Db),
+  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
