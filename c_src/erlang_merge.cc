@@ -30,6 +30,12 @@
 #include "erlang_merge.h"
 
 
+bool on_error(ErlNifEnv* env) {
+    enif_free_env(env);
+    return false;
+}
+
+
 // op {add, Value}, {set, Pos, Value}, remove_last, clear
 namespace erocksdb {
 
@@ -54,10 +60,9 @@ namespace erocksdb {
         assert(new_value);
         new_value->clear();
 
-        if (!enif_binary_to_term(env, (const unsigned char *)value.data(), value.size(), &term, 0)) {
-            enif_free_env(env);
-            return false;
-        }
+        if (!enif_binary_to_term(env,
+                    (const unsigned char *)value.data(), value.size(), &term, 0))
+            return on_error(env);
 
 
         ERL_NIF_TERM new_term = 0;
@@ -73,8 +78,7 @@ namespace erocksdb {
                         && (op[0] != ATOM_MERGE_BINARY_REPLACE)
                         && (op[0] != ATOM_MERGE_BINARY_INSERT)
                         && (op[0] != ATOM_MERGE_BINARY_ERASE)) {
-                    enif_free_env(env);
-                    return false;
+                    return on_error(env);
                 }
 
                 should_encode = false;
@@ -88,15 +92,12 @@ namespace erocksdb {
                     if (existing_value == nullptr) {
                         old_val = 0;
                     } else if (!enif_get_int64(env, existing_term, &old_val)) {
-                        enif_free_env(env);
-                        return false;
+                       return on_error(env);
                     }
 
 
-                    if (!enif_get_int64(env, op[1], &val)) {
-                        enif_free_env(env);
-                        return false;
-                    }
+                    if (!enif_get_int64(env, op[1], &val))
+                        return on_error(env);
 
                     new_term = enif_make_int64(env, old_val + val);
                 }
@@ -106,20 +107,17 @@ namespace erocksdb {
                     std::list<ERL_NIF_TERM> q;
                     new_term = enif_make_list(env, 0);
                     if (existing_value) {
-                        if(!enif_is_list(env, existing_term)) {
-                            enif_free_env(env);
-                            return false;
-                        } else {
-                            tail  = existing_term;
-                            while(enif_get_list_cell(env, tail, &head, &tail)) {
-                                q.push_back(std::move(head));
-                            }
+                        if(!enif_is_list(env, existing_term))
+                            return on_error(env);
+
+
+                        tail  = existing_term;
+                        while(enif_get_list_cell(env, tail, &head, &tail)) {
+                            q.push_back(std::move(head));
                         }
                     }
-                    if (!enif_is_list(env, op[1])) {
-                        enif_free_env(env);
-                        return false;
-                    }
+                    if (!enif_is_list(env, op[1]))
+                        return on_error(env);
 
                     tail = op[1];
                     while(enif_get_list_cell(env, tail, &head, &tail)) {
@@ -138,10 +136,8 @@ namespace erocksdb {
                     unsigned int len;
                     if (existing_value) {
                         if (!enif_is_list(env, existing_term) ||
-                                !enif_get_list_length(env, op[1], &len)) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                                !enif_get_list_length(env, op[1], &len))
+                            return on_error(env);
 
                         if(len == 0) {
                             new_term = existing_term;
@@ -170,17 +166,13 @@ namespace erocksdb {
                 else if (op[0] == ATOM_MERGE_LIST_DELETE) {
                     ERL_NIF_TERM head, tail, list_in;
                     unsigned int pos, i, len;
-                    if(!enif_get_uint(env, op[1], &pos)) {
-                        enif_free_env(env);
-                        return false;
-                    }
-                    if (!enif_get_list_length(env, existing_term, &len)) {
-                        enif_free_env(env);
-                        return false;
-                    } else if (pos >= len) {
-                         enif_free_env(env);
-                        return false;
-                    }
+                    if(!enif_get_uint(env, op[1], &pos)
+                            || !enif_get_list_length(env, existing_term, &len))
+                        return on_error(env);
+
+                    if (pos >= len)
+                        return on_error(env);
+
                     i = 0;
                     tail = existing_term;
                     list_in = enif_make_list(env, 0);
@@ -194,10 +186,8 @@ namespace erocksdb {
                 }
                 else if (op[0] == ATOM_MERGE_BINARY_APPEND) {
 
-                    if(!enif_inspect_binary(env, op[1], &bin)) {
-                        enif_free_env(env);
-                        return false;
-                    }
+                    if(!enif_inspect_binary(env, op[1], &bin))
+                        return on_error(env);
 
                     if(!should_encode || !existing_value) {
                         if (!existing_value) {
@@ -208,10 +198,9 @@ namespace erocksdb {
                             new_value->append((const char *)bin.data, bin.size);
                         }
                     } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term)) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if(!enif_inspect_binary(env, existing_term, &bin_term))
+                            return on_error(env);
+
                         std::string s = std::string((const char*)bin_term.data, bin_term.size);
                         s.append((const char *)bin.data, bin.size);
                         memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
@@ -222,18 +211,14 @@ namespace erocksdb {
                 if (op[0] == ATOM_MERGE_LIST_SET) {
                     ERL_NIF_TERM head, tail, list_in;
                     unsigned int pos, i, len;
-                    if(!enif_get_uint(env, op[1], &pos)) {
-                        enif_free_env(env);
-                        return false;
-                    }
 
-                    if (!enif_get_list_length(env, existing_term, &len)) {
-                        enif_free_env(env);
-                        return false;
-                    } else if (pos >= len) {
-                        enif_free_env(env);
-                        return false;
-                    }
+
+                    if(!enif_get_uint(env, op[1], &pos)
+                            || !enif_get_list_length(env, existing_term, &len))
+                        return on_error(env);
+
+                    if (pos >= len)
+                        return on_error(env);
 
                     i = 0;
                     tail = existing_term;
@@ -251,19 +236,14 @@ namespace erocksdb {
                 else if (op[0] == ATOM_MERGE_LIST_DELETE) {
                     ERL_NIF_TERM head, tail, list_in;
                     unsigned int start, end, i, len;
-                    if(!enif_get_uint(env, op[1], &start) || !enif_get_uint(env, op[2], &end)) {
-                        enif_free_env(env);
-                        return false;
-                    }
-                    if (!enif_get_list_length(env, existing_term, &len)) {
-                        enif_free_env(env);
-                        return false;
+                    if(!enif_get_uint(env, op[1], &start)
+                            || !enif_get_uint(env, op[2], &end)
+                            || !enif_get_list_length(env, existing_term, &len)) {
+                        return on_error(env);
                     }
 
-                    if ((start >= len) || (start >= end) || (end >= len))  {
-                         enif_free_env(env);
-                        return false;
-                    }
+                    if ((start >= len) || (start >= end) || (end >= len))
+                        return on_error(env);
 
                     i = 0;
                     tail = existing_term;
@@ -280,20 +260,13 @@ namespace erocksdb {
                     ERL_NIF_TERM head, tail, itail, ihead, list_in;
                     unsigned int pos, i, len;
 
-                    if(!enif_get_uint(env, op[1], &pos) || !enif_is_list(env, op[2])) {
-                        enif_free_env(env);
-                        return false;
-                    }
+                    if(!enif_get_uint(env, op[1], &pos)
+                            || !enif_is_list(env, op[2])
+                            || !enif_get_list_length(env, existing_term, &len))
+                        return on_error(env);
 
-                    if (!enif_get_list_length(env, existing_term, &len)) {
-                        enif_free_env(env);
-                        return false;
-                    }
-
-                    if (pos >= len) {
-                        enif_free_env(env);
-                        return false;
-                    }
+                    if (pos >= len)
+                        return on_error(env);
 
                     i = 0;
                     tail = existing_term;
@@ -315,27 +288,21 @@ namespace erocksdb {
                     if(!enif_get_uint(env, op[1], &pos)
                             || !enif_get_uint(env, op[2], &count)
                             || !existing_value) {
-                        enif_free_env(env);
-                        return false;
+                        return on_error(env);
                     }
 
                     pos2 = pos + count;
                     if(!should_encode) {
-                        if(pos2 > existing_value->size()) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if(pos2 > existing_value->size())
+                            return on_error(env);
                         new_value->assign(existing_value->data(), existing_value->size());
                         new_value->erase(pos, count);
                     } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term)) {
-                            enif_free_env(env);
-                            return false;
-                        }
-                        if(pos2 > bin_term.size) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if(!enif_inspect_binary(env, existing_term, &bin_term))
+                            return on_error(env);
+
+                        if(pos2 > bin_term.size)
+                            return on_error(env);
                         std::string s = std::string((const char*)bin_term.data, bin_term.size);
                         s.erase(pos, count);
                         memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
@@ -347,30 +314,24 @@ namespace erocksdb {
                     if(!enif_get_uint(env, op[1], &pos)
                             || !enif_inspect_binary(env, op[2], &bin)
                             || !existing_value) {
-                        enif_free_env(env);
-                        return false;
+                        return on_error(env);
                     }
 
                     std::string chunk = std::string((const char*)bin.data, bin.size);
                     if(!should_encode) {
-                        if(pos > existing_value->size()) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if(pos > existing_value->size())
+                            return on_error(env);
+
                         new_value->assign(existing_value->data(), existing_value->size());
                         new_value->insert(pos, chunk);
                     } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term)) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if(!enif_inspect_binary(env, existing_term, &bin_term))
+                            return on_error(env);
 
                         std::string s = std::string((const char*)bin_term.data, bin_term.size);
 
-                        if(pos > s.size()) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if(pos > s.size())
+                            return on_error(env);
                         s.insert(pos, chunk);
                         memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
                     }
@@ -383,34 +344,26 @@ namespace erocksdb {
                     if(!enif_get_uint(env, op[1], &pos)
                             || !enif_get_uint(env, op[2], &count)
                             || !existing_value) {
-                        enif_free_env(env);
-                        return false;
+                        return on_error(env);
                     }
 
-                    if(!enif_inspect_binary(env, op[3], &bin)) {
-                        enif_free_env(env);
-                        return false;
-                    }
+                    if(!enif_inspect_binary(env, op[3], &bin))
+                        return on_error(env);
 
                     pos2 = pos + count;
                     if(!should_encode) {
-                        if (pos2 > existing_value->size()) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if (pos2 > existing_value->size())
+                            return on_error(env);
+
                         std::string s = std::string((const char*)existing_value->data(),  existing_value->size());
                         s.replace(pos, count,  (const char *)bin.data, bin.size);
                         new_value->assign(s.data(), s.size());
                     } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term)) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if(!enif_inspect_binary(env, existing_term, &bin_term))
+                            return on_error(env);
 
-                        if (pos2 > bin_term.size) {
-                            enif_free_env(env);
-                            return false;
-                        }
+                        if (pos2 > bin_term.size)
+                           return on_error(env);
                         std::string s = std::string((const char*)bin_term.data, bin_term.size);
                         s.replace(pos, count,(const char *)bin.data, bin.size);
                         memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
@@ -421,10 +374,9 @@ namespace erocksdb {
 
         if (new_term) {
 
-            if (!enif_term_to_binary(env, new_term, &bin)) {
-                enif_free_env(env);
-                return false;
-            }
+            if (!enif_term_to_binary(env, new_term, &bin))
+                return on_error(env);
+
             rocksdb::Slice term_slice((const char*)bin.data, bin.size);
             new_value->reserve(term_slice.size());
             new_value->assign(term_slice.data(), term_slice.size());
@@ -442,4 +394,9 @@ namespace erocksdb {
     std::shared_ptr<ErlangMergeOperator> CreateErlangMergeOperator() {
         return std::make_shared<ErlangMergeOperator>();
     }
+
+
 }
+
+
+
