@@ -192,3 +192,40 @@ merge_binary_append_test() ->
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+
+merge_binary_replace_test() ->
+
+  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+                           [{create_if_missing, true},
+                            {merge_operator, erlang_merge_operator}]),
+
+  ok = rocksdb:put(Db, <<"bin">>, <<"The quick brown fox jumps over the lazy dog.">>, []),
+  {ok, <<"The quick brown fox jumps over the lazy dog.">>} = rocksdb:get(Db, <<"bin">>, []),
+
+  ok = rocksdb:merge(Db, <<"bin">>, term_to_binary({binary_replace, 10, 5, <<"red">>}), []),
+  ok = rocksdb:merge(Db, <<"bin">>, term_to_binary({binary_replace, 0, 3, <<"A">>}), []),
+  {ok, <<"A quick red fox jumps over the lazy dog.">>} = rocksdb:get(Db, <<"bin">>, []),
+
+
+  ok = rocksdb:put(Db, <<"encbin">>, term_to_binary(<<"The quick brown fox jumps over the lazy dog.">>), []),
+  {ok, Bin} = rocksdb:get(Db, <<"encbin">>, []),
+  <<"The quick brown fox jumps over the lazy dog.">> = binary_to_term(Bin),
+
+  ok = rocksdb:merge(Db, <<"encbin">>, term_to_binary({binary_replace, 10, 5, <<"red">>}), []),
+  ok = rocksdb:merge(Db, <<"encbin">>, term_to_binary({binary_replace, 0, 3, <<"A">>}), []),
+  {ok, Bin1} = rocksdb:get(Db, <<"encbin">>, []),
+  <<"A quick red fox jumps over the lazy dog.">> = binary_to_term(Bin1),
+
+
+  ok = rocksdb:put(Db, <<"bitmap">>, <<1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1>>, []),
+  {ok, <<1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1>>} = rocksdb:get(Db, <<"bitmap">>, []),
+
+  ok = rocksdb:merge(Db, <<"bitmap">>, term_to_binary({binary_replace, 2, 1, <<0>>}), []),
+  {ok, <<1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1>>} = rocksdb:get(Db, <<"bitmap">>, []),
+
+  ok = rocksdb:merge(Db, <<"bitmap">>, term_to_binary({binary_replace, 6, 1, <<0>>}), []),
+  {ok, <<1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1>>} = rocksdb:get(Db, <<"bitmap">>, []),
+
+  ok = rocksdb:close(Db),
+  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).

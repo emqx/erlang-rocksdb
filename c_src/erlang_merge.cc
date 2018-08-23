@@ -15,7 +15,7 @@
 // under the License.
 
 
-
+#include <iostream>
 #include <memory>
 #include <list>
 #include <assert.h>
@@ -69,7 +69,7 @@ namespace erocksdb {
             if ((existing_value != nullptr) &&
                     !enif_binary_to_term(env, (const unsigned char *)existing_value->data(), existing_value->size(), &existing_term, 0))
             {
-                if(op[0] != ATOM_MERGE_BINARY_APPEND) {
+                if((op[0] != ATOM_MERGE_BINARY_APPEND) && (op[0] != ATOM_MERGE_BINARY_REPLACE)) {
                     enif_free_env(env);
                     return false;
                 }
@@ -306,6 +306,47 @@ namespace erocksdb {
                         i++;
                     }
                     enif_make_reverse_list(env, list_in, &new_term);
+                }
+            }
+            else if (arity == 4) {
+                if (op[0] == ATOM_MERGE_BINARY_REPLACE) {
+                    unsigned int pos, pos2, count;
+
+                    if(!enif_get_uint(env, op[1], &pos)
+                            || !enif_get_uint(env, op[2], &count)
+                            || !existing_value) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    if(!enif_inspect_binary(env, op[3], &bin)) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    pos2 = pos + count;
+                    if(!should_encode) {
+                        if (pos2 > existing_value->size()) {
+                            enif_free_env(env);
+                            return false;
+                        }
+                        std::string s = std::string((const char*)existing_value->data(),  existing_value->size());
+                        s.replace(pos, count,  (const char *)bin.data, bin.size);
+                        new_value->assign(s.data(), s.size());
+                    } else {
+                        if(!enif_inspect_binary(env, existing_term, &bin_term)) {
+                            enif_free_env(env);
+                            return false;
+                        }
+
+                        if (pos2 > bin_term.size) {
+                            enif_free_env(env);
+                            return false;
+                        }
+                        std::string s = std::string((const char*)bin_term.data, bin_term.size);
+                        s.replace(pos, count,(const char *)bin.data, bin.size);
+                        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
+                    }
                 }
             }
         }
