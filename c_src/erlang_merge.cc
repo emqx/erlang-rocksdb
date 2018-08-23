@@ -69,7 +69,10 @@ namespace erocksdb {
             if ((existing_value != nullptr) &&
                     !enif_binary_to_term(env, (const unsigned char *)existing_value->data(), existing_value->size(), &existing_term, 0))
             {
-                if((op[0] != ATOM_MERGE_BINARY_APPEND) && (op[0] != ATOM_MERGE_BINARY_REPLACE)) {
+                if((op[0] != ATOM_MERGE_BINARY_APPEND)
+                        && (op[0] != ATOM_MERGE_BINARY_REPLACE)
+                        && (op[0] != ATOM_MERGE_BINARY_INSERT)
+                        && (op[0] != ATOM_MERGE_BINARY_ERASE)) {
                     enif_free_env(env);
                     return false;
                 }
@@ -306,6 +309,71 @@ namespace erocksdb {
                         i++;
                     }
                     enif_make_reverse_list(env, list_in, &new_term);
+                } else if (op[0] == ATOM_MERGE_BINARY_ERASE) {
+                    unsigned int pos, count, pos2;
+
+                    if(!enif_get_uint(env, op[1], &pos)
+                            || !enif_get_uint(env, op[2], &count)
+                            || !existing_value) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    pos2 = pos + count;
+                    if(!should_encode) {
+                        if(pos2 > existing_value->size()) {
+                            enif_free_env(env);
+                            return false;
+                        }
+                        new_value->assign(existing_value->data(), existing_value->size());
+                        new_value->erase(pos, count);
+                    } else {
+                        if(!enif_inspect_binary(env, existing_term, &bin_term)) {
+                            enif_free_env(env);
+                            return false;
+                        }
+                        if(pos2 > bin_term.size) {
+                            enif_free_env(env);
+                            return false;
+                        }
+                        std::string s = std::string((const char*)bin_term.data, bin_term.size);
+                        s.erase(pos, count);
+                        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
+                    }
+                }
+                else if (op[0] == ATOM_MERGE_BINARY_INSERT) {
+                    unsigned int pos;
+
+                    if(!enif_get_uint(env, op[1], &pos)
+                            || !enif_inspect_binary(env, op[2], &bin)
+                            || !existing_value) {
+                        enif_free_env(env);
+                        return false;
+                    }
+
+                    std::string chunk = std::string((const char*)bin.data, bin.size);
+                    if(!should_encode) {
+                        if(pos > existing_value->size()) {
+                            enif_free_env(env);
+                            return false;
+                        }
+                        new_value->assign(existing_value->data(), existing_value->size());
+                        new_value->insert(pos, chunk);
+                    } else {
+                        if(!enif_inspect_binary(env, existing_term, &bin_term)) {
+                            enif_free_env(env);
+                            return false;
+                        }
+
+                        std::string s = std::string((const char*)bin_term.data, bin_term.size);
+
+                        if(pos > s.size()) {
+                            enif_free_env(env);
+                            return false;
+                        }
+                        s.insert(pos, chunk);
+                        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
+                    }
                 }
             }
             else if (arity == 4) {
