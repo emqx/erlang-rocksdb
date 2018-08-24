@@ -19,6 +19,8 @@
 //
 // -------------------------------------------------------------------
 
+#include <string>
+
 #include "atoms.h"
 #include "refobjects.h"
 #include "rocksdb/db.h"
