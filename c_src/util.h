@@ -22,7 +22,9 @@
 #ifndef INCL_UTIL_H
 #define INCL_UTIL_H
 
+#include <string>
 #include "erl_nif.h"
+
 
 // Forward declaration
 namespace rocksdb {
