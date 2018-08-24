@@ -42,8 +42,8 @@ static const unsigned char bit_mask[bits_per_char] = {
 
 namespace erocksdb {
 
-    BitsetMergeOperator::BitsetMergeOperator(unsigned int start_at)
-        :start_at_(start_at) {
+    BitsetMergeOperator::BitsetMergeOperator(unsigned int cap)
+        :cap_(cap) {
     };
 
     bool BitsetMergeOperator::Merge(
@@ -53,26 +53,40 @@ namespace erocksdb {
             std::string* new_value,
             rocksdb::Logger* logger) const {
 
+        size_t size;
+        char* data = nullptr;
+
+
+        if (existing_value == nullptr) {
+            size = cap_ / bits_per_char;
+            new_value->reserve(size);
+            data = new cell_type[size];
+            std::fill_n(data, size, 0x00);
+        } else {
+            data = (char *)existing_value->data();
+            size = existing_value->size();
+        }
+
         //clear the new value for writing
         assert(new_value);
         new_value->clear();
 
-        char* data = (char *)existing_value->data();
         std::string s = value.ToString();
         int pos = parse_int(s.substr(1));
+        int ofs = pos >> 3;
 
         //char bytemask = (1 << ((1 << 3)) - (pos & ((1 << 3)))));
         if (value.starts_with(rocksdb::Slice("+"))) {
             //data[(pos >> 3)] |= bytemask;
-            data[((start_at_ + pos) >> 3)] |= bit_mask[pos % bits_per_char];
+            data[ofs] |= bit_mask[pos % bits_per_char];
         } else if (value.starts_with(rocksdb::Slice("-"))) {
             //data[(pos >> 3)] &= ~bytemask;
-            data[((start_at_ + pos) >> 3)] &= ~bit_mask[pos % bits_per_char];
+            data[ofs] &= ~bit_mask[pos % bits_per_char];
         } else {
             return false;
         }
 
-        new_value->assign(data,existing_value->size());
+        new_value->assign(data,size);
         return true;
     }
 
@@ -80,7 +94,7 @@ namespace erocksdb {
         return "BitsetMergeOperator";
     }
 
-    std::shared_ptr<BitsetMergeOperator> CreateBitsetMergeOperator(unsigned int start_at) {
-        return std::make_shared<BitsetMergeOperator>(start_at);
+    std::shared_ptr<BitsetMergeOperator> CreateBitsetMergeOperator(unsigned int cap) {
+        return std::make_shared<BitsetMergeOperator>(cap);
     }
 }

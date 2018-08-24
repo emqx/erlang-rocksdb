@@ -572,15 +572,14 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
                 if (option[1] == erocksdb::ATOM_ERLANG_MERGE_OPERATOR) {
                     opts.merge_operator = erocksdb::CreateErlangMergeOperator();
                 } else if (option[1] == erocksdb::ATOM_BITSET_MERGE_OPERATOR) {
-                    opts.merge_operator = erocksdb::CreateBitsetMergeOperator(0);
+                    opts.merge_operator = erocksdb::CreateBitsetMergeOperator(0x3E80);
                 }
-            } else if (enif_get_tuple(env, option[1], &a, &merge_op)) {
+            } else if (enif_get_tuple(env, option[1], &a, &merge_op) && a >= 2) {
                 if (merge_op[0] == erocksdb::ATOM_BITSET_MERGE_OPERATOR) {
-                    unsigned int start_at;
-                    if (!enif_get_uint(env, merge_op[1], &start_at))
+                    unsigned int cap;
+                    if (!enif_get_uint(env, merge_op[1], &cap))
                         return erocksdb::ATOM_BADARG;
-
-                    opts.merge_operator = erocksdb::CreateBitsetMergeOperator(start_at);
+                    opts.merge_operator = erocksdb::CreateBitsetMergeOperator(cap);
                 }
             }
         }

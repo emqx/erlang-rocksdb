@@ -27,8 +27,11 @@ namespace rocksdb {
 namespace erocksdb {
 
     class BitsetMergeOperator : public rocksdb::AssociativeMergeOperator {
+        protected:
+            typedef char cell_type;
+
         public:
-            explicit BitsetMergeOperator(unsigned int start_at);
+            explicit BitsetMergeOperator(unsigned int cap);
 
             virtual bool Merge(
                     const rocksdb::Slice& key,
@@ -40,9 +43,9 @@ namespace erocksdb {
             virtual const char* Name() const override;
 
         private:
-            unsigned int start_at_;
+            unsigned int cap_;
     };
 
-    std::shared_ptr<BitsetMergeOperator> CreateBitsetMergeOperator(unsigned int start_at);
+    std::shared_ptr<BitsetMergeOperator> CreateBitsetMergeOperator(unsigned int cap);
 
 }
