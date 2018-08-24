@@ -219,16 +219,6 @@ merge_binary_erase_test() ->
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
-  ok = rocksdb:put(Db, <<"erase">>, <<"abcdefghij">>, []),
-  ok = rocksdb:merge(Db, <<"erase">>, term_to_binary({binary_erase, 2, 4}), []),
-  {ok, <<"abghij">>} = rocksdb:get(Db, <<"erase">>, []),
-
-   ok = rocksdb:put(Db, <<"erase">>, <<"abcdefghij">>, []),
-  ok = rocksdb:merge(Db, <<"erase">>, term_to_binary({binary_erase, 9, 1}), []),
-  {ok, <<"abcdefghi">>} = rocksdb:get(Db, <<"erase">>, []),
-
-
-
 
   ok = rocksdb:put(Db, <<"eraseterm">>, term_to_binary(<<"abcdefghij">>), []),
   ok = rocksdb:merge(Db, <<"eraseterm">>, term_to_binary({binary_erase, 2, 4}), []),

@@ -72,16 +72,9 @@ namespace erocksdb {
         if(enif_get_tuple(env, term, &arity, &op)) {
 
             if ((existing_value != nullptr) &&
-                    !enif_binary_to_term(env, (const unsigned char *)existing_value->data(), existing_value->size(), &existing_term, 0))
-            {
-                if((op[0] != ATOM_MERGE_BINARY_APPEND)
-                        && (op[0] != ATOM_MERGE_BINARY_REPLACE)
-                        && (op[0] != ATOM_MERGE_BINARY_INSERT)
-                        && (op[0] != ATOM_MERGE_BINARY_ERASE)) {
-                    return on_error(env);
-                }
-
-                should_encode = false;
+                    !enif_binary_to_term(env, (const unsigned char *)existing_value->data(),
+                        existing_value->size(), &existing_term, 0)) {
+                return on_error(env);
             }
 
             if (arity == 2) {
