@@ -185,20 +185,11 @@ namespace erocksdb {
                     enif_make_reverse_list(env, list_in, &new_term);
                 }
                 else if (op[0] == ATOM_MERGE_BINARY_APPEND) {
-
-                    if(!enif_inspect_binary(env, op[1], &bin))
-                        return on_error(env);
-
-                    if(!should_encode || !existing_value) {
-                        if (!existing_value) {
-                            new_value->assign((const char *)bin.data, bin.size);
-                        } else {
-                            new_value->reserve(existing_value->size() + bin.size);
-                            new_value->assign(existing_value->data(), existing_value->size());
-                            new_value->append((const char *)bin.data, bin.size);
-                        }
+                    if (!existing_value) {
+                        new_term = op[1];
                     } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term))
+                        if(!enif_inspect_binary(env, existing_term, &bin_term)
+                                || !enif_inspect_binary(env, op[1], &bin))
                             return on_error(env);
 
                         std::string s = std::string((const char*)bin_term.data, bin_term.size);
@@ -313,28 +304,17 @@ namespace erocksdb {
 
                     if(!enif_get_uint(env, op[1], &pos)
                             || !enif_inspect_binary(env, op[2], &bin)
-                            || !existing_value) {
+                            || (!enif_inspect_binary(env, existing_term, &bin_term)
+                            || !existing_value)) {
                         return on_error(env);
                     }
 
                     std::string chunk = std::string((const char*)bin.data, bin.size);
-                    if(!should_encode) {
-                        if(pos > existing_value->size())
-                            return on_error(env);
-
-                        new_value->assign(existing_value->data(), existing_value->size());
-                        new_value->insert(pos, chunk);
-                    } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term))
-                            return on_error(env);
-
-                        std::string s = std::string((const char*)bin_term.data, bin_term.size);
-
-                        if(pos > s.size())
-                            return on_error(env);
-                        s.insert(pos, chunk);
-                        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
-                    }
+                    std::string s = std::string((const char*)bin_term.data, bin_term.size);
+                    if(pos > s.size())
+                        return on_error(env);
+                    s.insert(pos, chunk);
+                    memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
                 }
             }
             else if (arity == 4) {
@@ -343,31 +323,18 @@ namespace erocksdb {
 
                     if(!enif_get_uint(env, op[1], &pos)
                             || !enif_get_uint(env, op[2], &count)
+                            || !enif_inspect_binary(env, op[3], &bin)
+                            || !enif_inspect_binary(env, existing_term, &bin_term)
                             || !existing_value) {
                         return on_error(env);
                     }
-
-                    if(!enif_inspect_binary(env, op[3], &bin))
-                        return on_error(env);
-
                     pos2 = pos + count;
-                    if(!should_encode) {
-                        if (pos2 > existing_value->size())
-                            return on_error(env);
+                    if (pos2 > bin_term.size)
+                        return on_error(env);
+                    std::string s = std::string((const char*)bin_term.data, bin_term.size);
+                    s.replace(pos, count,(const char *)bin.data, bin.size);
+                    memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
 
-                        std::string s = std::string((const char*)existing_value->data(),  existing_value->size());
-                        s.replace(pos, count,  (const char *)bin.data, bin.size);
-                        new_value->assign(s.data(), s.size());
-                    } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term))
-                            return on_error(env);
-
-                        if (pos2 > bin_term.size)
-                           return on_error(env);
-                        std::string s = std::string((const char*)bin_term.data, bin_term.size);
-                        s.replace(pos, count,(const char *)bin.data, bin.size);
-                        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
-                    }
                 }
             }
         }
