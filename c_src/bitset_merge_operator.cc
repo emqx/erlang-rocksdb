@@ -75,6 +75,9 @@ namespace erocksdb {
         int pos = parse_int(s.substr(1));
         int ofs = pos >> 3;
 
+        if (ofs > size)
+            return false;
+
         //char bytemask = (1 << ((1 << 3)) - (pos & ((1 << 3)))));
         if (value.starts_with(rocksdb::Slice("+"))) {
             //data[(pos >> 3)] |= bytemask;
