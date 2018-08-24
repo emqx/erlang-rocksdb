@@ -49,6 +49,9 @@ int enif_get_db(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erock
 int enif_get_cf(ErlNifEnv* env, ERL_NIF_TERM dbval, erocksdb::ReferencePtr<erocksdb::ColumnFamilyObject>* cf_ptr);
 int enif_get_backup_engine(ErlNifEnv* env, ERL_NIF_TERM bal, erocksdb::ReferencePtr<erocksdb::BackupEngineObject>* backup_engine_ptr);
 
+
+int parse_int(const std::string& value);
+
 // Cleanup function for C++ object created with enif allocator via C++
 // placement syntax which necessitates explicit invocation of the object's
 // destructor.

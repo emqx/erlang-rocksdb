@@ -35,6 +35,7 @@
 #include "rate_limiter.h"
 #include "env.h"
 #include "erlang_merge.h"
+#include "bitset_merge_operator.h"
 
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
@@ -348,7 +349,7 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
 {
     int arity;
     const ERL_NIF_TERM* option;
-    if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
+    if (enif_get_tuple(env, item, &arity, &option) && arity == 2)
     {
         if (option[0] == erocksdb::ATOM_BLOCK_CACHE_SIZE_MB_FOR_POINT_LOOKUP)
             // @TODO ignored now
@@ -564,8 +565,24 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         }
         else if (option[0] == erocksdb::ATOM_MERGE_OPERATOR)
         {
-            if (option[1] == erocksdb::ATOM_ERLANG_MERGE_OPERATOR)
-                opts.merge_operator = erocksdb::CreateErlangMergeOperator();
+            int a;
+            const ERL_NIF_TERM* merge_op;
+
+            if (enif_is_atom(env, option[1])) {
+                if (option[1] == erocksdb::ATOM_ERLANG_MERGE_OPERATOR) {
+                    opts.merge_operator = erocksdb::CreateErlangMergeOperator();
+                } else if (option[1] == erocksdb::ATOM_BITSET_MERGE_OPERATOR) {
+                    opts.merge_operator = erocksdb::CreateBitsetMergeOperator(0);
+                }
+            } else if (enif_get_tuple(env, option[1], &a, &merge_op)) {
+                if (merge_op[0] == erocksdb::ATOM_BITSET_MERGE_OPERATOR) {
+                    unsigned int start_at;
+                    if (!enif_get_uint(env, merge_op[1], &start_at))
+                        return erocksdb::ATOM_BADARG;
+
+                    opts.merge_operator = erocksdb::CreateBitsetMergeOperator(start_at);
+                }
+            }
         }
     }
     return erocksdb::ATOM_OK;
