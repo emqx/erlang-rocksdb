@@ -18,6 +18,8 @@
 #include <iostream>
 #include <memory>
 #include <list>
+#include <deque>
+#include <string>
 #include <assert.h>
 
 #include "rocksdb/slice.h"
@@ -41,311 +43,349 @@ namespace erocksdb {
 
     ErlangMergeOperator::ErlangMergeOperator() {};
 
-    bool ErlangMergeOperator::Merge(
-            const rocksdb::Slice& key,
-            const rocksdb::Slice* existing_value,
-            const rocksdb::Slice& value,
-            std::string* new_value,
-            rocksdb::Logger* logger) const {
+    bool ErlangMergeOperator::FullMergeV2(
+            const MergeOperationInput& merge_in,
+            MergeOperationOutput* merge_out) const {
+
 
         ERL_NIF_TERM existing_term;
-        ERL_NIF_TERM term;
         ErlNifEnv* env = enif_alloc_env();
         int arity;
         const ERL_NIF_TERM* op;
 
-        bool should_encode = true;
-
         //clear the new value for writing
-        assert(new_value);
-        new_value->clear();
+        merge_out->new_value.clear();
 
-        if (!enif_binary_to_term(env,
-                    (const unsigned char *)value.data(), value.size(), &term, 0))
-            return on_error(env);
-
-
-        ERL_NIF_TERM new_term = 0;
-        ErlNifBinary bin, bin_term;
-
-
-        if(enif_get_tuple(env, term, &arity, &op)) {
-
-            if ((existing_value != nullptr) &&
-                    !enif_binary_to_term(env, (const unsigned char *)existing_value->data(),
-                        existing_value->size(), &existing_term, 0)) {
+        if (merge_in.existing_value) {
+            if(!enif_binary_to_term(
+                        env, (const unsigned char *)merge_in.existing_value->data(),
+                        merge_in.existing_value->size(), &existing_term, 0)) {
                 return on_error(env);
             }
 
-            if (arity == 2) {
-                if (op[0] == ATOM_MERGE_INT_ADD) {
-                    ErlNifSInt64 old_val;
-                    ErlNifSInt64 val;
-
-                    if (existing_value == nullptr) {
-                        old_val = 0;
-                    } else if (!enif_get_int64(env, existing_term, &old_val)) {
-                       return on_error(env);
-                    }
-
-
-                    if (!enif_get_int64(env, op[1], &val))
-                        return on_error(env);
-
-                    new_term = enif_make_int64(env, old_val + val);
+            if (enif_is_number(env, existing_term)) {
+                ErlNifSInt64 old_val;
+                if (!enif_get_int64(env, existing_term, &old_val))
+                    return on_error(env);
+                return mergeErlangInt(env, old_val, false, merge_in, merge_out);
+            } else if (enif_is_list(env, existing_term)) {
+                ERL_NIF_TERM head, tail;
+                std::list<ERL_NIF_TERM> l;
+                tail = existing_term;
+                while(enif_get_list_cell(env, tail, &head, &tail)) {
+                    l.push_back(std::move(head));
                 }
+                return mergeErlangList(env, l, false, merge_in, merge_out);
+            } else if (enif_is_binary(env, existing_term)) {
+                ErlNifBinary bin;
+                if(!enif_inspect_binary(env, existing_term, &bin))
+                    return on_error(env);
+                std::string s = std::string((const char *)bin.data, bin.size);
+                return mergeErlangBinary(env, s, false, merge_in, merge_out);
+            }
+        } else {
+            ERL_NIF_TERM term;
+            // take first element and check if we can continue with it
+            auto first = merge_in.operand_list.front();
 
-                else if (op[0] == ATOM_MERGE_LIST_APPEND) {
-                    ERL_NIF_TERM head, tail;
-                    std::list<ERL_NIF_TERM> q;
-                    new_term = enif_make_list(env, 0);
-                    if (existing_value) {
-                        if(!enif_is_list(env, existing_term))
-                            return on_error(env);
+            if (!enif_binary_to_term(
+                        env, (const unsigned char *)first.data(),
+                        first.size(), &term, 0)) {
+               return on_error(env);
+            }
 
+            if (!enif_get_tuple(env, term, &arity, &op))
+                return on_error(env);
 
-                        tail  = existing_term;
-                        while(enif_get_list_cell(env, tail, &head, &tail)) {
-                            q.push_back(std::move(head));
-                        }
-                    }
+            if (op[0] == ATOM_MERGE_INT_ADD) {
+                ErlNifSInt64 val;
+                if (!enif_get_int64(env, op[1], &val))
+                    return on_error(env);
+                return mergeErlangInt(env, val, true, merge_in, merge_out);
+            } else if ((op[0] == ATOM_MERGE_LIST_APPEND)  && enif_is_list(env, op[1])) {
+                ERL_NIF_TERM head, tail;
+                std::list<ERL_NIF_TERM> l;
+                tail = enif_make_list(env, 0);
+                while(enif_get_list_cell(env, tail, &head, &tail)) {
+                    l.push_back(std::move(head));
+                }
+                return mergeErlangList(env, l, true, merge_in, merge_out);
+            } else if ((op[0] == ATOM_MERGE_BINARY_APPEND) && enif_is_binary(env, op[1])) {
+                ErlNifBinary bin;
+                if(!enif_inspect_binary(env, op[1], &bin))
+                    return on_error(env);
+                std::string s = std::string((const char *)bin.data, bin.size);
+                return mergeErlangBinary(env, s, true, merge_in, merge_out);
+            }
+        }
+
+        return on_error(env);
+    };
+
+    bool ErlangMergeOperator::mergeErlangInt(
+                    ErlNifEnv* env,
+                    ErlNifSInt64 new_val,
+                    bool next,
+                    const MergeOperationInput& merge_in,
+                    MergeOperationOutput* merge_out) const {
+
+        ErlNifSInt64 val;
+        ERL_NIF_TERM new_term, term;
+        ErlNifBinary bin;
+        int arity;
+        const ERL_NIF_TERM* op;
+
+        auto it = merge_in.operand_list.begin();
+        if (next)
+            std::advance(it, 1);
+
+        while (it != merge_in.operand_list.end()) {
+
+            if (!enif_binary_to_term(
+                        env, (const unsigned char *)it->data(),
+                        it->size(), &term, 0)) {
+                return on_error(env);
+            }
+
+            if (!enif_get_tuple(env, term, &arity, &op))
+                return on_error(env);
+
+            if ((op[0] != ATOM_MERGE_INT_ADD)
+                    || !enif_get_int64(env, op[1], &val))
+                return on_error(env);
+
+            new_val += val;
+
+            ++it;
+        }
+
+        new_term = enif_make_int64(env, new_val);
+        if (!enif_term_to_binary(env, new_term, &bin))
+                return on_error(env);
+
+        merge_out->new_value.reserve(bin.size);
+        merge_out->new_value.assign((const char*)bin.data, bin.size);
+        enif_free_env(env);
+        return true;
+    };
+
+    bool ErlangMergeOperator::mergeErlangList(
+                    ErlNifEnv* env,
+                    std::list<ERL_NIF_TERM> list_in,
+                    bool next,
+                    const MergeOperationInput& merge_in,
+                    MergeOperationOutput* merge_out) const {
+
+        ERL_NIF_TERM head, tail, new_term, term;
+        ErlNifBinary bin;
+        int arity;
+        const ERL_NIF_TERM* op;
+        unsigned int pos, i, len;
+
+        auto it = merge_in.operand_list.begin();
+        if (next)
+            std::advance(it, 1);
+
+        while (it != merge_in.operand_list.end()) {
+
+            if (!enif_binary_to_term(
+                        env, (const unsigned char *)it->data(),
+                        it->size(), &term, 0)) {
+                return on_error(env);
+            }
+
+            if (!enif_get_tuple(env, term, &arity, &op))
+                return on_error(env);
+
+            if (arity == 2) {
+                if (op[0] == ATOM_MERGE_LIST_APPEND) {
                     if (!enif_is_list(env, op[1]))
                         return on_error(env);
 
                     tail = op[1];
                     while(enif_get_list_cell(env, tail, &head, &tail)) {
-                        q.push_back(std::move(head));
+                        list_in.push_back(std::move(head));
                     }
+                } else if (op[0] == ATOM_MERGE_LIST_SUBSTRACT) {
+                    if(!enif_get_list_length(env, op[1], &len))
+                        return on_error(env);
 
-                    for(std::list<ERL_NIF_TERM>::reverse_iterator rq = q.rbegin();  rq!=q.rend(); ++rq) {
-                        new_term = enif_make_list_cell(env, *rq, new_term);
-                    }
-                }
-
-                else if(op[0] == ATOM_MERGE_LIST_SUBSTRACT) {
-                    ERL_NIF_TERM head, tail;
-                    new_term = enif_make_list(env, 0);
-                    std::list<ERL_NIF_TERM> q;
-                    unsigned int len;
-                    if (existing_value) {
-                        if (!enif_is_list(env, existing_term) ||
-                                !enif_get_list_length(env, op[1], &len))
-                            return on_error(env);
-
-                        if(len == 0) {
-                            new_term = existing_term;
-                        } else {
-                            tail = existing_term;
-                            while(enif_get_list_cell(env, tail, &head, &tail)) {
-                                q.push_back(std::move(head));
-                            }
-
-                            tail = op[1];
-                            while(enif_get_list_cell(env, tail, &head, &tail)) {
-                                for(auto it = q.begin(); it!=q.end();) {
-                                    if(enif_compare(*it, head) == 0) {
-                                        it = q.erase(it);
-                                    } else {
-                                        ++it;
-                                    }
+                    if (len > 0) {
+                        tail = op[1];
+                        while(enif_get_list_cell(env, tail, &head, &tail)) {
+                            for(auto it = list_in.begin(); it!=list_in.end();) {
+                                if(enif_compare(*it, head) == 0) {
+                                    it = list_in.erase(it);
+                                } else {
+                                    ++it;
                                 }
                             }
-                            for(std::list<ERL_NIF_TERM>::reverse_iterator rq = q.rbegin(); rq!=q.rend(); ++rq) {
-                                new_term = enif_make_list_cell(env, *rq, new_term);
-                            }
                         }
                     }
-                }
-                else if (op[0] == ATOM_MERGE_LIST_DELETE) {
-                    ERL_NIF_TERM head, tail, list_in;
-                    unsigned int pos, i, len;
-                    if(!enif_get_uint(env, op[1], &pos)
-                            || !enif_get_list_length(env, existing_term, &len))
+                } else if (op[0] == ATOM_MERGE_LIST_DELETE) {
+                    if(!enif_get_uint(env, op[1], &pos))
                         return on_error(env);
 
-                    if (pos >= len)
-                        return on_error(env);
-
-                    i = 0;
-                    tail = existing_term;
-                    list_in = enif_make_list(env, 0);
-                    while(enif_get_list_cell(env, tail, &head, &tail)) {
-                        if (pos != i) {
-                            list_in = enif_make_list_cell(env, head, list_in);
+                    if (pos < list_in.size()) {
+                        auto lit = list_in.begin();
+                        std::advance(lit, pos);
+                        list_in.erase(lit);
                     }
-                        i++;
-                    }
-                    enif_make_reverse_list(env, list_in, &new_term);
+                } else {
+                    return on_error(env);
                 }
-                else if (op[0] == ATOM_MERGE_BINARY_APPEND) {
-                    if (!existing_value) {
-                        new_term = op[1];
-                    } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term)
-                                || !enif_inspect_binary(env, op[1], &bin))
-                            return on_error(env);
-
-                        std::string s = std::string((const char*)bin_term.data, bin_term.size);
-                        s.append((const char *)bin.data, bin.size);
-                        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
-                    }
-                }
-            }
-            else if (arity == 3) {
+            } else if (arity == 3) {
                 if (op[0] == ATOM_MERGE_LIST_SET) {
-                    ERL_NIF_TERM head, tail, list_in;
-                    unsigned int pos, i, len;
-
-
-                    if(!enif_get_uint(env, op[1], &pos)
-                            || !enif_get_list_length(env, existing_term, &len))
+                    if(!enif_get_uint(env, op[1], &pos))
                         return on_error(env);
 
-                    if (pos >= len)
-                        return on_error(env);
-
-                    i = 0;
-                    tail = existing_term;
-                    list_in = enif_make_list(env, 0);
-                    while(enif_get_list_cell(env, tail, &head, &tail)) {
-                        if (pos == i) {
-                            list_in = enif_make_list_cell(env, op[2], list_in);
-                        } else {
-                            list_in = enif_make_list_cell(env, head, list_in);
-                        }
-                        i++;
+                    if (pos < list_in.size()) {
+                        auto lit = list_in.begin();
+                        std::advance(lit, pos);
+                        *lit = std::move(op[2]);
                     }
-                    enif_make_reverse_list(env, list_in, &new_term);
-                }
-                else if (op[0] == ATOM_MERGE_LIST_DELETE) {
-                    ERL_NIF_TERM head, tail, list_in;
-                    unsigned int start, end, i, len;
+                } else if (op[0] == ATOM_MERGE_LIST_DELETE) {
+
+                    unsigned int start, end;
                     if(!enif_get_uint(env, op[1], &start)
-                            || !enif_get_uint(env, op[2], &end)
-                            || !enif_get_list_length(env, existing_term, &len)) {
-                        return on_error(env);
-                    }
-
-                    if ((start >= len) || (start >= end) || (end >= len))
+                            || !enif_get_uint(env, op[2], &end))
                         return on_error(env);
 
-                    i = 0;
-                    tail = existing_term;
-                    list_in = enif_make_list(env, 0);
-                    while(enif_get_list_cell(env, tail, &head, &tail)) {
-                        if ((i < start) || (i > end)) {
-                            list_in = enif_make_list_cell(env, head, list_in);
+                    if (start >= end)
+                        return on_error(env);
+
+                    if ((start < end) && (end < list_in.size())) {
+                        auto lit = list_in.begin();
+                        std::advance(lit, start);
+                        for(int i=start; i <= end; i++) {
+                            lit = list_in.erase(lit);
                         }
-                        i++;
                     }
-                    enif_make_reverse_list(env, list_in, &new_term);
-                }
-                else if (op[0] == ATOM_MERGE_LIST_INSERT) {
-                    ERL_NIF_TERM head, tail, itail, ihead, list_in;
-                    unsigned int pos, i, len;
-
+                } else if (op[0] == ATOM_MERGE_LIST_INSERT) {
                     if(!enif_get_uint(env, op[1], &pos)
-                            || !enif_is_list(env, op[2])
-                            || !enif_get_list_length(env, existing_term, &len))
+                            || !enif_is_list(env, op[2]))
                         return on_error(env);
 
-                    if (pos >= len)
-                        return on_error(env);
-
-                    i = 0;
-                    tail = existing_term;
-                    itail = op[2];
-                    list_in = enif_make_list(env, 0);
-                    while(enif_get_list_cell(env, tail, &head, &tail)) {
-                        if (pos == i) {
-                            while(enif_get_list_cell(env, itail, &ihead, &itail)) {
-                                list_in = enif_make_list_cell(env, ihead, list_in);
-                            }
+                    if (pos < list_in.size()) {
+                        i = 0;
+                        tail = op[2];
+                        auto lit = list_in.begin();
+                        std::advance(lit, pos);
+                        while(enif_get_list_cell(env, tail, &head, &tail)) {
+                            list_in.insert(lit, std::move(head));
                         }
-                        list_in = enif_make_list_cell(env, head, list_in);
-                        i++;
                     }
-                    enif_make_reverse_list(env, list_in, &new_term);
-                } else if (op[0] == ATOM_MERGE_BINARY_ERASE) {
-                    unsigned int pos, count, pos2;
-
-                    if(!enif_get_uint(env, op[1], &pos)
-                            || !enif_get_uint(env, op[2], &count)
-                            || !existing_value) {
-                        return on_error(env);
-                    }
-
-                    pos2 = pos + count;
-                    if(!should_encode) {
-                        if(pos2 > existing_value->size())
-                            return on_error(env);
-                        new_value->assign(existing_value->data(), existing_value->size());
-                        new_value->erase(pos, count);
-                    } else {
-                        if(!enif_inspect_binary(env, existing_term, &bin_term))
-                            return on_error(env);
-
-                        if(pos2 > bin_term.size)
-                            return on_error(env);
-                        std::string s = std::string((const char*)bin_term.data, bin_term.size);
-                        s.erase(pos, count);
-                        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
-                    }
+                } else {
+                    return on_error(env);
                 }
-                else if (op[0] == ATOM_MERGE_BINARY_INSERT) {
-                    unsigned int pos;
-
-                    if(!enif_get_uint(env, op[1], &pos)
-                            || !enif_inspect_binary(env, op[2], &bin)
-                            || (!enif_inspect_binary(env, existing_term, &bin_term)
-                            || !existing_value)) {
-                        return on_error(env);
-                    }
-
-                    std::string chunk = std::string((const char*)bin.data, bin.size);
-                    std::string s = std::string((const char*)bin_term.data, bin_term.size);
-                    if(pos > s.size())
-                        return on_error(env);
-                    s.insert(pos, chunk);
-                    memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
-                }
-            }
-            else if (arity == 4) {
-                if (op[0] == ATOM_MERGE_BINARY_REPLACE) {
-                    unsigned int pos, pos2, count;
-
-                    if(!enif_get_uint(env, op[1], &pos)
-                            || !enif_get_uint(env, op[2], &count)
-                            || !enif_inspect_binary(env, op[3], &bin)
-                            || !enif_inspect_binary(env, existing_term, &bin_term)
-                            || !existing_value) {
-                        return on_error(env);
-                    }
-                    pos2 = pos + count;
-                    if (pos2 > bin_term.size)
-                        return on_error(env);
-                    std::string s = std::string((const char*)bin_term.data, bin_term.size);
-                    s.replace(pos, count,(const char *)bin.data, bin.size);
-                    memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
-
-                }
-            }
-        }
-
-        if (new_term) {
-
-            if (!enif_term_to_binary(env, new_term, &bin))
+            } else {
                 return on_error(env);
-
-            rocksdb::Slice term_slice((const char*)bin.data, bin.size);
-            new_value->reserve(term_slice.size());
-            new_value->assign(term_slice.data(), term_slice.size());
-
+            }
+            ++it;
         }
 
+        new_term = enif_make_list(env, 0);
+        for(std::list<ERL_NIF_TERM>::reverse_iterator rq = list_in.rbegin();
+                rq!=list_in.rend(); ++rq) {
+            new_term = enif_make_list_cell(env, *rq, new_term);
+        }
+
+        if (!enif_term_to_binary(env, new_term, &bin))
+            return on_error(env);
+
+        merge_out->new_value.reserve(bin.size);
+        merge_out->new_value.assign((const char*)bin.data, bin.size);
         enif_free_env(env);
         return true;
     };
+
+
+    bool ErlangMergeOperator::mergeErlangBinary(
+            ErlNifEnv* env,
+            std::string s,
+            bool next,
+            const MergeOperationInput& merge_in,
+            MergeOperationOutput* merge_out) const {
+
+
+        ERL_NIF_TERM new_term, term;
+        ErlNifBinary bin;
+        int arity;
+        const ERL_NIF_TERM* op;
+        unsigned int pos, count, pos2;
+
+        auto it = merge_in.operand_list.begin();
+        if (next)
+            std::advance(it, 1);
+
+
+        while (it != merge_in.operand_list.end()) {
+
+            if (!enif_binary_to_term(
+                        env, (const unsigned char *)it->data(),
+                        it->size(), &term, 0)) {
+                return on_error(env);
+            }
+
+            if (!enif_get_tuple(env, term, &arity, &op))
+                return on_error(env);
+
+
+            if ((arity == 2) && (op[0] == ATOM_MERGE_BINARY_APPEND)) {
+                if(!enif_inspect_binary(env, op[1], &bin))
+                    return on_error(env);
+
+                s.append((const char *)bin.data, bin.size);
+
+            } else if ((arity == 3)  && (op[0] == ATOM_MERGE_BINARY_ERASE)) {
+                if(!enif_get_uint(env, op[1], &pos)
+                        || !enif_get_uint(env, op[2], &count))
+                    return on_error(env);
+                if (pos < s.size())
+                    s.erase(pos, count);
+            } else if ((arity == 3) && (op[0] == ATOM_MERGE_BINARY_INSERT)) {
+                if(!enif_get_uint(env, op[1], &pos)
+                        || !enif_inspect_binary(env, op[2], &bin))
+                    return on_error(env);
+
+                if (pos <= s.size()) {
+                    std::string chunk = std::string((const char*)bin.data, bin.size);
+                    s.insert(pos, chunk);
+                }
+            } else if ((arity == 4) && (op[0] == ATOM_MERGE_BINARY_REPLACE)) {
+                if(!enif_get_uint(env, op[1], &pos)
+                        || !enif_get_uint(env, op[2], &count)
+                        || !enif_inspect_binary(env, op[3], &bin)) {
+                    return on_error(env);
+                }
+                pos2 = pos + count;
+                if (pos2 < s.size())
+                    s.replace(pos, count,(const char *)bin.data, bin.size);
+            } else {
+                return on_error(env);
+            }
+            ++it;
+        }
+
+        memcpy(enif_make_new_binary(env, s.size(), &new_term), s.data(), s.size());
+        if (!enif_term_to_binary(env, new_term, &bin))
+            return on_error(env);
+
+        merge_out->new_value.reserve(bin.size);
+        merge_out->new_value.assign((const char*)bin.data, bin.size);
+        enif_free_env(env);
+        return true;
+
+    };
+
+    bool ErlangMergeOperator::PartialMergeMulti(
+            const rocksdb::Slice& key,
+            const std::deque<rocksdb::Slice>& operand_list,
+            std::string* new_value,
+            rocksdb::Logger* logger) const {
+        return false;
+    }
+
 
     const char* ErlangMergeOperator::Name() const  {
         return "ErlangMergeOperator";

@@ -69,6 +69,9 @@ merge_list_append_test() ->
   {ok, Bin2} = rocksdb:get(Db, <<"list">>, []),
   [a, b, c, d, d, e] = binary_to_term(Bin2),
 
+  ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_append, []}), []),
+  {ok, Bin2} = rocksdb:get(Db, <<"list">>, []),
+
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
 
@@ -89,8 +92,6 @@ merge_list_substract_test() ->
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
 
-
-
 merge_list_set_test() ->
   [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
   {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
@@ -110,7 +111,7 @@ merge_list_set_test() ->
   [a, b, 'c1', d, 'e1'] = binary_to_term(Bin2),
 
   ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_set, 5, error}), []),
-  corruption = rocksdb:get(Db, <<"list">>, []),
+  {ok, Bin2}  = rocksdb:get(Db, <<"list">>, []),
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
@@ -133,9 +134,15 @@ merge_list_delete_test() ->
   {ok, Bin2} = rocksdb:get(Db, <<"list">>, []),
   [a, b, g] = binary_to_term(Bin2),
 
-  ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_delete, 6}), []),
-  corruption = rocksdb:get(Db, <<"list">>, []),
+  ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_delete, 3}), []),
+  {ok, Bin2}  = rocksdb:get(Db, <<"list">>, []),
 
+  ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_delete, 6}), []),
+  {ok, Bin2}  = rocksdb:get(Db, <<"list">>, []),
+
+  ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_delete, 2}), []),
+  {ok, Bin3} = rocksdb:get(Db, <<"list">>, []),
+  [a, b] = binary_to_term(Bin3),
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
 
@@ -154,7 +161,7 @@ merge_list_insert_test() ->
   [a, b, h, i, c, d, e, f, g] = binary_to_term(Bin1),
 
   ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_insert, 9, [j]}), []),
-  corruption = rocksdb:get(Db, <<"list">>, []),
+  {ok, Bin1} = rocksdb:get(Db, <<"list">>, []),
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
@@ -200,7 +207,6 @@ merge_binary_replace_test() ->
   {ok, Bin1} = rocksdb:get(Db, <<"encbin">>, []),
   <<"A quick red fox jumps over the lazy dog.">> = binary_to_term(Bin1),
 
-
   ok = rocksdb:put(Db, <<"bitmap">>, term_to_binary(<<1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1>>), []),
   ok = rocksdb:merge(Db, <<"bitmap">>, term_to_binary({binary_replace, 2, 1, <<0>>}), []),
   {ok, Bin2} = rocksdb:get(Db, <<"bitmap">>, []),
@@ -209,6 +215,11 @@ merge_binary_replace_test() ->
   ok = rocksdb:merge(Db, <<"bitmap">>, term_to_binary({binary_replace, 6, 1, <<0>>}), []),
   {ok, Bin3} = rocksdb:get(Db, <<"bitmap">>, []),
   <<1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1>> = binary_to_term(Bin3),
+
+  ok = rocksdb:put(Db, <<"encbin1">>, term_to_binary(<<"abcdef">>), []),
+  ok = rocksdb:merge(Db, <<"encbin1">>, term_to_binary({binary_replace, 6, 1, <<"A">>}), []),
+  {ok, Bin4} = rocksdb:get(Db, <<"encbin1">>, []),
+  <<"abcdef">> = binary_to_term(Bin4),
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
@@ -225,19 +236,20 @@ merge_binary_erase_test() ->
   {ok, Bin} = rocksdb:get(Db, <<"eraseterm">>, []),
   <<"abghij">> = binary_to_term(Bin),
 
-  ok = rocksdb:put(Db, <<"corrupted">>, term_to_binary(<<"abcdefghij">>), []),
-  ok = rocksdb:merge(Db, <<"corrupted">>, term_to_binary({binary_erase, 9, 2}), []),
-  corruption = rocksdb:get(Db, <<"corrupted">>, []),
+  ok = rocksdb:put(Db, <<"erase_end">>, term_to_binary(<<"abcdefghij">>), []),
+  ok = rocksdb:merge(Db, <<"erase_end">>, term_to_binary({binary_erase, 9, 2}), []),
+  {ok, Bin1} = rocksdb:get(Db, <<"erase_end">>, []),
+  <<"abcdefghi">> = binary_to_term(Bin1),
 
-  ok = rocksdb:put(Db, <<"corrupted">>, term_to_binary(<<"abcdefghij">>), []),
-  ok = rocksdb:merge(Db, <<"corrupted">>, term_to_binary({binary_erase, 2, 9}), []),
-  corruption = rocksdb:get(Db, <<"corrupted">>, []),
+  ok = rocksdb:put(Db, <<"erase_to_end1">>, term_to_binary(<<"abcdefghij">>), []),
+  ok = rocksdb:merge(Db, <<"erase_to_end1">>, term_to_binary({binary_erase, 2, 9}), []),
+  {ok, Bin2} = rocksdb:get(Db, <<"erase_to_end1">>, []),
+  <<"ab">> = binary_to_term(Bin2),
 
-  ok = rocksdb:put(Db, <<"erase_to_end">>, term_to_binary(<<"abcdefghij">>), []),
-  ok = rocksdb:merge(Db, <<"erase_to_end">>, term_to_binary({binary_erase, 2, 8}), []),
-  {ok, Bin1} = rocksdb:get(Db, <<"erase_to_end">>, []),
-  <<"ab">> = binary_to_term(Bin1),
-
+  ok = rocksdb:put(Db, <<"erase_to_end2">>, term_to_binary(<<"abcdefghij">>), []),
+  ok = rocksdb:merge(Db, <<"erase_to_end2">>, term_to_binary({binary_erase, 2, 8}), []),
+  {ok, Bin3} = rocksdb:get(Db, <<"erase_to_end2">>, []),
+  <<"ab">> = binary_to_term(Bin3),
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
@@ -265,7 +277,9 @@ merge_binary_insert_test() ->
 
   ok = rocksdb:put(Db, <<"insert">>, term_to_binary(<<"abcdefghij">>), []),
   ok = rocksdb:merge(Db, <<"insert">>, term_to_binary({binary_insert, 11, <<"1234">>}), []),
-  corruption = rocksdb:get(Db, <<"insert">>, []),
+  {ok, Bin3} = rocksdb:get(Db, <<"insert">>, []),
+  <<"abcdefghij">> = binary_to_term(Bin3),
+
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).

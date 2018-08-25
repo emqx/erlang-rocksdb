@@ -16,28 +16,61 @@
 
 
 #pragma once
+
+#include <deque>
+#include <string>
+#include <list>
+
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/slice.h"
 
 // forward declaation
 namespace rocksdb {
-    class AssociativeMergeOperator;
+    class MergeOperator;
+    class Slice;
+    class Logger;
 }
 
 namespace erocksdb {
 
-    class ErlangMergeOperator : public rocksdb::AssociativeMergeOperator {
+    class ErlangMergeOperator : public rocksdb::MergeOperator {
         public:
             explicit ErlangMergeOperator();
 
-            virtual bool Merge(
+            virtual bool FullMergeV2(
+                    const MergeOperationInput& merge_in,
+                    MergeOperationOutput* merge_out) const override;
+
+            virtual bool PartialMergeMulti(
                     const rocksdb::Slice& key,
-                    const rocksdb::Slice* existing_value,
-                    const rocksdb::Slice& value,
+                    const std::deque<rocksdb::Slice>& operand_list,
                     std::string* new_value,
                     rocksdb::Logger* logger) const override;
 
             virtual const char* Name() const override;
+
+        private:
+            bool mergeErlangInt(
+                    ErlNifEnv* env,
+                    ErlNifSInt64 val,
+                    bool next,
+                    const MergeOperationInput& merge_in,
+                    MergeOperationOutput* merge_out) const;
+
+             bool mergeErlangList(
+                    ErlNifEnv* env,
+                    std::list<ERL_NIF_TERM> list_in,
+                    bool next,
+                    const MergeOperationInput& merge_in,
+                    MergeOperationOutput* merge_out) const;
+
+            bool mergeErlangBinary(
+                    ErlNifEnv* env,
+                    std::string s,
+                    bool next,
+                    const MergeOperationInput& merge_in,
+                    MergeOperationOutput* merge_out) const;
+
     };
 
     std::shared_ptr<ErlangMergeOperator> CreateErlangMergeOperator();
