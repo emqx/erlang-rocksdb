@@ -35,6 +35,8 @@
 #include "cache.h"
 #include "rate_limiter.h"
 #include "env.h"
+#include "erlang_merge.h"
+#include "bitset_merge_operator.h"
 
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
@@ -348,7 +350,7 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
 {
     int arity;
     const ERL_NIF_TERM* option;
-    if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
+    if (enif_get_tuple(env, item, &arity, &option) && arity == 2)
     {
         if (option[0] == erocksdb::ATOM_BLOCK_CACHE_SIZE_MB_FOR_POINT_LOOKUP)
             // @TODO ignored now
@@ -561,6 +563,26 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         else if (option[0] == erocksdb::ATOM_OPTIMIZE_FILTERS_FOR_HITS)
         {
             opts.optimize_filters_for_hits = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_MERGE_OPERATOR)
+        {
+            int a;
+            const ERL_NIF_TERM* merge_op;
+
+            if (enif_is_atom(env, option[1])) {
+                if (option[1] == erocksdb::ATOM_ERLANG_MERGE_OPERATOR) {
+                    opts.merge_operator = erocksdb::CreateErlangMergeOperator();
+                } else if (option[1] == erocksdb::ATOM_BITSET_MERGE_OPERATOR) {
+                    opts.merge_operator = erocksdb::CreateBitsetMergeOperator(0x3E80);
+                }
+            } else if (enif_get_tuple(env, option[1], &a, &merge_op) && a >= 2) {
+                if (merge_op[0] == erocksdb::ATOM_BITSET_MERGE_OPERATOR) {
+                    unsigned int cap;
+                    if (!enif_get_uint(env, merge_op[1], &cap))
+                        return erocksdb::ATOM_BADARG;
+                    opts.merge_operator = erocksdb::CreateBitsetMergeOperator(cap);
+                }
+            }
         }
     }
     return erocksdb::ATOM_OK;
@@ -856,7 +878,15 @@ Get(
 
     if (!status.ok())
     {
-        return ATOM_NOT_FOUND;
+
+        if (status.IsNotFound())
+            return ATOM_NOT_FOUND;
+
+        if (status.IsCorruption())
+            return ATOM_CORRUPTION;
+
+        return error_tuple(env, ATOM_UNKNOWN_STATUS_ERROR, status);
+
     }
 
     ERL_NIF_TERM value_bin;
@@ -909,6 +939,55 @@ Put(
         return error_tuple(env, ATOM_ERROR, status);
     return ATOM_OK;
 }
+
+ERL_NIF_TERM
+Merge(
+  ErlNifEnv* env,
+  int argc,
+  const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<DbObject> db_ptr;
+    ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
+
+    ErlNifBinary key, value;
+
+    if(!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
+    rocksdb::Status status;
+    if (argc > 4)
+    {
+        if(!enif_get_cf(env, argv[1], &cf_ptr) ||
+                !enif_inspect_binary(env, argv[2], &key) ||
+                !enif_inspect_binary(env, argv[3], &value))
+            return enif_make_badarg(env);
+        rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
+        rocksdb::Slice key_slice((const char*)key.data, key.size);
+        rocksdb::Slice value_slice((const char*)value.data, value.size);
+        erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
+        fold(env, argv[4], parse_write_option, *opts);
+        status = db_ptr->m_Db->Merge(*opts, cf->m_ColumnFamily, key_slice, value_slice);
+        delete opts;
+        opts = NULL;
+    }
+    else
+    {
+        if(!enif_inspect_binary(env, argv[1], &key) ||
+                !enif_inspect_binary(env, argv[2], &value))
+            return enif_make_badarg(env);
+        rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
+        rocksdb::Slice key_slice((const char*)key.data, key.size);
+        rocksdb::Slice value_slice((const char*)value.data, value.size);
+        fold(env, argv[3], parse_write_option, *opts);
+        status = db_ptr->m_Db->Merge(*opts, key_slice, value_slice);
+        delete opts;
+        opts = NULL;
+    }
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR, status);
+    return ATOM_OK;
+}
+
+
 
 ERL_NIF_TERM
 Delete(

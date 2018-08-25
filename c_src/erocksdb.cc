@@ -58,6 +58,8 @@ static ErlNifFunc nif_funcs[] =
   {"get", 4, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"put", 4, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"put", 5, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"merge", 4, erocksdb::Merge, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"merge", 5, erocksdb::Merge, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"delete", 3, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"delete", 4, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"single_delete", 3, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -90,6 +92,8 @@ static ErlNifFunc nif_funcs[] =
   {"write_batch", 3, erocksdb::WriteBatch, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"batch_put", 3, erocksdb::PutBatch},
   {"batch_put", 4, erocksdb::PutBatch},
+  {"batch_merge", 3, erocksdb::PutBatch},
+  {"batch_merge", 4, erocksdb::PutBatch},
   {"batch_delete", 2, erocksdb::DeleteBatch},
   {"batch_delete", 3, erocksdb::DeleteBatch},
   {"batch_single_delete", 2, erocksdb::SingleDeleteBatch},
@@ -151,8 +155,10 @@ ERL_NIF_TERM ATOM_ERROR;
 ERL_NIF_TERM ATOM_EINVAL;
 ERL_NIF_TERM ATOM_BADARG;
 ERL_NIF_TERM ATOM_NOT_FOUND;
+ERL_NIF_TERM ATOM_CORRUPTION;
 ERL_NIF_TERM ATOM_INC;
 ERL_NIF_TERM ATOM_DEC;
+ERL_NIF_TERM ATOM_UNKNOWN_STATUS_ERROR;
 
 // related to envs
 ERL_NIF_TERM ATOM_DEFAULT;
@@ -262,6 +268,7 @@ ERL_NIF_TERM ATOM_IGNORE_MISSING_COLUMN_FAMILIES;
 // Related to Write Actions
 ERL_NIF_TERM ATOM_CLEAR;
 ERL_NIF_TERM ATOM_PUT;
+ERL_NIF_TERM ATOM_MERGE;
 ERL_NIF_TERM ATOM_DELETE;
 ERL_NIF_TERM ATOM_SINGLE_DELETE;
 
@@ -334,6 +341,24 @@ ERL_NIF_TERM ATOM_BACKUP_INFO_TIMESTAMP;
 ERL_NIF_TERM ATOM_BACKUP_INFO_SIZE;
 ERL_NIF_TERM ATOM_BACKUP_INFO_NUMBER_FILES;
 
+
+ERL_NIF_TERM ATOM_MERGE_OPERATOR;
+ERL_NIF_TERM ATOM_ERLANG_MERGE_OPERATOR;
+ERL_NIF_TERM ATOM_BITSET_MERGE_OPERATOR;
+
+ERL_NIF_TERM ATOM_MERGE_INT_ADD;
+ERL_NIF_TERM ATOM_MERGE_LIST_APPEND;
+ERL_NIF_TERM ATOM_MERGE_LIST_SUBSTRACT;
+ERL_NIF_TERM ATOM_MERGE_LIST_SET;
+ERL_NIF_TERM ATOM_MERGE_LIST_DELETE;
+ERL_NIF_TERM ATOM_MERGE_LIST_INSERT;
+ERL_NIF_TERM ATOM_MERGE_BINARY_APPEND;
+ERL_NIF_TERM ATOM_MERGE_BINARY_REPLACE;
+ERL_NIF_TERM ATOM_MERGE_BINARY_INSERT;
+ERL_NIF_TERM ATOM_MERGE_BINARY_ERASE;
+
+
+
 }   // namespace erocksdb
 
 
@@ -378,8 +403,11 @@ try
   ATOM(erocksdb::ATOM_EINVAL, "einval");
   ATOM(erocksdb::ATOM_BADARG, "badarg");
   ATOM(erocksdb::ATOM_NOT_FOUND, "not_found");
+  ATOM(erocksdb::ATOM_CORRUPTION, "corruption");
   ATOM(erocksdb::ATOM_INC, "inc");
   ATOM(erocksdb::ATOM_DEC, "dec");
+  ATOM(erocksdb::ATOM_UNKNOWN_STATUS_ERROR, "unknown_status");
+
 
 
   ATOM(erocksdb::ATOM_DEFAULT, "default");
@@ -490,6 +518,7 @@ try
   // Related to Write Options
   ATOM(erocksdb::ATOM_CLEAR, "clear");
   ATOM(erocksdb::ATOM_PUT, "put");
+  ATOM(erocksdb::ATOM_MERGE, "merge");
   ATOM(erocksdb::ATOM_DELETE, "delete");
   ATOM(erocksdb::ATOM_SINGLE_DELETE, "single_delete");
 
@@ -560,6 +589,23 @@ try
   ATOM(erocksdb::ATOM_BACKUP_INFO_TIMESTAMP, "timestamp");
   ATOM(erocksdb::ATOM_BACKUP_INFO_SIZE, "size");
   ATOM(erocksdb::ATOM_BACKUP_INFO_NUMBER_FILES, "number_files");
+
+    // Related to Merge OPs
+  ATOM(erocksdb::ATOM_MERGE_OPERATOR, "merge_operator");
+  ATOM(erocksdb::ATOM_ERLANG_MERGE_OPERATOR, "erlang_merge_operator");
+  ATOM(erocksdb::ATOM_BITSET_MERGE_OPERATOR, "bitset_merge_operator");
+
+  // erlang merge ops
+  ATOM(erocksdb::ATOM_MERGE_INT_ADD, "int_add");
+  ATOM(erocksdb::ATOM_MERGE_LIST_APPEND, "list_append");
+  ATOM(erocksdb::ATOM_MERGE_LIST_SUBSTRACT, "list_substract");
+  ATOM(erocksdb::ATOM_MERGE_LIST_SET, "list_set");
+  ATOM(erocksdb::ATOM_MERGE_LIST_DELETE, "list_delete");
+  ATOM(erocksdb::ATOM_MERGE_LIST_INSERT, "list_insert");
+  ATOM(erocksdb::ATOM_MERGE_BINARY_APPEND, "binary_append");
+  ATOM(erocksdb::ATOM_MERGE_BINARY_REPLACE, "binary_replace");
+  ATOM(erocksdb::ATOM_MERGE_BINARY_INSERT, "binary_insert");
+  ATOM(erocksdb::ATOM_MERGE_BINARY_ERASE, "binary_erase");
 
 #undef ATOM
 
