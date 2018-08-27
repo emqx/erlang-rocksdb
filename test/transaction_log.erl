@@ -132,15 +132,15 @@ iterator_with_batch2_test() ->
   Db = destroy_reopen("test.db", [{create_if_missing, true}]),
   Db1 = destroy_reopen("test1.db", [{create_if_missing, true}]),
 
-  W1 = [{put, <<"a">>, <<"v1">>}, {put, <<"b">>, <<"v2">>}],
-  W2 = [{put, <<"c">>, <<"v3">>}, {delete, <<"a">>}],
+  W1 = [{put, <<"a">>, <<"v1">>}, {put, <<"b">>, <<"v2">>}, {put, <<"c">>, <<"v3">>}],
+  W2 = [{put, <<"d">>, <<"v4">>}, {delete, <<"a">>}, {single_delete, <<"c">>}],
 
   ok = rocksdb:write(Db, W1, []),
-  ?assertEqual(2, rocksdb:get_latest_sequence_number(Db)),
+  ?assertEqual(3, rocksdb:get_latest_sequence_number(Db)),
 
   ok = rocksdb:write(Db, W2, []),
 
-  ?assertEqual(4, rocksdb:get_latest_sequence_number(Db)),
+  ?assertEqual(6, rocksdb:get_latest_sequence_number(Db)),
 
   {ok, Itr} = rocksdb:updates_iterator(Db, 0),
 
@@ -151,18 +151,18 @@ iterator_with_batch2_test() ->
   ok = rocksdb:write_binary_update(Db1, BinLog, []),
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
   ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
-  ?assertEqual(not_found, rocksdb:get(Db1, <<"c">>, [])),
-  ?assertEqual(2, rocksdb:get_latest_sequence_number(Db1)),
-
-
+  ?assertEqual({ok, <<"v3">>}, rocksdb:get(Db1, <<"c">>, [])),
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"d">>, [])),
+  ?assertEqual(3, rocksdb:get_latest_sequence_number(Db1)),
   {ok, Last2, Log2, BinLog2} = rocksdb:next_update(Itr),
-  ?assertEqual(3, Last2),
+  ?assertEqual(4, Last2),
   ?assertEqual(W2, Log2),
   ok = rocksdb:write_binary_update(Db1, BinLog2, []),
   ?assertEqual(not_found, rocksdb:get(Db1, <<"a">>, [])),
   ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
-  ?assertEqual({ok, <<"v3">>}, rocksdb:get(Db1, <<"c">>, [])),
-  ?assertEqual(4, rocksdb:get_latest_sequence_number(Db1)),
+  ?assertEqual(not_found, rocksdb:get(Db1, <<"c">>, [])),
+  ?assertEqual({ok, <<"v4">>}, rocksdb:get(Db1, <<"d">>, [])),
+  ?assertEqual(6, rocksdb:get_latest_sequence_number(Db1)),
 
   close_destroy(Db, "test.db"),
   close_destroy(Db1, "test1.db"),

@@ -21,6 +21,7 @@
 #ifndef INCL_TRANSACTIONS_H
 #define INCL_TRANSACTIONS_H
 
+#include <iostream>
 #include "rocksdb/db.h"
 #include "rocksdb/write_batch.h"
 #include "rocksdb/transaction_log.h"
@@ -111,8 +112,6 @@ public:
 
         return rocksdb::Status::OK();
     }
-
-
 
 protected:
     ErlNifEnv* t_Env;
