@@ -75,8 +75,10 @@ namespace erocksdb {
         int pos = parse_int(s.substr(1));
         int ofs = pos >> 3;
 
-        if (ofs > size)
+        if (ofs > size) {
+            delete[] data;
             return false;
+        }
 
         //char bytemask = (1 << ((1 << 3)) - (pos & ((1 << 3)))));
         if (value.starts_with(rocksdb::Slice("+"))) {
@@ -86,6 +88,7 @@ namespace erocksdb {
             //data[(pos >> 3)] &= ~bytemask;
             data[ofs] &= ~bit_mask[pos % bits_per_char];
         } else {
+            delete[] data;
             return false;
         }
 

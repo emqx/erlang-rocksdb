@@ -180,7 +180,7 @@ namespace erocksdb {
         ErlNifBinary bin;
         int arity;
         const ERL_NIF_TERM* op;
-        unsigned int pos, i, len;
+        unsigned int pos, len;
 
         auto it = merge_in.operand_list.begin();
         if (next)
@@ -267,7 +267,6 @@ namespace erocksdb {
                         return on_error(env);
 
                     if (pos < list_in.size()) {
-                        i = 0;
                         tail = op[2];
                         auto lit = list_in.begin();
                         std::advance(lit, pos);
