@@ -456,11 +456,7 @@ class FbsonJsonParserT {
     }
     case '+':
       in.ignore();
-#if defined(__clang__)
-      [[clang::fallthrough]];
-#elif defined(__GNUC__) && __GNUC__ >= 7
-      [[gnu::fallthrough]];
-#endif
+    // fall through
     default:
       ret = parseDecimal(in, 1);
       break;

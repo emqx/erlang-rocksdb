@@ -35,9 +35,9 @@
 
 #if defined(ZSTD)
 #include <zstd.h>
-#if ZSTD_VERSION_NUMBER >= 10103  // v1.1.3+
+#if ZSTD_VERSION_NUMBER >= 800  // v0.8.0+
 #include <zdict.h>
-#endif  // ZSTD_VERSION_NUMBER >= 10103
+#endif  // ZSTD_VERSION_NUMBER >= 800
 #endif  // ZSTD
 
 #if defined(XPRESS)
@@ -871,10 +871,9 @@ inline char* ZSTD_Uncompress(const char* input_data, size_t input_length,
 inline std::string ZSTD_TrainDictionary(const std::string& samples,
                                         const std::vector<size_t>& sample_lens,
                                         size_t max_dict_bytes) {
-  /// Dictionary trainer is available since v0.6.1 for static linking, but not
-  // available for dynamic linking until v1.1.3. For now we enable the feature
-  // in v1.1.3+ only.
-#if ZSTD_VERSION_NUMBER >= 10103  // v1.1.3+
+  // Dictionary trainer is available since v0.6.1, but ZSTD was marked stable
+  // only since v0.8.0. For now we enable the feature in stable versions only.
+#if ZSTD_VERSION_NUMBER >= 800  // v0.8.0+
   std::string dict_data(max_dict_bytes, '\0');
   size_t dict_len = ZDICT_trainFromBuffer(
       &dict_data[0], max_dict_bytes, &samples[0], &sample_lens[0],
@@ -885,13 +884,13 @@ inline std::string ZSTD_TrainDictionary(const std::string& samples,
   assert(dict_len <= max_dict_bytes);
   dict_data.resize(dict_len);
   return dict_data;
-#else   // up to v1.1.2
+#else   // up to v0.7.x
   assert(false);
   (void)samples;
   (void)sample_lens;
   (void)max_dict_bytes;
   return "";
-#endif  // ZSTD_VERSION_NUMBER >= 10103
+#endif  // ZSTD_VERSION_NUMBER >= 800
 }
 
 inline std::string ZSTD_TrainDictionary(const std::string& samples,
@@ -899,18 +898,18 @@ inline std::string ZSTD_TrainDictionary(const std::string& samples,
                                         size_t max_dict_bytes) {
   // Dictionary trainer is available since v0.6.1, but ZSTD was marked stable
   // only since v0.8.0. For now we enable the feature in stable versions only.
-#if ZSTD_VERSION_NUMBER >= 10103  // v1.1.3+
+#if ZSTD_VERSION_NUMBER >= 800  // v0.8.0+
   // skips potential partial sample at the end of "samples"
   size_t num_samples = samples.size() >> sample_len_shift;
   std::vector<size_t> sample_lens(num_samples, size_t(1) << sample_len_shift);
   return ZSTD_TrainDictionary(samples, sample_lens, max_dict_bytes);
-#else   // up to v1.1.2
+#else   // up to v0.7.x
   assert(false);
   (void)samples;
   (void)sample_len_shift;
   (void)max_dict_bytes;
   return "";
-#endif  // ZSTD_VERSION_NUMBER >= 10103
+#endif  // ZSTD_VERSION_NUMBER >= 800
 }
 
 }  // namespace rocksdb

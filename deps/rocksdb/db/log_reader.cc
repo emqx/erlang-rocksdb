@@ -14,7 +14,6 @@
 #include "util/coding.h"
 #include "util/crc32c.h"
 #include "util/file_reader_writer.h"
-#include "util/util.h"
 
 namespace rocksdb {
 namespace log {
@@ -152,7 +151,7 @@ bool Reader::ReadRecord(Slice* record, std::string* scratch,
           // in clean shutdown we don't expect any error in the log files
           ReportCorruption(drop_size, "truncated header");
         }
-      FALLTHROUGH_INTENDED;
+      // fall-thru
 
       case kEof:
         if (in_fragmented_record) {
@@ -182,7 +181,7 @@ bool Reader::ReadRecord(Slice* record, std::string* scratch,
           }
           return false;
         }
-      FALLTHROUGH_INTENDED;
+      // fall-thru
 
       case kBadRecord:
         if (in_fragmented_record) {
