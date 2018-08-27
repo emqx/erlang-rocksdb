@@ -257,7 +257,7 @@ namespace erocksdb {
                     if ((start < end) && (end < list_in.size())) {
                         auto lit = list_in.begin();
                         std::advance(lit, start);
-                        for(int i=start; i <= end; i++) {
+                        for(unsigned int i=start; i <= end; i++) {
                             lit = list_in.erase(lit);
                         }
                     }
