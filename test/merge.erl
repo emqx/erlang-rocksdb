@@ -81,13 +81,13 @@ merge_list_substract_test() ->
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
-  ok = rocksdb:put(Db, <<"list">>, term_to_binary([a, b, c, d, e]), []),
+  ok = rocksdb:put(Db, <<"list">>, term_to_binary([a, b, c, d, e, a, b, c]), []),
   {ok, Bin0} = rocksdb:get(Db, <<"list">>, []),
-  [a, b, c, d, e] = binary_to_term(Bin0),
+  [a, b, c, d, e, a, b, c] = binary_to_term(Bin0),
 
   ok = rocksdb:merge(Db, <<"list">>, term_to_binary({list_substract, [c, a]}), []),
   {ok, Bin1} = rocksdb:get(Db, <<"list">>, []),
-  [b, d, e] = binary_to_term(Bin1),
+  [b, d, e, a, b, c] = binary_to_term(Bin1),
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).

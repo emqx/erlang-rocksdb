@@ -215,7 +215,8 @@ namespace erocksdb {
                         while(enif_get_list_cell(env, tail, &head, &tail)) {
                             for(auto it = list_in.begin(); it!=list_in.end();) {
                                 if(enif_compare(*it, head) == 0) {
-                                    it = list_in.erase(it);
+                                    list_in.erase(it);
+                                    break;
                                 } else {
                                     ++it;
                                 }
