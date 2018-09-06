@@ -139,3 +139,38 @@ close_fold_test_Z() ->
   ok = rocksdb:put(Ref, <<"k">>,<<"v">>,[]),
   ?assertException(throw, {iterator_closed, ok}, % ok is returned by close as the acc
   rocksdb:fold(Ref, fun(_,_A) -> rocksdb:close(Ref) end, undefined, [])).
+
+
+fixed_prefix_extractor_test() ->
+  os:cmd("rm -rf /tmp/erocksdb.fixed_prefix_extractor.test"),
+  {ok, Ref} = rocksdb:open("/tmp/erocksdb.fixed_prefix_extractor.test", [{create_if_missing, true}, {prefix_extractor,
+                                                                                                     {fixed_prefix_transform, 1}}]),
+
+  ok = rocksdb:put(Ref, <<"k1">>, <<"v1">>, []),
+  ok = rocksdb:put(Ref, <<"k2">>, <<"v2">>, []),
+
+  [<<"k1">>, <<"k2">>] = lists:reverse(rocksdb:fold_keys(Ref,
+                                                         fun(K, Acc) -> [K | Acc] end,
+                                                         [], [])),
+
+
+  ok = rocksdb:close(Ref),
+  rocksdb:destroy("/tmp/erocksdb.fixed_prefix_extractor.test", []),
+  ok.
+
+capped_prefix_extractor_test() ->
+  os:cmd("rm -rf /tmp/erocksdb.capped_prefix_extractor.test"),
+  {ok, Ref} = rocksdb:open("/tmp/erocksdb.capped_prefix_extractor.test", [{create_if_missing, true}, {prefix_extractor,
+                                                                                                      {capped_prefix_transform, 1}}]),
+
+  ok = rocksdb:put(Ref, <<"k1">>, <<"v1">>, []),
+  ok = rocksdb:put(Ref, <<"k2">>, <<"v2">>, []),
+
+  [<<"k1">>, <<"k2">>] = lists:reverse(rocksdb:fold_keys(Ref,
+                                                         fun(K, Acc) -> [K | Acc] end,
+                                                         [], [])),
+
+
+  ok = rocksdb:close(Ref),
+  rocksdb:destroy("/tmp/erocksdb.capped_prefix_extractor.test", []),
+  ok.

@@ -174,7 +174,7 @@ init() ->
           target_size :: non_neg_integer()}).
 
 -record(cf_descriptor, {name    :: string(),
-            options :: cf_options()}).
+                        options :: cf_options()}).
 
 -type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | none.
 -type compaction_style() :: level | universal | fifo | none.
@@ -240,7 +240,10 @@ init() ->
                        {in_memory_mode, boolean()} |
                        {block_based_table_options, block_based_table_options()} |
                        {level_compaction_dynamic_level_bytes, boolean()} |
-                       {optimize_filters_for_hits, boolean()}].
+                       {optimize_filters_for_hits, boolean()} |
+                       {prefix_transform, [{fixed_prefix_transform, integer()} | 
+                                           {capped_prefix_transform, integer()}]}
+                      ].
 
 -type db_options() :: [{env, env()} |
                        {total_threads, pos_integer()} |

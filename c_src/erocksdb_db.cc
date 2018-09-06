@@ -584,6 +584,30 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
                 }
             }
         }
+        else if (option[0] == erocksdb::ATOM_PREFIX_EXTRACTOR)
+        {
+            int a;
+            const ERL_NIF_TERM* prefix_extractor;
+
+            if (enif_get_tuple(env, option[1], &a, &prefix_extractor) && a == 2) {
+                if (prefix_extractor[0] == erocksdb::ATOM_FIXED_PREFIX_TRANSFORM)
+                {
+                    int len;
+                    if (!enif_get_int(env, prefix_extractor[1], &len))
+                        return erocksdb::ATOM_BADARG;
+                    opts.prefix_extractor =
+                        std::shared_ptr<const rocksdb::SliceTransform>(rocksdb::NewFixedPrefixTransform(len));
+                }
+                if (prefix_extractor[0] == erocksdb::ATOM_CAPPED_PREFIX_TRANSFORM)
+                {
+                    int cap_len;
+                    if (!enif_get_int(env, prefix_extractor[1], &cap_len))
+                        return erocksdb::ATOM_BADARG;
+                    opts.prefix_extractor =
+                        std::shared_ptr<const rocksdb::SliceTransform>(rocksdb::NewCappedPrefixTransform(cap_len));
+                }
+            }
+        }
     }
     return erocksdb::ATOM_OK;
 }

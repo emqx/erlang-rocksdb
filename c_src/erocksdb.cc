@@ -198,6 +198,7 @@ ERL_NIF_TERM ATOM_IN_MEMORY;
 ERL_NIF_TERM ATOM_BLOCK_BASED_TABLE_OPTIONS;
 ERL_NIF_TERM ATOM_LEVEL_COMPACTION_DYNAMIC_LEVEL_BYTES;
 ERL_NIF_TERM ATOM_OPTIMIZE_FILTERS_FOR_HITS;
+ERL_NIF_TERM ATOM_PREFIX_EXTRACTOR;
 
 // Related to DBOptions
 ERL_NIF_TERM ATOM_TOTAL_THREADS;
@@ -357,6 +358,8 @@ ERL_NIF_TERM ATOM_MERGE_BINARY_REPLACE;
 ERL_NIF_TERM ATOM_MERGE_BINARY_INSERT;
 ERL_NIF_TERM ATOM_MERGE_BINARY_ERASE;
 
+ERL_NIF_TERM ATOM_FIXED_PREFIX_TRANSFORM;
+ERL_NIF_TERM ATOM_CAPPED_PREFIX_TRANSFORM;
 
 
 }   // namespace erocksdb
@@ -447,6 +450,7 @@ try
   ATOM(erocksdb::ATOM_BLOCK_BASED_TABLE_OPTIONS, "block_based_table_options");
   ATOM(erocksdb::ATOM_LEVEL_COMPACTION_DYNAMIC_LEVEL_BYTES, "level_compaction_dynamic_level_bytes");
   ATOM(erocksdb::ATOM_OPTIMIZE_FILTERS_FOR_HITS, "optimize_filters_for_hits");
+  ATOM(erocksdb::ATOM_PREFIX_EXTRACTOR, "prefix_extractor");
 
   // Related to DBOptions
   ATOM(erocksdb::ATOM_TOTAL_THREADS, "total_threads");
@@ -606,6 +610,10 @@ try
   ATOM(erocksdb::ATOM_MERGE_BINARY_REPLACE, "binary_replace");
   ATOM(erocksdb::ATOM_MERGE_BINARY_INSERT, "binary_insert");
   ATOM(erocksdb::ATOM_MERGE_BINARY_ERASE, "binary_erase");
+
+  // prefix extractor
+  ATOM(erocksdb::ATOM_FIXED_PREFIX_TRANSFORM, "fixed_prefix_transform");
+  ATOM(erocksdb::ATOM_CAPPED_PREFIX_TRANSFORM, "capped_prefix_transform");
 
 #undef ATOM
 

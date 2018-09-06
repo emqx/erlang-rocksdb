@@ -54,6 +54,8 @@ int enif_get_backup_engine(ErlNifEnv* env, ERL_NIF_TERM bal, erocksdb::Reference
 
 int parse_int(const std::string& value);
 
+uint64_t ParseUint64(const std::string& value);
+
 // Cleanup function for C++ object created with enif allocator via C++
 // placement syntax which necessitates explicit invocation of the object's
 // destructor.
