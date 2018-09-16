@@ -102,6 +102,7 @@ static ErlNifFunc nif_funcs[] =
   {"batch_savepoint", 1, erocksdb::BatchSetSavePoint},
   {"batch_rollback", 1, erocksdb::BatchRollbackToSavePoint},
   {"batch_count", 1, erocksdb::BatchCount},
+  {"batch_data_size", 1, erocksdb::BatchDataSize},
   {"batch_tolist", 1, erocksdb::BatchToList, ERL_NIF_DIRTY_JOB_CPU_BOUND},
 
 

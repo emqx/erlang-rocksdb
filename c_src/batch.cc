@@ -316,6 +316,19 @@ BatchCount(
 }
 
 ERL_NIF_TERM
+BatchDataSize(
+        ErlNifEnv* env,
+        int argc,
+        const ERL_NIF_TERM argv[])
+{
+    Batch* batch_ptr = nullptr;
+    if(!enif_get_resource(env, argv[0], m_Batch_RESOURCE, (void **) &batch_ptr))
+        return enif_make_badarg(env);
+    int count = batch_ptr->wb->GetDataSize();
+    return enif_make_int(env, count);
+}
+
+ERL_NIF_TERM
 BatchToList(
         ErlNifEnv* env,
         int argc,

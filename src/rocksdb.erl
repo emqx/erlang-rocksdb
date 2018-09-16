@@ -111,6 +111,7 @@
          batch_savepoint/1,
          batch_rollback/1,
          batch_count/1,
+         batch_data_size/1,
          batch_tolist/1]).
 
 -export([
@@ -890,6 +891,11 @@ batch_single_delete(_Batch, _ColumnFamily, _Key) ->
 %% @doc return the number of operations in the batch
 -spec batch_count(_Batch :: batch_handle()) -> Count :: non_neg_integer().
 batch_count(_Batch) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Retrieve data size of the batch.
+-spec batch_data_size(_Batch :: batch_handle()) -> BatchSize :: non_neg_integer().
+batch_data_size(_Batch) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc reset the batch, clear all operations.
