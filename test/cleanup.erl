@@ -145,10 +145,12 @@ iterator_with_cf_exit_test() ->
   {ok, CF} = rocksdb:create_column_family(DB, "test", []),
   try
     write(100, DB, CF),
-    spawn_wait(fun() ->
-      {ok, Itr} = rocksdb:iterator(DB, CF, []),
-      iterate(Itr)
-               end),
+    spawn_wait(
+      fun() ->
+        {ok, Itr} = rocksdb:iterator(DB, CF, []),
+        iterate(Itr)
+      end
+    ),
     rocksdb:close(DB),
     check_cf(),
     ok
