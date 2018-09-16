@@ -1,10 +1,11 @@
-erlang-rocksdb 0.21.0, released on 2018/08/27
+erlang-rocksdb 0.21.0, released on 2018/09/16
 ================================================
 
-- bump to rocksdb 5.14.3
-- fix build with GCC 8
+- bump to rocksdb 5.15.10
 - add: erlang merge operator
 - add: erlang bitset merge operator
+- add: rocksdb:batch_data_size/1
+- add: prefix_transform option
 
 erlang-rocksdb 0.20.0, released on 2018/08/03
 ================================================
