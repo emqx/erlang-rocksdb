@@ -889,8 +889,10 @@ Get(
     if(argc==4)
     {
         ReferencePtr<ColumnFamilyObject> cf_ptr;
-        if(!enif_get_cf(env, argv[1], &cf_ptr))
+        if(!enif_get_cf(env, argv[1], &cf_ptr)) {
+            delete opts;
             return enif_make_badarg(env);
+        }
         status = db_ptr->m_Db->Get(*opts, cf_ptr->m_ColumnFamily, key, &pvalue);
     }
     else
