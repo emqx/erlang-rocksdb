@@ -210,6 +210,11 @@ init() ->
                                       {format_version, 0 | 1 | 2} |
                                       {cache_index_and_filter_blocks, boolean()}].
 
+-type merge_operator() :: erlang_merge_operator |
+                          bitset_merge_operator |
+                          {bitset_merge_operator, non_neg_integer()} |
+                          counter_merge_operator.
+
 -type cf_options() :: [{block_cache_size_mb_for_point_lookup, non_neg_integer()} |
                        {memtable_memory_budget, pos_integer()} |
                        {write_buffer_size,  pos_integer()} |
@@ -243,7 +248,8 @@ init() ->
                        {level_compaction_dynamic_level_bytes, boolean()} |
                        {optimize_filters_for_hits, boolean()} |
                        {prefix_transform, [{fixed_prefix_transform, integer()} | 
-                                           {capped_prefix_transform, integer()}]}
+                                           {capped_prefix_transform, integer()}]} |
+                       {merge_operator, merge_operator()}
                       ].
 
 -type db_options() :: [{env, env()} |
