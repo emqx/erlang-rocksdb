@@ -37,6 +37,7 @@
 #include "env.h"
 #include "erlang_merge.h"
 #include "bitset_merge_operator.h"
+#include "counter_merge_operator.h"
 
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
@@ -574,6 +575,8 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
                     opts.merge_operator = erocksdb::CreateErlangMergeOperator();
                 } else if (option[1] == erocksdb::ATOM_BITSET_MERGE_OPERATOR) {
                     opts.merge_operator = erocksdb::CreateBitsetMergeOperator(0x3E80);
+                } else if (option[1] == erocksdb::ATOM_COUNTER_MERGE_OPERATOR) {
+                    opts.merge_operator = erocksdb::CreateCounterMergeOperator();
                 }
             } else if (enif_get_tuple(env, option[1], &a, &merge_op) && a >= 2) {
                 if (merge_op[0] == erocksdb::ATOM_BITSET_MERGE_OPERATOR) {

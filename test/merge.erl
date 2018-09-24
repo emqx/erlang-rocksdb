@@ -313,3 +313,26 @@ merge_bitset_test() ->
 
   ok = rocksdb:close(Db),
   ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+
+
+merge_counter_test() ->
+  [] = os:cmd("rm -rf /tmp/rocksdb_counter_merge_db.test"),
+  {ok, Db} = rocksdb:open("/tmp/rocksdb_counter_merge_db.test",
+                           [{create_if_missing, true},
+                            {merge_operator, counter_merge_operator}]),
+
+
+  ok = rocksdb:merge(Db, <<"c">>, << "1" >>, []),
+  {ok, << "1" >>} = rocksdb:get(Db, <<"c">>, []),
+
+  ok = rocksdb:merge(Db, <<"c">>, << "2" >>, []),
+  {ok, << "3" >>} = rocksdb:get(Db, <<"c">>, []),
+
+  ok = rocksdb:merge(Db, <<"c">>, <<"-1">> , []),
+  {ok, <<"2">>} = rocksdb:get(Db, <<"c">>, []),
+
+  ok = rocksdb:put(Db, <<"c">>, <<"0">>, []),
+  {ok, <<"0">>} = rocksdb:get(Db, <<"c">>, []),
+
+  ok = rocksdb:close(Db),
+  ok = rocksdb:destroy("/tmp/rocksdb_counter_merge_db.test", []).
