@@ -20,6 +20,8 @@
 #include <mutex>
 #include <vector>
 #include <memory>
+#include <cstring>
+
 
 #include "rocksdb/db.h"
 #include "rocksdb/comparator.h"
