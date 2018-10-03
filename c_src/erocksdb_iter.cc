@@ -38,7 +38,7 @@ parse_iterator_options(
         ErlNifEnv* env,
         ERL_NIF_TERM term,
         rocksdb::ReadOptions& opts,
-        std::unique_ptr<rocksdb::Slice>& upper_bound_slice)
+        std::shared_ptr<rocksdb::Slice>& upper_bound_slice)
 {
     const ERL_NIF_TERM* option;
     ERL_NIF_TERM head, tail;
@@ -106,7 +106,7 @@ Iterator(
         return enif_make_badarg(env);
 
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
-    std::unique_ptr<rocksdb::Slice> upper_bound_slice(new rocksdb::Slice());
+    std::shared_ptr<rocksdb::Slice> upper_bound_slice = std::make_shared<rocksdb::Slice>();
     if (!parse_iterator_options(env, argv[i], *opts, upper_bound_slice))
     {
         delete opts;
@@ -138,7 +138,7 @@ Iterator(
         iterator = db_ptr->m_Db->NewIterator(*opts);
     }
     itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
-    itr_ptr->upper_bound_slice = std::move(upper_bound_slice);
+    itr_ptr->upper_bound_slice = upper_bound_slice;
     ERL_NIF_TERM result = enif_make_resource(env, itr_ptr);
 
     // release reference created during CreateItrObject()
@@ -163,7 +163,12 @@ Iterators(
        return enif_make_badarg(env);
 
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
-    fold(env, argv[2], parse_read_option, *opts);
+    std::shared_ptr<rocksdb::Slice> upper_bound_slice = std::make_shared<rocksdb::Slice>();
+    if (!parse_iterator_options(env, argv[2], *opts, upper_bound_slice))
+    {
+        delete opts;
+        return enif_make_badarg(env);
+    }
 
     std::vector<rocksdb::ColumnFamilyHandle*> column_families;
     ERL_NIF_TERM head, tail = argv[1];
@@ -183,6 +188,7 @@ Iterators(
         for (size_t i = 0; i < iterators.size(); i++) {
             ItrObject * itr_ptr;
             itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterators[i]);
+            itr_ptr->upper_bound_slice = upper_bound_slice;
             ERL_NIF_TERM itr_res = enif_make_resource(env, itr_ptr);
             result = enif_make_list_cell(env, itr_res, result);
             enif_release_resource(itr_ptr);

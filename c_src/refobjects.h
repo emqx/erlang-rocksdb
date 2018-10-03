@@ -304,7 +304,7 @@ class ItrObject : public ErlRefObject
 public:
     rocksdb::Iterator * m_Iterator;
     ReferencePtr<DbObject> m_DbPtr;
-    std::unique_ptr<rocksdb::Slice> upper_bound_slice;
+    std::shared_ptr<rocksdb::Slice> upper_bound_slice;
 
 protected:
     static ErlNifResourceType* m_Itr_RESOURCE;
