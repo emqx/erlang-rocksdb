@@ -38,7 +38,8 @@ parse_iterator_options(
         ErlNifEnv* env,
         ERL_NIF_TERM term,
         rocksdb::ReadOptions& opts,
-        std::shared_ptr<rocksdb::Slice>& upper_bound_slice)
+        std::shared_ptr<rocksdb::Slice>& upper_bound_slice,
+        std::shared_ptr<rocksdb::Slice>& lower_bound_slice)
 {
     const ERL_NIF_TERM* option;
     ERL_NIF_TERM head, tail;
@@ -65,9 +66,24 @@ parse_iterator_options(
                 if(!enif_inspect_binary(env, option[1], &bin))
                     return 1;
 
-                upper_bound_slice->data_ = (const char *)bin.data;
+                unsigned char* b = (unsigned char*)std::malloc(bin.size);
+                std::memcpy(b, bin.data, bin.size);
+
+                upper_bound_slice->data_ = (const char *)b;
                 upper_bound_slice->size_ = bin.size;
                 opts.iterate_upper_bound = upper_bound_slice.get();
+            }
+            else if (option[0] == erocksdb::ATOM_ITERATE_LOWER_BOUND)
+            {
+                if(!enif_inspect_binary(env, option[1], &bin))
+                    return 1;
+
+                unsigned char* b = (unsigned char*)std::malloc(bin.size);
+                std::memcpy(b, bin.data, bin.size);
+
+                lower_bound_slice->data_ = (const char *)b;
+                lower_bound_slice->size_ = bin.size;
+                opts.iterate_lower_bound = lower_bound_slice.get();
             }
             else if (option[0] == erocksdb::ATOM_TAILING)
                 opts.tailing = (option[1] == erocksdb::ATOM_TRUE);
@@ -107,7 +123,8 @@ Iterator(
 
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
     std::shared_ptr<rocksdb::Slice> upper_bound_slice = std::make_shared<rocksdb::Slice>();
-    if (!parse_iterator_options(env, argv[i], *opts, upper_bound_slice))
+    std::shared_ptr<rocksdb::Slice> lower_bound_slice = std::make_shared<rocksdb::Slice>();
+    if (!parse_iterator_options(env, argv[i], *opts, upper_bound_slice, lower_bound_slice))
     {
         delete opts;
         return enif_make_badarg(env);
@@ -139,6 +156,7 @@ Iterator(
     }
     itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
     itr_ptr->upper_bound_slice = upper_bound_slice;
+    itr_ptr->lower_bound_slice = lower_bound_slice;
     ERL_NIF_TERM result = enif_make_resource(env, itr_ptr);
 
     // release reference created during CreateItrObject()
@@ -164,7 +182,8 @@ Iterators(
 
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
     std::shared_ptr<rocksdb::Slice> upper_bound_slice = std::make_shared<rocksdb::Slice>();
-    if (!parse_iterator_options(env, argv[2], *opts, upper_bound_slice))
+    std::shared_ptr<rocksdb::Slice> lower_bound_slice = std::make_shared<rocksdb::Slice>();
+    if (!parse_iterator_options(env, argv[2], *opts, upper_bound_slice, lower_bound_slice))
     {
         delete opts;
         return enif_make_badarg(env);
@@ -189,6 +208,7 @@ Iterators(
             ItrObject * itr_ptr;
             itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterators[i]);
             itr_ptr->upper_bound_slice = upper_bound_slice;
+            itr_ptr->lower_bound_slice = lower_bound_slice;
             ERL_NIF_TERM itr_res = enif_make_resource(env, itr_ptr);
             result = enif_make_list_cell(env, itr_res, result);
             enif_release_resource(itr_ptr);

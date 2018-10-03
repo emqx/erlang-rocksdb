@@ -172,6 +172,22 @@ iterate_upper_bound_test() ->
     rocksdb:close(Ref)
   end.
 
+iterate_outer_bound_test() ->
+  os:cmd("rm -rf ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
+  try
+    rocksdb:put(Ref, <<"a">>, <<"x">>, []),
+    rocksdb:put(Ref, <<"c">>, <<"y">>, []),
+    rocksdb:put(Ref, <<"d">>, <<"z">>, []),
+    {ok, I} = rocksdb:iterator(Ref, [{iterate_lower_bound, <<"b">>}]),
+    ?assertEqual({ok, <<"d">>, <<"z">>},rocksdb:iterator_move(I, last)),
+    ?assertEqual({ok, <<"c">>, <<"y">>},rocksdb:iterator_move(I, prev)),
+    ?assertEqual({error, invalid_iterator},rocksdb:iterator_move(I, prev)),
+    ?assertEqual(ok, rocksdb:iterator_close(I))
+  after
+    rocksdb:close(Ref)
+  end.
+
 
 seek_iterator(Itr, Prefix, Suffix) ->
   rocksdb:iterator_move(Itr, test_key(Prefix, Suffix)).

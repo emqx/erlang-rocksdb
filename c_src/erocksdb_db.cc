@@ -611,6 +611,14 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
                 }
             }
         }
+        else if (option[0] == erocksdb::ATOM_COMPARATOR)
+        {
+            if (option[1] == erocksdb::ATOM_BYTEWISE_COMPARATOR)
+                opts.comparator = rocksdb::BytewiseComparator();
+            else if (option[1] == erocksdb::ATOM_REVERSE_BYTEWISE_COMPARATOR)
+                opts.comparator = rocksdb::ReverseBytewiseComparator();
+        }
+
     }
     return erocksdb::ATOM_OK;
 }
