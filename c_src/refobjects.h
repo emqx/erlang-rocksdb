@@ -19,6 +19,7 @@
 #ifndef INCL_REFOBJECTS_H
 #define INCL_REFOBJECTS_H
 
+#include <memory>
 #include <stdint.h>
 #include <list>
 
@@ -32,6 +33,7 @@ namespace rocksdb {
     class Iterator;
     class TransactionLogIterator;
     class BackupEngine;
+    class Slice;
 }
 
 namespace erocksdb {
@@ -302,6 +304,7 @@ class ItrObject : public ErlRefObject
 public:
     rocksdb::Iterator * m_Iterator;
     ReferencePtr<DbObject> m_DbPtr;
+    std::unique_ptr<rocksdb::Slice> upper_bound_slice;
 
 protected:
     static ErlNifResourceType* m_Itr_RESOURCE;
