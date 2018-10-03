@@ -155,3 +155,29 @@ refresh_test() ->
   after
     rocksdb:close(Ref)
   end.
+
+iterate_upper_bound_test() ->
+  os:cmd("rm -rf ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
+  try
+    rocksdb:put(Ref, <<"a">>, <<"x">>, []),
+    rocksdb:put(Ref, <<"b">>, <<"y">>, []),
+    rocksdb:put(Ref, <<"d">>, <<"z">>, []),
+    {ok, I} = rocksdb:iterator(Ref, [{iterate_upper_bound, <<"c">>}]),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
+    ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I, next)),
+    ?assertEqual({error, invalid_iterator},rocksdb:iterator_move(I, next)),
+    ?assertEqual(ok, rocksdb:iterator_close(I))
+  after
+    rocksdb:close(Ref)
+  end.
+
+
+seek_iterator(Itr, Prefix, Suffix) ->
+  rocksdb:iterator_move(Itr, test_key(Prefix, Suffix)).
+
+test_key(Prefix, Suffix) when is_integer(Prefix), is_integer(Suffix) ->
+  << Prefix:64, Suffix:64 >>.
+
+put_key(Db, Prefix, Suffix, Value) ->
+  rocksdb:put(Db, test_key(Prefix, Suffix), Value, []).

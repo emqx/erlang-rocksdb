@@ -17,7 +17,9 @@
 //
 // -------------------------------------------------------------------
 
+#include <mutex>
 #include <vector>
+#include <memory>
 
 #include "rocksdb/db.h"
 #include "rocksdb/comparator.h"
@@ -29,6 +31,62 @@
 #include "erocksdb_db.h"
 #include "refobjects.h"
 #include "util.h"
+
+
+int
+parse_iterator_options(
+        ErlNifEnv* env,
+        ERL_NIF_TERM term,
+        rocksdb::ReadOptions& opts,
+        std::unique_ptr<rocksdb::Slice>& upper_bound_slice)
+{
+    const ERL_NIF_TERM* option;
+    ERL_NIF_TERM head, tail;
+    ErlNifBinary bin;
+    int arity;
+
+    rocksdb::Slice _upper_bound_slice;
+
+    if(!enif_is_list(env, term))
+        return 0;
+
+    tail = term;
+
+    while(enif_get_list_cell(env, tail, &head, &tail))
+    {
+        if (enif_get_tuple(env, head, &arity, &option) && 2==arity)
+        {
+            if (option[0] == erocksdb::ATOM_VERIFY_CHECKSUMS)
+                opts.verify_checksums = (option[1] == erocksdb::ATOM_TRUE);
+            else if (option[0] == erocksdb::ATOM_FILL_CACHE)
+                opts.fill_cache = (option[1] == erocksdb::ATOM_TRUE);
+            else if (option[0] == erocksdb::ATOM_ITERATE_UPPER_BOUND)
+            {
+                if(!enif_inspect_binary(env, option[1], &bin))
+                    return 1;
+
+                upper_bound_slice->data_ = (const char *)bin.data;
+                upper_bound_slice->size_ = bin.size;
+                opts.iterate_upper_bound = upper_bound_slice.get();
+            }
+            else if (option[0] == erocksdb::ATOM_TAILING)
+                opts.tailing = (option[1] == erocksdb::ATOM_TRUE);
+            else if (option[0] == erocksdb::ATOM_TOTAL_ORDER_SEEK)
+                opts.total_order_seek = (option[1] == erocksdb::ATOM_TRUE);
+            else if (option[0] == erocksdb::ATOM_SNAPSHOT)
+            {
+                erocksdb::ReferencePtr<erocksdb::SnapshotObject> snapshot_ptr;
+                snapshot_ptr.assign(erocksdb::SnapshotObject::RetrieveSnapshotObject(env, option[1]));
+
+                if(NULL==snapshot_ptr.get())
+                    return 0;
+
+                opts.snapshot = snapshot_ptr->m_Snapshot;
+            }
+        }
+    }
+    return 1;
+}
 
 namespace erocksdb {
   ERL_NIF_TERM
@@ -48,13 +106,21 @@ Iterator(
         return enif_make_badarg(env);
 
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
-    ERL_NIF_TERM fold_result;
-    fold_result = fold(env, argv[i], parse_read_option, *opts);
-
-    if(fold_result!=erocksdb::ATOM_OK) {
+    std::unique_ptr<rocksdb::Slice> upper_bound_slice(new rocksdb::Slice());
+    if (!parse_iterator_options(env, argv[i], *opts, upper_bound_slice))
+    {
         delete opts;
         return enif_make_badarg(env);
     }
+
+
+    //ERL_NIF_TERM fold_result;
+    //fold_result = fold(env, argv[i], parse_read_option, *opts);
+
+    //if(fold_result!=erocksdb::ATOM_OK) {
+    //    delete opts;
+    //    return enif_make_badarg(env);
+    //}
 
     ItrObject * itr_ptr;
     rocksdb::Iterator * iterator;
@@ -66,13 +132,13 @@ Iterator(
             return enif_make_badarg(env);
 
         iterator = db_ptr->m_Db->NewIterator(*opts, cf_ptr->m_ColumnFamily);
-        itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
     }
     else
     {
         iterator = db_ptr->m_Db->NewIterator(*opts);
-        itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
     }
+    itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), iterator);
+    itr_ptr->upper_bound_slice = std::move(upper_bound_slice);
     ERL_NIF_TERM result = enif_make_resource(env, itr_ptr);
 
     // release reference created during CreateItrObject()
