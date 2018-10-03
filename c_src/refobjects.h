@@ -19,6 +19,7 @@
 #ifndef INCL_REFOBJECTS_H
 #define INCL_REFOBJECTS_H
 
+#include <memory>
 #include <stdint.h>
 #include <list>
 
