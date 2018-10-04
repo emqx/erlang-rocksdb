@@ -738,6 +738,7 @@ ItrObject::CreateItrObjectType(
 ItrObject *
 ItrObject::CreateItrObject(
         DbObject *DbPtr,
+        ErlNifEnv *Env,
         rocksdb::Iterator *Iterator) {
     ItrObject *ret_ptr;
     void *alloc_ptr;
@@ -745,7 +746,7 @@ ItrObject::CreateItrObject(
     // the alloc call initializes the reference count to "one"
     alloc_ptr = enif_alloc_resource(m_Itr_RESOURCE, sizeof(ItrObject));
 
-    ret_ptr = new(alloc_ptr) ItrObject(DbPtr, Iterator);
+    ret_ptr = new(alloc_ptr) ItrObject(DbPtr, Env, Iterator);
 
     // manual reference increase to keep active until "close" called
     //  only inc local counter
@@ -800,10 +801,17 @@ ItrObject::ItrObjectResourceCleanup(
 }   // ItrObject::ItrObjectResourceCleanup
 
 
+void
+ItrObject::SetUpperBoundSlice(std::shared_ptr<rocksdb::Slice> slice)
+{
+    upper_bound_slice = slice;
+}
+
 ItrObject::ItrObject(
         DbObject *DbPtr,
+        ErlNifEnv *Env,
         rocksdb::Iterator *Iterator)
-        : m_Iterator(Iterator), m_DbPtr(DbPtr) {
+        : m_Iterator(Iterator), env(Env), m_DbPtr(DbPtr) {
 
     if (NULL != DbPtr)
         DbPtr->AddReference(this);
@@ -819,6 +827,8 @@ ItrObject::~ItrObject() {
 
     if (nullptr != m_DbPtr.get())
         m_DbPtr->RemoveReference(this);
+
+    enif_free_env(env);
 
     delete m_Iterator;
     //m_Iterator = nullptr;
