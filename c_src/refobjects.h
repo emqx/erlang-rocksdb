@@ -296,6 +296,7 @@ private:
 };  // class SnapshotObject
 
 
+
 /**
  * Per Iterator object.  Created as erlang reference.
  */
@@ -305,6 +306,7 @@ public:
     rocksdb::Iterator * m_Iterator;
     ErlNifEnv* env;
     ReferencePtr<DbObject> m_DbPtr;
+
     std::shared_ptr<rocksdb::Slice> upper_bound_slice;
     std::shared_ptr<rocksdb::Slice> lower_bound_slice;
 
@@ -327,7 +329,11 @@ public:
 
     static void ItrObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
 
-    void SetUpperBoundSlice(std::shared_ptr<rocksdb::Slice> slice);
+    void SetUpperBoundSlice(std::shared_ptr<rocksdb::Slice> upper_bound_slice);
+
+    void SetLowerBoundSlice(std::shared_ptr<rocksdb::Slice> lower_bound_slice);
+
+
 
 private:
     ItrObject();

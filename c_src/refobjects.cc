@@ -804,14 +804,27 @@ ItrObject::ItrObjectResourceCleanup(
 void
 ItrObject::SetUpperBoundSlice(std::shared_ptr<rocksdb::Slice> slice)
 {
+
     upper_bound_slice = slice;
 }
+
+void
+ItrObject::SetLowerBoundSlice(std::shared_ptr<rocksdb::Slice> slice) {
+    lower_bound_slice = slice;
+}
+
+
 
 ItrObject::ItrObject(
         DbObject *DbPtr,
         ErlNifEnv *Env,
         rocksdb::Iterator *Iterator)
-        : m_Iterator(Iterator), env(Env), m_DbPtr(DbPtr) {
+        : m_Iterator(Iterator),
+          env(Env),
+          m_DbPtr(DbPtr),
+          upper_bound_slice(nullptr),
+          lower_bound_slice(nullptr)
+{
 
     if (NULL != DbPtr)
         DbPtr->AddReference(this);
@@ -827,6 +840,13 @@ ItrObject::~ItrObject() {
 
     if (nullptr != m_DbPtr.get())
         m_DbPtr->RemoveReference(this);
+
+    if(upper_bound_slice != nullptr)
+        upper_bound_slice.reset();
+
+    if(lower_bound_slice != nullptr)
+        lower_bound_slice.reset();
+
 
     enif_free_env(env);
 
