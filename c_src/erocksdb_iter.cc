@@ -17,7 +17,6 @@
 //
 // -------------------------------------------------------------------
 //
-#include <iostream>
 #include <mutex>
 #include <vector>
 #include <memory>
@@ -173,7 +172,6 @@ Iterator(
 
     if(bounds->upper_bound_slice != nullptr)
     {
-        std::cout << "hello\n";
         enif_make_copy(itr_ptr->env, bounds->upper_bound_term);
         itr_ptr->SetUpperBoundSlice(std::move(bounds->upper_bound_slice));
 
@@ -181,7 +179,6 @@ Iterator(
 
     if(bounds->lower_bound_slice != nullptr)
     {
-        std::cout << "hello\n";
         enif_make_copy(itr_ptr->env, bounds->lower_bound_term);
         itr_ptr->SetLowerBoundSlice(std::move(bounds->lower_bound_slice));
     }
