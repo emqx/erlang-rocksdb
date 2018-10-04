@@ -296,6 +296,7 @@ private:
 };  // class SnapshotObject
 
 
+
 /**
  * Per Iterator object.  Created as erlang reference.
  */
@@ -303,7 +304,9 @@ class ItrObject : public ErlRefObject
 {
 public:
     rocksdb::Iterator * m_Iterator;
+    ErlNifEnv* env;
     ReferencePtr<DbObject> m_DbPtr;
+
     std::shared_ptr<rocksdb::Slice> upper_bound_slice;
     std::shared_ptr<rocksdb::Slice> lower_bound_slice;
 
@@ -311,7 +314,7 @@ protected:
     static ErlNifResourceType* m_Itr_RESOURCE;
 
 public:
-    ItrObject(DbObject *, rocksdb::Iterator * Iterator);
+    ItrObject(DbObject *, ErlNifEnv* Env, rocksdb::Iterator * Iterator);
 
     virtual ~ItrObject(); // needs to perform free_itr
 
@@ -319,12 +322,18 @@ public:
 
     static void CreateItrObjectType(ErlNifEnv * Env);
 
-    static ItrObject * CreateItrObject(DbObject * Db,  rocksdb::Iterator * Iterator);
+    static ItrObject * CreateItrObject(DbObject * Db, ErlNifEnv* Env, rocksdb::Iterator * Iterator);
 
     static ItrObject * RetrieveItrObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm,
                                          bool ItrClosing=false);
 
     static void ItrObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
+
+    void SetUpperBoundSlice(std::shared_ptr<rocksdb::Slice> upper_bound_slice);
+
+    void SetLowerBoundSlice(std::shared_ptr<rocksdb::Slice> lower_bound_slice);
+
+
 
 private:
     ItrObject();

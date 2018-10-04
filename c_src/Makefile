@@ -130,12 +130,12 @@ $(C_SRC_OUTPUT): $(ROCKSDBLIBS) $(OBJECTS)
 	$(COMPILE_CPP) $(OUTPUT_OPTION) $<
 
 
-$(ROCKSDBLIBS): deps 
+$(ROCKSDBLIBS): deps
 
 deps:
 	@-(cd $(BASEDIR)/deps && $(MAKE) rocksdb)
 
-clean: distclean 
+clean: distclean
 	@rm -f $(C_SRC_OUTPUT) $(OBJECTS)
 
 distclean:
