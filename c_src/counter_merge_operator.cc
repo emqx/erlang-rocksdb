@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include <sstream> 
 #include <iostream>
+#include <string>
 #include <memory>
 #include <list>
 #include <algorithm>
@@ -40,12 +40,22 @@ namespace erocksdb {
             rocksdb::Logger* logger) const {
 
         int counter = 0;
-        if (existing_value) {
-            counter = parse_int(existing_value->data());
+        if (existing_value != nullptr) {
+            try {
+                counter = std::stoi(existing_value->ToString());
+            } catch (...) {
+                return false;
+            }
         }
-        int oper = parse_int(value.data());
+
+        int oper;
+        try {
+            oper = std::stoi(value.ToString());
+        } catch(...) {
+            return false;
+        }
         auto new_counter = counter + oper;
-        *new_value = ToString<int>(new_counter);
+        *new_value = std::to_string(new_counter);
         return true;
     }
 
