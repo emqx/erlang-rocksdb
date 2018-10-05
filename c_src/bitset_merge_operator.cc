@@ -67,12 +67,19 @@ namespace erocksdb {
             size = existing_value->size();
         }
 
-        //clear the new value for writing
-        assert(new_value);
-        new_value->clear();
-
         std::string s = value.ToString();
-        int pos = parse_int(s.substr(1));
+        if (s.size() < 1) {
+            delete[] data;
+            return false;
+        }
+
+        int pos;
+        try {
+            pos = std::stoi(s.substr(1));
+        } catch(...) {
+            delete[] data;
+            return false;
+        }
         int ofs = pos >> 3;
 
         if (ofs > size) {
@@ -92,6 +99,7 @@ namespace erocksdb {
             return false;
         }
 
+        new_value->clear();
         new_value->assign(data,size);
         return true;
     }
