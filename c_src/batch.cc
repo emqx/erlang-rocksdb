@@ -34,10 +34,15 @@
 struct Batch
 {
     rocksdb::WriteBatch* wb;
+    ErlNifEnv* env;
 };
 
 static void cleanup_batch(Batch* batch)
 {
+    if(batch->env != nullptr) {
+        enif_free_env(batch->env);
+        batch->env = nullptr;
+    }
     cleanup_obj_ptr(batch->wb);
 }
 
@@ -70,6 +75,7 @@ NewBatch(
     rocksdb::WriteBatch* wb = (rocksdb::WriteBatch*)enif_alloc(sizeof(rocksdb::WriteBatch));
     Batch* batch = (Batch*)enif_alloc_resource(m_Batch_RESOURCE, sizeof(Batch));
     batch->wb = new(wb) rocksdb::WriteBatch();
+    batch->env = enif_alloc_env();
     ERL_NIF_TERM result = enif_make_resource(env, batch);
     enif_release_resource(batch);
     return enif_make_tuple2(env, ATOM_OK, result);
@@ -84,6 +90,7 @@ ReleaseBatch(
     Batch* batch_ptr = nullptr;
     if(!enif_get_resource(env, argv[0], m_Batch_RESOURCE, (void **) &batch_ptr))
         return enif_make_badarg(env);
+
     cleanup_batch(batch_ptr);
     batch_ptr = NULL;
     return ATOM_OK;
@@ -106,6 +113,11 @@ WriteBatch(
     rocksdb::WriteOptions* opts = new rocksdb::WriteOptions;
     fold(env, argv[2], parse_write_option, *opts);
     rocksdb::Status status = db_ptr->m_Db->Write(*opts, wb);
+    if(batch_ptr->wb) {
+        batch_ptr->wb->Clear();
+    }
+    enif_clear_env(batch_ptr->env);
+
     delete opts;
     opts = NULL;
     if(!status.ok())
@@ -134,6 +146,10 @@ PutBatch(
                 !enif_inspect_binary(env, argv[3], &value))
             return enif_make_badarg(env);
 
+        enif_make_copy(batch_ptr->env, argv[1]);
+        enif_make_copy(batch_ptr->env, argv[2]);
+        enif_make_copy(batch_ptr->env, argv[3]);
+
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         rocksdb::Slice value_slice((const char*)value.data, value.size);
         erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
@@ -144,6 +160,10 @@ PutBatch(
         if(!enif_inspect_binary(env, argv[1], &key) ||
                 !enif_inspect_binary(env, argv[2], &value))
             return enif_make_badarg(env);
+
+        enif_make_copy(batch_ptr->env, argv[1]);
+        enif_make_copy(batch_ptr->env, argv[2]);
+
 
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         rocksdb::Slice value_slice((const char*)value.data, value.size);
@@ -174,6 +194,10 @@ MergeBatch(
                 !enif_inspect_binary(env, argv[3], &value))
             return enif_make_badarg(env);
 
+        enif_make_copy(batch_ptr->env, argv[1]);
+        enif_make_copy(batch_ptr->env, argv[2]);
+        enif_make_copy(batch_ptr->env, argv[3]);
+
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         rocksdb::Slice value_slice((const char*)value.data, value.size);
         erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
@@ -184,6 +208,9 @@ MergeBatch(
         if(!enif_inspect_binary(env, argv[1], &key) ||
                 !enif_inspect_binary(env, argv[2], &value))
             return enif_make_badarg(env);
+
+        enif_make_copy(batch_ptr->env, argv[1]);
+        enif_make_copy(batch_ptr->env, argv[2]);
 
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         rocksdb::Slice value_slice((const char*)value.data, value.size);
@@ -212,6 +239,9 @@ DeleteBatch(
                 !enif_inspect_binary(env, argv[2], &key))
             return enif_make_badarg(env);
 
+        enif_make_copy(batch_ptr->env, argv[1]);
+        enif_make_copy(batch_ptr->env, argv[2]);
+
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
         wb->Delete(cf->m_ColumnFamily, key_slice);
@@ -220,6 +250,9 @@ DeleteBatch(
     {
         if(!enif_inspect_binary(env, argv[1], &key))
             return enif_make_badarg(env);
+
+        enif_make_copy(batch_ptr->env, argv[1]);
+
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         wb->Delete(key_slice);
     }
@@ -244,6 +277,8 @@ SingleDeleteBatch(
         if(!enif_get_cf(env, argv[1], &cf_ptr) ||
                 !enif_inspect_binary(env, argv[2], &key))
             return enif_make_badarg(env);
+        enif_make_copy(batch_ptr->env, argv[1]);
+        enif_make_copy(batch_ptr->env, argv[2]);
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         erocksdb::ColumnFamilyObject* cf = cf_ptr.get();
         wb->SingleDelete(cf->m_ColumnFamily, key_slice);
@@ -252,6 +287,7 @@ SingleDeleteBatch(
     {
         if(!enif_inspect_binary(env, argv[1], &key))
             return enif_make_badarg(env);
+        enif_make_copy(batch_ptr->env, argv[1]);
         rocksdb::Slice key_slice((const char*)key.data, key.size);
         wb->SingleDelete(key_slice);
     }
@@ -270,6 +306,7 @@ ClearBatch(
     if(!enif_get_resource(env, argv[0], m_Batch_RESOURCE, (void **) &batch_ptr))
         return enif_make_badarg(env);
     batch_ptr->wb->Clear();
+    enif_clear_env(batch_ptr->env);
     return ATOM_OK;
 }
 
