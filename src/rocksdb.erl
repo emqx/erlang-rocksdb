@@ -303,6 +303,7 @@ init() ->
                          {iterate_upper_bound, binary()} |
                          {tailing, boolean()} |
                          {total_order_seek, boolean()} |
+                         {prefix_same_as_start, boolean()} |
                          {snapshot, snapshot_handle()}].
 
 -type write_options() :: [{sync, boolean()} |
