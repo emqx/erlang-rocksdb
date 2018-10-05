@@ -16,6 +16,7 @@
 
 
 #include <iostream>
+#include <string>
 #include <memory>
 #include <list>
 #include <algorithm>
