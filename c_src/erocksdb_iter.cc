@@ -109,6 +109,8 @@ parse_iterator_options(
                 opts.tailing = (option[1] == erocksdb::ATOM_TRUE);
             else if (option[0] == erocksdb::ATOM_TOTAL_ORDER_SEEK)
                 opts.total_order_seek = (option[1] == erocksdb::ATOM_TRUE);
+            else if (option[0] == erocksdb::ATOM_PREFIX_SAME_AS_START)
+                opts.prefix_same_as_start = (option[1] == erocksdb::ATOM_TRUE);
             else if (option[0] == erocksdb::ATOM_SNAPSHOT)
             {
                 erocksdb::ReferencePtr<erocksdb::SnapshotObject> snapshot_ptr;

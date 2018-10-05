@@ -188,6 +188,32 @@ iterate_outer_bound_test() ->
     rocksdb:close(Ref)
   end.
 
+prefix_same_as_start_test() ->
+  os:cmd("rm -rf ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("test_prefix", [{create_if_missing, true},
+                                           {prefix_extractor, {fixed_prefix_transform, 8}}]),
+  try
+
+    ok = put_key(Ref, 12345, 6, <<"v16">>),
+    ok = put_key(Ref, 12345, 7, <<"v17">>),
+    ok = put_key(Ref, 12345, 8, <<"v18">>),
+    ok = put_key(Ref, 12345, 9, <<"v19">>),
+    ok = put_key(Ref, 12346, 8, <<"v16">>),
+    ok = rocksdb:flush(Ref),
+
+    {ok, I} = rocksdb:iterator(Ref, [{prefix_same_as_start, true}]),
+
+    ?assertEqual({ok, test_key(12345, 6), <<"v16">>}, rocksdb:iterator_move(I, test_key(12345, 6))),
+    ?assertEqual({ok, test_key(12345, 7), <<"v17">>}, rocksdb:iterator_move(I, next)),
+    ?assertEqual({ok, test_key(12345, 8), <<"v18">>}, rocksdb:iterator_move(I, next)),
+    ?assertEqual({ok, test_key(12345, 9), <<"v19">>}, rocksdb:iterator_move(I, next)),
+    ?assertEqual({error, invalid_iterator}, rocksdb:iterator_move(I, next)),
+
+    ?assertEqual(ok, rocksdb:iterator_close(I)),
+    ?assertError(badarg, rocksdb:iterator_refresh(I))
+  after
+    rocksdb:close(Ref)
+  end.
 
 seek_iterator(Itr, Prefix, Suffix) ->
   rocksdb:iterator_move(Itr, test_key(Prefix, Suffix)).
