@@ -231,7 +231,7 @@ __abstract datatype__: `rate_limiter_handle()`
 
 
 <pre><code>
-read_options() = [{verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {tailing, boolean()} | {total_order_seek, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
+read_options() = [{verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {tailing, boolean()} | {total_order_seek, boolean()} | {prefix_same_as_start, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
 </code></pre>
 
 

@@ -1,3 +1,11 @@
+erlang-rocksdb 0.23.0, released on 2018/10/05
+================================================
+
+- add iterate_upper_bound, iterate_lower_bound_options and prefix_same_as_start to iterator options
+- improve: prevernt garbage collection in batch
+- fix bitset merge operator, handle excceptions
+- fix counter merge operator, handle exceptions
+
 erlang-rocksdb 0.22.0, released on 2018/09/25
 ================================================
 
