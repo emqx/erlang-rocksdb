@@ -861,7 +861,7 @@ GetProperty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
         return enif_make_badarg(env);
 
 
-    rocksdb::Slice name((const char*)name_bin.data, name_bin.size);
+    rocksdb::Slice name(reinterpret_cast<char*>(name_bin.data), name_bin.size);
     std::string value;
     if (db_ptr->m_Db->GetProperty(name, &value))
     {
@@ -963,9 +963,8 @@ Put(
     }
     rocksdb::WriteOptions *opts = new rocksdb::WriteOptions;
     fold(env, argv[3], parse_write_option, *opts);
-
-    rocksdb::Slice key_slice((const char *)key.data, key.size);
-    rocksdb::Slice value_slice((const char *)value.data, value.size);
+    rocksdb::Slice key_slice(reinterpret_cast<char*>(key.data), key.size);
+    rocksdb::Slice value_slice(reinterpret_cast<char*>(value.data), value.size);
     status = db_ptr->m_Db->Put(*opts, cfh, key_slice, value_slice);
 
     delete opts;
@@ -1008,8 +1007,8 @@ Merge(
     }
     rocksdb::WriteOptions *opts = new rocksdb::WriteOptions;
     fold(env, argv[3], parse_write_option, *opts);
-    rocksdb::Slice key_slice((const char *)key.data, key.size);
-    rocksdb::Slice value_slice((const char *)value.data, value.size);
+    rocksdb::Slice key_slice(reinterpret_cast<char*>(key.data), key.size);
+    rocksdb::Slice value_slice(reinterpret_cast<char*>(value.data), value.size);
     status = db_ptr->m_Db->Merge(*opts, cfh, key_slice, value_slice);
     delete opts;
     opts = NULL;
@@ -1046,7 +1045,7 @@ Delete(
     }
     rocksdb::WriteOptions *opts = new rocksdb::WriteOptions;
     fold(env, argv[2], parse_write_option, *opts);
-    rocksdb::Slice key_slice((const char *)key.data, key.size);
+    rocksdb::Slice key_slice(reinterpret_cast<char*>(key.data), key.size);
     status = db_ptr->m_Db->Delete(*opts, cfh, key_slice);
     delete opts;
     opts = NULL;
@@ -1083,7 +1082,7 @@ SingleDelete(
     }
     rocksdb::WriteOptions *opts = new rocksdb::WriteOptions;
     fold(env, argv[2], parse_write_option, *opts);
-    rocksdb::Slice key_slice((const char *)key.data, key.size);
+    rocksdb::Slice key_slice(reinterpret_cast<char*>(key.data), key.size);
     status = db_ptr->m_Db->SingleDelete(*opts, cfh, key_slice);
     delete opts;
     opts = NULL;
