@@ -14,8 +14,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-#include <iostream>
 #include <string>
 #include <memory>
 #include <list>
@@ -47,40 +45,45 @@ namespace erocksdb {
         :cap_(cap) {
     };
 
-    bool BitsetMergeOperator::Merge(
-            const rocksdb::Slice& key,
-            const rocksdb::Slice* existing_value,
-            const rocksdb::Slice& value,
-            std::string* new_value,
-            rocksdb::Logger* logger) const {
+   bool BitsetMergeOperator::FullMergeV2(
+            const MergeOperationInput& merge_in,
+            MergeOperationOutput* merge_out) const {
 
-        size_t size;
-        char* data = nullptr;
+    size_t size;
+    char* data = nullptr;
+    std::string s;
+    int pos;
 
+    size_t max_size = cap_ / bits_per_char;
 
-        if (existing_value == nullptr) {
-            size = cap_ / bits_per_char;
-            new_value->reserve(size);
-            data = new cell_type[size];
-            std::fill_n(data, size, 0x00);
-        } else {
-            data = (char *)existing_value->data();
-            size = existing_value->size();
-        }
-
-        std::string s = value.ToString();
-        if (s.size() < 1) {
-            delete[] data;
+    if (!merge_in.existing_value) {
+        size = max_size;
+        merge_out->new_value.reserve(size);
+        data = new cell_type[size];
+        std::fill_n(data, size, 0x00);
+    } else {
+        size = merge_in.existing_value->size();
+        if (size < max_size)
             return false;
+        data = const_cast<char*>(merge_in.existing_value->data());
+    }
+
+    auto it = merge_in.operand_list.begin();
+    while (it != merge_in.operand_list.end()) {
+        s = it->ToString();
+        if (s.empty()) {
+            std::fill_n(data, size, 0x00);
+            ++it;
+            continue;
         }
 
-        int pos;
         try {
             pos = std::stoi(s.substr(1));
         } catch(...) {
             delete[] data;
             return false;
         }
+
         int ofs = pos >> 3;
 
         if (ofs > size) {
@@ -89,10 +92,10 @@ namespace erocksdb {
         }
 
         //char bytemask = (1 << ((1 << 3)) - (pos & ((1 << 3)))));
-        if (value.starts_with(rocksdb::Slice("+"))) {
+        if (s[0] == '+') {
             //data[(pos >> 3)] |= bytemask;
             data[ofs] |= bit_mask[pos % bits_per_char];
-        } else if (value.starts_with(rocksdb::Slice("-"))) {
+        } else if (s[0] == '-') {
             //data[(pos >> 3)] &= ~bytemask;
             data[ofs] &= ~bit_mask[pos % bits_per_char];
         } else {
@@ -100,9 +103,22 @@ namespace erocksdb {
             return false;
         }
 
-        new_value->clear();
-        new_value->assign(data,size);
-        return true;
+        ++it;
+    }
+
+    //clear the new value for writing
+    merge_out->new_value.clear();
+    merge_out->new_value.append(reinterpret_cast<char*>(data), size);
+    return true;
+
+   }
+
+   bool BitsetMergeOperator::PartialMergeMulti(
+            const rocksdb::Slice& key,
+            const std::deque<rocksdb::Slice>& operand_list,
+            std::string* new_value,
+            rocksdb::Logger* logger) const {
+        return false;
     }
 
     const char* BitsetMergeOperator::Name() const  {
