@@ -26,17 +26,20 @@ namespace rocksdb {
 
 namespace erocksdb {
 
-    class BitsetMergeOperator : public rocksdb::AssociativeMergeOperator {
+    class BitsetMergeOperator : public rocksdb::MergeOperator {
         protected:
             typedef char cell_type;
 
         public:
             explicit BitsetMergeOperator(unsigned int cap);
 
-            virtual bool Merge(
+            virtual bool FullMergeV2(
+                    const MergeOperationInput& merge_in,
+                    MergeOperationOutput* merge_out) const override;
+
+            virtual bool PartialMergeMulti(
                     const rocksdb::Slice& key,
-                    const rocksdb::Slice* existing_value,
-                    const rocksdb::Slice& value,
+                    const std::deque<rocksdb::Slice>& operand_list,
                     std::string* new_value,
                     rocksdb::Logger* logger) const override;
 

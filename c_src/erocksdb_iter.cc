@@ -87,7 +87,7 @@ parse_iterator_options(
                 bounds.upper_bound_term = option[1];
                 bounds.upper_bound_slice.reset(
                         new rocksdb::Slice(
-                            (const char *)upper_bound_bin.data,
+                            reinterpret_cast<char*>(upper_bound_bin.data),
                             upper_bound_bin.size)
                         );
                 opts.iterate_upper_bound = bounds.upper_bound_slice.get();
@@ -100,7 +100,7 @@ parse_iterator_options(
                 bounds.lower_bound_term = option[1];
                 bounds.lower_bound_slice.reset(
                         new rocksdb::Slice(
-                            (const char *)lower_bound_bin.data,
+                            reinterpret_cast<char*>(lower_bound_bin.data),
                             lower_bound_bin.size)
                         );
                 opts.iterate_lower_bound = bounds.lower_bound_slice.get();

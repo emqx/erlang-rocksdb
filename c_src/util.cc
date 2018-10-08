@@ -55,7 +55,8 @@ binary_to_slice(ErlNifEnv* env, ERL_NIF_TERM val, rocksdb::Slice* slice)
     ErlNifBinary bin;
     if(!enif_inspect_binary(env, val, &bin))
         return 0;
-    *slice = rocksdb::Slice((const char *)bin.data, bin.size);
+
+    *slice = rocksdb::Slice(reinterpret_cast<char*>(bin.data), bin.size);
     return 1;
 }
 
