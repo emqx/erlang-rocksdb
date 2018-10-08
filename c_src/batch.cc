@@ -54,7 +54,7 @@ ErlNifResourceType *m_Batch_RESOURCE;
 void
 batch_resource_cleanup(ErlNifEnv *env, void *arg)
 {
-    Batch* batch = (Batch*)arg;
+    Batch* batch = reinterpret_cast<Batch*>(arg);
     cleanup_batch(batch);
 }
 
@@ -72,8 +72,8 @@ NewBatch(
         int argc,
         const ERL_NIF_TERM argv[])
 {
-    rocksdb::WriteBatch* wb = (rocksdb::WriteBatch*)enif_alloc(sizeof(rocksdb::WriteBatch));
-    Batch* batch = (Batch*)enif_alloc_resource(m_Batch_RESOURCE, sizeof(Batch));
+    rocksdb::WriteBatch* wb = reinterpret_cast<rocksdb::WriteBatch*>(enif_alloc(sizeof(rocksdb::WriteBatch)));
+    Batch* batch = reinterpret_cast<Batch*>(enif_alloc_resource(m_Batch_RESOURCE, sizeof(Batch)));
     batch->wb = new(wb) rocksdb::WriteBatch();
     batch->env = enif_alloc_env();
     ERL_NIF_TERM result = enif_make_resource(env, batch);
