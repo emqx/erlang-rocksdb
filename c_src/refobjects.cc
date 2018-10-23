@@ -738,7 +738,7 @@ ItrObject::CreateItrObjectType(
 ItrObject *
 ItrObject::CreateItrObject(
         DbObject *DbPtr,
-        ErlNifEnv *Env,
+        std::shared_ptr<erocksdb::ErlEnvCtr> Env,
         rocksdb::Iterator *Iterator) {
     ItrObject *ret_ptr;
     void *alloc_ptr;
@@ -802,14 +802,13 @@ ItrObject::ItrObjectResourceCleanup(
 
 
 void
-ItrObject::SetUpperBoundSlice(std::shared_ptr<rocksdb::Slice> slice)
+ItrObject::SetUpperBoundSlice(rocksdb::Slice *slice)
 {
-
     upper_bound_slice = slice;
 }
 
 void
-ItrObject::SetLowerBoundSlice(std::shared_ptr<rocksdb::Slice> slice) {
+ItrObject::SetLowerBoundSlice(rocksdb::Slice *slice) {
     lower_bound_slice = slice;
 }
 
@@ -817,7 +816,7 @@ ItrObject::SetLowerBoundSlice(std::shared_ptr<rocksdb::Slice> slice) {
 
 ItrObject::ItrObject(
         DbObject *DbPtr,
-        ErlNifEnv *Env,
+        std::shared_ptr<erocksdb::ErlEnvCtr> Env,
         rocksdb::Iterator *Iterator)
         : m_Iterator(Iterator),
           env(Env),
@@ -842,13 +841,11 @@ ItrObject::~ItrObject() {
         m_DbPtr->RemoveReference(this);
 
     if(upper_bound_slice != nullptr)
-        upper_bound_slice.reset();
+        delete upper_bound_slice;
 
     if(lower_bound_slice != nullptr)
-        lower_bound_slice.reset();
+        delete lower_bound_slice;
 
-
-    enif_free_env(env);
 
     delete m_Iterator;
     //m_Iterator = nullptr;
