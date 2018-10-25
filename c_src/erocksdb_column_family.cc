@@ -41,12 +41,12 @@ ListColumnFamilies(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     }
 
     // parse main db options
-    rocksdb::DBOptions *db_opts = new rocksdb::DBOptions;
-    fold(env, argv[1], parse_db_option, *db_opts);
+    rocksdb::DBOptions db_opts;
+    fold(env, argv[1], parse_db_option, db_opts);
 
     std::vector<std::string> column_family_names;
 
-    rocksdb::Status status = rocksdb::DB::ListColumnFamilies(*db_opts, db_name, &column_family_names);
+    rocksdb::Status status = rocksdb::DB::ListColumnFamilies(db_opts, db_name, &column_family_names);
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
 
