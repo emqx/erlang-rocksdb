@@ -569,7 +569,10 @@ ColumnFamilyObject::ColumnFamilyObject(
 
 
 ColumnFamilyObject::~ColumnFamilyObject() {
-    m_ColumnFamily = NULL;
+    if (NULL != m_ColumnFamily) {
+        m_DbPtr->m_Db->DestroyColumnFamilyHandle(m_ColumnFamily);
+        m_ColumnFamily = NULL;
+    }
     if (NULL != m_DbPtr.get())
         m_DbPtr->RemoveColumnFamilyReference(this);
     return;

@@ -138,6 +138,7 @@ DestroyColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     ColumnFamilyObject* cf = cf_ptr.get();
 
     rocksdb::Status status = cf->m_DbPtr->m_Db->DestroyColumnFamilyHandle(cf->m_ColumnFamily);
+    cf->m_ColumnFamily = NULL;
     if(status.ok())
     {
         // set closing flag
