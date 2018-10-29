@@ -54,7 +54,7 @@ parse_iterator_options(
         ErlNifEnv* itr_env,
         ERL_NIF_TERM term,
         rocksdb::ReadOptions& opts,
-        ItrBounds* bounds)
+        ItrBounds& bounds)
 {
     const ERL_NIF_TERM* option;
     ERL_NIF_TERM head, tail;
@@ -79,10 +79,10 @@ parse_iterator_options(
                 ErlNifBinary upper_bound_bin;
                 if(!enif_inspect_binary(itr_env, upper_bound, &upper_bound_bin))
                     return 0;
-                bounds->upper_bound_slice = new rocksdb::Slice(
+                bounds.upper_bound_slice = new rocksdb::Slice(
                         reinterpret_cast<char*>(upper_bound_bin.data),
                         upper_bound_bin.size);
-                opts.iterate_upper_bound = bounds->upper_bound_slice;
+                opts.iterate_upper_bound = bounds.upper_bound_slice;
             }
             else if (option[0] == erocksdb::ATOM_ITERATE_LOWER_BOUND)
             {
@@ -90,10 +90,10 @@ parse_iterator_options(
                 ErlNifBinary lower_bound_bin;
                 if(!enif_inspect_binary(itr_env, lower_bound, &lower_bound_bin))
                     return 0;
-                bounds->lower_bound_slice = new rocksdb::Slice(
+                bounds.lower_bound_slice = new rocksdb::Slice(
                         reinterpret_cast<char*>(lower_bound_bin.data),
                         lower_bound_bin.size);
-                opts.iterate_lower_bound = bounds->lower_bound_slice;
+                opts.iterate_lower_bound = bounds.lower_bound_slice;
             }
             else if (option[0] == erocksdb::ATOM_TAILING)
                 opts.tailing = (option[1] == erocksdb::ATOM_TRUE);
@@ -136,7 +136,7 @@ Iterator(
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
     ItrBounds bounds;
     auto itr_env = std::make_shared<ErlEnvCtr>();
-    if (!parse_iterator_options(env, itr_env->env, argv[i], *opts, &bounds))
+    if (!parse_iterator_options(env, itr_env->env, argv[i], *opts, bounds))
     {
         delete opts;
         return enif_make_badarg(env);
@@ -197,7 +197,7 @@ Iterators(
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
     ItrBounds bounds;
     auto itr_env = std::make_shared<ErlEnvCtr>();
-    if (!parse_iterator_options(env, itr_env->env, argv[2], *opts, &bounds))
+    if (!parse_iterator_options(env, itr_env->env, argv[2], *opts, bounds))
     {
         delete opts;
         return enif_make_badarg(env);

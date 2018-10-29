@@ -120,7 +120,7 @@ DropColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     rocksdb::Status status = cf->m_DbPtr->m_Db->DropColumnFamily(cf->m_ColumnFamily);
     if(status.ok())
     {
-        // don't close it until someone calls delete
+        // don't close it until someone calls destroy
         return ATOM_OK;
     }
     return error_tuple(env, ATOM_ERROR, status);
