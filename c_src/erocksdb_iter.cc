@@ -20,7 +20,6 @@
 #include <mutex>
 #include <vector>
 #include <memory>
-#include <cstring>
 
 
 #include "rocksdb/db.h"
@@ -38,10 +37,8 @@
 
 struct ItrBounds {
     rocksdb::ReadOptions* read_options;
-    std::shared_ptr<rocksdb::Slice> upper_bound_slice;
-    std::shared_ptr<rocksdb::Slice> lower_bound_slice;
-    ERL_NIF_TERM upper_bound_term;
-    ERL_NIF_TERM lower_bound_term;
+    rocksdb::Slice *upper_bound_slice;
+    rocksdb::Slice *lower_bound_slice;
 
     ItrBounds();
 };
@@ -49,15 +46,12 @@ struct ItrBounds {
 
 ItrBounds::ItrBounds()
     : upper_bound_slice(nullptr),
-      lower_bound_slice(nullptr),
-      upper_bound_term(0),
-      lower_bound_term(0) {};
-
-
+      lower_bound_slice(nullptr) {};
 
 int
 parse_iterator_options(
         ErlNifEnv* env,
+        ErlNifEnv* itr_env,
         ERL_NIF_TERM term,
         rocksdb::ReadOptions& opts,
         ItrBounds& bounds)
@@ -81,29 +75,25 @@ parse_iterator_options(
                 opts.fill_cache = (option[1] == erocksdb::ATOM_TRUE);
             else if (option[0] == erocksdb::ATOM_ITERATE_UPPER_BOUND)
             {
+                ERL_NIF_TERM upper_bound = enif_make_copy(itr_env, option[1]);
                 ErlNifBinary upper_bound_bin;
-                if(!enif_inspect_binary(env, option[1], &upper_bound_bin))
+                if(!enif_inspect_binary(itr_env, upper_bound, &upper_bound_bin))
                     return 0;
-                bounds.upper_bound_term = option[1];
-                bounds.upper_bound_slice.reset(
-                        new rocksdb::Slice(
-                            reinterpret_cast<char*>(upper_bound_bin.data),
-                            upper_bound_bin.size)
-                        );
-                opts.iterate_upper_bound = bounds.upper_bound_slice.get();
+                bounds.upper_bound_slice = new rocksdb::Slice(
+                        reinterpret_cast<char*>(upper_bound_bin.data),
+                        upper_bound_bin.size);
+                opts.iterate_upper_bound = bounds.upper_bound_slice;
             }
             else if (option[0] == erocksdb::ATOM_ITERATE_LOWER_BOUND)
             {
+                ERL_NIF_TERM lower_bound = enif_make_copy(itr_env, option[1]);
                 ErlNifBinary lower_bound_bin;
-                if(!enif_inspect_binary(env, option[1], &lower_bound_bin))
+                if(!enif_inspect_binary(itr_env, lower_bound, &lower_bound_bin))
                     return 0;
-                bounds.lower_bound_term = option[1];
-                bounds.lower_bound_slice.reset(
-                        new rocksdb::Slice(
-                            reinterpret_cast<char*>(lower_bound_bin.data),
-                            lower_bound_bin.size)
-                        );
-                opts.iterate_lower_bound = bounds.lower_bound_slice.get();
+                bounds.lower_bound_slice = new rocksdb::Slice(
+                        reinterpret_cast<char*>(lower_bound_bin.data),
+                        lower_bound_bin.size);
+                opts.iterate_lower_bound = bounds.lower_bound_slice;
             }
             else if (option[0] == erocksdb::ATOM_TAILING)
                 opts.tailing = (option[1] == erocksdb::ATOM_TRUE);
@@ -144,17 +134,16 @@ Iterator(
         return enif_make_badarg(env);
 
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
-    ItrBounds *bounds = new ItrBounds;
-    if (!parse_iterator_options(env, argv[i], *opts, *bounds))
+    ItrBounds bounds;
+    auto itr_env = std::make_shared<ErlEnvCtr>();
+    if (!parse_iterator_options(env, itr_env->env, argv[i], *opts, bounds))
     {
         delete opts;
-        delete bounds;
         return enif_make_badarg(env);
     }
 
 
     ItrObject * itr_ptr;
-    ErlNifEnv* itr_env = enif_alloc_env();
     rocksdb::Iterator * iterator;
 
     if(argc==3)
@@ -172,17 +161,14 @@ Iterator(
 
     itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), itr_env, iterator);
 
-    if(bounds->upper_bound_slice != nullptr)
+    if(bounds.upper_bound_slice != nullptr)
     {
-        enif_make_copy(itr_ptr->env, bounds->upper_bound_term);
-        itr_ptr->SetUpperBoundSlice(std::move(bounds->upper_bound_slice));
-
+        itr_ptr->SetUpperBoundSlice(bounds.upper_bound_slice);
     }
 
-    if(bounds->lower_bound_slice != nullptr)
+    if(bounds.lower_bound_slice != nullptr)
     {
-        enif_make_copy(itr_ptr->env, bounds->lower_bound_term);
-        itr_ptr->SetLowerBoundSlice(std::move(bounds->lower_bound_slice));
+        itr_ptr->SetLowerBoundSlice(bounds.lower_bound_slice);
     }
 
     ERL_NIF_TERM result = enif_make_resource(env, itr_ptr);
@@ -190,7 +176,6 @@ Iterator(
     // release reference created during CreateItrObject()
     enif_release_resource(itr_ptr);
     delete opts;
-    bounds = NULL;
     iterator = NULL;
     return enif_make_tuple2(env, ATOM_OK, result);
 
@@ -210,11 +195,11 @@ Iterators(
        return enif_make_badarg(env);
 
     rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
-    ItrBounds *bounds = new ItrBounds;
-    if (!parse_iterator_options( env, argv[2], *opts, *bounds))
+    ItrBounds bounds;
+    auto itr_env = std::make_shared<ErlEnvCtr>();
+    if (!parse_iterator_options(env, itr_env->env, argv[2], *opts, bounds))
     {
         delete opts;
-        delete bounds;
         return enif_make_badarg(env);
     }
 
@@ -233,24 +218,19 @@ Iterators(
 
 
     ERL_NIF_TERM result = enif_make_list(env, 0);
-    ErlNifEnv* itr_env;
     ItrObject * itr_ptr;
     try {
         for (size_t i = 0; i < iterators.size(); i++) {
-            itr_env = enif_alloc_env();
             itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), itr_env, iterators[i]);
 
-            if(bounds->upper_bound_slice != nullptr)
+            if(bounds.upper_bound_slice != nullptr)
             {
-                enif_make_copy(itr_ptr->env, bounds->upper_bound_term);
-                itr_ptr->SetUpperBoundSlice(std::move(bounds->upper_bound_slice));
-
+                itr_ptr->SetUpperBoundSlice(bounds.upper_bound_slice);
             }
 
-            if(bounds->lower_bound_slice != nullptr)
+            if(bounds.lower_bound_slice != nullptr)
             {
-                enif_make_copy(itr_ptr->env, bounds->lower_bound_term);
-                itr_ptr->SetLowerBoundSlice(std::move(bounds->lower_bound_slice));
+                itr_ptr->SetLowerBoundSlice(bounds.lower_bound_slice);
             }
             ERL_NIF_TERM itr_res = enif_make_resource(env, itr_ptr);
             result = enif_make_list_cell(env, itr_res, result);
@@ -260,7 +240,6 @@ Iterators(
         // pass through and return nullptr
     }
     opts=NULL;
-    bounds = NULL;
     ERL_NIF_TERM result_out;
     enif_make_reverse_list(env, result, &result_out);
 

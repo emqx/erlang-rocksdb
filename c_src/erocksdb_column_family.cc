@@ -41,12 +41,12 @@ ListColumnFamilies(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     }
 
     // parse main db options
-    rocksdb::DBOptions *db_opts = new rocksdb::DBOptions;
-    fold(env, argv[1], parse_db_option, *db_opts);
+    rocksdb::DBOptions db_opts;
+    fold(env, argv[1], parse_db_option, db_opts);
 
     std::vector<std::string> column_family_names;
 
-    rocksdb::Status status = rocksdb::DB::ListColumnFamilies(*db_opts, db_name, &column_family_names);
+    rocksdb::Status status = rocksdb::DB::ListColumnFamilies(db_opts, db_name, &column_family_names);
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
 
@@ -120,8 +120,7 @@ DropColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     rocksdb::Status status = cf->m_DbPtr->m_Db->DropColumnFamily(cf->m_ColumnFamily);
     if(status.ok())
     {
-        // set closing flag
-        ErlRefObject::InitiateCloseRequest(cf);
+        // don't close it until someone calls destroy
         return ATOM_OK;
     }
     return error_tuple(env, ATOM_ERROR, status);
@@ -139,6 +138,7 @@ DestroyColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     ColumnFamilyObject* cf = cf_ptr.get();
 
     rocksdb::Status status = cf->m_DbPtr->m_Db->DestroyColumnFamilyHandle(cf->m_ColumnFamily);
+    cf->m_ColumnFamily = NULL;
     if(status.ok())
     {
         // set closing flag

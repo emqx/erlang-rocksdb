@@ -39,6 +39,24 @@ namespace rocksdb {
 namespace erocksdb {
 
 /**
+ * Simple wrapper around an Erlang Environment that can
+ * be stored in a shared pointer
+ */
+class ErlEnvCtr {
+    public:
+
+        ErlNifEnv *env;
+
+        ErlEnvCtr() {
+            env = enif_alloc_env();
+        };
+
+        ~ErlEnvCtr() {
+            enif_free_env(env);
+        }
+};
+
+/**
  * Base class for any object that offers RefInc / RefDec interface
  */
 
@@ -304,17 +322,17 @@ class ItrObject : public ErlRefObject
 {
 public:
     rocksdb::Iterator * m_Iterator;
-    ErlNifEnv* env;
+    std::shared_ptr<erocksdb::ErlEnvCtr> env;
     ReferencePtr<DbObject> m_DbPtr;
 
-    std::shared_ptr<rocksdb::Slice> upper_bound_slice;
-    std::shared_ptr<rocksdb::Slice> lower_bound_slice;
+    rocksdb::Slice *upper_bound_slice;
+    rocksdb::Slice *lower_bound_slice;
 
 protected:
     static ErlNifResourceType* m_Itr_RESOURCE;
 
 public:
-    ItrObject(DbObject *, ErlNifEnv* Env, rocksdb::Iterator * Iterator);
+    ItrObject(DbObject *, std::shared_ptr<erocksdb::ErlEnvCtr> Env, rocksdb::Iterator * Iterator);
 
     virtual ~ItrObject(); // needs to perform free_itr
 
@@ -322,16 +340,16 @@ public:
 
     static void CreateItrObjectType(ErlNifEnv * Env);
 
-    static ItrObject * CreateItrObject(DbObject * Db, ErlNifEnv* Env, rocksdb::Iterator * Iterator);
+    static ItrObject * CreateItrObject(DbObject * Db, std::shared_ptr<erocksdb::ErlEnvCtr> Env, rocksdb::Iterator * Iterator);
 
     static ItrObject * RetrieveItrObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm,
                                          bool ItrClosing=false);
 
     static void ItrObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
 
-    void SetUpperBoundSlice(std::shared_ptr<rocksdb::Slice> upper_bound_slice);
+    void SetUpperBoundSlice(rocksdb::Slice*);
 
-    void SetLowerBoundSlice(std::shared_ptr<rocksdb::Slice> lower_bound_slice);
+    void SetLowerBoundSlice(rocksdb::Slice*);
 
 
 
@@ -408,7 +426,6 @@ private:
     BackupEngineObject(const BackupEngineObject&);              // nocopy
     BackupEngineObject& operator=(const BackupEngineObject&);   // nocopyassign
 };  // class BackupEngineObject
-
 
 } // namespace erocksdb
 
