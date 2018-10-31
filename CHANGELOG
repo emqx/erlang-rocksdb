@@ -1,3 +1,8 @@
+erlang-rocksdb 0.23.3, released on 2018/10/31
+================================================
+
+- fix possible memory leaks when trying to open a bad CF resource.
+
 erlang-rocksdb 0.23.2, released on 2018/10/30
 ================================================
 
