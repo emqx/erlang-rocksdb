@@ -150,8 +150,10 @@ Iterator(
     {
         ReferencePtr<ColumnFamilyObject> cf_ptr;
         if(!enif_get_cf(env, argv[1], &cf_ptr))
+        {
+            delete opts;
             return enif_make_badarg(env);
-
+        }
         iterator = db_ptr->m_Db->NewIterator(*opts, cf_ptr->m_ColumnFamily);
     }
     else
