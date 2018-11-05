@@ -1288,7 +1288,7 @@ DeleteRange(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
     status = db_ptr->m_Db->DeleteRange(*opts, column_family, begin, end);
     if(!status.ok())
-        return error_tuple(env, erocksdb::ATOM_ERROR_DB_REPAIR, status);
+        return error_tuple(env, erocksdb::ATOM_ERROR, status);
 
     return erocksdb::ATOM_OK;
 }
