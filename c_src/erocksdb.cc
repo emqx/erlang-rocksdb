@@ -23,125 +23,123 @@
 #include "env.h"
 
 static ErlNifFunc nif_funcs[] =
-{
+    {
 
+        {"open", 2, erocksdb::Open, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"open_with_cf", 3, erocksdb::OpenWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-  {"open", 2, erocksdb::Open, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"open_with_cf", 3, erocksdb::OpenWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        // db management
+        {"checkpoint", 2, erocksdb::Checkpoint, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"repair", 2, erocksdb::Repair, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"is_empty", 1, erocksdb::IsEmpty, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"destroy", 2, erocksdb::Destroy, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"get_property", 2, erocksdb::GetProperty},
+        {"get_property", 3, erocksdb::GetProperty},
+        {"flush", 1, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"flush", 2, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"sync_wal", 1, erocksdb::SyncWal, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"set_db_background_threads", 2, erocksdb::SetDBBackgroundThreads},
 
+        {"delete_range", 4, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"delete_range", 5, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-  // db management
-  {"checkpoint", 2, erocksdb::Checkpoint, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"repair", 2, erocksdb::Repair, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"is_empty", 1, erocksdb::IsEmpty, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"destroy", 2, erocksdb::Destroy, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"get_property", 2, erocksdb::GetProperty},
-  {"get_property", 3, erocksdb::GetProperty},
-  {"flush", 1, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"flush", 2, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"sync_wal", 1, erocksdb::SyncWal, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"set_db_background_threads", 2, erocksdb::SetDBBackgroundThreads},
+        {"compact_range", 4, erocksdb::CompactRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"compact_range", 5, erocksdb::CompactRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
+        // column families
+        {"list_column_families", 2, erocksdb::ListColumnFamilies, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"create_column_family", 3, erocksdb::CreateColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"drop_column_family", 1, erocksdb::DropColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"destroy_column_family", 1, erocksdb::DestroyColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-  {"delete_range", 4, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"delete_range", 5, erocksdb::DeleteRange, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        // kv operations
+        {"get", 3, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"get", 4, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"put", 4, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"put", 5, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"merge", 4, erocksdb::Merge, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"merge", 5, erocksdb::Merge, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"delete", 3, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"delete", 4, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"single_delete", 3, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"single_delete", 4, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-  // column families
-  {"list_column_families", 2, erocksdb::ListColumnFamilies, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"create_column_family", 3, erocksdb::CreateColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"drop_column_family", 1, erocksdb::DropColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"destroy_column_family", 1, erocksdb::DestroyColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"snapshot", 1, erocksdb::Snapshot},
+        {"release_snapshot", 1, erocksdb::ReleaseSnapshot},
+        {"get_snapshot_sequence", 1, erocksdb::GetSnapshotSequenceNumber},
 
-  // kv operations
-  {"get", 3, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"get", 4, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"put", 4, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"put", 5, erocksdb::Put, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"merge", 4, erocksdb::Merge, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"merge", 5, erocksdb::Merge, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"delete", 3, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"delete", 4, erocksdb::Delete, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"single_delete", 3, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"single_delete", 4, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        // iterator operations
+        {"iterator", 2, erocksdb::Iterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"iterator", 3, erocksdb::Iterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"iterators", 3, erocksdb::Iterators, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"iterator_move", 2, erocksdb::IteratorMove, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"iterator_refresh", 1, erocksdb::IteratorRefresh, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"iterator_close", 1, erocksdb::IteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-  {"snapshot", 1, erocksdb::Snapshot},
-  {"release_snapshot", 1, erocksdb::ReleaseSnapshot},
-  {"get_snapshot_sequence", 1, erocksdb::GetSnapshotSequenceNumber},
+        {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber},
 
-  // iterator operations
-  {"iterator", 2, erocksdb::Iterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"iterator", 3, erocksdb::Iterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"iterators", 3, erocksdb::Iterators, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"iterator_move", 2, erocksdb::IteratorMove, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"iterator_refresh", 1, erocksdb::IteratorRefresh, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"iterator_close", 1, erocksdb::IteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        // transactions
+        {"updates_iterator", 2, erocksdb::UpdatesIterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"close_updates_iterator", 1, erocksdb::UpdatesIteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"next_binary_update", 1, erocksdb::NextBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"write_binary_update", 3, erocksdb::WriteBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"next_update", 1, erocksdb::NextUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-  {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber},
+        // Batch
+        {"batch", 0, erocksdb::NewBatch},
+        {"release_batch", 1, erocksdb::ReleaseBatch},
+        {"write_batch", 3, erocksdb::WriteBatch, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"batch_put", 3, erocksdb::PutBatch},
+        {"batch_put", 4, erocksdb::PutBatch},
+        {"batch_merge", 3, erocksdb::PutBatch},
+        {"batch_merge", 4, erocksdb::PutBatch},
+        {"batch_delete", 2, erocksdb::DeleteBatch},
+        {"batch_delete", 3, erocksdb::DeleteBatch},
+        {"batch_single_delete", 2, erocksdb::SingleDeleteBatch},
+        {"batch_single_delete", 3, erocksdb::SingleDeleteBatch},
+        {"batch_clear", 1, erocksdb::ClearBatch},
+        {"batch_savepoint", 1, erocksdb::BatchSetSavePoint},
+        {"batch_rollback", 1, erocksdb::BatchRollbackToSavePoint},
+        {"batch_count", 1, erocksdb::BatchCount},
+        {"batch_data_size", 1, erocksdb::BatchDataSize},
+        {"batch_tolist", 1, erocksdb::BatchToList, ERL_NIF_DIRTY_JOB_CPU_BOUND},
 
-  // transactions
-  {"updates_iterator", 2, erocksdb::UpdatesIterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"close_updates_iterator", 1, erocksdb::UpdatesIteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"next_binary_update", 1, erocksdb::NextBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"write_binary_update", 3, erocksdb::WriteBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"next_update", 1, erocksdb::NextUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        // backup engine
+        {"open_backup_engine", 1, erocksdb::OpenBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"create_new_backup", 2, erocksdb::CreateNewBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"get_backup_info", 1, erocksdb::GetBackupInfo, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"verify_backup", 2, erocksdb::VerifyBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"stop_backup", 1, erocksdb::StopBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"delete_backup", 2, erocksdb::DeleteBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"purge_old_backup", 2, erocksdb::PurgeOldBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"restore_db_from_backup", 3, erocksdb::RestoreDBFromBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"restore_db_from_backup", 4, erocksdb::RestoreDBFromBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"restore_db_from_latest_backup", 2, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"restore_db_from_latest_backup", 3, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"garbage_collect_backup", 1, erocksdb::GarbageCollect, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"close_backup", 1, erocksdb::CloseBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-  // Batch
-  {"batch", 0, erocksdb::NewBatch},
-  {"release_batch", 1, erocksdb::ReleaseBatch},
-  {"write_batch", 3, erocksdb::WriteBatch, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"batch_put", 3, erocksdb::PutBatch},
-  {"batch_put", 4, erocksdb::PutBatch},
-  {"batch_merge", 3, erocksdb::PutBatch},
-  {"batch_merge", 4, erocksdb::PutBatch},
-  {"batch_delete", 2, erocksdb::DeleteBatch},
-  {"batch_delete", 3, erocksdb::DeleteBatch},
-  {"batch_single_delete", 2, erocksdb::SingleDeleteBatch},
-  {"batch_single_delete", 3, erocksdb::SingleDeleteBatch},
-  {"batch_clear", 1, erocksdb::ClearBatch},
-  {"batch_savepoint", 1, erocksdb::BatchSetSavePoint},
-  {"batch_rollback", 1, erocksdb::BatchRollbackToSavePoint},
-  {"batch_count", 1, erocksdb::BatchCount},
-  {"batch_data_size", 1, erocksdb::BatchDataSize},
-  {"batch_tolist", 1, erocksdb::BatchToList, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+        // cache
+        {"new_lru_cache", 1, erocksdb::NewLRUCache},
+        {"new_clock_cache", 1, erocksdb::NewClockCache},
+        {"get_usage", 1, erocksdb::GetUsage},
+        {"get_pinned_usage", 1, erocksdb::GetPinnedUsage},
+        {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+        {"get_capacity", 1, erocksdb::GetCapacity},
+        {"release_cache", 1, erocksdb::ReleaseCache},
+        {"set_strict_capacity_limit", 2, erocksdb::SetStrictCapacityLimit},
 
+        // rate limiter
+        {"new_rate_limiter", 2, erocksdb::NewRateLimiter},
+        {"release_rate_limiter", 1, erocksdb::ReleaseRateLimiter},
 
-  // backup engine
-  {"open_backup_engine", 1, erocksdb::OpenBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"create_new_backup", 2, erocksdb::CreateNewBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"get_backup_info", 1, erocksdb::GetBackupInfo, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"verify_backup", 2, erocksdb::VerifyBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"stop_backup", 1, erocksdb::StopBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"delete_backup", 2, erocksdb::DeleteBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"purge_old_backup", 2, erocksdb::PurgeOldBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"restore_db_from_backup", 3, erocksdb::RestoreDBFromBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"restore_db_from_backup", 4, erocksdb::RestoreDBFromBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"restore_db_from_latest_backup", 2, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"restore_db_from_latest_backup", 3, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"garbage_collect_backup", 1, erocksdb::GarbageCollect, ERL_NIF_DIRTY_JOB_IO_BOUND},
-  {"close_backup", 1, erocksdb::CloseBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-
-  // cache
-  {"new_lru_cache", 1, erocksdb::NewLRUCache},
-  {"new_clock_cache", 1, erocksdb::NewClockCache},
-  {"get_usage", 1, erocksdb::GetUsage},
-  {"get_pinned_usage", 1, erocksdb::GetPinnedUsage},
-  {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
-  {"get_capacity", 1, erocksdb::GetCapacity},
-  {"release_cache", 1, erocksdb::ReleaseCache},
-  {"set_strict_capacity_limit", 2, erocksdb::SetStrictCapacityLimit},
-
-  // rate limiter
-  {"new_rate_limiter", 2, erocksdb::NewRateLimiter},
-  {"release_rate_limiter", 1, erocksdb::ReleaseRateLimiter},
-
-  // env
-  {"default_env", 0, erocksdb::DefaultEnv},
-  {"mem_env", 0, erocksdb::MemEnv},
-  {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads},
-  {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads},
-  {"destroy_env", 1, erocksdb::DestroyEnv}
-
+        // env
+        {"default_env", 0, erocksdb::DefaultEnv},
+        {"mem_env", 0, erocksdb::MemEnv},
+        {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads},
+        {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads},
+        {"destroy_env", 1, erocksdb::DestroyEnv}
 
 };
 
@@ -160,6 +158,7 @@ ERL_NIF_TERM ATOM_CORRUPTION;
 ERL_NIF_TERM ATOM_INC;
 ERL_NIF_TERM ATOM_DEC;
 ERL_NIF_TERM ATOM_UNKNOWN_STATUS_ERROR;
+ERL_NIF_TERM ATOM_UNDEFINED;
 
 // related to envs
 ERL_NIF_TERM ATOM_DEFAULT;
@@ -275,6 +274,12 @@ ERL_NIF_TERM ATOM_PUT;
 ERL_NIF_TERM ATOM_MERGE;
 ERL_NIF_TERM ATOM_DELETE;
 ERL_NIF_TERM ATOM_SINGLE_DELETE;
+
+// Related to CompactRangeOptions
+ERL_NIF_TERM ATOM_EXCLUSIVE_MANUAL_COMPACTION;
+ERL_NIF_TERM ATOM_CHANGE_LEVEL;
+ERL_NIF_TERM ATOM_TARGET_LEVEL;
+ERL_NIF_TERM ATOM_ALLOW_WRITE_STALL;
 
 // Related to Iterator Actions
 ERL_NIF_TERM ATOM_FIRST;
@@ -417,8 +422,7 @@ try
   ATOM(erocksdb::ATOM_INC, "inc");
   ATOM(erocksdb::ATOM_DEC, "dec");
   ATOM(erocksdb::ATOM_UNKNOWN_STATUS_ERROR, "unknown_status");
-
-
+  ATOM(erocksdb::ATOM_UNDEFINED, "undefined");
 
   ATOM(erocksdb::ATOM_DEFAULT, "default");
   ATOM(erocksdb::ATOM_MEMENV, "memenv");
@@ -534,6 +538,12 @@ try
   ATOM(erocksdb::ATOM_MERGE, "merge");
   ATOM(erocksdb::ATOM_DELETE, "delete");
   ATOM(erocksdb::ATOM_SINGLE_DELETE, "single_delete");
+
+  // Related to CompactRangeOptions
+  ATOM(erocksdb::ATOM_EXCLUSIVE_MANUAL_COMPACTION, "exclusive_manual_compaction");
+  ATOM(erocksdb::ATOM_CHANGE_LEVEL, "change_level");
+  ATOM(erocksdb::ATOM_TARGET_LEVEL, "target_level");
+  ATOM(erocksdb::ATOM_ALLOW_WRITE_STALL, "allow_write_stall");
 
   // Related to Iterator Options
   ATOM(erocksdb::ATOM_FIRST, "first");

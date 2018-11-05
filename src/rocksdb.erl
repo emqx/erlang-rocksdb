@@ -56,6 +56,7 @@
   write/3,
   get/3, get/4,
   delete_range/4, delete_range/5,
+  compact_range/4, compact_range/5,
   iterator/2, iterator/3,
   iterators/3,
   iterator_move/2,
@@ -317,6 +318,12 @@ init() ->
                           {single_delete, Key::binary()} |
                           {single_delete, ColumnFamilyHandle::cf_handle(), Key::binary()} |
                           clear].
+
+-type compact_range_options()  :: [{exclusive_manual_compaction, boolean()} |
+                                   {change_level, boolean()} |
+                                   {target_level, integer()} |
+                                   {allow_write_stall, boolean()} |
+                                   {max_subcompactions, non_neg_integer()}].
 
 -type iterator_action() :: first | last | next | prev | binary() | {seek, binary()} | {seek_for_prev, binary()}.
 
@@ -592,6 +599,44 @@ delete_range(_DbHandle, _Start, _End, _WriteOpts) ->
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
 delete_range(_DbHandle, _CFHandle, _Start, _End, _WriteOpts) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc Compact the underlying storage for the key range [*begin,*end].
+%% The actual compaction interval might be superset of [*begin, *end].
+%% In particular, deleted and overwritten versions are discarded,
+%% and the data is rearranged to reduce the cost of operations
+%% needed to access the data.  This operation should typically only
+%% be invoked by users who understand the underlying implementation.
+%%
+%% "begin==undefined" is treated as a key before all keys in the database.
+%% "end==undefined" is treated as a key after all keys in the database.
+%% Therefore the following call will compact the entire database:
+%% rocksdb::compact_range(Options, undefined, undefined);
+%% Note that after the entire database is compacted, all data are pushed
+%% down to the last level containing any data. If the total data size after
+%% compaction is reduced, that level might not be appropriate for hosting all
+%% the files. In this case, client could set options.change_level to true, to
+%% move the files back to the minimum level capable of holding the data set
+%% or a given level (specified by non-negative target_level).
+-spec compact_range(DBHandle, BeginKey, EndKey, CompactRangeOpts) -> Res when
+  DBHandle::db_handle(),
+  BeginKey::binary(),
+  EndKey::binary(),
+  CompactRangeOpts::compact_range_options(),
+  Res :: ok | {error, any()}.
+compact_range(_DbHandle, _Start, _End, _CompactRangeOpts) ->
+  erlang:nif_error({error, not_loaded}).
+
+%% @doc  Compact the underlying storage for the key range ["BeginKey", "EndKey").
+%% like `compact_range/3' but for a column family
+-spec compact_range(DBHandle, CFHandle, BeginKey, EndKey, CompactRangeOpts) -> Res when
+  DBHandle::db_handle(),
+  CFHandle::cf_handle(),
+  BeginKey::binary(),
+  EndKey::binary(),
+  CompactRangeOpts::compact_range_options(),
+  Res :: ok | {error, any()}.
+compact_range(_DbHandle, _CFHandle, _Start, _End, _CompactRangeOpts) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc Return a iterator over the contents of the database.

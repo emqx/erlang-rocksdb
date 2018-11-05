@@ -673,6 +673,41 @@ ERL_NIF_TERM parse_write_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Writ
     return erocksdb::ATOM_OK;
 }
 
+ERL_NIF_TERM parse_compact_range_option(ErlNifEnv *env, ERL_NIF_TERM item, rocksdb::CompactRangeOptions &opts)
+{
+    int arity;
+    const ERL_NIF_TERM *option;
+    if (enif_get_tuple(env, item, &arity, &option) && 2 == arity)
+    {
+        if (option[0] == erocksdb::ATOM_EXCLUSIVE_MANUAL_COMPACTION)
+        {
+            opts.exclusive_manual_compaction = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_CHANGE_LEVEL)
+        {
+            opts.change_level = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_TARGET_LEVEL)
+        {
+            int target_level;
+            if (enif_get_int(env, option[1], &target_level))
+                opts.target_level = target_level;
+        }
+        else if (option[0] == erocksdb::ATOM_ALLOW_WRITE_STALL)
+        {
+            opts.allow_write_stall = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_MAX_SUBCOMPACTIONS)
+        {
+            unsigned int max_subcompactions;
+            if (enif_get_uint(env, option[1], &max_subcompactions))
+                opts.max_subcompactions = max_subcompactions;
+        }
+    }
+
+    return erocksdb::ATOM_OK;
+}
+
 ERL_NIF_TERM
 parse_cf_descriptor(ErlNifEnv* env, ERL_NIF_TERM item,
                     std::vector<rocksdb::ColumnFamilyDescriptor>& column_families)
@@ -1254,6 +1289,61 @@ DeleteRange(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     status = db_ptr->m_Db->DeleteRange(*opts, column_family, begin, end);
     if(!status.ok())
         return error_tuple(env, erocksdb::ATOM_ERROR_DB_REPAIR, status);
+
+    return erocksdb::ATOM_OK;
+}
+
+ERL_NIF_TERM
+CompactRange(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<DbObject> db_ptr;
+    rocksdb::ColumnFamilyHandle *column_family;
+    rocksdb::Slice begin;
+    rocksdb::Slice end;
+    rocksdb::Status status;
+    ReferencePtr<ColumnFamilyObject> cf_ptr;
+    int i = 1;
+
+    if (!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
+
+    if (argc == 5)
+    {
+        if (!enif_get_cf(env, argv[1], &cf_ptr))
+            return enif_make_badarg(env);
+        column_family = cf_ptr->m_ColumnFamily;
+        i = 2;
+    }
+    else
+    {
+        column_family = db_ptr->m_Db->DefaultColumnFamily();
+    }
+
+    if (argv[i] == erocksdb::ATOM_UNDEFINED)
+    {
+        begin = nullptr;
+    }
+    else if (!binary_to_slice(env, argv[i], &begin))
+    {
+        return enif_make_badarg(env);
+    }
+
+    if (argv[i + 1] == erocksdb::ATOM_UNDEFINED)
+    {
+        end = nullptr;
+    }
+    else if (!binary_to_slice(env, argv[i + 1], &end))
+    {
+        return enif_make_badarg(env);
+    }
+
+    // parse read_options
+    rocksdb::CompactRangeOptions *opts = new rocksdb::CompactRangeOptions;
+    fold(env, argv[i + 2], parse_compact_range_option, *opts);
+
+    status = db_ptr->m_Db->CompactRange(*opts, column_family, &begin, &end);
+    if (!status.ok())
+        return error_tuple(env, ATOM_ERROR, status);
 
     return erocksdb::ATOM_OK;
 }
