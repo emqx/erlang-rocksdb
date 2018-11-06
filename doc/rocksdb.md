@@ -87,6 +87,16 @@ cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {mem
 
 
 
+### <a name="type-compact_range_options">compact_range_options()</a> ###
+
+
+<pre><code>
+compact_range_options() = [{exclusive_manual_compaction, boolean()} | {change_level, boolean()} | {target_level, integer()} | {allow_write_stall, boolean()} | {max_subcompactions, non_neg_integer()}]
+</code></pre>
+
+
+
+
 ### <a name="type-compaction_pri">compaction_pri()</a> ###
 
 
@@ -219,6 +229,16 @@ options() = <a href="#type-db_options">db_options()</a> | <a href="#type-cf_opti
 
 
 
+### <a name="type-range">range()</a> ###
+
+
+<pre><code>
+range() = {Start::binary(), Limit::binary()}
+</code></pre>
+
+
+
+
 ### <a name="type-rate_limiter_handle">rate_limiter_handle()</a> ###
 
 
@@ -232,6 +252,16 @@ __abstract datatype__: `rate_limiter_handle()`
 
 <pre><code>
 read_options() = [{verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {tailing, boolean()} | {total_order_seek, boolean()} | {prefix_same_as_start, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
+</code></pre>
+
+
+
+
+### <a name="type-size_approximation_flag">size_approximation_flag()</a> ###
+
+
+<pre><code>
+size_approximation_flag() = none | include_memtables | include_files | include_both
 </code></pre>
 
 
@@ -279,7 +309,7 @@ write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {ignore_missin
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch-0">batch/0</a></td><td>create a new batch in memory.</td></tr><tr><td valign="top"><a href="#batch_clear-1">batch_clear/1</a></td><td>reset the batch, clear all operations.</td></tr><tr><td valign="top"><a href="#batch_count-1">batch_count/1</a></td><td>return the number of operations in the batch.</td></tr><tr><td valign="top"><a href="#batch_data_size-1">batch_data_size/1</a></td><td>Retrieve data size of the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-2">batch_delete/2</a></td><td>batch implementation of delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-3">batch_delete/3</a></td><td>like <code>batch_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_merge-3">batch_merge/3</a></td><td>add a merge operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_merge-4">batch_merge/4</a></td><td>like <code>batch_mege/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_put-3">batch_put/3</a></td><td>add a put operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_put-4">batch_put/4</a></td><td>like <code>batch_put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_rollback-1">batch_rollback/1</a></td><td>rollback the operations to the latest checkpoint.</td></tr><tr><td valign="top"><a href="#batch_savepoint-1">batch_savepoint/1</a></td><td>store a checkpoint in the batch to which you can rollback later.</td></tr><tr><td valign="top"><a href="#batch_single_delete-2">batch_single_delete/2</a></td><td>batch implementation of single_delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_single_delete-3">batch_single_delete/3</a></td><td>like <code>batch_single_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_tolist-1">batch_tolist/1</a></td><td>return all the operation sin the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#checkpoint-2">checkpoint/2</a></td><td>take a snapshot of a running RocksDB database in a separate directory
 http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>Close RocksDB.</td></tr><tr><td valign="top"><a href="#close_backup-1">close_backup/1</a></td><td>stop and close the backup
-note: experimental for testing only.</td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
+note: experimental for testing only.</td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#compact_range-4">compact_range/4</a></td><td>Compact the underlying storage for the key range [*begin,*end].</td></tr><tr><td valign="top"><a href="#compact_range-5">compact_range/5</a></td><td> Compact the underlying storage for the key range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
 Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#create_new_backup-2">create_new_backup/2</a></td><td>Captures the state of the database in the latest backup.</td></tr><tr><td valign="top"><a href="#default_env-0">default_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#delete_backup-2">delete_backup/2</a></td><td>deletes a specific backup.</td></tr><tr><td valign="top"><a href="#delete_range-4">delete_range/4</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
 including "BeginKey" and excluding "EndKey".</td></tr><tr><td valign="top"><a href="#delete_range-5">delete_range/5</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_column_family-1">destroy_column_family/1</a></td><td>Destroy a column family.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#flush-1">flush/1</a></td><td>Flush all mem-table data.</td></tr><tr><td valign="top"><a href="#flush-2">flush/2</a></td><td>Flush all mem-table data.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold-5">fold/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
@@ -287,7 +317,9 @@ Other specs are same with fold/4.</td></tr><tr><td valign="top"><a href="#fold_k
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold_keys-5">fold_keys/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
 Other specs are same with fold_keys/4.</td></tr><tr><td valign="top"><a href="#garbage_collect_backup-1">garbage_collect_backup/1</a></td><td> Will delete all the files we don't need anymore
 It will do the full scan of the files/ directory and delete all the
-files that are not referenced.</td></tr><tr><td valign="top"><a href="#get-3">get/3</a></td><td>Retrieve a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#get-4">get/4</a></td><td>Retrieve a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#get_backup_info-1">get_backup_info/1</a></td><td>Returns info about backups in backup_info.</td></tr><tr><td valign="top"><a href="#get_capacity-1">get_capacity/1</a></td><td> returns the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#get_latest_sequence_number-1">get_latest_sequence_number/1</a></td><td>get latest sequence from the log.</td></tr><tr><td valign="top"><a href="#get_pinned_usage-1">get_pinned_usage/1</a></td><td> returns the memory size for the entries in use by the system.</td></tr><tr><td valign="top"><a href="#get_property-2">get_property/2</a></td><td>Return the RocksDB internal status of the default column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_property-3">get_property/3</a></td><td>Return the RocksDB internal status of the specified column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_snapshot_sequence-1">get_snapshot_sequence/1</a></td><td>returns Snapshot's sequence number.</td></tr><tr><td valign="top"><a href="#get_usage-1">get_usage/1</a></td><td>returns the memory size for a specific entry in the cache.</td></tr><tr><td valign="top"><a href="#is_empty-1">is_empty/1</a></td><td>is the database empty.</td></tr><tr><td valign="top"><a href="#iterator-2">iterator/2</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator-3">iterator/3</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator_close-1">iterator_close/1</a></td><td>
+files that are not referenced.</td></tr><tr><td valign="top"><a href="#get-3">get/3</a></td><td>Retrieve a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#get-4">get/4</a></td><td>Retrieve a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#get_approximate_memtable_stats-2">get_approximate_memtable_stats/2</a></td><td>The method is similar to GetApproximateSizes, except it
+returns approximate number of records in memtables.</td></tr><tr><td valign="top"><a href="#get_approximate_memtable_stats-3">get_approximate_memtable_stats/3</a></td><td></td></tr><tr><td valign="top"><a href="#get_approximate_sizes-3">get_approximate_sizes/3</a></td><td>For each i in [0,n-1], store in "Sizes[i]", the approximate
+file system space used by keys in "[range[i].start ..</td></tr><tr><td valign="top"><a href="#get_approximate_sizes-4">get_approximate_sizes/4</a></td><td></td></tr><tr><td valign="top"><a href="#get_backup_info-1">get_backup_info/1</a></td><td>Returns info about backups in backup_info.</td></tr><tr><td valign="top"><a href="#get_capacity-1">get_capacity/1</a></td><td> returns the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#get_latest_sequence_number-1">get_latest_sequence_number/1</a></td><td>get latest sequence from the log.</td></tr><tr><td valign="top"><a href="#get_pinned_usage-1">get_pinned_usage/1</a></td><td> returns the memory size for the entries in use by the system.</td></tr><tr><td valign="top"><a href="#get_property-2">get_property/2</a></td><td>Return the RocksDB internal status of the default column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_property-3">get_property/3</a></td><td>Return the RocksDB internal status of the specified column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_snapshot_sequence-1">get_snapshot_sequence/1</a></td><td>returns Snapshot's sequence number.</td></tr><tr><td valign="top"><a href="#get_usage-1">get_usage/1</a></td><td>returns the memory size for a specific entry in the cache.</td></tr><tr><td valign="top"><a href="#is_empty-1">is_empty/1</a></td><td>is the database empty.</td></tr><tr><td valign="top"><a href="#iterator-2">iterator/2</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator-3">iterator/3</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator_close-1">iterator_close/1</a></td><td>
 Close a iterator.</td></tr><tr><td valign="top"><a href="#iterator_move-2">iterator_move/2</a></td><td>
 Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterator_refresh-1">iterator_refresh/1</a></td><td>
 Refresh iterator.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>
@@ -517,6 +549,47 @@ note: experimental for testing only
 `close_updates_iterator(Iterator) -> any()`
 
 close the transaction log
+
+<a name="compact_range-4"></a>
+
+### compact_range/4 ###
+
+<pre><code>
+compact_range(DBHandle, BeginKey, EndKey, CompactRangeOpts) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>BeginKey = binary()</code></li><li><code>EndKey = binary()</code></li><li><code>CompactRangeOpts = <a href="#type-compact_range_options">compact_range_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
+
+Compact the underlying storage for the key range [*begin,*end].
+The actual compaction interval might be superset of [*begin, *end].
+In particular, deleted and overwritten versions are discarded,
+and the data is rearranged to reduce the cost of operations
+needed to access the data.  This operation should typically only
+be invoked by users who understand the underlying implementation.
+
+"begin==undefined" is treated as a key before all keys in the database.
+"end==undefined" is treated as a key after all keys in the database.
+Therefore the following call will compact the entire database:
+rocksdb::compact_range(Options, undefined, undefined);
+Note that after the entire database is compacted, all data are pushed
+down to the last level containing any data. If the total data size after
+compaction is reduced, that level might not be appropriate for hosting all
+the files. In this case, client could set options.change_level to true, to
+move the files back to the minimum level capable of holding the data set
+or a given level (specified by non-negative target_level).
+
+<a name="compact_range-5"></a>
+
+### compact_range/5 ###
+
+<pre><code>
+compact_range(DBHandle, CFHandle, BeginKey, EndKey, CompactRangeOpts) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>BeginKey = binary()</code></li><li><code>EndKey = binary()</code></li><li><code>CompactRangeOpts = <a href="#type-compact_range_options">compact_range_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
+
+Compact the underlying storage for the key range ["BeginKey", "EndKey").
+like `compact_range/3` but for a column family
 
 <a name="count-1"></a>
 
@@ -812,6 +885,60 @@ get(DBHandle, CFHandle, Key, ReadOpts) -&gt; Res
 <ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Key = binary()</code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, binary()} | not_found | {error, any()}</code></li></ul>
 
 Retrieve a key/value pair in the specified column family
+
+<a name="get_approximate_memtable_stats-2"></a>
+
+### get_approximate_memtable_stats/2 ###
+
+<pre><code>
+get_approximate_memtable_stats(DBHandle, Range) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>Range = <a href="#type-range">range()</a></code></li><li><code>Res = {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}</code></li></ul>
+
+The method is similar to GetApproximateSizes, except it
+returns approximate number of records in memtables.
+
+<a name="get_approximate_memtable_stats-3"></a>
+
+### get_approximate_memtable_stats/3 ###
+
+<pre><code>
+get_approximate_memtable_stats(DBHandle, CFHandle, Range) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Range = <a href="#type-range">range()</a></code></li><li><code>Res = {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}</code></li></ul>
+
+<a name="get_approximate_sizes-3"></a>
+
+### get_approximate_sizes/3 ###
+
+<pre><code>
+get_approximate_sizes(DBHandle, Ranges, IncludeFlags) -&gt; Sizes
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>Ranges = [<a href="#type-range">range()</a>]</code></li><li><code>IncludeFlags = <a href="#type-size_approximation_flag">size_approximation_flag()</a></code></li><li><code>Sizes = [non_neg_integer()]</code></li></ul>
+
+For each i in [0,n-1], store in "Sizes[i]", the approximate
+file system space used by keys in "[range[i].start .. range[i].limit)".
+
+Note that the returned sizes measure file system space usage, so
+if the user data compresses by a factor of ten, the returned
+sizes will be one-tenth the size of the corresponding user data size.
+
+If `IncludeFlags` defines whether the returned size should include
+the recently written data in the mem-tables (if
+the mem-table type supports it), data serialized to disk, or both.
+
+<a name="get_approximate_sizes-4"></a>
+
+### get_approximate_sizes/4 ###
+
+<pre><code>
+get_approximate_sizes(DBHandle, CFHandle, Ranges, IncludeFlags) -&gt; Sizes
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Ranges = [<a href="#type-range">range()</a>]</code></li><li><code>IncludeFlags = <a href="#type-size_approximation_flag">size_approximation_flag()</a></code></li><li><code>Sizes = [non_neg_integer()]</code></li></ul>
 
 <a name="get_backup_info-1"></a>
 
