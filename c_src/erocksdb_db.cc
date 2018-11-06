@@ -1351,17 +1351,14 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         {
             if (!binary_to_slice(env, rterm[0], &start) || !binary_to_slice(env, rterm[1], &limit)) 
             {
-                delete[] ranges;
                 return enif_make_badarg(env);
             }
-                
             ranges[j].start = start;
             ranges[j].limit = limit;
             j++;
         }
         else
         {
-            delete[] ranges;
             return enif_make_badarg(env);
         }
     }
@@ -1375,8 +1372,6 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     }
     ERL_NIF_TERM result_out;
     enif_make_reverse_list(env, result, &result_out);
-    
-    delete[] ranges;
     return result_out;
 }
 
@@ -1415,10 +1410,9 @@ GetApproximateMemTableStats(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     if (!binary_to_slice(env, rterm[0], &start) || !binary_to_slice(env, rterm[1], &limit))
             return enif_make_badarg(env);
 
-    auto range = rocksdb::Range(start, limit);
-
+    rocksdb::Range r(start, limit);
     uint64_t size, count;
-    db_ptr->m_Db->GetApproximateMemTableStats(column_family, range, &count, &size);
+    db_ptr->m_Db->GetApproximateMemTableStats(column_family, r, &count, &size);
     return enif_make_tuple2(
         env,
         ATOM_OK,
