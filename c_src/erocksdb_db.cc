@@ -1359,6 +1359,7 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         }
         else
         {
+            delete[] ranges;
             return enif_make_badarg(env);
         }
     }
@@ -1372,6 +1373,7 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     }
     ERL_NIF_TERM result_out;
     enif_make_reverse_list(env, result, &result_out);
+    delete[] ranges;
     return result_out;
 }
 
