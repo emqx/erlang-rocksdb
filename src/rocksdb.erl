@@ -361,7 +361,7 @@ open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
 
 %% @doc Open RocksDB with the specified TTL
 -spec(open_with_ttl(Name, DBOpts, TTL, ReadOnly) ->
-       {ok, db_handle(), list(cf_handle())} | {error, any()}
+       {ok, db_handle()} | {error, any()}
          when Name::file:filename_all(),
           DBOpts :: db_options(),
           TTL :: integer(),
