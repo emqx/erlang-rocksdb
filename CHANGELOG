@@ -1,9 +1,16 @@
+erlang-rocksdb 0.25.0, unreleased
+================================================
+
+- bump to rocksdb 0.17.2
+- add `rocks:open_with_ttl/2`
+
+
 erlang-rocksdb 0.24.0, released on 2018/11/06
 ================================================
 
 - add `rocksdb:get_approximate_sizes/{3,4}: amroximate the size of a range of keys
 - add `rocksdb:get_approximate_memtable_stats/{2,3}` : aproximate the size and the number of keys in a memtable
-- add `rocksdb:compact_range/{4,5}`: Compact the underlying storage for a key range 
+- add `rocksdb:compact_range/{4,5}`: Compact the underlying storage for a key range
 
 erlang-rocksdb 0.23.3, released on 2018/10/31
 ================================================
