@@ -2,8 +2,9 @@ erlang-rocksdb 0.25.0, unreleased
 ================================================
 
 - bump to rocksdb 0.17.2
-- add `rocks:open_with_ttl/2`
-- add `no_slowdown` and `low_pri` write options.
+- add `rocks:open_with_ttl/2`.
+- add `no_slowdown` and `low_pri` write options
+- add `manual_wal_flush`  db option
 
 ** BREAKING CHANGES **
 

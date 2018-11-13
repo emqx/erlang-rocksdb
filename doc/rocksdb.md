@@ -87,6 +87,16 @@ cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {mem
 
 
 
+### <a name="type-column_family">column_family()</a> ###
+
+
+<pre><code>
+column_family() = <a href="#type-cf_handle">cf_handle()</a> | default_column_family
+</code></pre>
+
+
+
+
 ### <a name="type-compact_range_options">compact_range_options()</a> ###
 
 
@@ -139,7 +149,7 @@ __abstract datatype__: `db_handle()`
 
 
 <pre><code>
-db_options() = [{env, <a href="#type-env">env()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="file.md#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_jobs, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {new_table_reader_for_compaction_inputs, boolean()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {db_write_buffer_size, non_neg_integer()} | {in_memory, boolean()} | {rate_limiter, <a href="#type-rate_limiter_handle">rate_limiter_handle()</a>} | {max_subcompactions, non_neg_integer()}]
+db_options() = [{env, <a href="#type-env">env()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="file.md#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_jobs, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {manual_wal_flush, boolean()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {new_table_reader_for_compaction_inputs, boolean()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {db_write_buffer_size, non_neg_integer()} | {in_memory, boolean()} | {rate_limiter, <a href="#type-rate_limiter_handle">rate_limiter_handle()</a>} | {max_subcompactions, non_neg_integer()}]
 </code></pre>
 
 
@@ -166,6 +176,16 @@ __abstract datatype__: `env_handle()`
 
 <pre><code>
 env_priority() = priority_high | priority_low
+</code></pre>
+
+
+
+
+### <a name="type-flush_options">flush_options()</a> ###
+
+
+<pre><code>
+flush_options() = [{wait, boolean()} | {allow_write_stall, boolean()}]
 </code></pre>
 
 
@@ -299,7 +319,7 @@ write_actions() = [{put, Key::binary(), Value::binary()} | {put, ColumnFamilyHan
 
 
 <pre><code>
-write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {ignore_missing_column_families, boolean()}]
+write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {ignore_missing_column_families, boolean()} | {no_slowdown, boolean()} | {low_pri, boolean()}]
 </code></pre>
 
 <a name="index"></a>
@@ -311,7 +331,7 @@ write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {ignore_missin
 http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>Close RocksDB.</td></tr><tr><td valign="top"><a href="#close_backup-1">close_backup/1</a></td><td>stop and close the backup
 note: experimental for testing only.</td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#compact_range-4">compact_range/4</a></td><td>Compact the underlying storage for the key range [*begin,*end].</td></tr><tr><td valign="top"><a href="#compact_range-5">compact_range/5</a></td><td> Compact the underlying storage for the key range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
 Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#create_new_backup-2">create_new_backup/2</a></td><td>Captures the state of the database in the latest backup.</td></tr><tr><td valign="top"><a href="#default_env-0">default_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#delete_backup-2">delete_backup/2</a></td><td>deletes a specific backup.</td></tr><tr><td valign="top"><a href="#delete_range-4">delete_range/4</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
-including "BeginKey" and excluding "EndKey".</td></tr><tr><td valign="top"><a href="#delete_range-5">delete_range/5</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_column_family-1">destroy_column_family/1</a></td><td>Destroy a column family.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#flush-1">flush/1</a></td><td>Flush all mem-table data.</td></tr><tr><td valign="top"><a href="#flush-2">flush/2</a></td><td>Flush all mem-table data.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
+including "BeginKey" and excluding "EndKey".</td></tr><tr><td valign="top"><a href="#delete_range-5">delete_range/5</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_column_family-1">destroy_column_family/1</a></td><td>Destroy a column family.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#flush-2">flush/2</a></td><td>Flush all mem-table data.</td></tr><tr><td valign="top"><a href="#flush-3">flush/3</a></td><td>Flush all mem-table data for a column family.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold-5">fold/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
 Other specs are same with fold/4.</td></tr><tr><td valign="top"><a href="#fold_keys-4">fold_keys/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold_keys-5">fold_keys/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
@@ -774,27 +794,27 @@ drop_column_family(CFHandle) -&gt; Res
 
 Drop a column family
 
-<a name="flush-1"></a>
-
-### flush/1 ###
-
-<pre><code>
-flush(DbHandle::<a href="#type-db_handle">db_handle()</a>) -&gt; ok | {error, term()}
-</code></pre>
-<br />
-
-Flush all mem-table data.
-
 <a name="flush-2"></a>
 
 ### flush/2 ###
 
 <pre><code>
-flush(DbHandle::<a href="#type-db_handle">db_handle()</a>, CfHandle::<a href="#type-cf_handle">cf_handle()</a>) -&gt; ok | {error, term()}
+flush(DbHandle::<a href="#type-db_handle">db_handle()</a>, FlushOptions::<a href="#type-flush_options">flush_options()</a>) -&gt; ok | {error, term()}
 </code></pre>
 <br />
 
 Flush all mem-table data.
+
+<a name="flush-3"></a>
+
+### flush/3 ###
+
+<pre><code>
+flush(DbHandle::<a href="#type-db_handle">db_handle()</a>, Cf::<a href="#type-column_family">column_family()</a>, FlushOptions::<a href="#type-flush_options">flush_options()</a>) -&gt; ok | {error, term()}
+</code></pre>
+<br />
+
+Flush all mem-table data for a column family
 
 <a name="fold-4"></a>
 

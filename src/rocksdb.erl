@@ -280,6 +280,7 @@ init() ->
                        {max_manifest_file_size, pos_integer()} |
                        {table_cache_numshardbits, pos_integer()} |
                        {wal_ttl_seconds, non_neg_integer()} |
+                       {manual_wal_flush, boolean()} |
                        {wal_size_limit_mb, non_neg_integer()} |
                        {manifest_preallocation_size, pos_integer()} |
                        {allow_mmap_reads, boolean()} |
