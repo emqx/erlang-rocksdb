@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "rocksdb/db.h"
+#include "rocksdb/utilities/db_ttl.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/rate_limiter.h"
@@ -847,6 +848,55 @@ OpenWithCf(
     return enif_make_tuple3(env, ATOM_OK, result, cf_list_out);
 }   // async_open
 
+ERL_NIF_TERM
+OpenWithTTL(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    char db_name[4096];
+    int ttl;
+    bool read_only;
+    DbObject * db_ptr;
+    rocksdb::DBWithTTL *db(0);
+
+
+    if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+       !enif_is_list(env, argv[1]) || !enif_is_number(env, argv[2]) || !enif_is_atom(env, argv[3]))
+    {
+        return enif_make_badarg(env);
+    }
+
+    if(!enif_get_int(env, argv[2], &ttl))
+    {
+        return enif_make_badarg(env);
+    }
+
+    read_only = (argv[3] == erocksdb::ATOM_TRUE);
+
+    // parse db options
+    rocksdb::DBOptions *db_opts = new rocksdb::DBOptions;
+    fold(env, argv[1], parse_db_option, *db_opts);
+
+    // parse column family options
+    rocksdb::ColumnFamilyOptions *cf_opts = new rocksdb::ColumnFamilyOptions;
+    fold(env, argv[1], parse_cf_option, *cf_opts);
+
+    // final options
+    rocksdb::Options *opts = new rocksdb::Options(*db_opts, *cf_opts);
+    rocksdb::Status status = rocksdb::DBWithTTL::Open(*opts, db_name, &db, ttl, read_only);
+    delete opts;
+    delete db_opts;
+    delete cf_opts;
+
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+
+    db_ptr = DbObject::CreateDbObject(db);
+    ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
+    enif_release_resource(db_ptr);
+    return enif_make_tuple2(env, ATOM_OK, result);
+}   // OpenWithTTL
 
 ERL_NIF_TERM
 Close(

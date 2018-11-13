@@ -22,6 +22,7 @@
 -export([
   open/2,
   open_with_cf/3,
+  open_with_ttl/4,
   close/1,
   set_db_background_threads/2, set_db_background_threads/3,
   destroy/2,
@@ -357,6 +358,17 @@ open(_Name, _DBOpts) ->
           CFDescriptors :: list(#cf_descriptor{})).
 open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
   erlang:nif_error({error, not_loaded}).
+
+%% @doc Open RocksDB with the specified TTL
+-spec(open_with_ttl(Name, DBOpts, TTL, ReadOnly) ->
+       {ok, db_handle()} | {error, any()}
+         when Name::file:filename_all(),
+          DBOpts :: db_options(),
+          TTL :: integer(),
+          ReadOnly :: boolean()).
+open_with_ttl(_Name, _DBOpts, _TTL, _ReadOnly) ->
+  erlang:nif_error({error, not_loaded}).
+
 
 %% @doc Close RocksDB
 -spec close(DBHandle) -> Res when
