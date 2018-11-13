@@ -52,7 +52,6 @@ class Writer;
 }
 
 class Compaction;
-class InternalIterator;
 class LogBuffer;
 class LookupKey;
 class MemTable;
@@ -189,9 +188,11 @@ class VersionStorageInfo {
       std::vector<FileMetaData*>* inputs,
       int hint_index = -1,        // index of overlap file
       int* file_index = nullptr,  // return index of overlap file
-      bool expand_range = true)   // if set, returns files which overlap the
-      const;                      // range and overlap each other. If false,
+      bool expand_range = true,   // if set, returns files which overlap the
+                                  // range and overlap each other. If false,
                                   // then just files intersecting the range
+      InternalKey** next_smallest = nullptr)  // if non-null, returns the
+      const;  // smallest key of next file not included
   void GetCleanInputsWithinInterval(
       int level, const InternalKey* begin,  // nullptr means before all keys
       const InternalKey* end,               // nullptr means after all keys
@@ -201,14 +202,15 @@ class VersionStorageInfo {
       const;
 
   void GetOverlappingInputsRangeBinarySearch(
-      int level,           // level > 0
+      int level,                 // level > 0
       const InternalKey* begin,  // nullptr means before all keys
       const InternalKey* end,    // nullptr means after all keys
       std::vector<FileMetaData*>* inputs,
       int hint_index,                // index of overlap file
       int* file_index,               // return index of overlap file
-      bool within_interval = false)  // if set, force the inputs within interval
-      const;
+      bool within_interval = false,  // if set, force the inputs within interval
+      InternalKey** next_smallest = nullptr)  // if non-null, returns the
+      const;  // smallest key of next file not included
 
   void ExtendFileRangeOverlappingInterval(
       int level,
@@ -729,6 +731,10 @@ struct ObsoleteFileInfo {
   }
 };
 
+namespace {
+class BaseReferencedVersionBuilder;
+}
+
 class VersionSet {
  public:
   VersionSet(const std::string& dbname, const ImmutableDBOptions* db_options,
@@ -831,6 +837,11 @@ class VersionSet {
 
   // Allocate and return a new file number
   uint64_t NewFileNumber() { return next_file_number_.fetch_add(1); }
+
+  // Fetch And Add n new file number
+  uint64_t FetchAddFileNumber(uint64_t n) {
+    return next_file_number_.fetch_add(n);
+  }
 
   // Return the last sequence number.
   uint64_t LastSequence() const {
@@ -984,6 +995,16 @@ class VersionSet {
 
   ColumnFamilyData* CreateColumnFamily(const ColumnFamilyOptions& cf_options,
                                        VersionEdit* edit);
+
+  Status ApplyOneVersionEdit(
+      VersionEdit& edit,
+      const std::unordered_map<std::string, ColumnFamilyOptions>& name_to_opts,
+      std::unordered_map<int, std::string>& column_families_not_found,
+      std::unordered_map<uint32_t, BaseReferencedVersionBuilder*>& builders,
+      bool* have_log_number, uint64_t* log_number, bool* have_prev_log_number,
+      uint64_t* previous_log_number, bool* have_next_file, uint64_t* next_file,
+      bool* have_last_sequence, SequenceNumber* last_sequence,
+      uint64_t* min_log_number_to_keep, uint32_t* max_column_family);
 
   Status ProcessManifestWrites(std::deque<ManifestWriter>& writers,
                                InstrumentedMutex* mu, Directory* db_directory,

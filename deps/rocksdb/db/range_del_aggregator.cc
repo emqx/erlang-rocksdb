@@ -76,7 +76,9 @@ class UncollapsedRangeDelMap : public RangeDelMap {
     return false;
   }
 
-  void AddTombstone(RangeTombstone tombstone) override { rep_.emplace(tombstone); }
+  void AddTombstone(RangeTombstone tombstone) override {
+    rep_.emplace(tombstone);
+  }
 
   size_t Size() const override { return rep_.size(); }
 
@@ -171,7 +173,9 @@ class CollapsedRangeDelMap : public RangeDelMap {
   const Comparator* ucmp_;
 
  public:
-  CollapsedRangeDelMap(const Comparator* ucmp) : ucmp_(ucmp) {
+  explicit CollapsedRangeDelMap(const Comparator* ucmp) 
+    : rep_(stl_wrappers::LessOfComparator(ucmp)), 
+      ucmp_(ucmp) {
     InvalidatePosition();
   }
 
@@ -265,22 +269,36 @@ class CollapsedRangeDelMap : public RangeDelMap {
       //     2:    c---   OR   2:    c---   OR   2:    c---   OR   2: c------
       //     1: A--C           1:                1: A------        1: C------
       //                ^                 ^                 ^                  ^
-      // Insert a new transition at the new tombstone's start point, or raise
-      // the existing transition at that point to the new tombstone's seqno.
       end_seq = prev_seq();
-      rep_[t.start_key_] = t.seq_;  // operator[] will overwrite existing entry
+      Rep::iterator pit;
+      if (it != rep_.begin() && (pit = std::prev(it)) != rep_.begin() &&
+          ucmp_->Compare(pit->first, t.start_key_) == 0 && std::prev(pit)->second == t.seq_) {
+        // The new tombstone starts at the end of an existing tombstone with an
+        // identical seqno:
+        //
+        //     3:
+        //     2: A--C---
+        //     1:
+        //                ^
+        // Merge the tombstones by removing the existing tombstone's end key.
+        it = rep_.erase(std::prev(it));
+      } else {
+        // Insert a new transition at the new tombstone's start point, or raise
+        // the existing transition at that point to the new tombstone's seqno.
+        rep_[t.start_key_] = t.seq_;  // operator[] will overwrite existing entry
+      }
     } else {
       // The new tombstone's start point is covered by an existing tombstone:
       //
-      //      3: A-----   OR    3: C------
-      //      2:   c---         2: c------
-      //                ^                  ^
+      //      3: A-----   OR    3: C------   OR
+      //      2:   c---         2: c------         2: C------
+      //                ^                  ^                  ^
       // Do nothing.
     }
 
     // Look at all the existing transitions that overlap the new tombstone.
     while (it != rep_.end() && ucmp_->Compare(it->first, t.end_key_) < 0) {
-      if (t.seq_ > it->second) {
+      if (t.seq_ >= it->second) {
         // The transition is to an existing tombstone that the new tombstone
         // covers. Save the covered tombstone's seqno. We'll need to return to
         // it if the new tombstone ends before the existing tombstone.
@@ -324,15 +342,29 @@ class CollapsedRangeDelMap : public RangeDelMap {
     }
 
     if (t.seq_ == prev_seq()) {
-      // The new tombstone is unterminated in the map:
-      //
-      //     3:             OR   3: --G       OR   3: --G   K--
-      //     2: C-------k        2:   G---k        2:   G---k
-      //                  ^                 ^               ^
-      // End it now, returning to the last seqno we covered. Because end keys
-      // are exclusive, if there's an existing transition at t.end_key_, it
-      // takes precedence over the transition that we install here.
-      rep_.emplace(t.end_key_, end_seq);  // emplace is a noop if existing entry
+      // The new tombstone is unterminated in the map.
+      if (it != rep_.end() && t.seq_ == it->second && ucmp_->Compare(it->first, t.end_key_) == 0) {
+        // The new tombstone ends at the start of another tombstone with an
+        // identical seqno. Merge the tombstones by removing the existing
+        // tombstone's start key.
+        rep_.erase(it);
+      } else if (end_seq == prev_seq() || (it != rep_.end() && end_seq == it->second)) {
+        // The new tombstone is implicitly ended because its end point is
+        // contained within an existing tombstone with the same seqno:
+        //
+        //     2: ---k--N
+        //              ^
+      } else {
+        // The new tombstone needs an explicit end point.
+        //
+        //     3:             OR   3: --G       OR   3: --G   K--
+        //     2: C-------k        2:   G---k        2:   G---k
+        //                  ^                 ^               ^
+        // Install one that returns to the last seqno we covered. Because end
+        // keys are exclusive, if there's an existing transition at t.end_key_,
+        // it takes precedence over the transition that we install here.
+        rep_.emplace(t.end_key_, end_seq);  // emplace is a noop if existing entry
+      }
     } else {
       // The new tombstone is implicitly ended because its end point is covered
       // by an existing tombstone with a higher seqno.
@@ -478,22 +510,22 @@ Status RangeDelAggregator::AddTombstones(
       }
     }
     if (largest != nullptr) {
-      // This is subtly correct despite the discrepancy between
-      // FileMetaData::largest being inclusive while RangeTombstone::end_key_
-      // is exclusive. A tombstone will only extend past the bounds of an
-      // sstable if its end-key is the largest key in the table. If that
-      // occurs, the largest key for the table is set based on the smallest
-      // key in the next table in the level. In that case, largest->user_key()
-      // is not actually a key in the current table and thus we can use it as
-      // the exclusive end-key for the tombstone.
-      if (icmp_.user_comparator()->Compare(
-              tombstone.end_key_, largest->user_key()) > 0) {
-        // The largest key should be a tombstone sentinel key.
-        assert(GetInternalKeySeqno(largest->Encode()) == kMaxSequenceNumber);
+      // To safely truncate the range tombstone's end key, it must extend past
+      // the largest key in the sstable (which may have been extended to the
+      // smallest key in the next sstable), and largest must be a tombstone
+      // sentinel key. A range tombstone may straddle two sstables and not be
+      // the tombstone sentinel key in the first sstable if a user-key also
+      // straddles the sstables (possible if there is a snapshot between the
+      // two versions of the user-key), in which case we cannot truncate the
+      // range tombstone.
+      if (icmp_.user_comparator()->Compare(tombstone.end_key_,
+                                           largest->user_key()) > 0 &&
+          GetInternalKeySeqno(largest->Encode()) == kMaxSequenceNumber) {
         tombstone.end_key_ = largest->user_key();
       }
     }
-    GetRangeDelMap(tombstone.seq_).AddTombstone(std::move(tombstone));
+    auto seq = tombstone.seq_;
+    GetRangeDelMap(seq).AddTombstone(std::move(tombstone));
     input->Next();
   }
   if (!first_iter) {
