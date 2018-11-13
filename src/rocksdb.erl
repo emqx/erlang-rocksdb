@@ -359,7 +359,23 @@ open(_Name, _DBOpts) ->
 open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
   erlang:nif_error({error, not_loaded}).
 
-%% @doc Open RocksDB with the specified TTL
+%% @doc Open RocksDB with TTL support
+%% This API should be used to open the db when key-values inserted are
+%% meant to be removed from the db in a non-strict `TTL' amount of time
+%% Therefore, this guarantees that key-values inserted will remain in the
+%% db for >= TTL amount of time and the db will make efforts to remove the
+%% key-values as soon as possible after ttl seconds of their insertion.
+%%
+%% BEHAVIOUR:
+%% TTL is accepted in seconds
+%% (int32_t)Timestamp(creation) is suffixed to values in Put internally
+%% Expired TTL values deleted in compaction only:(`Timestamp+ttl<time_now')
+%% Get/Iterator may return expired entries(compaction not run on them yet)
+%% Different TTL may be used during different Opens
+%% Example: Open1 at t=0 with TTL=4 and insert k1,k2, close at t=2
+%%          Open2 at t=3 with TTL=5. Now k1,k2 should be deleted at t>=5
+%% Readonly=true opens in the usual read-only mode. Compactions will not be
+%% triggered(neither manual nor automatic), so no expired entries removed
 -spec(open_with_ttl(Name, DBOpts, TTL, ReadOnly) ->
        {ok, db_handle()} | {error, any()}
          when Name::file:filename_all(),

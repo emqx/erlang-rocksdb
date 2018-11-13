@@ -10,7 +10,7 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 
 ## Features
 
-- rocksdb 5.15.10 with snappy 1.4.4, lz4 1.8.1.2
+- rocksdb 5.17.2 with snappy 1.4.4, lz4 1.8.1.2
 - Erlang 19.3 and sup with dirty-nifs enabled
 - all basics db operations
 - batchs support
