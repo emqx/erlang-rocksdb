@@ -5,6 +5,13 @@ erlang-rocksdb 0.25.0, unreleased
 - add `rocks:open_with_ttl/2`
 - add `no_slowdown` and `low_pri` write options.
 
+** BREAKING CHANGES **
+
+- handle flush options in rocksdb:flush/{2, 3}
+  With this change `rocksdb:flush/1` has been removed while second parameter
+  of `rocksdb:flush/2` are now `FlushOptions::flush_options()`.
+  Use `rocksdb:flush/3' to flush a column family
+
 
 erlang-rocksdb 0.24.0, released on 2018/11/06
 ================================================

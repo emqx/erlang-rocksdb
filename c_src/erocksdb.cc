@@ -37,8 +37,7 @@ static ErlNifFunc nif_funcs[] =
         {"destroy", 2, erocksdb::Destroy, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"get_property", 2, erocksdb::GetProperty},
         {"get_property", 3, erocksdb::GetProperty},
-        {"flush", 1, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"flush", 2, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"flush", 3, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"sync_wal", 1, erocksdb::SyncWal, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"set_db_background_threads", 2, erocksdb::SetDBBackgroundThreads},
 
@@ -169,6 +168,9 @@ ERL_NIF_TERM ATOM_UNDEFINED;
 ERL_NIF_TERM ATOM_DEFAULT;
 ERL_NIF_TERM ATOM_MEMENV;
 
+// generic
+ERL_NIF_TERM ATOM_DEFAULT_COLUMN_FAMILY;
+
 // Related to CFOptions
 ERL_NIF_TERM ATOM_BLOCK_CACHE_SIZE_MB_FOR_POINT_LOOKUP;
 ERL_NIF_TERM ATOM_MEMTABLE_MEMORY_BUDGET;
@@ -287,6 +289,9 @@ ERL_NIF_TERM ATOM_EXCLUSIVE_MANUAL_COMPACTION;
 ERL_NIF_TERM ATOM_CHANGE_LEVEL;
 ERL_NIF_TERM ATOM_TARGET_LEVEL;
 ERL_NIF_TERM ATOM_ALLOW_WRITE_STALL;
+
+// Related to FlushOptions
+ERL_NIF_TERM ATOM_WAIT;
 
 // Related to Iterator Actions
 ERL_NIF_TERM ATOM_FIRST;
@@ -442,6 +447,8 @@ try
   ATOM(erocksdb::ATOM_DEFAULT, "default");
   ATOM(erocksdb::ATOM_MEMENV, "memenv");
 
+  ATOM(erocksdb::ATOM_DEFAULT_COLUMN_FAMILY, "default_column_family");
+
   // Related to CFOptions
   ATOM(erocksdb::ATOM_BLOCK_CACHE_SIZE_MB_FOR_POINT_LOOKUP, "block_cache_size_mb_for_point_lookup");
   ATOM(erocksdb::ATOM_MEMTABLE_MEMORY_BUDGET, "memtable_memory_budget");
@@ -561,6 +568,9 @@ try
   ATOM(erocksdb::ATOM_CHANGE_LEVEL, "change_level");
   ATOM(erocksdb::ATOM_TARGET_LEVEL, "target_level");
   ATOM(erocksdb::ATOM_ALLOW_WRITE_STALL, "allow_write_stall");
+
+  // related to FlushOptions
+  ATOM(erocksdb::ATOM_WAIT, "wait");
 
   // Related to Iterator Options
   ATOM(erocksdb::ATOM_FIRST, "first");

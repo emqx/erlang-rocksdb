@@ -33,7 +33,7 @@
   drop_column_family/1,
   destroy_column_family/1,
   checkpoint/2,
-  flush/1, flush/2,
+  flush/2, flush/3,
   sync_wal/1,
   count/1, count/2,
   stats/1, stats/2,
@@ -202,6 +202,8 @@ init() ->
 -opaque cache_handle() :: reference() | binary().
 -opaque rate_limiter_handle() :: reference() | binary().
 
+-type column_family() :: cf_handle() | default_column_family.
+
 -opaque env() :: default | memenv | env_handle().
 
 -type env_priority() :: priority_high | priority_low.
@@ -330,6 +332,9 @@ init() ->
                                    {allow_write_stall, boolean()} |
                                    {max_subcompactions, non_neg_integer()}].
 
+-type flush_options() :: [{wait, boolean()} |
+                          {allow_write_stall, boolean()}].
+
 -type iterator_action() :: first | last | next | prev | binary() | {seek, binary()} | {seek_for_prev, binary()}.
 
 -type backup_info() :: #{
@@ -342,7 +347,6 @@ init() ->
 
 -type size_approximation_flag() :: none | include_memtables | include_files | include_both.
 -type range() :: {Start::binary(), Limit::binary()}.
-
 
 %% @doc Open RocksDB with the defalut column family
 -spec open(Name, DBOpts) -> Result when
@@ -863,13 +867,13 @@ checkpoint(_DbHandle, _Path) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc Flush all mem-table data.
--spec flush(db_handle()) -> ok | {error, term()}.
-flush(_DbHandle) ->
-  erlang:nif_error({error, not_loaded}).
+-spec flush(db_handle(), flush_options()) -> ok | {error, term()}.
+flush(DbHandle, FlushOptions) ->
+  flush(DbHandle, default_column_family, FlushOptions).
 
-%% @doc Flush all mem-table data.
--spec flush(db_handle(), cf_handle()) -> ok | {error, term()}.
-flush(_DbHandle, _CfHandle) ->
+%% @doc Flush all mem-table data for a column family
+-spec flush(db_handle(), column_family(), flush_options()) -> ok | {error, term()}.
+flush(_DbHandle, _Cf, _FlushOptions) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc  Sync the wal. Note that Write() followed by SyncWAL() is not exactly the

@@ -199,7 +199,7 @@ prefix_same_as_start_test() ->
     ok = put_key(Ref, 12345, 8, <<"v18">>),
     ok = put_key(Ref, 12345, 9, <<"v19">>),
     ok = put_key(Ref, 12346, 8, <<"v16">>),
-    ok = rocksdb:flush(Ref),
+    ok = rocksdb:flush(Ref, []),
 
     {ok, I} = rocksdb:iterator(Ref, [{prefix_same_as_start, true}]),
 

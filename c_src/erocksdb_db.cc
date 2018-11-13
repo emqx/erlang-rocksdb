@@ -678,6 +678,21 @@ ERL_NIF_TERM parse_write_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Writ
     return erocksdb::ATOM_OK;
 }
 
+ERL_NIF_TERM parse_flush_option(ErlNifEnv *env, ERL_NIF_TERM item, rocksdb::FlushOptions &opts)
+{
+    int arity;
+    const ERL_NIF_TERM *option;
+    if (enif_get_tuple(env, item, &arity, &option) && 2 == arity)
+    {
+        if (option[0] == erocksdb::ATOM_WAIT)
+            opts.wait = (option[1] == erocksdb::ATOM_TRUE);
+        else if (option[0] == erocksdb::ATOM_ALLOW_WRITE_STALL)
+            opts.allow_write_stall = (option[1] == erocksdb::ATOM_TRUE);
+    }
+
+    return erocksdb::ATOM_OK;
+}
+
 ERL_NIF_TERM parse_compact_range_option(ErlNifEnv *env, ERL_NIF_TERM item, rocksdb::CompactRangeOptions &opts)
 {
     int arity;
@@ -1541,21 +1556,29 @@ Flush(
     if(!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
 
+    // parse flush options
+    rocksdb::FlushOptions *opts = new rocksdb::FlushOptions;
+    fold(env, argv[2], parse_flush_option, *opts);
 
+    ReferencePtr<ColumnFamilyObject> cf_ptr;
     rocksdb::Status status;
-    rocksdb::FlushOptions flush_opts;
-
-    if(argc==2)
+    if(argv[1] == erocksdb::ATOM_DEFAULT_COLUMN_FAMILY)
     {
-        ReferencePtr<ColumnFamilyObject> cf_ptr;
-        if(!enif_get_cf(env, argv[1], &cf_ptr))
-            return enif_make_badarg(env);
-        status = db_ptr->m_Db->Flush(flush_opts, cf_ptr->m_ColumnFamily);
+        status = db_ptr->m_Db->Flush(*opts);
+    }
+    else if (enif_get_cf(env, argv[1], &cf_ptr))
+    {
+        status = db_ptr->m_Db->Flush(*opts, cf_ptr->m_ColumnFamily);
     }
     else
     {
-        status = db_ptr->m_Db->Flush(flush_opts);
+        delete opts;
+        opts = NULL;
+        return enif_make_badarg(env);
     }
+
+    delete opts;
+    opts = NULL;
 
     if (!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
@@ -1582,7 +1605,7 @@ SyncWal(
 
     return ATOM_OK;
 
-}   // erocksdb::Flush
+} // erocksdb::SyncWal
 
 ERL_NIF_TERM
 SetDBBackgroundThreads(
