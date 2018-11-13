@@ -272,6 +272,8 @@ ERL_NIF_TERM ATOM_BAD_SNAPSHOT;
 ERL_NIF_TERM ATOM_SYNC;
 ERL_NIF_TERM ATOM_DISABLE_WAL;
 ERL_NIF_TERM ATOM_IGNORE_MISSING_COLUMN_FAMILIES;
+ERL_NIF_TERM ATOM_NO_SLOWDOWN;
+ERL_NIF_TERM ATOM_LOW_PRI;
 
 // Related to Write Actions
 ERL_NIF_TERM ATOM_CLEAR;
@@ -340,6 +342,7 @@ ERL_NIF_TERM ATOM_KEEP_RESOURCE_FAILED;
 ERL_NIF_TERM ATOM_ITERATOR_CLOSED;
 ERL_NIF_TERM ATOM_INVALID_ITERATOR;
 ERL_NIF_TERM ATOM_ERROR_BACKUP_ENGINE_OPEN;
+ERL_NIF_TERM ATOM_ERROR_INCOMPLETE;
 
 // Related to NIF initialize parameters
 ERL_NIF_TERM ATOM_WRITE_THREADS;
@@ -543,6 +546,8 @@ try
   ATOM(erocksdb::ATOM_SYNC, "sync");
   ATOM(erocksdb::ATOM_DISABLE_WAL, "disable_wal");
   ATOM(erocksdb::ATOM_IGNORE_MISSING_COLUMN_FAMILIES, "ignore_missing_column_families");
+  ATOM(erocksdb::ATOM_NO_SLOWDOWN, "no_slowdown");
+  ATOM(erocksdb::ATOM_LOW_PRI, "low_pri");
 
   // Related to Write Options
   ATOM(erocksdb::ATOM_CLEAR, "clear");
@@ -611,6 +616,7 @@ try
   ATOM(erocksdb::ATOM_ITERATOR_CLOSED, "iterator_closed");
   ATOM(erocksdb::ATOM_INVALID_ITERATOR, "invalid_iterator");
   ATOM(erocksdb::ATOM_ERROR_BACKUP_ENGINE_OPEN, "backup_engine_open");
+  ATOM(erocksdb::ATOM_ERROR_INCOMPLETE, "incomplete");
 
   // Related to NIF initialize parameters
   ATOM(erocksdb::ATOM_WRITE_THREADS, "write_threads");

@@ -36,6 +36,9 @@ ERL_NIF_TERM error_einval(ErlNifEnv* env)
 ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error,
 rocksdb::Status& status)
 {
+    if (status.IsIncomplete())
+        return enif_make_tuple2(env, erocksdb::ATOM_ERROR, erocksdb::ATOM_ERROR_INCOMPLETE);
+
     ERL_NIF_TERM reason = enif_make_string(env, status.ToString().c_str(),
                                            ERL_NIF_LATIN1);
     return enif_make_tuple2(env, erocksdb::ATOM_ERROR,

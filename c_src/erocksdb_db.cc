@@ -669,6 +669,10 @@ ERL_NIF_TERM parse_write_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::Writ
             opts.disableWAL = (option[1] == erocksdb::ATOM_TRUE);
         else if (option[0] == erocksdb::ATOM_IGNORE_MISSING_COLUMN_FAMILIES)
             opts.ignore_missing_column_families = (option[1] == erocksdb::ATOM_TRUE);
+        else if (option[0] == erocksdb::ATOM_NO_SLOWDOWN)
+            opts.no_slowdown = (option[1] == erocksdb::ATOM_TRUE);
+        else if (option[0] == erocksdb::ATOM_LOW_PRI)
+            opts.low_pri = (option[1] == erocksdb::ATOM_TRUE);
     }
 
     return erocksdb::ATOM_OK;

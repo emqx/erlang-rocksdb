@@ -312,7 +312,9 @@ init() ->
 
 -type write_options() :: [{sync, boolean()} |
                           {disable_wal, boolean()} |
-                          {ignore_missing_column_families, boolean()}].
+                          {ignore_missing_column_families, boolean()} |
+                          {no_slowdown, boolean()} |
+                          {low_pri, boolean()}].
 
 -type write_actions() :: [{put, Key::binary(), Value::binary()} |
                           {put, ColumnFamilyHandle::cf_handle(), Key::binary(), Value::binary()} |
