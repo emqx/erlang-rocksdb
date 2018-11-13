@@ -183,7 +183,8 @@ class VectorIterator : public InternalIterator {
   std::vector<std::string> values_;
   size_t current_;
 };
-extern WritableFileWriter* GetWritableFileWriter(WritableFile* wf);
+extern WritableFileWriter* GetWritableFileWriter(WritableFile* wf,
+                                                 const std::string& fname);
 
 extern RandomAccessFileReader* GetRandomAccessFileReader(RandomAccessFile* raf);
 
@@ -249,7 +250,7 @@ class RandomRWStringSink : public RandomRWFile {
 
   Status Write(uint64_t offset, const Slice& data) override {
     if (offset + data.size() > ss_->contents_.size()) {
-      ss_->contents_.resize(offset + data.size(), '\0');
+      ss_->contents_.resize(static_cast<size_t>(offset) + data.size(), '\0');
     }
 
     char* pos = const_cast<char*>(ss_->contents_.data() + offset);
@@ -517,7 +518,7 @@ class StringEnv : public EnvWrapper {
             "Attemp to read when it already reached eof.");
       }
       // TODO(yhchiang): Currently doesn't handle the overflow case.
-      offset_ += n;
+      offset_ += static_cast<size_t>(n);
       return Status::OK();
     }
 
@@ -531,7 +532,7 @@ class StringEnv : public EnvWrapper {
     explicit StringSink(std::string* contents)
         : WritableFile(), contents_(contents) {}
     virtual Status Truncate(uint64_t size) override {
-      contents_->resize(size);
+      contents_->resize(static_cast<size_t>(size));
       return Status::OK();
     }
     virtual Status Close() override { return Status::OK(); }
