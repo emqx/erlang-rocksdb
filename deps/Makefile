@@ -50,7 +50,7 @@ else ifeq ($(UNAME_SYS), Linux)
 	CXXFLAGS ?= -O2 -finline-functions
 endif
 
-SNAPPYLIB=$(CURDIR)/snappy/.libs/libsnappy.a
+SNAPPYLIB=$(CURDIR)/snappy/build/libsnappy.a
 LZ4LIB=$(CURDIR)/lz4/lib/liblz4.a
 RDBLIB=$(CURDIR)/rocksdb/librocksdb.a
 
@@ -74,15 +74,14 @@ default:
 
 distclean:
 	@-(cd rocksdb && $(MAKE) clean) > /dev/null || true
-	@-(cd snappy && $(MAKE) clean) > /dev/null || true
+	@-(cd snappy && rm -rf build) > /dev/null || true
 	@-(cd lz4 && $(MAKE) clean) > /dev/null || true
 
 .PHONT: distclean
 
 $(SNAPPYLIB):
-	@cd snappy && touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
-	@cd snappy && CXX="$(CXX)" ./configure --with-pic --disable-gtest
-	@cd snappy && $(MAKE)
+	@cd snappy && mkdir -p build
+	@cd snappy/build && cmake ../  -DSNAPPY_BUILD_TESTS=OFF && make
 
 .PHONY: snappy
 
