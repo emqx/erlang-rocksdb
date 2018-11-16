@@ -166,10 +166,10 @@ DestroyEnv(
 {
 
     ManagedEnv* env_ptr = ManagedEnv::RetrieveEnvResource(env, argv[0]);
-    if(NULL==env_ptr)
+    if(nullptr==env_ptr)
         return ATOM_OK;
 
-    delete env_ptr;
+    env_ptr = nullptr;
     return ATOM_OK;
 }   // erocksdb::DestroyEnv
 

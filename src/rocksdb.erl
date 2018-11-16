@@ -87,6 +87,16 @@
     release_rate_limiter/1
 ]).
 
+%% sst file manager API
+-export([
+  new_sst_file_manager/1,
+  new_sst_file_manager/4,
+  release_sst_file_manager/1,
+  sst_file_manager_set/3,
+  sst_file_manager_get/2,
+  sst_file_manager_is/2
+]).
+
 %% env api
 -export([
   default_env/0,
@@ -148,7 +158,8 @@
   access_hint/0,
   wal_recovery_mode/0,
   backup_engine/0,
-  backup_info/0
+  backup_info/0,
+  sst_file_manager/0
 ]).
 
 -on_load(init/0).
@@ -193,6 +204,7 @@ init() ->
 
 
 -opaque env_handle() :: reference() | binary().
+-opaque sst_file_manager() :: reference() | binary().
 -opaque db_handle() :: reference() | binary().
 -opaque cf_handle() :: reference() | binary().
 -opaque itr_handle() :: reference() | binary().
@@ -1212,6 +1224,8 @@ new_rate_limiter(_RateBytesPerSec, _Auto) ->
 release_rate_limiter(_Limiter) ->
     erlang:nif_error({error, not_loaded}).
 
+
+
 %% ===================================================================
 %% env functions
 
@@ -1255,7 +1269,38 @@ set_db_background_threads(_Db, _N) ->
 set_db_background_threads(_Db, _N, _PRIORITY) ->
   erlang:nif_error({error, not_loaded}).
 
+%% ===================================================================
+%% SstFileManager functions
+-spec new_sst_file_manager(env_handle()) -> {ok, sst_file_manager()} | {error, any()}.
+new_sst_file_manager(Env) ->
+   ?MODULE:new_sst_file_manager(Env, 0, 0.25, 64 * 1024 * 1024).
 
+%% @doc create new SstFileManager
+-spec new_sst_file_manager(Env, RateBytesPerSec, MaxTrashDbRatio, BytesMaxDeleteChunk) -> Result when
+  Env :: env_handle(), 
+  RateBytesPerSec :: integer(), 
+  MaxTrashDbRatio :: float(), 
+  BytesMaxDeleteChunk :: integer(),
+  Result :: {ok, sst_file_manager()} | {error, any()}.
+new_sst_file_manager(_Env, _RateBytesPerSec, _MaxTrashDbRatio, _BytesMaxDeleteChunk) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% @doc release the SstFileManager
+-spec release_sst_file_manager(sst_file_manager()) -> ok.
+release_sst_file_manager(_SstFileManager) ->
+    erlang:nif_error({error, not_loaded}).
+
+-spec sst_file_manager_set(sst_file_manager(), string(), integer() |float()) -> ok.
+sst_file_manager_set(_SstFileManager, _Property, _Val) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec sst_file_manager_get(sst_file_manager(), string()) -> integer() |float().
+sst_file_manager_get(_SstFileManager, _Property) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec sst_file_manager_is(sst_file_manager(), string()) -> boolean().
+sst_file_manager_is(_SstFileManager, _Property) ->
+  erlang:nif_error({error, not_loaded}).
 
 %% ===================================================================
 %% Internal functions

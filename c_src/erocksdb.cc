@@ -21,6 +21,7 @@
 #include "cache.h"
 #include "rate_limiter.h"
 #include "env.h"
+#include "sst_file_manager.h"
 
 static ErlNifFunc nif_funcs[] =
     {
@@ -143,8 +144,13 @@ static ErlNifFunc nif_funcs[] =
         {"mem_env", 0, erocksdb::MemEnv},
         {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads},
         {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads},
-        {"destroy_env", 1, erocksdb::DestroyEnv}
+        {"destroy_env", 1, erocksdb::DestroyEnv},
 
+        {"new_sst_file_manager", 4, erocksdb::NewSstFileManager},
+        {"release_sst_file_manager", 1, erocksdb::ReleaseSstFileManager},
+        {"sst_file_manager_set", 3, erocksdb::SstFileManager_Set},
+        {"sst_file_manager_get", 2, erocksdb::SstFileManager_Get},
+        {"sst_file_manager_is", 2, erocksdb::SstFileManager_Is},
 };
 
 namespace erocksdb {
@@ -247,6 +253,7 @@ ERL_NIF_TERM ATOM_ALLOW_CONCURRENT_MEMTABLE_WRITE;
 ERL_NIF_TERM ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD;
 ERL_NIF_TERM ATOM_DB_WRITE_BUFFER_SIZE;
 ERL_NIF_TERM ATOM_RATE_LIMITER;
+ERL_NIF_TERM ATOM_SST_FILE_MANAGER;
 ERL_NIF_TERM ATOM_MAX_SUBCOMPACTIONS;
 ERL_NIF_TERM ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS;
 ERL_NIF_TERM ATOM_MANUAL_WAL_FLUSH;
@@ -427,7 +434,7 @@ try
   erocksdb::BackupEngineObject::CreateBackupEngineObjectType(env);
   erocksdb::Cache::CreateCacheType(env);
   erocksdb::RateLimiter::CreateRateLimiterType(env);
-
+  erocksdb::SstFileManager::CreateSstFileManagerType(env);
 
   // must initialize atoms before processing options
 #define ATOM(Id, Value) { Id = enif_make_atom(env, Value); }
@@ -526,6 +533,7 @@ try
   ATOM(erocksdb::ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD, "enable_write_thread_adaptive_yield");
   ATOM(erocksdb::ATOM_DB_WRITE_BUFFER_SIZE, "db_write_buffer_size");
   ATOM(erocksdb::ATOM_RATE_LIMITER, "rate_limiter");
+  ATOM(erocksdb::ATOM_SST_FILE_MANAGER, "sst_file_manager");
   ATOM(erocksdb::ATOM_MAX_SUBCOMPACTIONS, "max_subcompactions");
   ATOM(erocksdb::ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS, "new_table_reader_for_compaction_inputs");
   ATOM(erocksdb::ATOM_MANUAL_WAL_FLUSH, "manual_wal_flush");
