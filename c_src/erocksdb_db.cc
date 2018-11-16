@@ -37,6 +37,7 @@
 #include "cache.h"
 #include "rate_limiter.h"
 #include "sst_file_manager.h"
+#include "write_buffer_manager.h"
 #include "env.h"
 #include "erlang_merge.h"
 #include "bitset_merge_operator.h"
@@ -346,6 +347,13 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             erocksdb::SstFileManager* ptr = erocksdb::SstFileManager::RetrieveSstFileManagerResource(env,option[1]);;
             if (NULL!=ptr) {
                 opts.sst_file_manager = ptr->sst_file_manager();
+            }
+        }
+        else if (option[0] == erocksdb::ATOM_WRITE_BUFFER_MANAGER) 
+        {
+            erocksdb::WriteBufferManager* ptr = erocksdb::WriteBufferManager::RetrieveWriteBufferManagerResource(env,option[1]);;
+            if (NULL!=ptr) {
+                opts.write_buffer_manager = ptr->write_buffer_manager();
             }
         }
         else if (option[0] == erocksdb::ATOM_MAX_SUBCOMPACTIONS)
