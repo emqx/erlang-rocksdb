@@ -10,7 +10,7 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 
 ## Features
 
-- rocksdb 5.17.2 with snappy 1.4.4, lz4 1.8.1.2
+- rocksdb 5.17.2 with snappy 1.1.7, lz4 1.8.8
 - Erlang 19.3 and sup with dirty-nifs enabled
 - all basics db operations
 - batchs support
@@ -40,5 +40,6 @@ Erlang RocksDB is licensed under the Apache License 2.
 
 <table width="100%" border="0" summary="list of modules">
 <tr><td><a href="rocksdb.md" class="module">rocksdb</a></td></tr>
-<tr><td><a href="rocksdb_bump.md" class="module">rocksdb_bump</a></td></tr></table>
+<tr><td><a href="rocksdb_bump.md" class="module">rocksdb_bump</a></td></tr>
+<tr><td><a href="rocksdb_sst_file_manager.md" class="module">rocksdb_sst_file_manager</a></td></tr></table>
 

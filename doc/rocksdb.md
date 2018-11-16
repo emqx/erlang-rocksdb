@@ -295,6 +295,14 @@ __abstract datatype__: `snapshot_handle()`
 
 
 
+### <a name="type-sst_file_manager">sst_file_manager()</a> ###
+
+
+__abstract datatype__: `sst_file_manager()`
+
+
+
+
 ### <a name="type-wal_recovery_mode">wal_recovery_mode()</a> ###
 
 
@@ -344,17 +352,19 @@ Close a iterator.</td></tr><tr><td valign="top"><a href="#iterator_move-2">itera
 Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterator_refresh-1">iterator_refresh/1</a></td><td>
 Refresh iterator.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>
 Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td>return a memory environment.</td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td>Similar to NewLRUCache, but create a cache based on CLOCK algorithm with
-better concurrent performance in some cases.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td>// Create a new cache with a fixed size capacity.</td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td>like binary update but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
+better concurrent performance in some cases.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td>// Create a new cache with a fixed size capacity.</td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
+RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-4">new_sst_file_manager/4</a></td><td>create new SstFileManager that can be shared among multiple RocksDB
+instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td>like binary update but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
 This API should be used to open the db when key-values inserted are
 meant to be removed from the db in a non-strict <code>TTL</code> amount of time
 Therefore, this guarantees that key-values inserted will remain in the
 db for >= TTL amount of time and the db will make efforts to remove the
-key-values as soon as possible after ttl seconds of their insertion.</td></tr><tr><td valign="top"><a href="#purge_old_backup-2">purge_old_backup/2</a></td><td>deletes old backups, keeping latest num_backups_to_keep alive.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_batch-1">release_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#release_cache-1">release_cache/1</a></td><td>release the cache.</td></tr><tr><td valign="top"><a href="#release_rate_limiter-1">release_rate_limiter/1</a></td><td>release the limiter.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-3">restore_db_from_backup/3</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-4">restore_db_from_backup/4</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-2">restore_db_from_latest_backup/2</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-3">restore_db_from_latest_backup/3</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#set_capacity-2">set_capacity/2</a></td><td>sets the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-2">set_db_background_threads/2</a></td><td>set background threads of a database.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-3">set_db_background_threads/3</a></td><td>set database background threads of low and high prioriry threads pool of an environment
+key-values as soon as possible after ttl seconds of their insertion.</td></tr><tr><td valign="top"><a href="#purge_old_backup-2">purge_old_backup/2</a></td><td>deletes old backups, keeping latest num_backups_to_keep alive.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_batch-1">release_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#release_cache-1">release_cache/1</a></td><td>release the cache.</td></tr><tr><td valign="top"><a href="#release_rate_limiter-1">release_rate_limiter/1</a></td><td>release the limiter.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#release_sst_file_manager-1">release_sst_file_manager/1</a></td><td>release the SstFileManager.</td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-3">restore_db_from_backup/3</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-4">restore_db_from_backup/4</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-2">restore_db_from_latest_backup/2</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-3">restore_db_from_latest_backup/3</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#set_capacity-2">set_capacity/2</a></td><td>sets the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-2">set_db_background_threads/2</a></td><td>set background threads of a database.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-3">set_db_background_threads/3</a></td><td>set database background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-2">set_env_background_threads/2</a></td><td>set background threads of an environment.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-3">set_env_background_threads/3</a></td><td>set background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_strict_capacity_limit-2">set_strict_capacity_limit/2</a></td><td>sets strict_capacity_limit flag of the cache.</td></tr><tr><td valign="top"><a href="#single_delete-3">single_delete/3</a></td><td>Remove the database entry for "key".</td></tr><tr><td valign="top"><a href="#single_delete-4">single_delete/4</a></td><td>like <code>single_delete/3</code> but on the specified column family.</td></tr><tr><td valign="top"><a href="#snapshot-1">snapshot/1</a></td><td>return a database snapshot
-Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
+Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#sst_file_manager_get-2">sst_file_manager_get/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_is-2">sst_file_manager_is/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_set-3">sst_file_manager_set/3</a></td><td></td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stats-2">stats/2</a></td><td>Return the current stats of the specified column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
 our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr></table>
@@ -1221,6 +1231,47 @@ is divided and evenly assigned to each shard.
 
 create new Limiter
 
+<a name="new_sst_file_manager-1"></a>
+
+### new_sst_file_manager/1 ###
+
+<pre><code>
+new_sst_file_manager(Env::<a href="#type-env_handle">env_handle()</a>) -&gt; {ok, <a href="#type-sst_file_manager">sst_file_manager()</a>} | {error, any()}
+</code></pre>
+<br />
+
+create new SstFileManager with the default options:
+RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.
+
+<a name="new_sst_file_manager-4"></a>
+
+### new_sst_file_manager/4 ###
+
+<pre><code>
+new_sst_file_manager(Env, RateBytesPerSec, MaxTrashDbRatio, BytesMaxDeleteChunk) -&gt; Result
+</code></pre>
+
+<ul class="definitions"><li><code>Env = <a href="#type-env_handle">env_handle()</a></code></li><li><code>RateBytesPerSec = integer()</code></li><li><code>MaxTrashDbRatio = float()</code></li><li><code>BytesMaxDeleteChunk = integer()</code></li><li><code>Result = {ok, <a href="#type-sst_file_manager">sst_file_manager()</a>} | {error, any()}</code></li></ul>
+
+create new SstFileManager that can be shared among multiple RocksDB
+instances to track SST file and control there deletion rate.
+
+* `Env` is an environment resource created using `rocksdb:default_env/0` or `rocksdb:memenv/0`.
+* `RateBytesPerSec`: How many bytes should be deleted per second, If
+this value is set to 1024 (1 Kb / sec) and we deleted a file of size 4 Kb
+in 1 second, we will wait for another 3 seconds before we delete other
+files, Set to 0 to disable deletion rate limiting.
+* `MaxTrashDbRatio`:  If the trash size constitutes for more than this
+fraction of the total DB size we will start deleting new files passed to
+DeleteScheduler immediately
+* `BytesMaxDeleteChunk`:  if a file to delete is larger than delete
+chunk, ftruncate the file by this size each time, rather than dropping the
+whole file. 0 means to always delete the whole file. If the file has more
+than one linked names, the file will be deleted as a whole. Either way,
+`RateBytesPerSec` will be appreciated. NOTE that with this option,
+files already renamed as a trash may be partial, so users should not
+directly recover them without checking.
+
 <a name="next_binary_update-1"></a>
 
 ### next_binary_update/1 ###
@@ -1376,6 +1427,17 @@ release_snapshot(SnapshotHandle::<a href="#type-snapshot_handle">snapshot_handle
 <br />
 
 release a snapshot
+
+<a name="release_sst_file_manager-1"></a>
+
+### release_sst_file_manager/1 ###
+
+<pre><code>
+release_sst_file_manager(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>) -&gt; ok
+</code></pre>
+<br />
+
+release the SstFileManager
 
 <a name="repair-2"></a>
 
@@ -1561,6 +1623,33 @@ snapshot(DbHandle::<a href="#type-db_handle">db_handle()</a>) -&gt; {ok, <a href
 
 return a database snapshot
 Snapshots provide consistent read-only views over the entire state of the key-value store
+
+<a name="sst_file_manager_get-2"></a>
+
+### sst_file_manager_get/2 ###
+
+<pre><code>
+sst_file_manager_get(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>, Property::string()) -&gt; integer() | float()
+</code></pre>
+<br />
+
+<a name="sst_file_manager_is-2"></a>
+
+### sst_file_manager_is/2 ###
+
+<pre><code>
+sst_file_manager_is(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>, Property::string()) -&gt; boolean()
+</code></pre>
+<br />
+
+<a name="sst_file_manager_set-3"></a>
+
+### sst_file_manager_set/3 ###
+
+<pre><code>
+sst_file_manager_set(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>, Property::string(), Val::integer() | float()) -&gt; ok
+</code></pre>
+<br />
 
 <a name="stats-1"></a>
 
