@@ -54,9 +54,9 @@ SNAPPYLIB=$(CURDIR)/snappy/build/libsnappy.a
 LZ4LIB=$(CURDIR)/lz4/lib/liblz4.a
 RDBLIB=$(CURDIR)/rocksdb/librocksdb.a
 
-RDB_CXXFLAGS="$(CXXFLAGS) -DNDEBUG -DSNAPPY -DLZ4 -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib -fPIC"
-RDB_CFLAGS="$(CFLAGS) -DNDEBUG -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib"
-RDB_LDFLAGS="$(SNAPPYLIB) $(LZ4LIB) $(LDFLAGS) -L$(CURDIR)/snappy/.libs -L$(CURDIR)/lz4/lib"
+RDB_CXXFLAGS="$(CXXFLAGS) -DNDEBUG -DSNAPPY -DLZ4 -I$(CURDIR)/snappy/build -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib -fPIC"
+RDB_CFLAGS="$(CFLAGS) -DNDEBUG -I$(CURDIR)/snappy/build -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib"
+RDB_LDFLAGS="$(SNAPPYLIB) $(LZ4LIB) $(LDFLAGS) -L$(CURDIR)/snappy/build -L$(CURDIR)/lz4/lib"
 
 ifeq ($(UNAME_SYS),OpenBSD)
 	RDB_CXXFLAGS="$(RDB_CXXFLAGS) -DOS_OPENBSD"
@@ -80,8 +80,9 @@ distclean:
 .PHONT: distclean
 
 $(SNAPPYLIB):
-	@cd snappy && mkdir -p build
-	@cd snappy/build && cmake ../  -DSNAPPY_BUILD_TESTS=OFF && make
+	@mkdir -p snappy/build
+	@cd snappy/build && \
+		cmake ../ && $(MAKE)
 
 .PHONY: snappy
 
