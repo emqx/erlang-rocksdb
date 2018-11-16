@@ -50,13 +50,13 @@ else ifeq ($(UNAME_SYS), Linux)
 	CXXFLAGS ?= -O2 -finline-functions
 endif
 
-SNAPPYLIB=$(CURDIR)/snappy/.libs/libsnappy.a
+SNAPPYLIB=$(CURDIR)/snappy/build/libsnappy.a
 LZ4LIB=$(CURDIR)/lz4/lib/liblz4.a
 RDBLIB=$(CURDIR)/rocksdb/librocksdb.a
 
-RDB_CXXFLAGS="$(CXXFLAGS) -DNDEBUG -DSNAPPY -DLZ4 -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib -fPIC"
-RDB_CFLAGS="$(CFLAGS) -DNDEBUG -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib"
-RDB_LDFLAGS="$(SNAPPYLIB) $(LZ4LIB) $(LDFLAGS) -L$(CURDIR)/snappy/.libs -L$(CURDIR)/lz4/lib"
+RDB_CXXFLAGS="$(CXXFLAGS) -DNDEBUG -DSNAPPY -DLZ4 -I$(CURDIR)/snappy/build -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib -fPIC"
+RDB_CFLAGS="$(CFLAGS) -DNDEBUG -I$(CURDIR)/snappy/build -I$(CURDIR)/snappy -I$(CURDIR)/lz4/lib"
+RDB_LDFLAGS="$(SNAPPYLIB) $(LZ4LIB) $(LDFLAGS) -L$(CURDIR)/snappy/build -L$(CURDIR)/lz4/lib"
 
 ifeq ($(UNAME_SYS),OpenBSD)
 	RDB_CXXFLAGS="$(RDB_CXXFLAGS) -DOS_OPENBSD"
@@ -74,15 +74,15 @@ default:
 
 distclean:
 	@-(cd rocksdb && $(MAKE) clean) > /dev/null || true
-	@-(cd snappy && $(MAKE) clean) > /dev/null || true
+	@-(cd snappy && rm -rf build) > /dev/null || true
 	@-(cd lz4 && $(MAKE) clean) > /dev/null || true
 
 .PHONT: distclean
 
 $(SNAPPYLIB):
-	@cd snappy && touch configure.ac aclocal.m4 configure Makefile.am Makefile.in
-	@cd snappy && CXX="$(CXX)" ./configure --with-pic --disable-gtest
-	@cd snappy && $(MAKE)
+	@mkdir -p snappy/build
+	@cd snappy/build && \
+		cmake ../ && $(MAKE)
 
 .PHONY: snappy
 
