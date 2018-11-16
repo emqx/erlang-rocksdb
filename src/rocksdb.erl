@@ -97,6 +97,15 @@
   sst_file_manager_is/2
 ]).
 
+%% write buffer manager API
+-export([
+  new_write_buffer_manager/1,
+  new_write_buffer_manager/2,
+  release_write_buffer_manager/1,
+  write_buffer_manager_get/2,
+  write_buffer_manager_is_enabled/1
+]).
+
 %% env api
 -export([
   default_env/0,
@@ -159,7 +168,8 @@
   wal_recovery_mode/0,
   backup_engine/0,
   backup_info/0,
-  sst_file_manager/0
+  sst_file_manager/0,
+  write_buffer_manager/0
 ]).
 
 -on_load(init/0).
@@ -213,6 +223,7 @@ init() ->
 -opaque backup_engine() :: reference() | binary().
 -opaque cache_handle() :: reference() | binary().
 -opaque rate_limiter_handle() :: reference() | binary().
+-opaque write_buffer_manager() :: reference() | binary().
 
 -type column_family() :: cf_handle() | default_column_family.
 
@@ -1320,6 +1331,30 @@ sst_file_manager_get(_SstFileManager, _Property) ->
 
 -spec sst_file_manager_is(sst_file_manager(), string()) -> boolean().
 sst_file_manager_is(_SstFileManager, _Property) ->
+  erlang:nif_error({error, not_loaded}).
+
+
+%% ===================================================================
+%% WriteBufferManager functions
+
+-spec new_write_buffer_manager(BufferSize::non_neg_integer()) -> {ok, write_buffer_manager()}.
+new_write_buffer_manager(_BufferSize) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec new_write_buffer_manager(BufferSize::non_neg_integer(), Cache::cache_handle()) -> {ok, write_buffer_manager()}.
+new_write_buffer_manager(_BufferSize, _Cache) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec release_write_buffer_manager(write_buffer_manager()) -> ok.
+release_write_buffer_manager(_WriteBufferManager) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec write_buffer_manager_get(write_buffer_manager(), string()) -> non_neg_integer().
+write_buffer_manager_get(_WriteBufferManager, _Property) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec write_buffer_manager_is_enabled(write_buffer_manager()) -> boolean().
+write_buffer_manager_is_enabled(_WriteBufferManager) ->
   erlang:nif_error({error, not_loaded}).
 
 %% ===================================================================
