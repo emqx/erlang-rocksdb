@@ -323,6 +323,14 @@ write_actions() = [{put, Key::binary(), Value::binary()} | {put, ColumnFamilyHan
 
 
 
+### <a name="type-write_buffer_manager">write_buffer_manager()</a> ###
+
+
+__abstract datatype__: `write_buffer_manager()`
+
+
+
+
 ### <a name="type-write_options">write_options()</a> ###
 
 
@@ -354,12 +362,12 @@ Refresh iterator.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators
 Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td>return a memory environment.</td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td>Similar to NewLRUCache, but create a cache based on CLOCK algorithm with
 better concurrent performance in some cases.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td>// Create a new cache with a fixed size capacity.</td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
 RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-4">new_sst_file_manager/4</a></td><td>create new SstFileManager that can be shared among multiple RocksDB
-instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td>like binary update but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
+instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td>like binary update but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
 This API should be used to open the db when key-values inserted are
 meant to be removed from the db in a non-strict <code>TTL</code> amount of time
 Therefore, this guarantees that key-values inserted will remain in the
 db for >= TTL amount of time and the db will make efforts to remove the
-key-values as soon as possible after ttl seconds of their insertion.</td></tr><tr><td valign="top"><a href="#purge_old_backup-2">purge_old_backup/2</a></td><td>deletes old backups, keeping latest num_backups_to_keep alive.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_batch-1">release_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#release_cache-1">release_cache/1</a></td><td>release the cache.</td></tr><tr><td valign="top"><a href="#release_rate_limiter-1">release_rate_limiter/1</a></td><td>release the limiter.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#release_sst_file_manager-1">release_sst_file_manager/1</a></td><td>release the SstFileManager.</td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-3">restore_db_from_backup/3</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-4">restore_db_from_backup/4</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-2">restore_db_from_latest_backup/2</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-3">restore_db_from_latest_backup/3</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#set_capacity-2">set_capacity/2</a></td><td>sets the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-2">set_db_background_threads/2</a></td><td>set background threads of a database.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-3">set_db_background_threads/3</a></td><td>set database background threads of low and high prioriry threads pool of an environment
+key-values as soon as possible after ttl seconds of their insertion.</td></tr><tr><td valign="top"><a href="#purge_old_backup-2">purge_old_backup/2</a></td><td>deletes old backups, keeping latest num_backups_to_keep alive.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_batch-1">release_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#release_cache-1">release_cache/1</a></td><td>release the cache.</td></tr><tr><td valign="top"><a href="#release_rate_limiter-1">release_rate_limiter/1</a></td><td>release the limiter.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#release_sst_file_manager-1">release_sst_file_manager/1</a></td><td>release the SstFileManager.</td></tr><tr><td valign="top"><a href="#release_write_buffer_manager-1">release_write_buffer_manager/1</a></td><td></td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-3">restore_db_from_backup/3</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-4">restore_db_from_backup/4</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-2">restore_db_from_latest_backup/2</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-3">restore_db_from_latest_backup/3</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#set_capacity-2">set_capacity/2</a></td><td>sets the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-2">set_db_background_threads/2</a></td><td>set background threads of a database.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-3">set_db_background_threads/3</a></td><td>set database background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-2">set_env_background_threads/2</a></td><td>set background threads of an environment.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-3">set_env_background_threads/3</a></td><td>set background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
@@ -367,7 +375,7 @@ LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_strict_capacity_l
 Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#sst_file_manager_get-2">sst_file_manager_get/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_is-2">sst_file_manager_is/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_set-3">sst_file_manager_set/3</a></td><td></td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stats-2">stats/2</a></td><td>Return the current stats of the specified column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
-our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr></table>
+our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_get-2">write_buffer_manager_get/2</a></td><td></td></tr><tr><td valign="top"><a href="#write_buffer_manager_is_enabled-1">write_buffer_manager_is_enabled/1</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
@@ -1272,6 +1280,39 @@ than one linked names, the file will be deleted as a whole. Either way,
 files already renamed as a trash may be partial, so users should not
 directly recover them without checking.
 
+<a name="new_write_buffer_manager-1"></a>
+
+### new_write_buffer_manager/1 ###
+
+<pre><code>
+new_write_buffer_manager(BufferSize::non_neg_integer()) -&gt; {ok, <a href="#type-write_buffer_manager">write_buffer_manager()</a>}
+</code></pre>
+<br />
+
+create a new WriteBufferManager.
+
+<a name="new_write_buffer_manager-2"></a>
+
+### new_write_buffer_manager/2 ###
+
+<pre><code>
+new_write_buffer_manager(BufferSize::non_neg_integer(), Cache::<a href="#type-cache_handle">cache_handle()</a>) -&gt; {ok, <a href="#type-write_buffer_manager">write_buffer_manager()</a>}
+</code></pre>
+<br />
+
+create a new WriteBufferManager. a  WriteBufferManager is for managing memory
+allocation for one or more MemTables.
+
+The memory usage of memtable will report to this object. The same object
+can be passed into multiple DBs and it will track the sum of size of all
+the DBs. If the total size of all live memtables of all the DBs exceeds
+a limit, a flush will be triggered in the next DB to which the next write
+is issued.
+
+If the object is only passed to on DB, the behavior is the same as
+db_write_buffer_size. When write_buffer_manager is set, the value set will
+override db_write_buffer_size.
+
 <a name="next_binary_update-1"></a>
 
 ### next_binary_update/1 ###
@@ -1438,6 +1479,15 @@ release_sst_file_manager(SstFileManager::<a href="#type-sst_file_manager">sst_fi
 <br />
 
 release the SstFileManager
+
+<a name="release_write_buffer_manager-1"></a>
+
+### release_write_buffer_manager/1 ###
+
+<pre><code>
+release_write_buffer_manager(WriteBufferManager::<a href="#type-write_buffer_manager">write_buffer_manager()</a>) -&gt; ok
+</code></pre>
+<br />
 
 <a name="repair-2"></a>
 
@@ -1755,4 +1805,22 @@ write_binary_update(Iterator::term(), BinLog::binary(), WriteOptions::<a href="#
 
 apply a set of operation coming from a transaction log to another database. Can be useful to use it in slave
 mode.
+
+<a name="write_buffer_manager_get-2"></a>
+
+### write_buffer_manager_get/2 ###
+
+<pre><code>
+write_buffer_manager_get(WriteBufferManager::<a href="#type-write_buffer_manager">write_buffer_manager()</a>, Property::string()) -&gt; non_neg_integer()
+</code></pre>
+<br />
+
+<a name="write_buffer_manager_is_enabled-1"></a>
+
+### write_buffer_manager_is_enabled/1 ###
+
+<pre><code>
+write_buffer_manager_is_enabled(WriteBufferManager::<a href="#type-write_buffer_manager">write_buffer_manager()</a>) -&gt; boolean()
+</code></pre>
+<br />
 

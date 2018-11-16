@@ -1337,10 +1337,23 @@ sst_file_manager_is(_SstFileManager, _Property) ->
 %% ===================================================================
 %% WriteBufferManager functions
 
+%% @doc  create a new WriteBufferManager.
 -spec new_write_buffer_manager(BufferSize::non_neg_integer()) -> {ok, write_buffer_manager()}.
 new_write_buffer_manager(_BufferSize) ->
   erlang:nif_error({error, not_loaded}).
 
+%% @doc  create a new WriteBufferManager. a  WriteBufferManager is for managing memory 
+%% allocation for one or more MemTables.
+%%
+%% The memory usage of memtable will report to this object. The same object
+%% can be passed into multiple DBs and it will track the sum of size of all
+%% the DBs. If the total size of all live memtables of all the DBs exceeds
+%% a limit, a flush will be triggered in the next DB to which the next write
+%% is issued.
+%% 
+%% If the object is only passed to on DB, the behavior is the same as
+%% db_write_buffer_size. When write_buffer_manager is set, the value set will
+%% override db_write_buffer_size.
 -spec new_write_buffer_manager(BufferSize::non_neg_integer(), Cache::cache_handle()) -> {ok, write_buffer_manager()}.
 new_write_buffer_manager(_BufferSize, _Cache) ->
   erlang:nif_error({error, not_loaded}).

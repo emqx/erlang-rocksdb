@@ -41,5 +41,6 @@ Erlang RocksDB is licensed under the Apache License 2.
 <table width="100%" border="0" summary="list of modules">
 <tr><td><a href="rocksdb.md" class="module">rocksdb</a></td></tr>
 <tr><td><a href="rocksdb_bump.md" class="module">rocksdb_bump</a></td></tr>
-<tr><td><a href="rocksdb_sst_file_manager.md" class="module">rocksdb_sst_file_manager</a></td></tr></table>
+<tr><td><a href="rocksdb_sst_file_manager.md" class="module">rocksdb_sst_file_manager</a></td></tr>
+<tr><td><a href="rocksdb_write_buffer_manager.md" class="module">rocksdb_write_buffer_manager</a></td></tr></table>
 
