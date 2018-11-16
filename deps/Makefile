@@ -82,7 +82,7 @@ distclean:
 $(SNAPPYLIB):
 	@mkdir -p snappy/build
 	@cd snappy/build && \
-		cmake ../ && $(MAKE)
+		cmake ../ -DCMAKE_POSITION_INDEPENDENT_CODE=ON && $(MAKE)
 
 .PHONY: snappy
 
