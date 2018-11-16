@@ -53,6 +53,32 @@ ERL_NIF_TERM slice_to_binary(ErlNifEnv* env, rocksdb::Slice s)
 }
 
 int
+enif_get_std_string(ErlNifEnv* env, ERL_NIF_TERM term, std::string &val)
+{
+    unsigned len;
+    int ret = enif_get_list_length(env, term, &len); // full list iteration
+    if(!ret)
+        return 0;
+
+    val.resize(len+1); // +1 for terminating null
+    ret =  enif_get_string(env, term, &*(val.begin()), val.size(), ERL_NIF_LATIN1); // full list iteration
+    if(ret > 0)
+    {
+        val.resize(ret-1); // trim terminating null
+    }
+    else if(ret==0)
+    {
+        val.resize(0);
+    }
+    else
+    {
+        // oops string somehow got truncated
+        // var is correct size so do nothing
+    }
+    return 1;
+}
+
+int
 binary_to_slice(ErlNifEnv* env, ERL_NIF_TERM val, rocksdb::Slice* slice)
 {
     ErlNifBinary bin;

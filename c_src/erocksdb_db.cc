@@ -24,6 +24,7 @@
 #include "rocksdb/slice.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/rate_limiter.h"
+#include "rocksdb/sst_file_manager.h"
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/slice_transform.h"
@@ -35,6 +36,7 @@
 #include "erocksdb_db.h"
 #include "cache.h"
 #include "rate_limiter.h"
+#include "sst_file_manager.h"
 #include "env.h"
 #include "erlang_merge.h"
 #include "bitset_merge_operator.h"
@@ -331,11 +333,19 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
                 opts.create_if_missing = true;
             }
         }
-        else if (option[0] == erocksdb::ATOM_RATE_LIMITER) {
+        else if (option[0] == erocksdb::ATOM_RATE_LIMITER) 
+        {
             erocksdb::RateLimiter* rate_limiter_ptr = erocksdb::RateLimiter::RetrieveRateLimiterResource(env,option[1]);
             if(NULL!=rate_limiter_ptr) {
                 auto rate_limiter = rate_limiter_ptr->rate_limiter();
                 opts.rate_limiter = rate_limiter;
+            }
+        }
+        else if (option[0] == erocksdb::ATOM_SST_FILE_MANAGER) 
+        {
+            erocksdb::SstFileManager* ptr = erocksdb::SstFileManager::RetrieveSstFileManagerResource(env,option[1]);;
+            if (NULL!=ptr) {
+                opts.sst_file_manager = ptr->sst_file_manager();
             }
         }
         else if (option[0] == erocksdb::ATOM_MAX_SUBCOMPACTIONS)

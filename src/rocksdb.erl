@@ -87,6 +87,16 @@
     release_rate_limiter/1
 ]).
 
+%% sst file manager API
+-export([
+  new_sst_file_manager/1,
+  new_sst_file_manager/4,
+  release_sst_file_manager/1,
+  sst_file_manager_set/3,
+  sst_file_manager_get/2,
+  sst_file_manager_is/2
+]).
+
 %% env api
 -export([
   default_env/0,
@@ -148,7 +158,8 @@
   access_hint/0,
   wal_recovery_mode/0,
   backup_engine/0,
-  backup_info/0
+  backup_info/0,
+  sst_file_manager/0
 ]).
 
 -on_load(init/0).
@@ -193,6 +204,7 @@ init() ->
 
 
 -opaque env_handle() :: reference() | binary().
+-opaque sst_file_manager() :: reference() | binary().
 -opaque db_handle() :: reference() | binary().
 -opaque cf_handle() :: reference() | binary().
 -opaque itr_handle() :: reference() | binary().
@@ -1212,6 +1224,8 @@ new_rate_limiter(_RateBytesPerSec, _Auto) ->
 release_rate_limiter(_Limiter) ->
     erlang:nif_error({error, not_loaded}).
 
+
+
 %% ===================================================================
 %% env functions
 
@@ -1255,7 +1269,58 @@ set_db_background_threads(_Db, _N) ->
 set_db_background_threads(_Db, _N, _PRIORITY) ->
   erlang:nif_error({error, not_loaded}).
 
+%% ===================================================================
+%% SstFileManager functions
 
+%% @doc create new SstFileManager with the default options:
+%% RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.
+-spec new_sst_file_manager(env_handle()) -> {ok, sst_file_manager()} | {error, any()}.
+new_sst_file_manager(Env) ->
+   ?MODULE:new_sst_file_manager(Env, 0, 0.25, 64 * 1024 * 1024).
+
+%% @doc create new SstFileManager that can be shared among multiple RocksDB
+%% instances to track SST file and control there deletion rate.
+%%
+%% * `Env' is an environment resource created using `rocksdb:default_env/0' or `rocksdb:memenv/0`.
+%%  * `RateBytesPerSec': How many bytes should be deleted per second, If
+%%     this value is set to 1024 (1 Kb / sec) and we deleted a file of size 4 Kb
+%%     in 1 second, we will wait for another 3 seconds before we delete other
+%%     files, Set to 0 to disable deletion rate limiting.
+%%  * `MaxTrashDbRatio':  If the trash size constitutes for more than this
+%%     fraction of the total DB size we will start deleting new files passed to
+%%     DeleteScheduler immediately 
+%%  * `BytesMaxDeleteChunk':  if a file to delete is larger than delete
+%%     chunk, ftruncate the file by this size each time, rather than dropping the
+%%     whole file. 0 means to always delete the whole file. If the file has more
+%%     than one linked names, the file will be deleted as a whole. Either way,
+%%     `RateBytesPerSec' will be appreciated. NOTE that with this option,
+%%     files already renamed as a trash may be partial, so users should not
+%%     directly recover them without checking.
+-spec new_sst_file_manager(Env, RateBytesPerSec, MaxTrashDbRatio, BytesMaxDeleteChunk) -> Result when
+  Env :: env_handle(), 
+  RateBytesPerSec :: integer(), 
+  MaxTrashDbRatio :: float(), 
+  BytesMaxDeleteChunk :: integer(),
+  Result :: {ok, sst_file_manager()} | {error, any()}.
+new_sst_file_manager(_Env, _RateBytesPerSec, _MaxTrashDbRatio, _BytesMaxDeleteChunk) ->
+    erlang:nif_error({error, not_loaded}).
+
+%% @doc release the SstFileManager 
+-spec release_sst_file_manager(sst_file_manager()) -> ok.
+release_sst_file_manager(_SstFileManager) ->
+    erlang:nif_error({error, not_loaded}).
+
+-spec sst_file_manager_set(sst_file_manager(), string(), integer() |float()) -> ok.
+sst_file_manager_set(_SstFileManager, _Property, _Val) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec sst_file_manager_get(sst_file_manager(), string()) -> integer() |float().
+sst_file_manager_get(_SstFileManager, _Property) ->
+  erlang:nif_error({error, not_loaded}).
+
+-spec sst_file_manager_is(sst_file_manager(), string()) -> boolean().
+sst_file_manager_is(_SstFileManager, _Property) ->
+  erlang:nif_error({error, not_loaded}).
 
 %% ===================================================================
 %% Internal functions
