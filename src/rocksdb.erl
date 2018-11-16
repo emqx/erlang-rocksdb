@@ -324,6 +324,8 @@ init() ->
                        {db_write_buffer_size, non_neg_integer()}  |
                        {in_memory, boolean()} |
                        {rate_limiter, rate_limiter_handle()} |
+                       {sst_file_manager, sst_file_manager()} |
+                       {write_buffer_manager, write_buffer_manager()} |
                        {max_subcompactions, non_neg_integer()}].
 
 -type options() :: db_options() | cf_options().
