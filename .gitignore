@@ -14,6 +14,7 @@ c_src/*.d
 .vagrant
 rebar.lock
 ltest
+.vscode
 
 *.o
 *.a
