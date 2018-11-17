@@ -1431,7 +1431,7 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     int arity;
     const ERL_NIF_TERM *rterm;
     
-    rocksdb::Range *ranges = new rocksdb::Range[num_ranges];
+    rocksdb::Range ranges[num_ranges];
     while (enif_get_list_cell(env, tail, &head, &tail))
     {
         if (enif_get_tuple(env, head, &arity, &rterm) && 2 == arity)
@@ -1446,7 +1446,6 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         }
         else
         {
-            delete[] ranges;
             return enif_make_badarg(env);
         }
     }
@@ -1460,7 +1459,6 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     }
     ERL_NIF_TERM result_out;
     enif_make_reverse_list(env, result, &result_out);
-    delete[] ranges;
     return result_out;
 }
 
