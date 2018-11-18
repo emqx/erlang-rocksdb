@@ -219,16 +219,14 @@ approximate_memtable_stats_test() ->
       N = 128,
       rand:seed(exs64),
       _ = [ok = rocksdb:put(Ref, key(I), random_string(1024), []) || I <- lists:seq(0, N-1)],
-      R = {key(50), key(60)},
-      {ok, {Count, Size}} = rocksdb:get_approximate_memtable_stats(Ref, R),
+      {ok, {Count, Size}} = rocksdb:get_approximate_memtable_stats(Ref, key(50), key(60)),
       ?assert(Count >= 0),
       ?assert(Count =< N),
       ?assert(Size >= 6000),
       ?assert(Size =< 204800),
-      R2 = {key(500), key(600)},
-      {ok, {0, 0}} = rocksdb:get_approximate_memtable_stats(Ref, R2),
+      {ok, {0, 0}} = rocksdb:get_approximate_memtable_stats(Ref, key(500), key(600)),
       _ = [ok = rocksdb:put(Ref, key(1000 + I), random_string(1024), []) || I <- lists:seq(0, N-1)],
-      {ok, {0, 0}} = rocksdb:get_approximate_memtable_stats(Ref, R2),
+      {ok, {0, 0}} = rocksdb:get_approximate_memtable_stats(Ref, key(500), key(600)),
       ok
     end
   ).

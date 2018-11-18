@@ -39,7 +39,7 @@
   stats/1, stats/2,
   get_property/2, get_property/3,
   get_approximate_sizes/3, get_approximate_sizes/4,
-  get_approximate_memtable_stats/2, get_approximate_memtable_stats/3
+  get_approximate_memtable_stats/3, get_approximate_memtable_stats/4
 ]).
 
 
@@ -660,19 +660,21 @@ get_approximate_sizes(_DBHandle, _CFHandle, _Ranges, _IncludeFlags) ->
 
 %% @doc The method is similar to GetApproximateSizes, except it
 %% returns approximate number of records in memtables.
--spec get_approximate_memtable_stats(DBHandle, Range) -> Res when
+-spec get_approximate_memtable_stats(DBHandle, StartKey, LimitKey) -> Res when
   DBHandle::db_handle(),
-  Range::range(),
+  StartKey :: binary(),
+  LimitKey :: binary(),
   Res :: {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}.
-get_approximate_memtable_stats(_DBHandle, _Range) ->
+get_approximate_memtable_stats(_DBHandle, _StartKey, _LimitKey) ->
   erlang:nif_error({error, not_loaded}).
 
--spec get_approximate_memtable_stats(DBHandle, CFHandle, Range) -> Res when
+-spec get_approximate_memtable_stats(DBHandle, CFHandle, StartKey, LimitKey) -> Res when
   DBHandle::db_handle(),
   CFHandle::cf_handle(),
-  Range::range(),
+  StartKey :: binary(),
+  LimitKey :: binary(),
   Res :: {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}.
-get_approximate_memtable_stats(_DBHandle, _CFHandle, _Range) ->
+get_approximate_memtable_stats(_DBHandle, _CFHandle, _StartKey, _LimitKey) ->
   erlang:nif_error({error, not_loaded}).
 
 %% @doc Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
