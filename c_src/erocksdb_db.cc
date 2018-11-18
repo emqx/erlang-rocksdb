@@ -811,7 +811,7 @@ Open(
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
 
-    db_ptr = DbObject::CreateDbObject(db);
+    db_ptr = DbObject::CreateDbObject(std::move(db));
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
     enif_release_resource(db_ptr);
     return enif_make_tuple2(env, ATOM_OK, result);
@@ -855,7 +855,7 @@ OpenWithCf(
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
 
-    db_ptr = DbObject::CreateDbObject(db);
+    db_ptr = DbObject::CreateDbObject(std::move(db));
 
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
 
@@ -929,7 +929,7 @@ OpenWithTTL(
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
 
-    db_ptr = DbObject::CreateDbObject(db);
+    db_ptr = DbObject::CreateDbObject(std::move(db));
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
     enif_release_resource(db_ptr);
     return enif_make_tuple2(env, ATOM_OK, result);
