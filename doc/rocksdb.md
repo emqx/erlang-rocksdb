@@ -353,8 +353,8 @@ Other specs are same with fold/4.</td></tr><tr><td valign="top"><a href="#fold_k
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold_keys-5">fold_keys/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
 Other specs are same with fold_keys/4.</td></tr><tr><td valign="top"><a href="#garbage_collect_backup-1">garbage_collect_backup/1</a></td><td> Will delete all the files we don't need anymore
 It will do the full scan of the files/ directory and delete all the
-files that are not referenced.</td></tr><tr><td valign="top"><a href="#get-3">get/3</a></td><td>Retrieve a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#get-4">get/4</a></td><td>Retrieve a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#get_approximate_memtable_stats-2">get_approximate_memtable_stats/2</a></td><td>The method is similar to GetApproximateSizes, except it
-returns approximate number of records in memtables.</td></tr><tr><td valign="top"><a href="#get_approximate_memtable_stats-3">get_approximate_memtable_stats/3</a></td><td></td></tr><tr><td valign="top"><a href="#get_approximate_sizes-3">get_approximate_sizes/3</a></td><td>For each i in [0,n-1], store in "Sizes[i]", the approximate
+files that are not referenced.</td></tr><tr><td valign="top"><a href="#get-3">get/3</a></td><td>Retrieve a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#get-4">get/4</a></td><td>Retrieve a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#get_approximate_memtable_stats-3">get_approximate_memtable_stats/3</a></td><td>The method is similar to GetApproximateSizes, except it
+returns approximate number of records in memtables.</td></tr><tr><td valign="top"><a href="#get_approximate_memtable_stats-4">get_approximate_memtable_stats/4</a></td><td></td></tr><tr><td valign="top"><a href="#get_approximate_sizes-3">get_approximate_sizes/3</a></td><td>For each i in [0,n-1], store in "Sizes[i]", the approximate
 file system space used by keys in "[range[i].start ..</td></tr><tr><td valign="top"><a href="#get_approximate_sizes-4">get_approximate_sizes/4</a></td><td></td></tr><tr><td valign="top"><a href="#get_backup_info-1">get_backup_info/1</a></td><td>Returns info about backups in backup_info.</td></tr><tr><td valign="top"><a href="#get_capacity-1">get_capacity/1</a></td><td> returns the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#get_latest_sequence_number-1">get_latest_sequence_number/1</a></td><td>get latest sequence from the log.</td></tr><tr><td valign="top"><a href="#get_pinned_usage-1">get_pinned_usage/1</a></td><td> returns the memory size for the entries in use by the system.</td></tr><tr><td valign="top"><a href="#get_property-2">get_property/2</a></td><td>Return the RocksDB internal status of the default column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_property-3">get_property/3</a></td><td>Return the RocksDB internal status of the specified column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_snapshot_sequence-1">get_snapshot_sequence/1</a></td><td>returns Snapshot's sequence number.</td></tr><tr><td valign="top"><a href="#get_usage-1">get_usage/1</a></td><td>returns the memory size for a specific entry in the cache.</td></tr><tr><td valign="top"><a href="#is_empty-1">is_empty/1</a></td><td>is the database empty.</td></tr><tr><td valign="top"><a href="#iterator-2">iterator/2</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator-3">iterator/3</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator_close-1">iterator_close/1</a></td><td>
 Close a iterator.</td></tr><tr><td valign="top"><a href="#iterator_move-2">iterator_move/2</a></td><td>
 Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterator_refresh-1">iterator_refresh/1</a></td><td>
@@ -929,28 +929,28 @@ get(DBHandle, CFHandle, Key, ReadOpts) -&gt; Res
 
 Retrieve a key/value pair in the specified column family
 
-<a name="get_approximate_memtable_stats-2"></a>
-
-### get_approximate_memtable_stats/2 ###
-
-<pre><code>
-get_approximate_memtable_stats(DBHandle, Range) -&gt; Res
-</code></pre>
-
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>Range = <a href="#type-range">range()</a></code></li><li><code>Res = {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}</code></li></ul>
-
-The method is similar to GetApproximateSizes, except it
-returns approximate number of records in memtables.
-
 <a name="get_approximate_memtable_stats-3"></a>
 
 ### get_approximate_memtable_stats/3 ###
 
 <pre><code>
-get_approximate_memtable_stats(DBHandle, CFHandle, Range) -&gt; Res
+get_approximate_memtable_stats(DBHandle, StartKey, LimitKey) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Range = <a href="#type-range">range()</a></code></li><li><code>Res = {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>StartKey = binary()</code></li><li><code>LimitKey = binary()</code></li><li><code>Res = {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}</code></li></ul>
+
+The method is similar to GetApproximateSizes, except it
+returns approximate number of records in memtables.
+
+<a name="get_approximate_memtable_stats-4"></a>
+
+### get_approximate_memtable_stats/4 ###
+
+<pre><code>
+get_approximate_memtable_stats(DBHandle, CFHandle, StartKey, LimitKey) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>StartKey = binary()</code></li><li><code>LimitKey = binary()</code></li><li><code>Res = {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}</code></li></ul>
 
 <a name="get_approximate_sizes-3"></a>
 
