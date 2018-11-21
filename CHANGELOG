@@ -1,10 +1,13 @@
-erlang-rocksdb 0.25.0, unreleased
+erlang-rocksdb 0.25.0, released on 2018/11/21 
 ================================================
 
 - bump to rocksdb 0.17.2
 - add `rocks:open_with_ttl/2`.
 - add `no_slowdown` and `low_pri` write options
 - add `manual_wal_flush`  db option
+- add support for WriteBuffer (#64)
+- add `sst_file_manger()" resource to provide SSTFileManager support and manage disk space. (#74)
+- fix `aproximate_sizes_test` and `approximate_memtable_stats_test` 
 
 ** BREAKING CHANGES **
 
@@ -12,6 +15,8 @@ erlang-rocksdb 0.25.0, unreleased
   With this change `rocksdb:flush/1` has been removed while second parameter
   of `rocksdb:flush/2` are now `FlushOptions::flush_options()`.
   Use `rocksdb:flush/3' to flush a column family
+- change signature of `rocksdb:get_approximate_memtable_stats/{2,3}`
+  to `rocksdb:get_approximate_memtable_stats/4`  
 
 
 erlang-rocksdb 0.24.0, released on 2018/11/06
