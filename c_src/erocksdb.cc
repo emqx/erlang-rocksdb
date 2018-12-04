@@ -713,5 +713,5 @@ catch(...)
 }
 
 extern "C" {
-    ERL_NIF_INIT(rocksdb, nif_funcs, &on_load, NULL, &on_upgrade, &on_unload);
+    ERL_NIF_INIT(rocksdb, nif_funcs, &on_load, NULL, &on_upgrade, &on_unload)
 }

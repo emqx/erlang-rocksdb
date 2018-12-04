@@ -41,7 +41,7 @@ bool on_error(ErlNifEnv* env) {
 // op {add, Value}, {set, Pos, Value}, remove_last, clear
 namespace erocksdb {
 
-    ErlangMergeOperator::ErlangMergeOperator() {};
+    ErlangMergeOperator::ErlangMergeOperator() {}
 
     bool ErlangMergeOperator::FullMergeV2(
             const MergeOperationInput& merge_in,
@@ -120,7 +120,7 @@ namespace erocksdb {
         }
 
         return on_error(env);
-    };
+    }
 
     bool ErlangMergeOperator::mergeErlangInt(
                     ErlNifEnv* env,
@@ -167,7 +167,7 @@ namespace erocksdb {
         merge_out->new_value.assign((const char*)bin.data, bin.size);
         enif_free_env(env);
         return true;
-    };
+    }
 
     bool ErlangMergeOperator::mergeErlangList(
                     ErlNifEnv* env,
@@ -297,7 +297,7 @@ namespace erocksdb {
         merge_out->new_value.assign((const char*)bin.data, bin.size);
         enif_free_env(env);
         return true;
-    };
+    }
 
 
     bool ErlangMergeOperator::mergeErlangBinary(
@@ -376,7 +376,7 @@ namespace erocksdb {
         enif_free_env(env);
         return true;
 
-    };
+    }
 
     bool ErlangMergeOperator::PartialMergeMulti(
             const rocksdb::Slice& /*key*/,

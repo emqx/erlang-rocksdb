@@ -38,17 +38,17 @@ protected:
     pthread_mutex_t m_Mutex;
 
 public:
-    Mutex() {pthread_mutex_init(&m_Mutex, NULL);};
+    Mutex() {pthread_mutex_init(&m_Mutex, NULL);}
 
-    ~Mutex() {pthread_mutex_destroy(&m_Mutex);};
+    ~Mutex() {pthread_mutex_destroy(&m_Mutex);}
 
-    pthread_mutex_t & get() {return(m_Mutex);};
+    pthread_mutex_t & get() {return(m_Mutex);}
 
-//    pthread_mutex_t * operator() {return(&m_Mutex);};
+//    pthread_mutex_t * operator() {return(&m_Mutex);}
 
-    void Lock() {pthread_mutex_lock(&m_Mutex);};
+    void Lock() {pthread_mutex_lock(&m_Mutex);}
 
-    void Unlock() {pthread_mutex_unlock(&m_Mutex);};
+    void Unlock() {pthread_mutex_unlock(&m_Mutex);}
 
 private:
     Mutex(const Mutex & rhs);             // no copy
@@ -70,9 +70,9 @@ public:
 
     explicit MutexLock(Mutex & MutexObject)
         : m_MutexObject(MutexObject)
-    {m_MutexObject.Lock();};
+    {m_MutexObject.Lock();}
 
-    ~MutexLock() {m_MutexObject.Unlock();};
+    ~MutexLock() {m_MutexObject.Unlock();}
 
 private:
 

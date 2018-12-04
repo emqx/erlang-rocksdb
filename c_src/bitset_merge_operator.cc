@@ -43,7 +43,7 @@ namespace erocksdb {
 
     BitsetMergeOperator::BitsetMergeOperator(unsigned int cap)
         :cap_(cap) {
-    };
+    }
 
    bool BitsetMergeOperator::FullMergeV2(
             const MergeOperationInput& merge_in,

@@ -119,7 +119,7 @@ NewWriteBufferManager(
     sptr_write_buffer_manager.reset();
     sptr_write_buffer_manager = nullptr;
     return enif_make_tuple2(env, ATOM_OK, result);
-};
+}
 
 ERL_NIF_TERM
 ReleaseWriteBufferManager(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])

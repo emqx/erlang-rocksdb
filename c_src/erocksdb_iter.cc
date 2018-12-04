@@ -46,7 +46,7 @@ struct ItrBounds {
 
 ItrBounds::ItrBounds()
     : upper_bound_slice(nullptr),
-      lower_bound_slice(nullptr) {};
+      lower_bound_slice(nullptr) {}
 
 int
 parse_iterator_options(

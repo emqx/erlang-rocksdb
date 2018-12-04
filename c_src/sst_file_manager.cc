@@ -135,7 +135,7 @@ NewSstFileManager(
     sptr_sst_file_manager.reset();
     sptr_sst_file_manager = nullptr;
     return enif_make_tuple2(env, ATOM_OK, result);
-};
+}
 
 ERL_NIF_TERM
 ReleaseSstFileManager(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])

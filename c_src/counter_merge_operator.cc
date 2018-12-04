@@ -30,7 +30,7 @@
 
 namespace erocksdb {
 
-    CounterMergeOperator::CounterMergeOperator() {};
+    CounterMergeOperator::CounterMergeOperator() {}
 
     bool CounterMergeOperator::Merge(
             const rocksdb::Slice& /*key*/,
