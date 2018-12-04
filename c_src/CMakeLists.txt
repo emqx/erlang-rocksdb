@@ -166,7 +166,7 @@ target_compile_options(${ErlangRocksDBNIF_TARGET}
     PUBLIC
     -Wall
     -Wextra
-#    -pedantic-errors
+    -pedantic-errors
 )
 
 set(TARGET_LINKER_OPTIONS)
