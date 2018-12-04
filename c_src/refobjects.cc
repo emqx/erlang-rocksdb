@@ -363,7 +363,6 @@ DbObject::Shutdown()
     } while(again);
 
     // clean transaction log iterators
-    again = true;
     do {
         again = false;
         tlog_ptr = NULL;
