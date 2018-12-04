@@ -779,7 +779,7 @@ namespace erocksdb {
 ERL_NIF_TERM
 Open(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
@@ -820,7 +820,7 @@ Open(
 ERL_NIF_TERM
 OpenWithCf(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
@@ -888,7 +888,7 @@ OpenWithCf(
 ERL_NIF_TERM
 OpenWithTTL(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
@@ -938,7 +938,7 @@ OpenWithTTL(
 ERL_NIF_TERM
 Close(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     DbObject * db_ptr;
@@ -1214,7 +1214,7 @@ SingleDelete(
 ERL_NIF_TERM
 Checkpoint(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char path[4096];
@@ -1247,7 +1247,7 @@ Checkpoint(
 ERL_NIF_TERM
 Destroy(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char name[4096];
@@ -1276,7 +1276,7 @@ Destroy(
 ERL_NIF_TERM
 Repair(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char name[4096];
@@ -1302,7 +1302,7 @@ Repair(
 ERL_NIF_TERM
 IsEmpty(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;
@@ -1327,7 +1327,7 @@ IsEmpty(
 }   // erocksdb_is_empty
 
 ERL_NIF_TERM
-GetLatestSequenceNumber(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+GetLatestSequenceNumber(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
 
     ReferencePtr<DbObject> db_ptr;
@@ -1561,7 +1561,7 @@ CompactRange(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 ERL_NIF_TERM
 Flush(
   ErlNifEnv* env,
-  int argc,
+  int /*argc*/,
   const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;
@@ -1602,7 +1602,7 @@ Flush(
 ERL_NIF_TERM
 SyncWal(
   ErlNifEnv* env,
-  int argc,
+  int /*argc*/,
   const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;

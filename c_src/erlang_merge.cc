@@ -379,10 +379,10 @@ namespace erocksdb {
     };
 
     bool ErlangMergeOperator::PartialMergeMulti(
-            const rocksdb::Slice& key,
-            const std::deque<rocksdb::Slice>& operand_list,
-            std::string* new_value,
-            rocksdb::Logger* logger) const {
+            const rocksdb::Slice& /*key*/,
+            const std::deque<rocksdb::Slice>& /*operand_list*/,
+            std::string* /*new_value*/,
+            rocksdb::Logger* /*logger*/) const {
         return false;
     }
 

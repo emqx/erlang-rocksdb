@@ -153,30 +153,6 @@ target_sources(${ErlangRocksDBNIF_TARGET}
     ${CMAKE_CURRENT_SOURCE_DIR}/write_buffer_manager.cc
 )
 
-set_source_files_properties(
-    ${CMAKE_CURRENT_SOURCE_DIR}/erocksdb.cc
-    PROPERTIES COMPILE_OPTIONS "-Wno-missing-field-initializers;-Wno-unused-parameter")
-
-set_source_files_properties(
-    ${CMAKE_CURRENT_SOURCE_DIR}/backup.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/batch.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/bitset_merge_operator.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/cache.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/counter_merge_operator.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/env.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/erlang_merge.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/erocksdb_column_family.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/erocksdb_db.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/erocksdb_iter.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/erocksdb_snapshot.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/rate_limiter.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/refobjects.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/sst_file_manager.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/transactions.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/util.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/write_buffer_manager.cc
-    PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter")
-
 target_include_directories(${ErlangRocksDBNIF_TARGET}
     PRIVATE
     ${DEFAULT_INCLUDE_DIRECTORIES}

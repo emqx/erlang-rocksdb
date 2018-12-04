@@ -24,6 +24,8 @@
 #include "sst_file_manager.h"
 #include "write_buffer_manager.h"
 
+// See erl_nif(3) Data Types sections for ErlNifFunc for more deails
+#define ERL_NIF_REGULAR_BOUND 0
 
 static ErlNifFunc nif_funcs[] =
     {
@@ -38,11 +40,11 @@ static ErlNifFunc nif_funcs[] =
         {"repair", 2, erocksdb::Repair, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"is_empty", 1, erocksdb::IsEmpty, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"destroy", 2, erocksdb::Destroy, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"get_property", 2, erocksdb::GetProperty},
-        {"get_property", 3, erocksdb::GetProperty},
+        {"get_property", 2, erocksdb::GetProperty, ERL_NIF_REGULAR_BOUND},
+        {"get_property", 3, erocksdb::GetProperty, ERL_NIF_REGULAR_BOUND},
         {"flush", 3, erocksdb::Flush, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"sync_wal", 1, erocksdb::SyncWal, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"set_db_background_threads", 2, erocksdb::SetDBBackgroundThreads},
+        {"set_db_background_threads", 2, erocksdb::SetDBBackgroundThreads, ERL_NIF_REGULAR_BOUND},
 
         {"get_approximate_sizes", 3, erocksdb::GetApproximateSizes, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"get_approximate_sizes", 4, erocksdb::GetApproximateSizes, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -72,9 +74,9 @@ static ErlNifFunc nif_funcs[] =
         {"single_delete", 3, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"single_delete", 4, erocksdb::SingleDelete, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-        {"snapshot", 1, erocksdb::Snapshot},
-        {"release_snapshot", 1, erocksdb::ReleaseSnapshot},
-        {"get_snapshot_sequence", 1, erocksdb::GetSnapshotSequenceNumber},
+        {"snapshot", 1, erocksdb::Snapshot, ERL_NIF_REGULAR_BOUND},
+        {"release_snapshot", 1, erocksdb::ReleaseSnapshot, ERL_NIF_REGULAR_BOUND},
+        {"get_snapshot_sequence", 1, erocksdb::GetSnapshotSequenceNumber, ERL_NIF_REGULAR_BOUND},
 
         // iterator operations
         {"iterator", 2, erocksdb::Iterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -84,7 +86,7 @@ static ErlNifFunc nif_funcs[] =
         {"iterator_refresh", 1, erocksdb::IteratorRefresh, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"iterator_close", 1, erocksdb::IteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
-        {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber},
+        {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber, ERL_NIF_REGULAR_BOUND},
 
         // transactions
         {"updates_iterator", 2, erocksdb::UpdatesIterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -94,22 +96,22 @@ static ErlNifFunc nif_funcs[] =
         {"next_update", 1, erocksdb::NextUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // Batch
-        {"batch", 0, erocksdb::NewBatch},
-        {"release_batch", 1, erocksdb::ReleaseBatch},
+        {"batch", 0, erocksdb::NewBatch, ERL_NIF_REGULAR_BOUND},
+        {"release_batch", 1, erocksdb::ReleaseBatch, ERL_NIF_REGULAR_BOUND},
         {"write_batch", 3, erocksdb::WriteBatch, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"batch_put", 3, erocksdb::PutBatch},
-        {"batch_put", 4, erocksdb::PutBatch},
-        {"batch_merge", 3, erocksdb::PutBatch},
-        {"batch_merge", 4, erocksdb::PutBatch},
-        {"batch_delete", 2, erocksdb::DeleteBatch},
-        {"batch_delete", 3, erocksdb::DeleteBatch},
-        {"batch_single_delete", 2, erocksdb::SingleDeleteBatch},
-        {"batch_single_delete", 3, erocksdb::SingleDeleteBatch},
-        {"batch_clear", 1, erocksdb::ClearBatch},
-        {"batch_savepoint", 1, erocksdb::BatchSetSavePoint},
-        {"batch_rollback", 1, erocksdb::BatchRollbackToSavePoint},
-        {"batch_count", 1, erocksdb::BatchCount},
-        {"batch_data_size", 1, erocksdb::BatchDataSize},
+        {"batch_put", 3, erocksdb::PutBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_put", 4, erocksdb::PutBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_merge", 3, erocksdb::PutBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_merge", 4, erocksdb::PutBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_delete", 2, erocksdb::DeleteBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_delete", 3, erocksdb::DeleteBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_single_delete", 2, erocksdb::SingleDeleteBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_single_delete", 3, erocksdb::SingleDeleteBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_clear", 1, erocksdb::ClearBatch, ERL_NIF_REGULAR_BOUND},
+        {"batch_savepoint", 1, erocksdb::BatchSetSavePoint, ERL_NIF_REGULAR_BOUND},
+        {"batch_rollback", 1, erocksdb::BatchRollbackToSavePoint, ERL_NIF_REGULAR_BOUND},
+        {"batch_count", 1, erocksdb::BatchCount, ERL_NIF_REGULAR_BOUND},
+        {"batch_data_size", 1, erocksdb::BatchDataSize, ERL_NIF_REGULAR_BOUND},
         {"batch_tolist", 1, erocksdb::BatchToList, ERL_NIF_DIRTY_JOB_CPU_BOUND},
 
         // backup engine
@@ -128,37 +130,37 @@ static ErlNifFunc nif_funcs[] =
         {"close_backup", 1, erocksdb::CloseBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // cache
-        {"new_lru_cache", 1, erocksdb::NewLRUCache},
-        {"new_clock_cache", 1, erocksdb::NewClockCache},
-        {"get_usage", 1, erocksdb::GetUsage},
-        {"get_pinned_usage", 1, erocksdb::GetPinnedUsage},
+        {"new_lru_cache", 1, erocksdb::NewLRUCache, ERL_NIF_REGULAR_BOUND},
+        {"new_clock_cache", 1, erocksdb::NewClockCache, ERL_NIF_REGULAR_BOUND},
+        {"get_usage", 1, erocksdb::GetUsage, ERL_NIF_REGULAR_BOUND},
+        {"get_pinned_usage", 1, erocksdb::GetPinnedUsage, ERL_NIF_REGULAR_BOUND},
         {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
-        {"get_capacity", 1, erocksdb::GetCapacity},
-        {"release_cache", 1, erocksdb::ReleaseCache},
-        {"set_strict_capacity_limit", 2, erocksdb::SetStrictCapacityLimit},
+        {"get_capacity", 1, erocksdb::GetCapacity, ERL_NIF_REGULAR_BOUND},
+        {"release_cache", 1, erocksdb::ReleaseCache, ERL_NIF_REGULAR_BOUND},
+        {"set_strict_capacity_limit", 2, erocksdb::SetStrictCapacityLimit, ERL_NIF_REGULAR_BOUND},
 
         // rate limiter
-        {"new_rate_limiter", 2, erocksdb::NewRateLimiter},
-        {"release_rate_limiter", 1, erocksdb::ReleaseRateLimiter},
+        {"new_rate_limiter", 2, erocksdb::NewRateLimiter, ERL_NIF_REGULAR_BOUND},
+        {"release_rate_limiter", 1, erocksdb::ReleaseRateLimiter, ERL_NIF_REGULAR_BOUND},
 
         // env
-        {"default_env", 0, erocksdb::DefaultEnv},
-        {"mem_env", 0, erocksdb::MemEnv},
-        {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads},
-        {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads},
-        {"destroy_env", 1, erocksdb::DestroyEnv},
+        {"default_env", 0, erocksdb::DefaultEnv, ERL_NIF_REGULAR_BOUND},
+        {"mem_env", 0, erocksdb::MemEnv, ERL_NIF_REGULAR_BOUND},
+        {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
+        {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
+        {"destroy_env", 1, erocksdb::DestroyEnv, ERL_NIF_REGULAR_BOUND},
 
-        {"new_sst_file_manager", 4, erocksdb::NewSstFileManager},
-        {"release_sst_file_manager", 1, erocksdb::ReleaseSstFileManager},
-        {"sst_file_manager_set", 3, erocksdb::SstFileManager_Set},
-        {"sst_file_manager_get", 2, erocksdb::SstFileManager_Get},
-        {"sst_file_manager_is", 2, erocksdb::SstFileManager_Is},
+        {"new_sst_file_manager", 4, erocksdb::NewSstFileManager, ERL_NIF_REGULAR_BOUND},
+        {"release_sst_file_manager", 1, erocksdb::ReleaseSstFileManager, ERL_NIF_REGULAR_BOUND},
+        {"sst_file_manager_set", 3, erocksdb::SstFileManager_Set, ERL_NIF_REGULAR_BOUND},
+        {"sst_file_manager_get", 2, erocksdb::SstFileManager_Get, ERL_NIF_REGULAR_BOUND},
+        {"sst_file_manager_is", 2, erocksdb::SstFileManager_Is, ERL_NIF_REGULAR_BOUND},
 
-        {"new_write_buffer_manager", 1, erocksdb::NewWriteBufferManager},
-        {"new_write_buffer_manager", 2, erocksdb::NewWriteBufferManager},
-        {"release_write_buffer_manager", 1, erocksdb::ReleaseWriteBufferManager},
-        {"write_buffer_manager_get", 2, erocksdb::WriteBufferManager_Get},
-        {"write_buffer_manager_is_enabled", 1, erocksdb::WriteBufferManager_IsEnabled}
+        {"new_write_buffer_manager", 1, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
+        {"new_write_buffer_manager", 2, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
+        {"release_write_buffer_manager", 1, erocksdb::ReleaseWriteBufferManager, ERL_NIF_REGULAR_BOUND},
+        {"write_buffer_manager_get", 2, erocksdb::WriteBufferManager_Get, ERL_NIF_REGULAR_BOUND},
+        {"write_buffer_manager_is_enabled", 1, erocksdb::WriteBufferManager_IsEnabled, ERL_NIF_REGULAR_BOUND}
 };
 
 namespace erocksdb {
@@ -416,18 +418,18 @@ ERL_NIF_TERM ATOM_INCLUDE_BOTH;
 
 using std::nothrow;
 
-static void on_unload(ErlNifEnv *env, void *priv_data)
+static void on_unload(ErlNifEnv * /*env*/, void * /*priv_data*/)
 {
 }
 
-static int on_upgrade(ErlNifEnv* env, void** priv_data, void** old_priv_data, ERL_NIF_TERM load_info)
+static int on_upgrade(ErlNifEnv* /*env*/, void** priv_data, void** old_priv_data, ERL_NIF_TERM /*load_info*/)
 {
     /* Convert the private data to the new version. */
     *priv_data = *old_priv_data;
     return 0;
 }
 
-static int on_load(ErlNifEnv* env, void** priv_data, ERL_NIF_TERM load_info)
+static int on_load(ErlNifEnv* env, void** /*priv_data*/, ERL_NIF_TERM /*load_info*/)
 try
 {
   rocksdb::Env::Default();

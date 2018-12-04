@@ -38,7 +38,7 @@ TransactionLogHandler::TransactionLogHandler(ErlNifEnv* env)
 ERL_NIF_TERM
 UpdatesIterator(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
 
@@ -76,7 +76,7 @@ UpdatesIterator(
 ERL_NIF_TERM
 UpdatesIteratorClose(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     TLogItrObject * tlog_ptr;
@@ -93,7 +93,7 @@ UpdatesIteratorClose(
 ERL_NIF_TERM
 NextUpdate(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     const ERL_NIF_TERM& itr_handle_ref   = argv[0];
@@ -139,7 +139,7 @@ NextUpdate(
 ERL_NIF_TERM
 NextBinaryUpdate(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     const ERL_NIF_TERM& itr_handle_ref = argv[0];
@@ -179,7 +179,7 @@ NextBinaryUpdate(
 ERL_NIF_TERM
 WriteBinaryUpdate(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;

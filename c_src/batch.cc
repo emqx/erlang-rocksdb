@@ -52,7 +52,7 @@ namespace erocksdb {
 ErlNifResourceType *m_Batch_RESOURCE;
 
 void
-batch_resource_cleanup(ErlNifEnv *env, void *arg)
+batch_resource_cleanup(ErlNifEnv * /*env*/, void *arg)
 {
     Batch* batch = reinterpret_cast<Batch*>(arg);
     cleanup_batch(batch);
@@ -69,8 +69,8 @@ CreateBatchType(ErlNifEnv *env)
 ERL_NIF_TERM
 NewBatch(
         ErlNifEnv* env,
-        int argc,
-        const ERL_NIF_TERM argv[])
+        int /*argc*/,
+        const ERL_NIF_TERM[] /*argv*/)
 {
     rocksdb::WriteBatch* wb = reinterpret_cast<rocksdb::WriteBatch*>(enif_alloc(sizeof(rocksdb::WriteBatch)));
     Batch* batch = reinterpret_cast<Batch*>(enif_alloc_resource(m_Batch_RESOURCE, sizeof(Batch)));
@@ -84,7 +84,7 @@ NewBatch(
 ERL_NIF_TERM
 ReleaseBatch(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     Batch* batch_ptr = nullptr;
@@ -99,7 +99,7 @@ ReleaseBatch(
 ERL_NIF_TERM
 WriteBatch(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     rocksdb::WriteBatch* wb = nullptr;
@@ -299,7 +299,7 @@ SingleDeleteBatch(
 ERL_NIF_TERM
 ClearBatch(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     Batch* batch_ptr = nullptr;
@@ -314,7 +314,7 @@ ClearBatch(
 ERL_NIF_TERM
 BatchSetSavePoint(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     Batch* batch_ptr = nullptr;
@@ -327,7 +327,7 @@ BatchSetSavePoint(
 ERL_NIF_TERM
 BatchRollbackToSavePoint(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     Batch* batch_ptr = nullptr;
@@ -342,7 +342,7 @@ BatchRollbackToSavePoint(
 ERL_NIF_TERM
 BatchCount(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     Batch* batch_ptr = nullptr;
@@ -355,7 +355,7 @@ BatchCount(
 ERL_NIF_TERM
 BatchDataSize(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     Batch* batch_ptr = nullptr;
@@ -368,7 +368,7 @@ BatchDataSize(
 ERL_NIF_TERM
 BatchToList(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
     Batch* batch_ptr = nullptr;

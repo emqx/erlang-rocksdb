@@ -243,12 +243,12 @@ DbObject::RetrieveDbObject(
 
 void
 DbObject::DbObjectResourceCleanup(
-    ErlNifEnv * Env,
-    void * Arg)
+    ErlNifEnv * /*env*/,
+    void * arg)
 {
     DbObject * db_ptr;
 
-    db_ptr=(DbObject *)Arg;
+    db_ptr=(DbObject *)arg;
 
     // YES, the destructor may already have been called
     InitiateCloseRequest(db_ptr);
@@ -544,10 +544,10 @@ ColumnFamilyObject::RetrieveColumnFamilyObject(
 
 void
 ColumnFamilyObject::ColumnFamilyObjectResourceCleanup(
-        ErlNifEnv *Env,
-        void *Arg) {
+        ErlNifEnv * /*env*/,
+        void *arg) {
     ColumnFamilyObject *handle_ptr;
-    handle_ptr = (ColumnFamilyObject *) Arg;
+    handle_ptr = (ColumnFamilyObject *)arg;
     // vtable for snapshot_ptr could be invalid if close already
     //  occurred
     InitiateCloseRequest(handle_ptr);
@@ -658,12 +658,12 @@ SnapshotObject::RetrieveSnapshotObject(
 
 void
 SnapshotObject::SnapshotObjectResourceCleanup(
-    ErlNifEnv* Env,
-    void * Arg)
+    ErlNifEnv* /*env*/,
+    void * arg)
 {
     SnapshotObject* snapshot_ptr;
 
-    snapshot_ptr=(SnapshotObject *)Arg;
+    snapshot_ptr=(SnapshotObject *)arg;
 
     if(NULL!=snapshot_ptr->m_Snapshot)
         snapshot_ptr->m_DbPtr->m_Db->ReleaseSnapshot(snapshot_ptr->m_Snapshot);
@@ -786,11 +786,11 @@ ItrObject::RetrieveItrObject(
 
 void
 ItrObject::ItrObjectResourceCleanup(
-        ErlNifEnv *Env,
-        void *Arg) {
+        ErlNifEnv * /*env*/,
+        void *arg) {
     ItrObject *itr_ptr;
 
-    itr_ptr = (ItrObject *) Arg;
+    itr_ptr = (ItrObject *) arg;
 
     // vtable for itr_ptr could be invalid if close already
     //  occurred
@@ -936,11 +936,11 @@ TLogItrObject::RetrieveTLogItrObject(
 
 void
 TLogItrObject::TLogItrObjectResourceCleanup(
-        ErlNifEnv *Env,
-        void *Arg) {
+        ErlNifEnv * /*env*/,
+        void *arg) {
     TLogItrObject *tlog_ptr;
 
-    tlog_ptr = (TLogItrObject *) Arg;
+    tlog_ptr = (TLogItrObject *)arg;
 
     // vtable for snapshot_ptr could be invalid if close already
     //  occurred
@@ -1054,12 +1054,12 @@ BackupEngineObject::RetrieveBackupEngineObject(
 
 void
 BackupEngineObject::BackupEngineObjectResourceCleanup(
-    ErlNifEnv * Env,
-    void * Arg)
+    ErlNifEnv * /*env*/,
+    void * arg)
 {
     BackupEngineObject * engine_ptr;
 
-    engine_ptr=(BackupEngineObject *)Arg;
+    engine_ptr=(BackupEngineObject *)arg;
 
     // YES, the destructor may already have been called
     InitiateCloseRequest(engine_ptr);

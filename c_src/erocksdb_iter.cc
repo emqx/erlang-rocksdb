@@ -186,7 +186,7 @@ Iterator(
 ERL_NIF_TERM
 Iterators(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;
@@ -251,7 +251,7 @@ Iterators(
 ERL_NIF_TERM
 IteratorMove(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     const ERL_NIF_TERM& itr_handle_ref   = argv[0];
@@ -331,7 +331,7 @@ IteratorMove(
 ERL_NIF_TERM
 IteratorRefresh(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     const ERL_NIF_TERM& itr_handle_ref = argv[0];
@@ -354,7 +354,7 @@ IteratorRefresh(
 ERL_NIF_TERM
 IteratorClose(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     ItrObject * itr_ptr;
