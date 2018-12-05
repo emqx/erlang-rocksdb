@@ -29,7 +29,7 @@ See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) fo
 
 ## Customized build ##
 
-See the <a href="customize_rocksdb_build.md" class="module">Customized builds</a> for more information.
+See the [Customized builds](customize_rocksdb_build.md) for more information.
 
 ## Support
 
