@@ -271,7 +271,7 @@ __abstract datatype__: `rate_limiter_handle()`
 
 
 <pre><code>
-read_options() = [{verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {tailing, boolean()} | {total_order_seek, boolean()} | {prefix_same_as_start, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
+read_options() = [{verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {iterate_lower_bound, boolean()} | {tailing, boolean()} | {total_order_seek, boolean()} | {prefix_same_as_start, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
 </code></pre>
 
 
@@ -913,7 +913,7 @@ files that are not referenced.
 get(DBHandle, Key, ReadOpts) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>Key = binary()</code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, binary()} | not_found | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>Key = binary()</code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}</code></li></ul>
 
 Retrieve a key/value pair in the default column family
 
@@ -925,7 +925,7 @@ Retrieve a key/value pair in the default column family
 get(DBHandle, CFHandle, Key, ReadOpts) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Key = binary()</code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, binary()} | not_found | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Key = binary()</code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}</code></li></ul>
 
 Retrieve a key/value pair in the specified column family
 
