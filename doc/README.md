@@ -20,11 +20,16 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 - transaction logs
 - backup support
 - erlang merge operator
+- customized build support
 - Tested on macosx, freebsd, solaris and linux
 
 ## Usage
 
 See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) for more explanation.
+
+## Customized build ##
+
+See the <a href="customize_rocksdb_build.md" class="module">Customized builds</a> for more information.
 
 ## Support
 
