@@ -617,7 +617,7 @@ write_1([], Batch, DbHandle, WriteOpts) ->
   DBHandle::db_handle(),
   Key::binary(),
   ReadOpts::read_options(),
-   Res :: {ok, binary()} | not_found | {error, any()}.
+   Res :: {ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}.
 get(_DBHandle, _Key, _ReadOpts) ->
   erlang:nif_error({error, not_loaded}).
 
@@ -627,7 +627,7 @@ get(_DBHandle, _Key, _ReadOpts) ->
   CFHandle::cf_handle(),
   Key::binary(),
   ReadOpts::read_options(),
-  Res :: {ok, binary()} | not_found | {error, any()}.
+  Res :: {ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}.
 get(_DBHandle, _CFHandle, _Key, _ReadOpts) ->
   erlang:nif_error({error, not_loaded}).
 
