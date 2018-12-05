@@ -30,14 +30,14 @@
 
 namespace erocksdb {
 
-    CounterMergeOperator::CounterMergeOperator() {};
+    CounterMergeOperator::CounterMergeOperator() {}
 
     bool CounterMergeOperator::Merge(
-            const rocksdb::Slice& key,
+            const rocksdb::Slice& /*key*/,
             const rocksdb::Slice* existing_value,
             const rocksdb::Slice& value,
             std::string* new_value,
-            rocksdb::Logger* logger) const {
+            rocksdb::Logger* /*logger*/) const {
 
         int counter = 0;
         if (existing_value != nullptr) {

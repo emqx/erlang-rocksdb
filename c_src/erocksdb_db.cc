@@ -779,7 +779,7 @@ namespace erocksdb {
 ERL_NIF_TERM
 Open(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
@@ -820,7 +820,7 @@ Open(
 ERL_NIF_TERM
 OpenWithCf(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
@@ -888,7 +888,7 @@ OpenWithCf(
 ERL_NIF_TERM
 OpenWithTTL(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
@@ -938,7 +938,7 @@ OpenWithTTL(
 ERL_NIF_TERM
 Close(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     DbObject * db_ptr;
@@ -1214,7 +1214,7 @@ SingleDelete(
 ERL_NIF_TERM
 Checkpoint(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char path[4096];
@@ -1247,7 +1247,7 @@ Checkpoint(
 ERL_NIF_TERM
 Destroy(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char name[4096];
@@ -1276,7 +1276,7 @@ Destroy(
 ERL_NIF_TERM
 Repair(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     char name[4096];
@@ -1302,7 +1302,7 @@ Repair(
 ERL_NIF_TERM
 IsEmpty(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;
@@ -1327,7 +1327,7 @@ IsEmpty(
 }   // erocksdb_is_empty
 
 ERL_NIF_TERM
-GetLatestSequenceNumber(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+GetLatestSequenceNumber(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
 
     ReferencePtr<DbObject> db_ptr;
@@ -1431,13 +1431,14 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     int arity;
     const ERL_NIF_TERM *rterm;
     
-    rocksdb::Range ranges[num_ranges];
+    rocksdb::Range *ranges = new rocksdb::Range[num_ranges];
     while (enif_get_list_cell(env, tail, &head, &tail))
     {
         if (enif_get_tuple(env, head, &arity, &rterm) && 2 == arity)
         {
             if (!binary_to_slice(env, rterm[0], &start) || !binary_to_slice(env, rterm[1], &limit)) 
             {
+                delete[] ranges;
                 return enif_make_badarg(env);
             }
             ranges[j].start = start;
@@ -1446,19 +1447,22 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         }
         else
         {
+            delete[] ranges;
             return enif_make_badarg(env);
         }
     }
 
-    uint64_t sizes[num_ranges];
+    uint64_t *sizes = new uint64_t[num_ranges];
     db_ptr->m_Db->GetApproximateSizes(column_family, ranges, num_ranges, sizes, flag);
     ERL_NIF_TERM result = enif_make_list(env, 0);
-    for (int k = 0; k < num_ranges; k++)
+    for (auto k = 0U; k < num_ranges; k++)
     {
         result = enif_make_list_cell(env, enif_make_uint64(env, sizes[k]), result);
     }
     ERL_NIF_TERM result_out;
     enif_make_reverse_list(env, result, &result_out);
+    delete[] sizes;
+    delete[] ranges;
     return result_out;
 }
 
@@ -1561,7 +1565,7 @@ CompactRange(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 ERL_NIF_TERM
 Flush(
   ErlNifEnv* env,
-  int argc,
+  int /*argc*/,
   const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;
@@ -1602,7 +1606,7 @@ Flush(
 ERL_NIF_TERM
 SyncWal(
   ErlNifEnv* env,
-  int argc,
+  int /*argc*/,
   const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;

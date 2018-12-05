@@ -30,7 +30,7 @@
 namespace erocksdb {
 
 ERL_NIF_TERM
-ListColumnFamilies(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+ListColumnFamilies(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     char db_name[4096];
 
@@ -67,7 +67,7 @@ ListColumnFamilies(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 } // erocksdb::ListColumnFamilies
 
 ERL_NIF_TERM
-CreateColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+CreateColumnFamily(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;
 
@@ -108,7 +108,7 @@ CreateColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }   // erocksdb::CreateColumnFamily
 
 ERL_NIF_TERM
-DropColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+DropColumnFamily(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<ColumnFamilyObject> cf_ptr;
     if(!enif_get_cf(env, argv[0], &cf_ptr))
@@ -128,7 +128,7 @@ DropColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
 
 ERL_NIF_TERM
-DestroyColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+DestroyColumnFamily(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<ColumnFamilyObject> cf_ptr;
     if(!enif_get_cf(env, argv[0], &cf_ptr))

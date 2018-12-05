@@ -43,7 +43,7 @@ namespace erocksdb {
 
     BitsetMergeOperator::BitsetMergeOperator(unsigned int cap)
         :cap_(cap) {
-    };
+    }
 
    bool BitsetMergeOperator::FullMergeV2(
             const MergeOperationInput& merge_in,
@@ -84,7 +84,7 @@ namespace erocksdb {
             return false;
         }
 
-        int ofs = pos >> 3;
+        size_t ofs = pos >> 3;
 
         if (ofs > size) {
             delete[] data;
@@ -114,10 +114,10 @@ namespace erocksdb {
    }
 
    bool BitsetMergeOperator::PartialMergeMulti(
-            const rocksdb::Slice& key,
-            const std::deque<rocksdb::Slice>& operand_list,
-            std::string* new_value,
-            rocksdb::Logger* logger) const {
+            const rocksdb::Slice& /*key*/,
+            const std::deque<rocksdb::Slice>& /*operand_list*/,
+            std::string* /*new_value*/,
+            rocksdb::Logger* /*logger*/) const {
         return false;
     }
 

@@ -39,9 +39,9 @@ SstFileManager::CreateSstFileManagerType( ErlNifEnv * env)
 
 
 void
-SstFileManager::SstFileManagerResourceCleanup(ErlNifEnv *Env, void * Arg)
+SstFileManager::SstFileManagerResourceCleanup(ErlNifEnv * /*env*/, void * arg)
 {
-    SstFileManager* mgr_ptr = (SstFileManager *)Arg;
+    SstFileManager* mgr_ptr = (SstFileManager *)arg;
     mgr_ptr->~SstFileManager();
     mgr_ptr = nullptr;
     return;
@@ -89,7 +89,7 @@ std::shared_ptr<rocksdb::SstFileManager> SstFileManager::sst_file_manager() {
 ERL_NIF_TERM
 NewSstFileManager(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
 
@@ -135,10 +135,10 @@ NewSstFileManager(
     sptr_sst_file_manager.reset();
     sptr_sst_file_manager = nullptr;
     return enif_make_tuple2(env, ATOM_OK, result);
-};
+}
 
 ERL_NIF_TERM
-ReleaseSstFileManager(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+ReleaseSstFileManager(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     SstFileManager* mgr_ptr;
     std::shared_ptr<rocksdb::SstFileManager> mgr;
@@ -154,7 +154,7 @@ ReleaseSstFileManager(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-SstFileManager_Set(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+SstFileManager_Set(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     SstFileManager* mgr_ptr;
     mgr_ptr = erocksdb::SstFileManager::RetrieveSstFileManagerResource(env, argv[0]);
@@ -196,7 +196,7 @@ SstFileManager_Set(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-SstFileManager_Get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+SstFileManager_Get(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     SstFileManager* mgr_ptr;
     mgr_ptr = erocksdb::SstFileManager::RetrieveSstFileManagerResource(env, argv[0]);
@@ -228,7 +228,7 @@ SstFileManager_Get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-SstFileManager_Is(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+SstFileManager_Is(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     SstFileManager* mgr_ptr;
     mgr_ptr = erocksdb::SstFileManager::RetrieveSstFileManagerResource(env, argv[0]);

@@ -41,9 +41,9 @@ WriteBufferManager::CreateWriteBufferManagerType( ErlNifEnv * env)
 
 
 void
-WriteBufferManager::WriteBufferManagerResourceCleanup(ErlNifEnv *Env, void * Arg)
+WriteBufferManager::WriteBufferManagerResourceCleanup(ErlNifEnv * /*env*/, void * arg)
 {
-    WriteBufferManager* mgr_ptr = (WriteBufferManager *)Arg;
+    WriteBufferManager* mgr_ptr = (WriteBufferManager *)arg;
     mgr_ptr->~WriteBufferManager();
     mgr_ptr = nullptr;
     return;
@@ -119,10 +119,10 @@ NewWriteBufferManager(
     sptr_write_buffer_manager.reset();
     sptr_write_buffer_manager = nullptr;
     return enif_make_tuple2(env, ATOM_OK, result);
-};
+}
 
 ERL_NIF_TERM
-ReleaseWriteBufferManager(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+ReleaseWriteBufferManager(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     WriteBufferManager* mgr_ptr;
     std::shared_ptr<rocksdb::WriteBufferManager> mgr;
@@ -138,7 +138,7 @@ ReleaseWriteBufferManager(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-WriteBufferManager_Get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+WriteBufferManager_Get(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     WriteBufferManager* mgr_ptr;
     mgr_ptr = erocksdb::WriteBufferManager::RetrieveWriteBufferManagerResource(env, argv[0]);
@@ -166,7 +166,7 @@ WriteBufferManager_Get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-WriteBufferManager_IsEnabled(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+WriteBufferManager_IsEnabled(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     WriteBufferManager* mgr_ptr;
     mgr_ptr = erocksdb::WriteBufferManager::RetrieveWriteBufferManagerResource(env, argv[0]);

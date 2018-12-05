@@ -40,8 +40,8 @@ ManagedEnv::CreateEnvType(
 
 void
 ManagedEnv::EnvResourceCleanup(
-    ErlNifEnv * Env,
-    void * Arg)
+    ErlNifEnv * /*env*/,
+    void * /*arg*/)
 {
     return;
 }
@@ -85,8 +85,8 @@ const rocksdb::Env* ManagedEnv::env() { return env_; }
 ERL_NIF_TERM
 DefaultEnv(
     ErlNifEnv* env,
-    int argc,
-    const ERL_NIF_TERM argv[])
+    int /*argc*/,
+    const ERL_NIF_TERM[] /*argv*/)
 {
     ManagedEnv* env_ptr;
     rocksdb::Env* default_env = rocksdb::Env::Default();
@@ -106,8 +106,8 @@ DefaultEnv(
 ERL_NIF_TERM
 MemEnv(
     ErlNifEnv* env,
-    int argc,
-    const ERL_NIF_TERM argv[])
+    int /*argc*/,
+    const ERL_NIF_TERM[] /*argv*/)
 {
     ManagedEnv* env_ptr;
     rocksdb::Env* mem_env = rocksdb::NewMemEnv(rocksdb::Env::Default());
@@ -161,7 +161,7 @@ SetEnvBackgroundThreads(
 ERL_NIF_TERM
 DestroyEnv(
         ErlNifEnv* env,
-        int argc,
+        int /*argc*/,
         const ERL_NIF_TERM argv[])
 {
 

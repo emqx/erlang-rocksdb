@@ -33,7 +33,7 @@ namespace erocksdb {
 
 
 ERL_NIF_TERM
-OpenBackupEngine(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+OpenBackupEngine(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
   char path[4096];
   BackupEngineObject * backup_engine_ptr;
@@ -57,7 +57,7 @@ OpenBackupEngine(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
 
 ERL_NIF_TERM
-CreateNewBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+CreateNewBackup(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<BackupEngineObject> backup_engine_ptr;
     ReferencePtr<DbObject> db_ptr;
@@ -77,7 +77,7 @@ CreateNewBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-GetBackupInfo(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+GetBackupInfo(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
 
     ReferencePtr<BackupEngineObject> backup_engine_ptr;
@@ -112,7 +112,7 @@ GetBackupInfo(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
 
 ERL_NIF_TERM
-VerifyBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+VerifyBackup(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<BackupEngineObject> backup_engine_ptr;
     rocksdb::BackupID backup_id;
@@ -132,7 +132,7 @@ VerifyBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-StopBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+StopBackup(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<BackupEngineObject> backup_engine_ptr;
 
@@ -144,7 +144,7 @@ StopBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-DeleteBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+DeleteBackup(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<BackupEngineObject> backup_engine_ptr;
     rocksdb::BackupID backup_id;
@@ -164,7 +164,7 @@ DeleteBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-PurgeOldBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+PurgeOldBackup(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<BackupEngineObject> backup_engine_ptr;
     uint32_t num_backups_to_keep;
@@ -260,7 +260,7 @@ RestoreDBFromLatestBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 
 
 ERL_NIF_TERM
-GarbageCollect(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+GarbageCollect(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<BackupEngineObject> backup_engine_ptr;
     rocksdb::Status s;
@@ -277,7 +277,7 @@ GarbageCollect(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
-CloseBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+CloseBackup(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     BackupEngineObject * backup_engine_ptr;
     backup_engine_ptr = BackupEngineObject::RetrieveBackupEngineObject(env, argv[0]);

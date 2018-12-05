@@ -31,7 +31,7 @@ namespace erocksdb {
 ERL_NIF_TERM
 Snapshot(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;
@@ -58,7 +58,7 @@ Snapshot(
 ERL_NIF_TERM
 ReleaseSnapshot(
     ErlNifEnv* env,
-    int argc,
+    int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
     const ERL_NIF_TERM& handle_ref = argv[0];
@@ -81,7 +81,7 @@ ReleaseSnapshot(
 }   // erocksdb::ReleaseSnapShot
 
 ERL_NIF_TERM
-GetSnapshotSequenceNumber(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+GetSnapshotSequenceNumber(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     const ERL_NIF_TERM& handle_ref = argv[0];
     ReferencePtr<SnapshotObject> snapshot_ptr;

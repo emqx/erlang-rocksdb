@@ -35,7 +35,7 @@ RateLimiter::CreateRateLimiterType(ErlNifEnv * env)
 
 
 void
-RateLimiter::RateLimiterResourceCleanup(ErlNifEnv *Env, void * Arg)
+RateLimiter::RateLimiterResourceCleanup(ErlNifEnv * /*env*/, void * /*arg*/)
 {
     return;
 }   // RateLimiter::RateLimiterResourceCleanup
@@ -115,7 +115,7 @@ NewRateLimiter(
 
 
 ERL_NIF_TERM
-ReleaseRateLimiter(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+ReleaseRateLimiter(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     RateLimiter* rate_limiter_ptr;
     std::shared_ptr<rocksdb::RateLimiter> rate_limiter;
