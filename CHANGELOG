@@ -1,3 +1,14 @@
+erlang-rocksdb 0.26.0, released on 2018/12/05
+================================================
+
+- allows [customized builds](http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/customize_rocksdb_build.md)
+- fix compilations warnings
+
+** BREAKING CHANGES **
+
+- build is now using cmake instead of autotools
+- corruption errors return `{error, {corruption, Reaason :: string()}}` instead of `corruption`.
+
 erlang-rocksdb 0.25.0, released on 2018/11/21 
 ================================================
 
