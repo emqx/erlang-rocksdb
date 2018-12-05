@@ -27,6 +27,8 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 
 See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) for more explanation.
 
+> Note: since the version **0.26.0**, `cmake>=3.4` is required to install `erlang-rocksdb`.
+
 ## Customized build ##
 
 See the [Customized builds](http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/customize_rocksdb_build.md) for more information.
