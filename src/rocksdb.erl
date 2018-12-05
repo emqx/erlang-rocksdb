@@ -333,6 +333,7 @@ init() ->
 -type read_options() :: [{verify_checksums, boolean()} |
                          {fill_cache, boolean()} |
                          {iterate_upper_bound, binary()} |
+                         {iterate_lower_bound, boolean()} |
                          {tailing, boolean()} |
                          {total_order_seek, boolean()} |
                          {prefix_same_as_start, boolean()} |
