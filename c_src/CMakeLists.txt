@@ -33,6 +33,7 @@ include_directories(${ERLANG_ERTS_INCLUDE_PATH})
 
 find_package(BZip2)
 find_package(ZLIB)
+find_package(TBB)
 
 #--------------------------------------------------------------------------------
 include(ExternalProject)
@@ -184,4 +185,5 @@ target_link_libraries(${ErlangRocksDBNIF_TARGET}
   ${SNAPPY_LIBRARY}
   ${BZIP2_LIBRARIES}
   ${ZLIB_LIBRARY}
+  ${TBB_LIBRARIES}
 )
