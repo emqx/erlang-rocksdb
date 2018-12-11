@@ -20,6 +20,21 @@ option(ERLANG_ROCKSDB_USE_SYSTEM_SNAPPY "Use snappy from host system" OFF)
 # (for users with extra requirements)
 option(ERLANG_ROCKSDB_USE_SYSTEM_ROCKSDB "Use RocksDB from host system" OFF)
 
+if (NOT WIN32)
+  # On platforms like FreeBSD where gmake is not the default, we need
+  # to look for gmake explicitly to make sure LevelDB can build.
+  # TODO(dforsyth): Remove this once LevelDB is upgraded to a version
+  # that uses CMake. See MESOS-8757.
+  find_program(
+    MAKE_PROGRAM
+    NAMES gmake make
+    DOCS "External 'make' executable.")
+
+  if (NOT MAKE_PROGRAM)
+    message(FATAL_ERROR "Could not find an external 'make' executable.")
+  endif ()
+endif ()
+
 #--------------------------------------------------------------------------------
 include(FindErlang)
 
@@ -44,7 +59,7 @@ else()
     set(LZ4_ROOT_DIR "${PROJECT_SOURCE_DIR}/../deps/lz4")
 
     add_custom_command(OUTPUT ${LZ4_ROOT_DIR}/lib/liblz4.a
-      COMMAND make "CFLAGS= -O2 -fPIC"
+      COMMAND ${MAKE_PROGRAM} "CFLAGS= -O2 -fPIC"
       WORKING_DIRECTORY ${LZ4_ROOT_DIR}
       COMMENT "Build lz4 library"
       VERBATIM
