@@ -1,3 +1,9 @@
+erlang-rocksdb 0.26.1, released on 2018/12/11
+================================================
+
+- fix build on freebsd
+- support build with the Thread Building Blocks library (TBB) 
+
 erlang-rocksdb 0.26.0, released on 2018/12/05
 ================================================
 

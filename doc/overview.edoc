@@ -16,7 +16,7 @@
 
 
 @copyright 2016-2018 Benoît Chesneau.
-@version 0.26.0 Erlang wrapper for RocksDB.
+@version 0.26.1 Erlang wrapper for RocksDB.
 @title erlang-rocksdb - Erlang wrapper for RocksDB.
 
 @doc
