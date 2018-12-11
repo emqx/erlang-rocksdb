@@ -20,6 +20,21 @@ option(ERLANG_ROCKSDB_USE_SYSTEM_SNAPPY "Use snappy from host system" OFF)
 # (for users with extra requirements)
 option(ERLANG_ROCKSDB_USE_SYSTEM_ROCKSDB "Use RocksDB from host system" OFF)
 
+if (NOT WIN32)
+  # On platforms like FreeBSD where gmake is not the default, we need
+  # to look for gmake explicitly to make sure LevelDB can build.
+  # TODO(dforsyth): Remove this once LevelDB is upgraded to a version
+  # that uses CMake. See MESOS-8757.
+  find_program(
+    MAKE_PROGRAM
+    NAMES gmake make
+    DOCS "External 'make' executable.")
+
+  if (NOT MAKE_PROGRAM)
+    message(FATAL_ERROR "Could not find an external 'make' executable.")
+  endif ()
+endif ()
+
 #--------------------------------------------------------------------------------
 include(FindErlang)
 
@@ -44,7 +59,7 @@ else()
     set(LZ4_ROOT_DIR "${PROJECT_SOURCE_DIR}/../deps/lz4")
 
     add_custom_command(OUTPUT ${LZ4_ROOT_DIR}/lib/liblz4.a
-      COMMAND make "CFLAGS= -O2 -fPIC"
+      COMMAND ${MAKE_PROGRAM} "CFLAGS= -O2 -fPIC"
       WORKING_DIRECTORY ${LZ4_ROOT_DIR}
       COMMENT "Build lz4 library"
       VERBATIM
@@ -98,7 +113,7 @@ else()
     set(ROCKSDB_EXTRA_LDFLAGS "${SNAPPY_LIBRARY} ${LZ4_LIBRARY}")
 
     add_custom_command(OUTPUT ${ROCKSDB_ROOT_DIR}/librocksdb.a
-      COMMAND make static_lib EXTRA_CXXFLAGS=${ROCKSDB_EXTRA_CXXFLAGS} EXTRA_LDFLAGS=${ROCKSDB_EXTRA_LDFLAGS} USE_RTTI=1 DISABLE_JEMALLOC=1 ROCKSDB_DISABLE_ZSTD=1 DEBUG_LEVEL=0 PORTABLE=1
+      COMMAND ${MAKE_PROGRAM} static_lib EXTRA_CXXFLAGS=${ROCKSDB_EXTRA_CXXFLAGS} EXTRA_LDFLAGS=${ROCKSDB_EXTRA_LDFLAGS} USE_RTTI=1 DISABLE_JEMALLOC=1 ROCKSDB_DISABLE_ZSTD=1 DEBUG_LEVEL=0 PORTABLE=1
       WORKING_DIRECTORY ${ROCKSDB_ROOT_DIR}
       COMMENT "Build RocksDB static library"
       VERBATIM
