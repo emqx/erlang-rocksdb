@@ -9,7 +9,7 @@ install:
     choco install rebar3 --version 3.6.1
 build: off
 test_script:
-- ps: rebar3.cmd eunit
+- cmd: C:\ProgramData\chocolatey\lib\rebar3\tools/rebar3.cmd eunit
 notifications:
 - provider: Email
   to:
