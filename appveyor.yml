@@ -6,7 +6,7 @@ environment:
   matrix:
   - erlang_vsn: 21.0
 install:
-- ps: choco install rebar3
+- ps: choco install rebar3 --version 3.6.1
 - ps: choco install erlang --version $env:erlang_vsn
 build: false
 test_script:
