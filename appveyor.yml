@@ -1,0 +1,12 @@
+version: "{build}"
+branches:
+  only:
+  - master
+environment:
+  matrix:
+  - erlang_vsn: 21.0
+install:
+- ps: choco install rebar3
+- ps: choco install erlang --version $env:erlang_vsn
+test_script:
+- ps: cmd.exe /c 'rebar3.cmd eunit'
