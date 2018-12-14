@@ -8,6 +8,7 @@ environment:
 install:
 - ps: choco install rebar3
 - ps: choco install erlang --version $env:erlang_vsn
+build: false
 test_script:
 - ps: cmd.exe /c 'rebar3.cmd eunit'
 notifications:
