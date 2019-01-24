@@ -139,3 +139,31 @@ rollback_over_savepoint_test() ->
   ?assertMatch({error, _}, rocksdb:batch_rollback(Batch)),
 
   ok = rocksdb:release_batch(Batch).
+
+merge_test() ->
+  Db = destroy_reopen("test.db", [{create_if_missing, true}, {merge_operator, erlang_merge_operator}]),
+
+  ok = rocksdb:put(Db, <<"i">>, term_to_binary(0), []),
+  {ok, IBin0} = rocksdb:get(Db, <<"i">>, []),
+  0 = binary_to_term(IBin0),
+  {ok, Batch} = rocksdb:batch(),
+
+  ok = rocksdb:batch_merge(Batch, <<"i">>, term_to_binary({int_add, 1})),
+  {ok, IBin0} = rocksdb:get(Db, <<"i">>, []),
+  0 = binary_to_term(IBin0),
+
+  ok = rocksdb:batch_merge(Batch, <<"i">>, term_to_binary({int_add, 2})),
+  {ok, IBin0} = rocksdb:get(Db, <<"i">>, []),
+  0 = binary_to_term(IBin0),
+
+  ok = rocksdb:batch_merge(Batch, <<"i">>, term_to_binary({int_add, -1})),
+  {ok, IBin0} = rocksdb:get(Db, <<"i">>, []),
+  0 = binary_to_term(IBin0),
+
+  ok = rocksdb:write_batch(Db, Batch, []),
+  {ok, IBin1} = rocksdb:get(Db, <<"i">>, []),
+  2 = binary_to_term(IBin1),
+
+  ok = rocksdb:release_batch(Batch),
+
+  close_destroy(Db, "test.db").
