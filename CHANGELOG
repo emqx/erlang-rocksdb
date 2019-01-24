@@ -1,8 +1,13 @@
+erlang-rocksdb 0.26.2, released on 2019/01/24
+================================================
+
+- fix `batch_merge/3` to call the right function
+
 erlang-rocksdb 0.26.1, released on 2018/12/11
 ================================================
 
 - fix build on freebsd
-- support build with the Thread Building Blocks library (TBB) 
+- support build with the Thread Building Blocks library (TBB)
 
 erlang-rocksdb 0.26.0, released on 2018/12/05
 ================================================
@@ -15,7 +20,7 @@ erlang-rocksdb 0.26.0, released on 2018/12/05
 - build is now using cmake instead of autotools
 - corruption errors return `{error, {corruption, Reaason :: string()}}` instead of `corruption`.
 
-erlang-rocksdb 0.25.0, released on 2018/11/21 
+erlang-rocksdb 0.25.0, released on 2018/11/21
 ================================================
 
 - bump to rocksdb 0.17.2
@@ -26,7 +31,7 @@ erlang-rocksdb 0.25.0, released on 2018/11/21
 - add `manual_wal_flush`  db option
 - add support for WriteBuffer (#64)
 - add `sst_file_manger()" resource to provide SSTFileManager support and manage disk space. (#74)
-- fix `aproximate_sizes_test` and `approximate_memtable_stats_test` 
+- fix `aproximate_sizes_test` and `approximate_memtable_stats_test`
 
 ** BREAKING CHANGES **
 
@@ -35,7 +40,7 @@ erlang-rocksdb 0.25.0, released on 2018/11/21
   of `rocksdb:flush/2` are now `FlushOptions::flush_options()`.
   Use `rocksdb:flush/3' to flush a column family
 - change signature of `rocksdb:get_approximate_memtable_stats/{2,3}`
-  to `rocksdb:get_approximate_memtable_stats/4`  
+  to `rocksdb:get_approximate_memtable_stats/4`
 
 
 erlang-rocksdb 0.24.0, released on 2018/11/06
