@@ -2,17 +2,16 @@ image: erlang:21
 
 before_script:
     - apt-get -q update
-    - apt-get -qy install cmake
-
-before_script:
-    - apt-get -q update
-    - apt-get -qy install cmake
+    - apt-get -y install cmake
 
 test:
-  script:
-    - MAKEFLAGS=-j4 ./deps/rebar3 eunit
-  cache:
-    paths:
-    - deps/snappy
-    - deps/lz4
-    - deps/rocksdb
+    variables:
+        ERLANG_ROCKSDB_OPTS: "-DWITH_BUNDLE_LZ4=ON -DWITH_BUNDLE_SNAPPY=ON"
+    script:
+        - ./deps/rebar3 eunit
+
+test-shared_libs:
+    before_script:
+        - apt-get update -qq && apt-get -y -qq install cmake liblz4-dev libsnappy-dev
+    script:
+        - ./deps/rebar3 eunit
