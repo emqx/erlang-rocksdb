@@ -13,5 +13,7 @@ test:
 test-shared_libs:
     before_script:
         - apt-get update -qq && apt-get -y -qq install cmake liblz4-dev libsnappy-dev
+    variables:
+        ERLANG_ROCKSDB_OPTS: "-DWITH_LZ4=ON -DWITH_SNAPPY=ON"
     script:
         - ./deps/rebar3 eunit

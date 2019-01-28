@@ -36,12 +36,12 @@ open_test_Z() ->
   not_found = rocksdb:get(Ref, <<"abc">>, []),
   true = rocksdb:is_empty(Ref).
 
-open_with_snappy_test() ->
-  os:cmd("rm -rf /tmp/erocksdb.snapppy.test"),
-  {ok, Ref} = rocksdb:open("/tmp/erocksdb.snapppy.test", [{create_if_missing, true}, {compression, snappy}]),
-  ok = rocksdb:close(Ref),
-  rocksdb:destroy("/tmp/erocksdb.snapppy.test", []),
-  ok.
+%open_with_snappy_test() ->
+%  os:cmd("rm -rf /tmp/erocksdb.snapppy.test"),
+%  {ok, Ref} = rocksdb:open("/tmp/erocksdb.snapppy.test", [{create_if_missing, true}, {compression, snappy}]),
+%  ok = rocksdb:close(Ref),
+%  rocksdb:destroy("/tmp/erocksdb.snapppy.test", []),
+%  ok.
 
 open_with_optimize_filters_for_hits_test() ->
   os:cmd("rm -rf /tmp/erocksdb.optimize_filters_for_hits.test"),
@@ -58,12 +58,12 @@ open_new_table_reader_for_compaction_inputs_test() ->
   rocksdb:destroy("/tmp/erocksdb.new_table_reader_for_compaction_inputs.test", []),
   ok.
 
-open_with_lz4_test() ->
-  os:cmd("rm -rf /tmp/erocksdb.lz4.test"),
-  {ok, Ref} = rocksdb:open("/tmp/erocksdb.lz4.test", [{create_if_missing, true}, {compression, lz4}]),
-  ok = rocksdb:close(Ref),
-  rocksdb:destroy("/tmp/erocksdb.lz4.test", []),
-  ok.
+%open_with_lz4_test() ->
+%  os:cmd("rm -rf /tmp/erocksdb.lz4.test"),
+%  {ok, Ref} = rocksdb:open("/tmp/erocksdb.lz4.test", [{create_if_missing, true}, {compression, lz4}]),
+%  ok = rocksdb:close(Ref),
+%  rocksdb:destroy("/tmp/erocksdb.lz4.test", []),
+%  ok.
 
 fold_test() -> [{fold_test_Z(), l} || l <- lists:seq(1, 20)].
 fold_test_Z() ->
@@ -217,7 +217,7 @@ approximate_memtable_stats_test() ->
   with_db(
     "/tmp/erocksdb_approximate_memtable_stats_test",
     DbOptions,
-    fun(Ref) ->      
+    fun(Ref) ->
       _ = [ok = rocksdb:put(Ref, key(I), random_string(1024), []) || I <- lists:seq(0, N-1)],
       {ok, {Count, Size}} = rocksdb:get_approximate_memtable_stats(Ref, key(50), key(60)),
       ?assert(Count >= 0),
@@ -240,7 +240,7 @@ random_string(Len) ->
 with_db(Path, DbOptions, Fun) ->
   _ = os:cmd("rm -rf " ++ Path),
   {ok, Ref} = rocksdb:open(Path, DbOptions),
-  try 
+  try
     Fun(Ref)
   after
     ok = rocksdb:close(Ref),

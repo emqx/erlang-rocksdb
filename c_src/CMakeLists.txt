@@ -70,21 +70,46 @@ set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 #find_package(Zstd REQUIRED)
-find_package(BZip2)
-find_package(ZLIB)
 
-option(WITH_BUNDLE_LZ4 "Use bundle lz4" ON)
-if (WITH_BUNDLE_LZ4)
+option(WITH_SNAPPY "build with SNAPPY" OFF)
+option(WITH_LZ4 "build with lz4" OFF)
+
+option(WITH_ZLIB "build with zlib" OFF)
+if(WITH_ZLIB)
+    find_package(zlib REQUIRED)
+    add_definitions(-DZLIB)
+    if(ZLIB_INCLUDE_DIRS)
+        # CMake 3
+        include_directories(${ZLIB_INCLUDE_DIRS})
+    else()
+        # CMake 2
+        include_directories(${ZLIB_INCLUDE_DIR})
+    endif()
+    list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARIES})
+endif()
+
+option(WITH_BZ2 "build with bzip2" OFF)
+if(WITH_BZ2)
+    find_package(BZip2 REQUIRED)
+endif()
+
+
+option(WITH_BUNDLE_LZ4 "Use bundle lz4" OFF)
+if (WITH_BUNDLE_LZ4 AND NOT WITH_LZ4)
     include(build-lz4)
-else()
+endif()
+
+if(WITH_LZ4)
     find_package(LZ4 REQUIRED)
 endif()
 
-option(WITH_BUNDLE_SNAPPY "Use bundle snappy" ON)
+option(WITH_BUNDLE_SNAPPY "Use bundle snappy" OFF)
 
-if(WITH_BUNDLE_SNAPPY)
+if(WITH_BUNDLE_SNAPPY AND NOT WITH_SNAPPY)
     include(build-snappy)
-else()
+endif()
+
+if(WITH_SNAPPY)
     find_package(Snappy REQUIRED)
 endif()
 
