@@ -15,7 +15,8 @@ find_package_handle_standard_args(
 
 if (SNAPPY_INCLUDE_DIR AND SNAPPY_LIBRARY)
     set(SNAPPY_FOUND TRUE)
-    message(STATUS "Found ZSTD library: ${SNAPPY_LIBRARY}")
+    message(STATUS "Found Snappy include: ${SNAPPY_INCLUDE_DIR}")
+    message(STATUS "Found Snappy library: ${SNAPPY_LIBRARY}")
 endif ()
 
 if (NOT SNAPPY_FOUND)

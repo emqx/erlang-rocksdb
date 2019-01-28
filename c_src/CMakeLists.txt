@@ -69,12 +69,12 @@ add_library(${ErlangRocksDBNIF_TARGET} MODULE "")
 set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
-#find_package(Zstd REQUIRED)
 
+option(WITH_ZSTD "build with zstd" OFF)
 option(WITH_SNAPPY "build with SNAPPY" OFF)
 option(WITH_LZ4 "build with lz4" OFF)
-
 option(WITH_ZLIB "build with zlib" OFF)
+
 if(WITH_ZLIB)
     find_package(zlib REQUIRED)
     add_definitions(-DZLIB)
@@ -113,6 +113,10 @@ if(WITH_SNAPPY)
     find_package(Snappy REQUIRED)
 endif()
 
+if(WITH_ZSTD)
+  find_package(Zstd REQUIRED)
+endif()
+
 #find_package(GFlags REQUIRED)
 #find_package(TBB)
 
@@ -138,7 +142,7 @@ include_directories(${ERLANG_EI_INCLUDE_PATH})
 include_directories(${ERLANG_ERTS_INCLUDE_PATH})
 #--------------------------------------------------------------------------------
 
-#include_directories(${ZSTD_INCLUDE_DIR})
+include_directories(${ZSTD_INCLUDE_DIR})
 include_directories(${LZ4_INCLUDE_DIR})
 include_directories(${BZIP2_INCLUDE_DIR})
 include_directories(${ZLIB_INCLUDE_DIR})
@@ -179,6 +183,7 @@ target_include_directories(${ErlangRocksDBNIF_TARGET}
     PRIVATE
     ${DEFAULT_INCLUDE_DIRECTORIES}
     ${ROCKSDB_INCLUDE_DIR}
+    ${ZSTD_INCLUDE_DIR}
     ${LZ4_INCLUDE_DIR}
     ${SNAPPY_INCLUDE_DIR}
     ${PROJECT_BINARY_DIR}
@@ -203,6 +208,7 @@ target_link_libraries(
     ${ERLANG_ERL_INTERFACE_LIB}
     ${ERLANG_EI_LIB}
     ${ROCKSDB_LIBRARIES}
+    ${ZSTD_LIBRARY}
     ${LZ4_LIBRARY}
     ${SNAPPY_LIBRARY}
     ${BZIP2_LIBRARIES}
