@@ -345,7 +345,11 @@ IteratorRefresh(
     }
 
     rocksdb::Iterator* itr = itr_ptr->m_Iterator;
-    itr->Refresh();
+    rocksdb::Status status = itr->Refresh();
+    if(!status.ok())
+    {
+        return error_tuple(env, ATOM_ERROR, status);
+    }
 
     return(ATOM_OK);
 

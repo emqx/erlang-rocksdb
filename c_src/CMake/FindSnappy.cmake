@@ -8,9 +8,16 @@ find_path(SNAPPY_INCLUDE_DIR NAMES snappy.h)
 find_library(SNAPPY_LIBRARY NAMES snappy)
 
 include(FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(
+find_package_handle_standard_args(
     SNAPPY DEFAULT_MSG
     SNAPPY_LIBRARY SNAPPY_INCLUDE_DIR)
+
+
+if (SNAPPY_INCLUDE_DIR AND SNAPPY_LIBRARY)
+    set(SNAPPY_FOUND TRUE)
+    message(STATUS "Found Snappy include: ${SNAPPY_INCLUDE_DIR}")
+    message(STATUS "Found Snappy library: ${SNAPPY_LIBRARY}")
+endif ()
 
 if (NOT SNAPPY_FOUND)
   message(STATUS "Using third-party bundled Snappy")

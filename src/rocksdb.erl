@@ -202,7 +202,7 @@ init() ->
 -record(cf_descriptor, {name    :: string(),
                         options :: cf_options()}).
 
--type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | none.
+-type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | zstd | none.
 -type compaction_style() :: level | universal | fifo | none.
 -type compaction_pri() :: compensated_size | oldest_largest_seq_first | oldest_smallest_seq_first.
 -type access_hint() :: normal | sequential | willneed | none.

@@ -1,24 +1,50 @@
 cmake_minimum_required(VERSION 3.4.0 FATAL_ERROR)
+
 project(ErlangRocksDBNIF)
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/Modules")
+
+
+if(POLICY CMP0028)
+  cmake_policy(SET CMP0028 NEW)
+endif()
+if(POLICY CMP0046)
+  cmake_policy(SET CMP0046 NEW)
+endif()
+if(POLICY CMP0054)
+  cmake_policy(SET CMP0054 NEW)
+endif()
+if(POLICY CMP0056)
+  cmake_policy(SET CMP0056 NEW)
+endif()
+if(POLICY CMP0065)
+  cmake_policy(SET CMP0065 NEW)
+endif()
+if(POLICY CMP0051)
+  cmake_policy(SET CMP0051 NEW)
+endif()
+if(POLICY CMP0075)
+  cmake_policy(SET CMP0075 NEW)
+endif()
+
+
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMake")
+
+# includes
+# set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake" ${CMAKE_MODULE_PATH})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(priv_dir "${PROJECT_SOURCE_DIR}/../priv")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${priv_dir})
 
-set(ErlangRocksDBNIF_TARGET erocksdb)
-add_library(${ErlangRocksDBNIF_TARGET} MODULE "")
+#set( _erocksdb_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+#if(WIN32)
+#    list(INSERT CMAKE_FIND_LIBRARY_SUFFIXES 0 .lib .a .dll .so)
+#else()
+#    set(CMAKE_FIND_LIBRARY_SUFFIXES .a .so .dylib)
+#endif()
 
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Use lz4 provided by host system
-option(ERLANG_ROCKSDB_USE_SYSTEM_LZ4 "Use lz4 from host system" OFF)
-
-# Use snappy provided by host system
-option(ERLANG_ROCKSDB_USE_SYSTEM_SNAPPY "Use snappy from host system" OFF)
-
-# Use RocksDB provided by host system
-# (for users with extra requirements)
-option(ERLANG_ROCKSDB_USE_SYSTEM_ROCKSDB "Use RocksDB from host system" OFF)
 
 if (NOT WIN32)
   # On platforms like FreeBSD where gmake is not the default, we need
@@ -35,6 +61,90 @@ if (NOT WIN32)
   endif ()
 endif ()
 
+
+
+set(ErlangRocksDBNIF_TARGET erocksdb)
+add_library(${ErlangRocksDBNIF_TARGET} MODULE "")
+
+set(CMAKE_BUILD_TYPE Release)
+
+set(CMAKE_THREAD_PREFER_PTHREAD ON)
+
+option(WITH_CCACHE "Build with ccache." OFF)
+if(WITH_CCACHE)
+  find_program(CCACHE_FOUND ccache)
+  if(CCACHE_FOUND)
+    message(STATUS "Building with ccache: ${CCACHE_FOUND}, CCACHE_DIR=$ENV{CCACHE_DIR}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+  else(CCACHE_FOUND)
+    message(FATAL_ERROR "Can't find ccache. Is it installed?")
+  endif(CCACHE_FOUND)
+endif(WITH_CCACHE)
+
+option(WITH_ZSTD "build with zstd" OFF)
+option(WITH_SNAPPY "build with SNAPPY" OFF)
+option(WITH_LZ4 "build with lz4" OFF)
+option(WITH_ZLIB "build with zlib" OFF)
+
+if(WITH_ZLIB)
+    find_package(zlib REQUIRED)
+    add_definitions(-DZLIB)
+    if(ZLIB_INCLUDE_DIRS)
+        # CMake 3
+        include_directories(${ZLIB_INCLUDE_DIRS})
+    else()
+        # CMake 2
+        include_directories(${ZLIB_INCLUDE_DIR})
+    endif()
+    list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARIES})
+endif()
+
+option(WITH_BZ2 "build with bzip2" OFF)
+if(WITH_BZ2)
+    find_package(BZip2 REQUIRED)
+endif()
+
+
+option(WITH_BUNDLE_LZ4 "Use bundle lz4" OFF)
+if (WITH_BUNDLE_LZ4 AND NOT WITH_LZ4)
+    include(build-lz4)
+endif()
+
+if(WITH_LZ4)
+    find_package(LZ4 REQUIRED)
+endif()
+
+option(WITH_BUNDLE_SNAPPY "Use bundle snappy" OFF)
+
+if(WITH_BUNDLE_SNAPPY AND NOT WITH_SNAPPY)
+    include(build-snappy)
+endif()
+
+if(WITH_SNAPPY)
+    find_package(Snappy REQUIRED)
+endif()
+
+if(WITH_ZSTD)
+  find_package(Zstd REQUIRED)
+endif()
+
+
+option(WITH_TBB "build with Threading Building Blocks (TBB)" OFF)
+if(WITH_TBB)
+  find_package(TBB REQUIRED)
+endif()
+
+# Use RocksDB provided by host system
+# (for users with extra requirements)
+option(WITH_SYSTEM_ROCKSDB "require and build with system rocksdb" OFF)
+if (WITH_SYSTEM_ROCKSDB)
+  find_package(RocksDB 5.17.2 REQUIRED)
+else()
+  include(build-rocksdb)
+endif()
+
+
 #--------------------------------------------------------------------------------
 include(FindErlang)
 
@@ -46,99 +156,13 @@ include_directories(${ERLANG_EI_INCLUDE_PATH})
 include_directories(${ERLANG_ERTS_INCLUDE_PATH})
 #--------------------------------------------------------------------------------
 
-find_package(BZip2)
-find_package(ZLIB)
-find_package(TBB)
-
-#--------------------------------------------------------------------------------
-include(ExternalProject)
-
-if(ERLANG_ROCKSDB_USE_SYSTEM_LZ4)
-    find_package(LZ4)
-else()
-    set(LZ4_ROOT_DIR "${PROJECT_SOURCE_DIR}/../deps/lz4")
-
-    add_custom_command(OUTPUT ${LZ4_ROOT_DIR}/lib/liblz4.a
-      COMMAND ${MAKE_PROGRAM} "CFLAGS= -O2 -fPIC"
-      WORKING_DIRECTORY ${LZ4_ROOT_DIR}
-      COMMENT "Build lz4 library"
-      VERBATIM
-    )
-    add_custom_target(lz4 DEPENDS ${LZ4_ROOT_DIR}/lib/liblz4.a)
-    add_dependencies (${ErlangRocksDBNIF_TARGET} lz4)
-
-    set(LZ4_LIBRARY ${LZ4_ROOT_DIR}/lib/liblz4.a)
-    set(LZ4_INCLUDE_DIR ${LZ4_ROOT_DIR}/lib/)
-
-    mark_as_advanced(
-        LZ4_ROOT_DIR
-        LZ4_LIBRARY
-        LZ4_INCLUDE_DIR
-    )
-endif()
-
-#--------------------------------------------------------------------------------
-
-if(ERLANG_ROCKSDB_USE_SYSTEM_SNAPPY)
-    find_package(snappy)
-else()
-    add_dependencies (${ErlangRocksDBNIF_TARGET} snappy)
-    set(SNAPPY_ROOT_DIR "${PROJECT_SOURCE_DIR}/../deps/snappy")
-
-    ExternalProject_Add(snappy
-        SOURCE_DIR "${SNAPPY_ROOT_DIR}"
-        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-        DOWNLOAD_COMMAND ""
-        INSTALL_COMMAND ""
-        )
-
-    ExternalProject_Get_Property(snappy BINARY_DIR)
-    set(SNAPPY_LIBRARY ${BINARY_DIR}/libsnappy.a)
-    set(SNAPPY_INCLUDE_DIR ${SNAPPY_ROOT_DIR})
-
-    mark_as_advanced(
-        SNAPPY_ROOT_DIR
-        SNAPPY_LIBRARY
-        SNAPPY_INCLUDE_DIR
-    )
-endif()
-
-#--------------------------------------------------------------------------------
-
-if(ERLANG_ROCKSDB_USE_SYSTEM_ROCKSDB)
-    find_package(RocksDB 5.17.2 REQUIRED)
-else()
-    set(ROCKSDB_ROOT_DIR "${PROJECT_SOURCE_DIR}/../deps/rocksdb")
-    set(ROCKSDB_EXTRA_CXXFLAGS "${CXXFLAGS} -DNDEBUG -DSNAPPY -DLZ4 -I${SNAPPY_INCLUDE_DIR} -I${LZ4_INCLUDE_DIR} -I${BINARY_DIR} -fPIC")
-    set(ROCKSDB_EXTRA_LDFLAGS "${SNAPPY_LIBRARY} ${LZ4_LIBRARY}")
-
-    add_custom_command(OUTPUT ${ROCKSDB_ROOT_DIR}/librocksdb.a
-      COMMAND ${MAKE_PROGRAM} static_lib EXTRA_CXXFLAGS=${ROCKSDB_EXTRA_CXXFLAGS} EXTRA_LDFLAGS=${ROCKSDB_EXTRA_LDFLAGS} USE_RTTI=1 DISABLE_JEMALLOC=1 ROCKSDB_DISABLE_ZSTD=1 DEBUG_LEVEL=0 PORTABLE=1
-      WORKING_DIRECTORY ${ROCKSDB_ROOT_DIR}
-      COMMENT "Build RocksDB static library"
-      VERBATIM
-    )
-    add_custom_target(rocksdb DEPENDS ${ROCKSDB_ROOT_DIR}/librocksdb.a)
-    add_dependencies(${ErlangRocksDBNIF_TARGET} rocksdb)
-    if(NOT ERLANG_ROCKSDB_USE_SYSTEM_SNAPPY)
-        add_dependencies (rocksdb snappy)
-    endif()
-    if(NOT ERLANG_ROCKSDB_USE_SYSTEM_LZ4)
-        add_dependencies (rocksdb lz4)
-    endif()
-
-    set(ROCKSDB_LIBRARIES "${ROCKSDB_ROOT_DIR}/librocksdb.a")
-    set(ROCKSDB_INCLUDE_DIR ${ROCKSDB_ROOT_DIR}/include/)
-
-    unset(ROCKSDB_EXTRA_CXXFLAGS)
-    unset(ROCKSDB_EXTRA_LDFLAGS)
-
-    mark_as_advanced(
-        ROCKSDB_ROOT_DIR
-        ROCKSDB_LIBRARIES
-        ROCKSDB_INCLUDE_DIR
-    )
-endif()
+include_directories(${ZSTD_INCLUDE_DIR})
+include_directories(${LZ4_INCLUDE_DIR})
+include_directories(${BZIP2_INCLUDE_DIR})
+include_directories(${ZLIB_INCLUDE_DIR})
+include_directories(${SNAPPY_INCLUDE_DIR})
+include_directories(${ROCKSDB_INCLUDE_DIRS})
+#include_directories(${LIBGFLAGS_INCLUDE_DIR})
 
 #--------------------------------------------------------------------------------
 
@@ -173,6 +197,7 @@ target_include_directories(${ErlangRocksDBNIF_TARGET}
     PRIVATE
     ${DEFAULT_INCLUDE_DIRECTORIES}
     ${ROCKSDB_INCLUDE_DIR}
+    ${ZSTD_INCLUDE_DIR}
     ${LZ4_INCLUDE_DIR}
     ${SNAPPY_INCLUDE_DIR}
     ${PROJECT_BINARY_DIR}
@@ -190,15 +215,17 @@ if(APPLE)
 	set(TARGET_LINKER_OPTIONS "-flat_namespace -undefined suppress")
 endif(APPLE)
 
-target_link_libraries(${ErlangRocksDBNIF_TARGET}
-  PRIVATE
-  ${TARGET_LINKER_OPTIONS}
-  ${ERLANG_ERL_INTERFACE_LIB}
-  ${ERLANG_EI_LIB}
-  ${ROCKSDB_LIBRARIES}
-  ${LZ4_LIBRARY}
-  ${SNAPPY_LIBRARY}
-  ${BZIP2_LIBRARIES}
-  ${ZLIB_LIBRARY}
-  ${TBB_LIBRARIES}
+target_link_libraries(
+    ${ErlangRocksDBNIF_TARGET}
+    PRIVATE
+    ${TARGET_LINKER_OPTIONS}
+    ${ERLANG_ERL_INTERFACE_LIB}
+    ${ERLANG_EI_LIB}
+    ${ROCKSDB_LIBRARIES}
+    ${ZSTD_LIBRARY}
+    ${LZ4_LIBRARY}
+    ${SNAPPY_LIBRARY}
+    ${BZIP2_LIBRARIES}
+    ${ZLIB_LIBRARY}
+    ${TBB_LIBRARIES}
 )

@@ -416,6 +416,10 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4H) {
                 opts.compression = rocksdb::CompressionType::kLZ4HCCompression;
             }
+            else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_ZSTD)
+            {
+                opts.compression = rocksdb::CompressionType::kZSTD;
+            }
             else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_NONE) {
                 opts.compression = rocksdb::CompressionType::kNoCompression;
             }

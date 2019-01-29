@@ -1,0 +1,34 @@
+add_dependencies (${ErlangRocksDBNIF_TARGET} lz4)
+include(ExternalProject)
+
+set(LZ4_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/lz4/contrib/cmake_unofficial")
+set(LZ4_ROOT_DIR "${CMAKE_CURRENT_BINARY_DIR}/lz4")
+set(LZ4_INCLUDE_DIR "${LZ4_ROOT_DIR}/include")
+set(LZ4_STATIC_LIB "${LZ4_ROOT_DIR}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}lz4${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(LZ4_LIBRARY ${LZ4_STATIC_LIB})
+
+ExternalProject_Add(lz4
+    SOURCE_DIR "${LZ4_SOURCE_DIR}"
+    CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=${LZ4_ROOT_DIR}
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        -DLZ4_BUILD_LEGACY_LZ4C=OFF
+        -DBUILD_SHARED_LIBS=OFF
+    BINARY_DIR ${LZ4_ROOT_DIR}
+    BUILD_BYPRODUCTS "${LZ4_STATIC_LIB}"
+    )
+
+ExternalProject_Get_Property(lz4 BINARY_DIR)
+
+message(STATUS "LZ4 library: ${LZ4_LIBRARY}")
+message(STATUS "LZ4 includes: ${LZ4_INCLUDE_DIR}")
+
+set(LZ4_FOUND TRUE)
+
+mark_as_advanced(
+    LZ4_ROOT_DIR
+    LZ4_LIBRARY
+    LZ4_INCLUDE_DIR
+)
+
+
