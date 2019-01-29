@@ -117,9 +117,11 @@ if(WITH_ZSTD)
   find_package(Zstd REQUIRED)
 endif()
 
-#find_package(GFlags REQUIRED)
-#find_package(TBB)
 
+option(WITH_TBB "build with Threading Building Blocks (TBB)" OFF)
+if(WITH_TBB)
+  find_package(TBB REQUIRED)
+endif()
 
 # Use RocksDB provided by host system
 # (for users with extra requirements)
@@ -213,4 +215,5 @@ target_link_libraries(
     ${SNAPPY_LIBRARY}
     ${BZIP2_LIBRARIES}
     ${ZLIB_LIBRARY}
+    ${TBB_LIBRARIES}
 )
