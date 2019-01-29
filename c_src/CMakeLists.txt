@@ -70,6 +70,18 @@ set(CMAKE_BUILD_TYPE Release)
 
 set(CMAKE_THREAD_PREFER_PTHREAD ON)
 
+option(WITH_CCACHE "Build with ccache." OFF)
+if(WITH_CCACHE)
+  find_program(CCACHE_FOUND ccache)
+  if(CCACHE_FOUND)
+    message(STATUS "Building with ccache: ${CCACHE_FOUND}, CCACHE_DIR=$ENV{CCACHE_DIR}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+  else(CCACHE_FOUND)
+    message(FATAL_ERROR "Can't find ccache. Is it installed?")
+  endif(CCACHE_FOUND)
+endif(WITH_CCACHE)
+
 option(WITH_ZSTD "build with zstd" OFF)
 option(WITH_SNAPPY "build with SNAPPY" OFF)
 option(WITH_LZ4 "build with lz4" OFF)
