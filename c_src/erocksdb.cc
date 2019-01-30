@@ -130,8 +130,7 @@ static ErlNifFunc nif_funcs[] =
         {"close_backup_engine", 1, erocksdb::CloseBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // cache
-        {"new_lru_cache", 1, erocksdb::NewLRUCache, ERL_NIF_REGULAR_BOUND},
-        {"new_clock_cache", 1, erocksdb::NewClockCache, ERL_NIF_REGULAR_BOUND},
+        {"new_cache", 2, erocksdb::NewCache, ERL_NIF_REGULAR_BOUND},
         {"get_usage", 1, erocksdb::GetUsage, ERL_NIF_REGULAR_BOUND},
         {"get_pinned_usage", 1, erocksdb::GetPinnedUsage, ERL_NIF_REGULAR_BOUND},
         {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
@@ -181,6 +180,11 @@ ERL_NIF_TERM ATOM_UNDEFINED;
 // related to envs
 ERL_NIF_TERM ATOM_DEFAULT;
 ERL_NIF_TERM ATOM_MEMENV;
+
+// related to cache
+
+ERL_NIF_TERM ATOM_LRU;
+ERL_NIF_TERM ATOM_CLOCK;
 
 // generic
 ERL_NIF_TERM ATOM_DEFAULT_COLUMN_FAMILY;
@@ -465,6 +469,9 @@ try
 
   ATOM(erocksdb::ATOM_DEFAULT, "default");
   ATOM(erocksdb::ATOM_MEMENV, "memenv");
+
+  ATOM(erocksdb::ATOM_LRU, "lru");
+  ATOM(erocksdb::ATOM_CLOCK, "clock");
 
   ATOM(erocksdb::ATOM_DEFAULT_COLUMN_FAMILY, "default_column_family");
 

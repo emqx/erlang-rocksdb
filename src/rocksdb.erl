@@ -75,16 +75,16 @@
 
 
 %% Cache API
--export([
-  new_lru_cache/1,
-  new_clock_cache/1,
-  get_usage/1,
-  get_pinned_usage/1,
-  set_capacity/2,
-  get_capacity/1,
-  set_strict_capacity_limit/2,
-  release_cache/1
-]).
+
+-export([new_cache/2,
+         release_cache/1,
+         get_usage/1,
+         get_pinned_usage/1,
+         set_capacity/2,
+         get_capacity/1,
+         set_strict_capacity_limit/2]).
+-export([new_lru_cache/1, new_clock_cache/1]).
+
 
 %% Limiter API
 -export([
@@ -204,6 +204,7 @@
 -record(cf_descriptor, {name    :: string(),
                         options :: cf_options()}).
 
+-type cache_type() :: lru | clock.
 -type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | zstd | none.
 -type compaction_style() :: level | universal | fifo | none.
 -type compaction_pri() :: compensated_size | oldest_largest_seq_first | oldest_smallest_seq_first.
@@ -230,9 +231,7 @@
 -type column_family() :: cf_handle() | default_column_family.
 
 -type env_type() :: default | memenv.
-
 -opaque env() :: env_type() | env_handle().
-
 -type env_priority() :: priority_high | priority_low.
 
 -type block_based_table_options() :: [{no_block_cache, boolean()} |
@@ -1249,20 +1248,17 @@ restore_db_from_latest_backup(_BackupEngine,  _DbDir, _WalDir) ->
 
 
 %% ===================================================================
-%% cache functions
+%% Cache API
 
-%% @doc // Create a new cache with a fixed size capacity. The cache is sharded
+%% @doc // Create a new cache.
+
+%M Whi the type `lru' it create a cache  with a fixed size capacity. The cache is sharded
 %% to 2^num_shard_bits shards, by hash of the key. The total capacity
-%% is divided and evenly assigned to each shard.
--spec new_lru_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
-new_lru_cache(_Capacity) ->
-  ?nif_stub.
-
-%% @doc Similar to NewLRUCache, but create a cache based on CLOCK algorithm with
-%% better concurrent performance in some cases. See util/clock_cache.cc for
+%% is divided and evenly assigned to each shard. With the type `clock`, it creates a 
+%% cache based on CLOCK algorithm with better concurrent performance in some cases. See util/clock_cache.cc for
 %% more detail.
--spec new_clock_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
-new_clock_cache(_Capacity) ->
+-spec new_cache(Type :: cache_type(), Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
+new_cache(_Type, _Capacity) ->
   ?nif_stub.
 
 %% @doc returns the memory size for a specific entry in the cache.
@@ -1297,6 +1293,9 @@ set_strict_capacity_limit(_Cache, _StrictCapacityLimit) ->
 %% @doc release the cache
 release_cache(_Cache) ->
   ?nif_stub.
+
+new_lru_cache(Capacity) -> new_cache(lru, Capacity).
+new_clock_cache(Capacity) -> new_cache(clock, Capacity).
 
 %% ===================================================================
 %% Limiter functions
