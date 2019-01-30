@@ -38,15 +38,15 @@ basic_test() ->
   ?assertEqual(1, rocksdb:get_latest_sequence_number(Db)),
   ?assertEqual(0, rocksdb:get_latest_sequence_number(Db1)),
 
-  {ok, Itr} = rocksdb:updates_iterator(Db, 0),
-  {ok, Last, TransactionBin} = rocksdb:next_binary_update(Itr),
+  {ok, Itr} = rocksdb:tlog_iterator(Db, 0),
+  {ok, Last, TransactionBin} = rocksdb:tlog_next_binary_update(Itr),
   ?assertEqual(1, Last),
 
   ?assertEqual(not_found, rocksdb:get(Db1, <<"a">>, [])),
   ok = rocksdb:write_binary_update(Db1, TransactionBin, []),
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
   ?assertEqual(1, rocksdb:get_latest_sequence_number(Db1)),
-  ok = rocksdb:close_updates_iterator(Itr),
+  ok = rocksdb:tlog_iterator_close(Itr),
 
   close_destroy(Db, "test.db"),
   close_destroy(Db1, "test1.db"),
@@ -64,8 +64,8 @@ iterator_test() ->
   ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db, <<"b">>, [])),
   ?assertEqual(2, rocksdb:get_latest_sequence_number(Db)),
 
-  {ok, Itr} = rocksdb:updates_iterator(Db, 0),
-  {ok, Last, TransactionBin} = rocksdb:next_binary_update(Itr),
+  {ok, Itr} = rocksdb:tlog_iterator(Db, 0),
+  {ok, Last, TransactionBin} = rocksdb:tlog_next_binary_update(Itr),
   ?assertEqual(1, Last),
 
   ?assertEqual(not_found, rocksdb:get(Db1, <<"a">>, [])),
@@ -76,15 +76,15 @@ iterator_test() ->
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
   ?assertEqual(not_found, rocksdb:get(Db1, <<"b">>, [])),
 
-  {ok, Last2, TransactionBin2} = rocksdb:next_binary_update(Itr),
+  {ok, Last2, TransactionBin2} = rocksdb:tlog_next_binary_update(Itr),
   ?assertEqual(2, Last2),
   ok = rocksdb:write_binary_update(Db1, TransactionBin2, []),
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
   ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
 
-  ?assertEqual({error, invalid_iterator}, rocksdb:next_binary_update(Itr)),
+  ?assertEqual({error, invalid_iterator}, rocksdb:tlog_next_binary_update(Itr)),
 
-  ok = rocksdb:close_updates_iterator(Itr),
+  ok = rocksdb:tlog_iterator_close(Itr),
 
   close_destroy(Db, "test.db"),
   close_destroy(Db1, "test1.db"),
@@ -104,9 +104,9 @@ iterator_with_batch_test() ->
 
   ?assertEqual(4, rocksdb:get_latest_sequence_number(Db)),
 
-  {ok, Itr} = rocksdb:updates_iterator(Db, 0),
+  {ok, Itr} = rocksdb:tlog_iterator(Db, 0),
 
-  {ok, Last, TransactionBin} = rocksdb:next_binary_update(Itr),
+  {ok, Last, TransactionBin} = rocksdb:tlog_next_binary_update(Itr),
   ?assertEqual(1, Last),
   ok = rocksdb:write_binary_update(Db1, TransactionBin, []),
   ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db1, <<"a">>, [])),
@@ -114,13 +114,14 @@ iterator_with_batch_test() ->
   ?assertEqual(not_found, rocksdb:get(Db1, <<"c">>, [])),
   ?assertEqual(2, rocksdb:get_latest_sequence_number(Db1)),
 
-  {ok, Last2, TransactionBin2} = rocksdb:next_binary_update(Itr),
+  {ok, Last2, TransactionBin2} = rocksdb:tlog_next_binary_update(Itr),
   ?assertEqual(3, Last2),
   ok = rocksdb:write_binary_update(Db1, TransactionBin2, []),
   ?assertEqual(not_found, rocksdb:get(Db1, <<"a">>, [])),
   ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db1, <<"b">>, [])),
   ?assertEqual({ok, <<"v3">>}, rocksdb:get(Db1, <<"c">>, [])),
 
+  ok = rocksdb:tlog_iterator_close(Itr),
   ?assertEqual(4, rocksdb:get_latest_sequence_number(Db1)),
 
   close_destroy(Db, "test.db"),
@@ -142,9 +143,9 @@ iterator_with_batch2_test() ->
 
   ?assertEqual(6, rocksdb:get_latest_sequence_number(Db)),
 
-  {ok, Itr} = rocksdb:updates_iterator(Db, 0),
+  {ok, Itr} = rocksdb:tlog_iterator(Db, 0),
 
-  {ok, Last, Log, BinLog} = rocksdb:next_update(Itr),
+  {ok, Last, Log, BinLog} = rocksdb:tlog_next_update(Itr),
   ?assertEqual(1, Last),
   ?assertEqual(W1, Log),
 
@@ -154,7 +155,7 @@ iterator_with_batch2_test() ->
   ?assertEqual({ok, <<"v3">>}, rocksdb:get(Db1, <<"c">>, [])),
   ?assertEqual(not_found, rocksdb:get(Db1, <<"d">>, [])),
   ?assertEqual(3, rocksdb:get_latest_sequence_number(Db1)),
-  {ok, Last2, Log2, BinLog2} = rocksdb:next_update(Itr),
+  {ok, Last2, Log2, BinLog2} = rocksdb:tlog_next_update(Itr),
   ?assertEqual(4, Last2),
   ?assertEqual(W2, Log2),
   ok = rocksdb:write_binary_update(Db1, BinLog2, []),
@@ -163,6 +164,8 @@ iterator_with_batch2_test() ->
   ?assertEqual(not_found, rocksdb:get(Db1, <<"c">>, [])),
   ?assertEqual({ok, <<"v4">>}, rocksdb:get(Db1, <<"d">>, [])),
   ?assertEqual(6, rocksdb:get_latest_sequence_number(Db1)),
+
+  ok = rocksdb:tlog_iterator_close(Itr),
 
   close_destroy(Db, "test.db"),
   close_destroy(Db1, "test1.db"),

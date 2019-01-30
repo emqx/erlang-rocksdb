@@ -32,14 +32,11 @@ TransactionLogHandler::TransactionLogHandler(ErlNifEnv* env)
     t_List = enif_make_list(env, 0);
 }
 
-
-
-
 ERL_NIF_TERM
-UpdatesIterator(
-        ErlNifEnv* env,
-        int /*argc*/,
-        const ERL_NIF_TERM argv[])
+TransactionLogIterator(
+    ErlNifEnv *env,
+    int /*argc*/,
+    const ERL_NIF_TERM argv[])
 {
 
     ErlNifSInt64 since;
@@ -74,7 +71,7 @@ UpdatesIterator(
 }
 
 ERL_NIF_TERM
-UpdatesIteratorClose(
+TransactionLogIteratorClose(
         ErlNifEnv* env,
         int /*argc*/,
         const ERL_NIF_TERM argv[])
@@ -91,8 +88,8 @@ UpdatesIteratorClose(
 }
 
 ERL_NIF_TERM
-NextUpdate(
-    ErlNifEnv* env,
+TransactionLogNextUpdate(
+    ErlNifEnv *env,
     int /*argc*/,
     const ERL_NIF_TERM argv[])
 {
@@ -137,8 +134,8 @@ NextUpdate(
 }
 
 ERL_NIF_TERM
-NextBinaryUpdate(
-    ErlNifEnv* env,
+TransactionLogNextBinaryUpdate(
+    ErlNifEnv *env,
     int /*argc*/,
     const ERL_NIF_TERM argv[])
 {

@@ -41,6 +41,7 @@
   get_approximate_memtable_stats/3, get_approximate_memtable_stats/4
 ]).
 
+-export([get_latest_sequence_number/1]).
 
 %% snapshot
 -export([
@@ -118,12 +119,18 @@
   destroy_env/1
 ]).
 
+%% Log Iterator API
 
--export([get_latest_sequence_number/1]).
+-export([tlog_iterator/2,
+         tlog_iterator_close/1,
+         tlog_next_binary_update/1,
+         tlog_next_update/1]).
+
+-export([write_binary_update/3]).
+
 -export([updates_iterator/2]).
 -export([close_updates_iterator/1]).
 -export([next_binary_update/1]).
--export([write_binary_update/3]).
 -export([next_update/1]).
 
 %% batch functions
@@ -185,6 +192,11 @@
 -deprecated({fold_keys, 4, next_major_release}).
 -deprecated({fold_keys, 5, next_major_release}).
 -deprecated({write, 3, next_major_release}).
+-deprecated({updates_iterator, 2, next_major_release}).
+-deprecated({close_updates_iterator, 1, next_major_release}).
+-deprecated({next_binary_update, 1, next_major_release}).
+-deprecated({next_update, 1, next_major_release}).
+
 
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
@@ -998,43 +1010,57 @@ get_property(_DBHandle, _Property) ->
 get_property(_DBHandle, _CFHandle, _Property) ->
   ?nif_stub.
 
-%% @doc get latest sequence from the log
+%% @doc gThe sequence number of the most recent transaction.
 -spec get_latest_sequence_number(Db :: db_handle()) -> Seq :: non_neg_integer().
 get_latest_sequence_number(_DbHandle) ->
   ?nif_stub.
 
+%% ===================================================================
+%% Transaction Log API
+
+
 %% @doc create a new iterator to retrive ethe transaction log since a sequce
--spec updates_iterator(Db :: db_handle(),Since :: non_neg_integer()) -> {ok, Iterator :: term()}.
-updates_iterator(_DbHandle, _Since) ->
+-spec tlog_iterator(Db :: db_handle(),Since :: non_neg_integer()) -> {ok, Iterator :: term()}.
+tlog_iterator(_DbHandle, _Since) ->
   ?nif_stub.
 
 %% @doc close the transaction log
-close_updates_iterator(_Iterator) ->
+-spec tlog_iterator_close(term()) -> ok.
+tlog_iterator_close(_Iterator) ->
   ?nif_stub.
 
 %% @doc go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.
--spec next_binary_update(
+-spec tlog_next_binary_update(
         Iterator :: term()
        ) -> {ok, LastSeq :: non_neg_integer(), BinLog :: binary()} | {error, term()}.
-next_binary_update(_Iterator) ->
+tlog_next_binary_update(_Iterator) ->
+  ?nif_stub.
+
+%% @doc like `tlog_nex_binary_update/1' but also return the batch as a list of operations
+-spec tlog_next_update(
+        Iterator :: term()
+       ) -> {ok, LastSeq :: non_neg_integer(), Log :: write_actions(), BinLog :: binary()} | {error, term()}.
+tlog_next_update(_Iterator) ->
   ?nif_stub.
 
 %% @doc apply a set of operation coming from a transaction log to another database. Can be useful to use it in slave
 %% mode.
 %%
 -spec write_binary_update(
-        Iterator :: term(), BinLog :: binary(), WriteOptions :: write_options()
+        DbHandle :: db_handle(), BinLog :: binary(), WriteOptions :: write_options()
        ) -> ok | {error, term()}.
-write_binary_update(_Iterator, _Update, _WriteOptions) ->
+write_binary_update(_DbHandle, _Update, _WriteOptions) ->
   ?nif_stub.
 
 
-%% @doc like binary update but also return the batch as a list of operations
--spec next_update(
-        Iterator :: term()
-       ) -> {ok, LastSeq :: non_neg_integer(), Log :: write_actions(), BinLog :: binary()} | {error, term()}.
-next_update(_Iterator) ->
-  ?nif_stub.
+
+updates_iterator(DBH, Since) -> tlog_iterator(DBH, Since).
+close_updates_iterator(Itr) -> tlog_iterator_close(Itr).
+next_binary_update(Itr) -> tlog_next_binary_update(Itr).
+next_update(Itr) -> tlog_next_update(Itr).
+
+%% ===================================================================
+%% Batch API
 
 %% @doc create a new batch in memory. A batch is a nif resource attached to the current process. Pay attention when you
 %% share it with other processes as it may not been released. To force its release you will need to use the close_batch
@@ -1124,7 +1150,7 @@ batch_tolist(_Batch) ->
 
 
 %% ===================================================================
-%% backup functions
+%% Backup Engine API
 
 %% @doc open a new backup engine for creating new backups.
 -spec open_backup_engine(Path :: string) -> {ok, backup_engine()} | {error, term()}.

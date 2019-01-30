@@ -89,11 +89,11 @@ static ErlNifFunc nif_funcs[] =
         {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber, ERL_NIF_REGULAR_BOUND},
 
         // transactions
-        {"updates_iterator", 2, erocksdb::UpdatesIterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"close_updates_iterator", 1, erocksdb::UpdatesIteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"next_binary_update", 1, erocksdb::NextBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"tlog_iterator", 2, erocksdb::TransactionLogIterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"tlog_iterator_close", 1, erocksdb::TransactionLogIteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"tlog_next_binary_update", 1, erocksdb::TransactionLogNextBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"tlog_next_update", 1, erocksdb::TransactionLogNextUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"write_binary_update", 3, erocksdb::WriteBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"next_update", 1, erocksdb::NextUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // Batch
         {"batch", 0, erocksdb::NewBatch, ERL_NIF_REGULAR_BOUND},
@@ -160,8 +160,7 @@ static ErlNifFunc nif_funcs[] =
         {"new_write_buffer_manager", 2, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"release_write_buffer_manager", 1, erocksdb::ReleaseWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"write_buffer_manager_get", 2, erocksdb::WriteBufferManager_Get, ERL_NIF_REGULAR_BOUND},
-        {"write_buffer_manager_is_enabled", 1, erocksdb::WriteBufferManager_IsEnabled, ERL_NIF_REGULAR_BOUND}
-};
+        {"write_buffer_manager_is_enabled", 1, erocksdb::WriteBufferManager_IsEnabled, ERL_NIF_REGULAR_BOUND}};
 
 namespace erocksdb {
 
