@@ -75,7 +75,6 @@
 
 
 %% Cache API
-
 -export([new_cache/2,
          release_cache/1,
          cache_info/1,
@@ -199,6 +198,12 @@
 -deprecated({next_update, 1, next_major_release}).
 -deprecated({default_env, 0, next_major_release}).
 -deprecated({mem_env, 0, next_major_release}).
+-deprecated({new_lru_cache, 1, next_major_release}).
+-deprecated({new_clock_cache, 1, next_major_release}).
+-deprecated({get_pinned_usage, 1, next_major_release}).
+-deprecated({get_usage, 1, next_major_release}).
+-deprecated({get_capacity, 1, next_major_release}).
+-deprecated({get_pinned_usage, 1, next_major_release}).
 
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
