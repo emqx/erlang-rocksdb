@@ -18,7 +18,7 @@
 // -------------------------------------------------------------------
 
 #include "erocksdb_db.h"
-#include "transactions.h"
+#include "transaction_log.h"
 
 #include "refobjects.h"
 #include "atoms.h"
