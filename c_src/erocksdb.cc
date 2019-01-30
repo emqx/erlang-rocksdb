@@ -144,8 +144,7 @@ static ErlNifFunc nif_funcs[] =
         {"release_rate_limiter", 1, erocksdb::ReleaseRateLimiter, ERL_NIF_REGULAR_BOUND},
 
         // env
-        {"default_env", 0, erocksdb::DefaultEnv, ERL_NIF_REGULAR_BOUND},
-        {"mem_env", 0, erocksdb::MemEnv, ERL_NIF_REGULAR_BOUND},
+        {"new_env", 1, erocksdb::NewEnv, ERL_NIF_REGULAR_BOUND},
         {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"destroy_env", 1, erocksdb::DestroyEnv, ERL_NIF_REGULAR_BOUND},

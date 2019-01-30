@@ -113,8 +113,8 @@ ERL_NIF_TERM SetStrictCapacityLimit(ErlNifEnv* env, int argc, const ERL_NIF_TERM
 ERL_NIF_TERM NewRateLimiter(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM ReleaseRateLimiter(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
-ERL_NIF_TERM DefaultEnv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM MemEnv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+// Env API
+ERL_NIF_TERM NewEnv(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM SetEnvBackgroundThreads(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM DestroyEnv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 

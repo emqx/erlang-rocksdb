@@ -49,7 +49,7 @@ prev_test() ->
 
 
 env_resource_test() ->
-  {ok, Env} = rocksdb:mem_env(),
+  {ok, Env} = rocksdb:new_env(memenv),
   Options = [{env, Env}, {create_if_missing, true}],
   {ok, Db} = rocksdb:open("test", Options),
   ok = rocksdb:put(Db, <<"a">>, <<"1">>, []),

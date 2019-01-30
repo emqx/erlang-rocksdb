@@ -111,16 +111,15 @@
   write_buffer_manager_is_enabled/1
 ]).
 
-%% env api
+%% Env api
 -export([
-  default_env/0,
-  mem_env/0,
+  new_env/1,
   set_env_background_threads/2, set_env_background_threads/3,
   destroy_env/1
 ]).
+-export([default_env/0, mem_env/0]).
 
 %% Log Iterator API
-
 -export([tlog_iterator/2,
          tlog_iterator_close/1,
          tlog_next_binary_update/1,
@@ -133,7 +132,7 @@
 -export([next_binary_update/1]).
 -export([next_update/1]).
 
-%% batch functions
+%% Batch API
 -export([batch/0,
          release_batch/1,
          write_batch/3,
@@ -196,7 +195,8 @@
 -deprecated({close_updates_iterator, 1, next_major_release}).
 -deprecated({next_binary_update, 1, next_major_release}).
 -deprecated({next_update, 1, next_major_release}).
-
+-deprecated({default_env, 0, next_major_release}).
+-deprecated({mem_env, 0, next_major_release}).
 
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
@@ -229,7 +229,9 @@
 
 -type column_family() :: cf_handle() | default_column_family.
 
--opaque env() :: default | memenv | env_handle().
+-type env_type() :: default | memenv.
+
+-opaque env() :: env_type() | env_handle().
 
 -type env_priority() :: priority_high | priority_low.
 
@@ -1310,16 +1312,15 @@ release_rate_limiter(_Limiter) ->
 
 
 %% ===================================================================
-%% env functions
+%% Env API
 
-%% @doc return a default db environment
--spec default_env() -> {ok, env_handle()}.
-default_env() ->
-  ?nif_stub.
+%% @sdoc return a default db environment
+-spec new_env() -> {ok, env_handle()}.
+new_env() -> new_env(default).
 
-%% @doc return a memory environment
--spec mem_env() -> {ok, env_handle()}.
-mem_env() ->
+%% @doc return a db environment
+-spec new_env(EnvType :: env_type()) -> {ok, env_handle()}.
+new_env(_EnvType) ->
   ?nif_stub.
 
 %% @doc set background threads of an environment
@@ -1351,6 +1352,10 @@ set_db_background_threads(_Db, _N) ->
 -spec set_db_background_threads(DB :: db_handle(), N :: non_neg_integer(), Priority :: env_priority()) -> ok.
 set_db_background_threads(_Db, _N, _PRIORITY) ->
   ?nif_stub.
+
+default_env() -> new_env(default).
+
+mem_env() -> new_env(memenv).
 
 %% ===================================================================
 %% SstFileManager functions
