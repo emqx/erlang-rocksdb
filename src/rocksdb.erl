@@ -20,8 +20,7 @@
 -module(rocksdb).
 
 -export([
-  open/2,
-  open_with_cf/3,
+  open/2, open/3,
   open_with_ttl/4,
   close/1,
   set_db_background_threads/2, set_db_background_threads/3,
@@ -41,6 +40,7 @@
   get_approximate_memtable_stats/3, get_approximate_memtable_stats/4
 ]).
 
+-export([open_with_cf/3]).
 -export([drop_column_family/1]).
 -export([destroy_column_family/1]).
 
@@ -208,6 +208,7 @@
 -deprecated({get_capacity, 1, next_major_release}).
 -deprecated({drop_column_family, 1, next_major_release}).
 -deprecated({destroy_column_family, 1, next_major_release}).
+-deprecated({open_with_cf, 3, next_major_release}).
 
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
@@ -436,8 +437,12 @@ open(_Name, _DBOpts) ->
          when Name::file:filename_all(),
           DBOpts :: db_options(),
           CFDescriptors :: list(#cf_descriptor{})).
-open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
+open(_Name, _DBOpts, _CFDescriptors) ->
   ?nif_stub.
+
+open_with_cf(Name, DbOpts, CFDescriptors) ->
+  open(Name, DbOpts, CFDescriptors).
+
 
 %% @doc Open RocksDB with TTL support
 %% This API should be used to open the db when key-values inserted are

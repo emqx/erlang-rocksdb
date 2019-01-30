@@ -24,7 +24,7 @@
 basic_test() ->
   rocksdb:destroy("test.db", []),
   ColumnFamilies = [{"default", []}],
-  {ok, Db, Handles1} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
+  {ok, Db, Handles1} = rocksdb:open("test.db", [{create_if_missing, true}], ColumnFamilies),
   ?assertEqual(1, length(Handles1)),
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
   {ok, Handle} = rocksdb:create_column_family(Db, "test", []),
@@ -38,7 +38,7 @@ basic_test() ->
 destroy_test() ->
   rocksdb:destroy("test.db", []),
   ColumnFamilies = [{"default", []}],
-  {ok, Db, Handles1} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
+  {ok, Db, Handles1} = rocksdb:open("test.db", [{create_if_missing, true}], ColumnFamilies),
   ?assertEqual(1, length(Handles1)),
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
   {ok, Handle} = rocksdb:create_column_family(Db, "test", []),
@@ -51,14 +51,14 @@ destroy_test() ->
 column_order_test() ->
   rocksdb:destroy("test.db", []),
   ColumnFamilies = [{"default", []}],
-  {ok, Db, Handles1} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
+  {ok, Db, Handles1} = rocksdb:open("test.db", [{create_if_missing, true}], ColumnFamilies),
   ?assertEqual(1, length(Handles1)),
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
   {ok, _Handle} = rocksdb:create_column_family(Db, "test", []),
   ok = rocksdb:close(Db),
   ?assertEqual({ok, ["default", "test"]}, rocksdb:list_column_families("test.db", [])),
   ColumnFamilies2 = [{"default", []}, {"test", []}],
-  {ok, Db2, Handles2} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies2),
+  {ok, Db2, Handles2} = rocksdb:open("test.db", [{create_if_missing, true}], ColumnFamilies2),
   [_DefaultH, TestH] = Handles2,
   ok = rocksdb:drop_column_family(Db2, TestH),
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
@@ -68,12 +68,12 @@ column_order_test() ->
 try_remove_default_test() ->
   rocksdb:destroy("test.db", []),
   ColumnFamilies = [{"default", []}],
-  {ok, Db, [DefaultH]} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
+  {ok, Db, [DefaultH]} = rocksdb:open("test.db", [{create_if_missing, true}], ColumnFamilies),
   {error, _} = rocksdb:drop_column_family(Db, DefaultH),
   {ok, _Handle} = rocksdb:create_column_family(Db, "test", []),
   rocksdb:close(Db),
   ColumnFamilies2 = [{"default", []}, {"test", []}],
-  {ok, Db2, [DefaultH2, _]} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies2),
+  {ok, Db2, [DefaultH2, _]} = rocksdb:open("test.db", [{create_if_missing, true}], ColumnFamilies2),
   {error, _} = rocksdb:drop_column_family(Db2, DefaultH2),
   rocksdb:close(Db2),
   ok.
@@ -81,7 +81,7 @@ try_remove_default_test() ->
 basic_kvs_test() ->
   rocksdb:destroy("test.db", []),
   ColumnFamilies = [{"default", []}],
-  {ok, Db, [DefaultH]} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
+  {ok, Db, [DefaultH]} = rocksdb:open("test.db", [{create_if_missing, true}], ColumnFamilies),
   ok = rocksdb:put(Db, DefaultH, <<"a">>, <<"a1">>, []),
   {ok,  <<"a1">>} = rocksdb:get(Db, DefaultH, <<"a">>, []),
   ok = rocksdb:put(Db, DefaultH, <<"b">>, <<"b1">>, []),
@@ -103,7 +103,7 @@ basic_kvs_test() ->
 single_delete_test() ->
   rocksdb:destroy("test.db", []),
   ColumnFamilies = [{"default", []}],
-  {ok, Db, [DefaultH]} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
+  {ok, Db, [DefaultH]} = rocksdb:open("test.db", [{create_if_missing, true}], ColumnFamilies),
   ok = rocksdb:put(Db, DefaultH, <<"c">>, <<"c1">>, []),
   {ok, <<"c1">>} = rocksdb:get(Db, DefaultH, <<"c">>, []),
   ok = rocksdb:single_delete(Db, DefaultH, <<"c">>, []),
