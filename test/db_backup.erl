@@ -43,7 +43,7 @@ simple_test() ->
   ok = rocksdb:verify_backup(Backup, 1),
   ok = rocksdb:verify_backup(Backup, 2),
 
-  rocksdb:close_backup(Backup),
+  rocksdb:close_backup_engine(Backup),
   rocksdb:close(DB),
   rocksdb:destroy(?source, []),
   rocksdb:destroy(?target, []),
@@ -68,7 +68,7 @@ restore_latest_test() ->
   ok = rocksdb:verify_backup(Backup, 1),
   ok = rocksdb:verify_backup(Backup, 2),
 
-  rocksdb:close_backup(Backup),
+  rocksdb:close_backup_engine(Backup),
   rocksdb:close(DB),
 
   timer:sleep(500),
@@ -78,7 +78,7 @@ restore_latest_test() ->
 
   100 = rocksdb:count(LatestDb),
 
-  rocksdb:close_backup(Backup2),
+  rocksdb:close_backup_engine(Backup2),
   rocksdb:close(LatestDb),
 
   rocksdb:destroy(?source, []),

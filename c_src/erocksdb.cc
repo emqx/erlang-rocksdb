@@ -126,8 +126,8 @@ static ErlNifFunc nif_funcs[] =
         {"restore_db_from_backup", 4, erocksdb::RestoreDBFromBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"restore_db_from_latest_backup", 2, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"restore_db_from_latest_backup", 3, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"garbage_collect_backup", 1, erocksdb::GarbageCollect, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"close_backup", 1, erocksdb::CloseBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"gc_backup_engine", 1, erocksdb::GCBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"close_backup_engine", 1, erocksdb::CloseBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // cache
         {"new_lru_cache", 1, erocksdb::NewLRUCache, ERL_NIF_REGULAR_BOUND},

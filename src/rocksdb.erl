@@ -141,8 +141,12 @@
          batch_data_size/1,
          batch_tolist/1]).
 
+
+%% Backup Engine
 -export([
   open_backup_engine/1,
+  close_backup_engine/1,
+  gc_backup_engine/1,
   create_new_backup/2,
   stop_backup/1,
   get_backup_info/1,
@@ -150,9 +154,7 @@
   delete_backup/2,
   purge_old_backup/2,
   restore_db_from_backup/3, restore_db_from_backup/4,
-  restore_db_from_latest_backup/2, restore_db_from_latest_backup/3,
-  garbage_collect_backup/1,
-  close_backup/1
+  restore_db_from_latest_backup/2, restore_db_from_latest_backup/3
 ]).
 
 
@@ -1124,9 +1126,23 @@ batch_tolist(_Batch) ->
 %% ===================================================================
 %% backup functions
 
-%% @doc open a new backup engine
+%% @doc open a new backup engine for creating new backups.
 -spec open_backup_engine(Path :: string) -> {ok, backup_engine()} | {error, term()}.
 open_backup_engine(_Path) ->
+  ?nif_stub.
+
+
+%% @doc stop and close the backup engine
+%% note: experimental for testing only
+-spec close_backup_engine(backup_engine()) -> ok.
+close_backup_engine(_BackupEngine) ->
+  ?nif_stub.
+
+%% @doc  Will delete all the files we don't need anymore
+%% It will do the full scan of the files/ directory and delete all the
+%% files that are not referenced.
+-spec gc_backup_engine(backup_engine()) -> ok.
+gc_backup_engine(_BackupEngine) ->
   ?nif_stub.
 
 %% %% @doc Call this from another process if you want to stop the backup
@@ -1202,18 +1218,6 @@ restore_db_from_latest_backup(_BackupEngine, _DbDir) ->
 restore_db_from_latest_backup(_BackupEngine,  _DbDir, _WalDir) ->
   ?nif_stub.
 
-%% @doc  Will delete all the files we don't need anymore
-%% It will do the full scan of the files/ directory and delete all the
-%% files that are not referenced.
--spec garbage_collect_backup(backup_engine()) -> ok.
-garbage_collect_backup(_BackupEngine) ->
-  ?nif_stub.
-
-%% @doc stop and close the backup
-%% note: experimental for testing only
--spec close_backup(backup_engine()) -> ok.
-close_backup(_BackupEngine) ->
-  ?nif_stub.
 
 
 %% ===================================================================
