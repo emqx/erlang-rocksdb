@@ -580,14 +580,17 @@ cache_info(Cache) -&gt; InfoList
 
 return informations of a cache as a list of tuples.
 
-{capacity, integer >=0}
-the maximum configured capacity of the cache.
-{strict_capacity, boolean}
-the flag whether to return error on insertion when cache reaches its full capacity.
-{usage, integer >=0}
-the memory size for the entries residing in the cache.
-{pinned_usage, integer >= 0}
-the memory size for the entries in use by the system
+```
+
+   {capacity, integer >=0}
+       the maximum configured capacity of the cache.
+   {strict_capacity, boolean}
+       the flag whether to return error on insertion when cache reaches its full capacity.
+   {usage, integer >=0}
+       the memory size for the entries residing in the cache.
+   {pinned_usage, integer >= 0}
+       the memory size for the entries in use by the system
+```
 
 <a name="cache_info-2"></a>
 

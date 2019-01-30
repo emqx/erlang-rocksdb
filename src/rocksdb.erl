@@ -1289,7 +1289,7 @@ new_cache(_Type, _Capacity) ->
   ?nif_stub.
 
 %% @doc return informations of a cache as a list of tuples.
-%%
+%%<pre>
 %%  {capacity, integer >=0}
 %%      the maximum configured capacity of the cache.
 %%  {strict_capacity, boolean}
@@ -1298,6 +1298,7 @@ new_cache(_Type, _Capacity) ->
 %%      the memory size for the entries residing in the cache.
 %%  {pinned_usage, integer >= 0}
 %%      the memory size for the entries in use by the system
+%% </pre>
 -spec cache_info(Cache) -> InfoList when
   Cache :: cache_handle(),
   InfoList :: [InfoTuple],
