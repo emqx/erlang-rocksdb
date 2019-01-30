@@ -35,7 +35,6 @@
   checkpoint/2,
   flush/2, flush/3,
   sync_wal/1,
-  count/1, count/2,
   stats/1, stats/2,
   get_property/2, get_property/3,
   get_approximate_sizes/3, get_approximate_sizes/4,
@@ -56,7 +55,6 @@
   merge/4, merge/5,
   delete/3, delete/4,
   single_delete/3, single_delete/4,
-  write/3,
   get/3, get/4,
   delete_range/4, delete_range/5,
   compact_range/4, compact_range/5,
@@ -67,8 +65,14 @@
   iterator_close/1
 ]).
 
+%% deprecated API
 
+-export([write/3]).
+-export([count/1, count/2]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
+
+
+
 %% Cache API
 -export([
   new_lru_cache/1,
@@ -171,6 +175,14 @@
   sst_file_manager/0,
   write_buffer_manager/0
 ]).
+
+-deprecated({count, 1, next_major_release}).
+-deprecated({count, 2, next_major_release}).
+-deprecated({fold, 4, next_major_release}).
+-deprecated({fold, 5, next_major_release}).
+-deprecated({fold_keys, 4, next_major_release}).
+-deprecated({fold_keys, 5, next_major_release}).
+-deprecated({write, 3, next_major_release}).
 
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
@@ -580,6 +592,7 @@ single_delete(_DBHandle, _CFHandle, _Key, _WriteOpts) ->
   ?nif_stub.
 
 %% @doc Apply the specified updates to the database.
+%% this function will be removed on the next major release. You should use the `batch_*' API instead.
 -spec write(DBHandle, WriteActions, WriteOpts) -> Res when
   DBHandle::db_handle(),
    WriteActions::write_actions(),
@@ -822,6 +835,9 @@ iterator_close(_ITRHandle) ->
 %% Fun/2 must return a new accumulator which is passed to the next call.
 %% The function returns the final value of the accumulator.
 %% Acc0 is returned if the default column family is empty.
+%%
+%% this function is deprecated and will be removed in next major release.
+%% You should use the `iterator' API instead.
 -spec fold(DBHandle, Fun, AccIn, ReadOpts) -> AccOut when
   DBHandle::db_handle(),
   Fun::fold_fun(),
@@ -834,6 +850,9 @@ fold(DBHandle, Fun, Acc0, ReadOpts) ->
 
 %% @doc Calls Fun(Elem, AccIn) on successive elements in the specified column family
 %% Other specs are same with fold/4
+%%
+%% this function is deprecated and will be removed in next major release.
+%% You should use the `iterator' API instead.
 -spec fold(DBHandle, CFHandle, Fun, AccIn, ReadOpts) -> AccOut when
   DBHandle::db_handle(),
   CFHandle::cf_handle(),
@@ -852,6 +871,9 @@ fold(DbHandle, CFHandle, Fun, Acc0, ReadOpts) ->
 %% Fun/2 must return a new accumulator which is passed to the next call.
 %% The function returns the final value of the accumulator.
 %% Acc0 is returned if the default column family is empty.
+%%
+%% this function is deprecated and will be removed in next major release.
+%% You should use the `iterator' API instead.
 -spec fold_keys(DBHandle, Fun, AccIn, ReadOpts) -> AccOut when
   DBHandle::db_handle(),
   Fun::fold_keys_fun(),
@@ -866,6 +888,9 @@ fold_keys(DBHandle, UserFun, Acc0, ReadOpts) ->
 
 %% @doc Calls Fun(Elem, AccIn) on successive elements in the specified column family
 %% Other specs are same with fold_keys/4
+%%
+%% this function is deprecated and will be removed in next major release.
+%% You should use the `iterator' API instead.
 -spec fold_keys(DBHandle, CFHandle, Fun, AccIn, ReadOpts) -> AccOut when
   DBHandle::db_handle(),
   CFHandle::cf_handle(),
@@ -926,6 +951,8 @@ sync_wal(_DbHandle) ->
 
 %% @doc Return the approximate number of keys in the default column family.
 %% Implemented by calling GetIntProperty with "rocksdb.estimate-num-keys"
+%%
+%% this function is deprecated and will be removed in next major release.
 -spec count(DBHandle::db_handle()) ->  non_neg_integer() | {error, any()}.
 count(DBHandle) ->
   count_1(get_property(DBHandle, <<"rocksdb.estimate-num-keys">>)).
@@ -933,6 +960,7 @@ count(DBHandle) ->
 %% @doc
 %% Return the approximate number of keys in the specified column family.
 %%
+%% this function is deprecated and will be removed in next major release.
 -spec count(DBHandle::db_handle(), CFHandle::cf_handle()) -> non_neg_integer() | {error, any()}.
 count(DBHandle, CFHandle) ->
   count_1(get_property(DBHandle, CFHandle, <<"rocksdb.estimate-num-keys">>)).
