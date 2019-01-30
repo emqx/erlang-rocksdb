@@ -29,7 +29,7 @@ basic_test() ->
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
   {ok, Handle} = rocksdb:create_column_family(Db, "test", []),
   ?assertEqual({ok, ["default", "test"]}, rocksdb:list_column_families("test.db", [])),
-  ok = rocksdb:drop_column_family(Handle),
+  ok = rocksdb:drop_column_family(Db, Handle),
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
   rocksdb:close(Db),
 
@@ -43,7 +43,7 @@ destroy_test() ->
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
   {ok, Handle} = rocksdb:create_column_family(Db, "test", []),
   ?assertEqual({ok, ["default", "test"]}, rocksdb:list_column_families("test.db", [])),
-  ok = rocksdb:destroy_column_family(Handle),
+  ok = rocksdb:destroy_column_family(Db, Handle),
   ?assertEqual({ok, ["default", "test"]}, rocksdb:list_column_families("test.db", [])),
   rocksdb:close(Db),
   ok.
@@ -60,7 +60,7 @@ column_order_test() ->
   ColumnFamilies2 = [{"default", []}, {"test", []}],
   {ok, Db2, Handles2} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies2),
   [_DefaultH, TestH] = Handles2,
-  ok = rocksdb:drop_column_family(TestH),
+  ok = rocksdb:drop_column_family(Db2, TestH),
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
   rocksdb:close(Db2),
   ok.
@@ -69,12 +69,12 @@ try_remove_default_test() ->
   rocksdb:destroy("test.db", []),
   ColumnFamilies = [{"default", []}],
   {ok, Db, [DefaultH]} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies),
-  {error, _} = rocksdb:drop_column_family(DefaultH),
+  {error, _} = rocksdb:drop_column_family(Db, DefaultH),
   {ok, _Handle} = rocksdb:create_column_family(Db, "test", []),
   rocksdb:close(Db),
   ColumnFamilies2 = [{"default", []}, {"test", []}],
   {ok, Db2, [DefaultH2, _]} = rocksdb:open_with_cf("test.db", [{create_if_missing, true}], ColumnFamilies2),
-  {error, _} = rocksdb:drop_column_family(DefaultH2),
+  {error, _} = rocksdb:drop_column_family(Db2, DefaultH2),
   rocksdb:close(Db2),
   ok.
 
@@ -86,17 +86,17 @@ basic_kvs_test() ->
   {ok,  <<"a1">>} = rocksdb:get(Db, DefaultH, <<"a">>, []),
   ok = rocksdb:put(Db, DefaultH, <<"b">>, <<"b1">>, []),
   {ok, <<"b1">>} = rocksdb:get(Db, DefaultH, <<"b">>, []),
-  ?assertEqual(2, rocksdb:count(Db,DefaultH)),
+  ?assertEqual(2, count(Db,DefaultH)),
 
   ok = rocksdb:delete(Db, DefaultH, <<"b">>, []),
   not_found = rocksdb:get(Db, DefaultH, <<"b">>, []),
-  ?assertEqual(1, rocksdb:count(Db, DefaultH)),
+  ?assertEqual(1, count(Db, DefaultH)),
 
   {ok, TestH} = rocksdb:create_column_family(Db, "test", []),
   rocksdb:put(Db, TestH, <<"a">>, <<"a2">>, []),
   {ok,  <<"a1">>} = rocksdb:get(Db, DefaultH, <<"a">>, []),
   {ok,  <<"a2">>} = rocksdb:get(Db, TestH, <<"a">>, []),
-  ?assertEqual(1, rocksdb:count(Db, TestH)),
+  ?assertEqual(1, count(Db, TestH)),
   rocksdb:close(Db),
   ok.
 
@@ -110,3 +110,7 @@ single_delete_test() ->
   not_found = rocksdb:get(Db, DefaultH, <<"c">>, []),
   rocksdb:close(Db),
   ok.
+
+count(DBH, CFH) ->
+  {ok, C} = rocksdb:get_property(DBH, CFH, <<"rocksdb.estimate-num-keys">>),
+  binary_to_integer(C).

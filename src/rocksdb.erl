@@ -30,8 +30,8 @@
   is_empty/1,
   list_column_families/2,
   create_column_family/3,
-  drop_column_family/1,
-  destroy_column_family/1,
+  drop_column_family/2,
+  destroy_column_family/2,
   checkpoint/2,
   flush/2, flush/3,
   sync_wal/1,
@@ -40,6 +40,9 @@
   get_approximate_sizes/3, get_approximate_sizes/4,
   get_approximate_memtable_stats/3, get_approximate_memtable_stats/4
 ]).
+
+-export([drop_column_family/1]).
+-export([destroy_column_family/1]).
 
 -export([get_latest_sequence_number/1]).
 
@@ -114,7 +117,7 @@
 
 %% Env api
 -export([
-  new_env/1,
+  new_env/0, new_env/1,
   set_env_background_threads/2, set_env_background_threads/3,
   destroy_env/1
 ]).
@@ -203,7 +206,8 @@
 -deprecated({get_pinned_usage, 1, next_major_release}).
 -deprecated({get_usage, 1, next_major_release}).
 -deprecated({get_capacity, 1, next_major_release}).
--deprecated({get_pinned_usage, 1, next_major_release}).
+-deprecated({drop_column_family, 1, next_major_release}).
+-deprecated({destroy_column_family, 1, next_major_release}).
 
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
@@ -491,18 +495,29 @@ create_column_family(_DBHandle, _Name, _CFOpts) ->
   ?nif_stub.
 
 %% @doc Drop a column family
--spec drop_column_family(CFHandle) -> Res when
-  CFHandle::cf_handle(),
+-spec drop_column_family(DBHandle, CFHandle) -> Res when
+  DBHandle :: db_handle(),
+  CFHandle :: cf_handle(),
   Res :: ok | {error, any()}.
-drop_column_family(_CFHandle) ->
+
+drop_column_family(_DbHandle, _CFHandle) ->
   ?nif_stub.
 
 %% @doc Destroy a column family
--spec destroy_column_family(CFHandle) -> Res when
-  CFHandle::cf_handle(),
+-spec destroy_column_family(DBHandle, CFHandle) -> Res when
+  DBHandle :: db_handle(),
+  CFHandle :: cf_handle(),
   Res :: ok | {error, any()}.
+destroy_column_family(_DBHandle, _CFHandle) ->
+  ?nif_stub.
+
+drop_column_family(_CFHandle) ->
+  ?nif_stub.
+
 destroy_column_family(_CFHandle) ->
   ?nif_stub.
+
+
 
 %% @doc return a database snapshot
 %% Snapshots provide consistent read-only views over the entire state of the key-value store

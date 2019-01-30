@@ -60,7 +60,9 @@ static ErlNifFunc nif_funcs[] =
         {"list_column_families", 2, erocksdb::ListColumnFamilies, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"create_column_family", 3, erocksdb::CreateColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"drop_column_family", 1, erocksdb::DropColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"drop_column_family", 2, erocksdb::DropColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"destroy_column_family", 1, erocksdb::DestroyColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"destroy_column_family", 2, erocksdb::DestroyColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // kv operations
         {"get", 3, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -478,13 +480,6 @@ try
   ATOM(erocksdb::ATOM_PINNED_USAGE, "pinned_usage");
   ATOM(erocksdb::ATOM_CAPACITY, "capacity");
   ATOM(erocksdb::ATOM_STRICT_CAPACITY, "strict_capacity");
-
-  ERL_NIF_TERM ATOM_USAGE;
-  ERL_NIF_TERM ATOM_PINNED_USAGE;
-  ERL_NIF_TERM ATOM_CAPACITY;
-  ERL_NIF_TERM ATOM_STRICT_CAPACITY;
-
-
 
   ATOM(erocksdb::ATOM_DEFAULT_COLUMN_FAMILY, "default_column_family");
 
