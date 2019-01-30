@@ -69,6 +69,16 @@ __abstract datatype__: `cache_handle()`
 
 
 
+### <a name="type-cache_type">cache_type()</a> ###
+
+
+<pre><code>
+cache_type() = lru | clock
+</code></pre>
+
+
+
+
 ### <a name="type-cf_handle">cf_handle()</a> ###
 
 
@@ -131,7 +141,7 @@ compaction_style() = level | universal | fifo | none
 
 
 <pre><code>
-compression_type() = snappy | zlib | bzip2 | lz4 | lz4h | none
+compression_type() = snappy | zlib | bzip2 | lz4 | lz4h | zstd | none
 </code></pre>
 
 
@@ -176,6 +186,16 @@ __abstract datatype__: `env_handle()`
 
 <pre><code>
 env_priority() = priority_high | priority_low
+</code></pre>
+
+
+
+
+### <a name="type-env_type">env_type()</a> ###
+
+
+<pre><code>
+env_type() = default | memenv
 </code></pre>
 
 
@@ -343,26 +363,25 @@ write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {ignore_missin
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch-0">batch/0</a></td><td>create a new batch in memory.</td></tr><tr><td valign="top"><a href="#batch_clear-1">batch_clear/1</a></td><td>reset the batch, clear all operations.</td></tr><tr><td valign="top"><a href="#batch_count-1">batch_count/1</a></td><td>return the number of operations in the batch.</td></tr><tr><td valign="top"><a href="#batch_data_size-1">batch_data_size/1</a></td><td>Retrieve data size of the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-2">batch_delete/2</a></td><td>batch implementation of delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-3">batch_delete/3</a></td><td>like <code>batch_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_merge-3">batch_merge/3</a></td><td>add a merge operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_merge-4">batch_merge/4</a></td><td>like <code>batch_mege/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_put-3">batch_put/3</a></td><td>add a put operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_put-4">batch_put/4</a></td><td>like <code>batch_put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_rollback-1">batch_rollback/1</a></td><td>rollback the operations to the latest checkpoint.</td></tr><tr><td valign="top"><a href="#batch_savepoint-1">batch_savepoint/1</a></td><td>store a checkpoint in the batch to which you can rollback later.</td></tr><tr><td valign="top"><a href="#batch_single_delete-2">batch_single_delete/2</a></td><td>batch implementation of single_delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_single_delete-3">batch_single_delete/3</a></td><td>like <code>batch_single_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_tolist-1">batch_tolist/1</a></td><td>return all the operation sin the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#checkpoint-2">checkpoint/2</a></td><td>take a snapshot of a running RocksDB database in a separate directory
-http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>Close RocksDB.</td></tr><tr><td valign="top"><a href="#close_backup-1">close_backup/1</a></td><td>stop and close the backup
-note: experimental for testing only.</td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#compact_range-4">compact_range/4</a></td><td>Compact the underlying storage for the key range [*begin,*end].</td></tr><tr><td valign="top"><a href="#compact_range-5">compact_range/5</a></td><td> Compact the underlying storage for the key range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
-Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#create_new_backup-2">create_new_backup/2</a></td><td>Captures the state of the database in the latest backup.</td></tr><tr><td valign="top"><a href="#default_env-0">default_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#delete_backup-2">delete_backup/2</a></td><td>deletes a specific backup.</td></tr><tr><td valign="top"><a href="#delete_range-4">delete_range/4</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
-including "BeginKey" and excluding "EndKey".</td></tr><tr><td valign="top"><a href="#delete_range-5">delete_range/5</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_column_family-1">destroy_column_family/1</a></td><td>Destroy a column family.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#flush-2">flush/2</a></td><td>Flush all mem-table data.</td></tr><tr><td valign="top"><a href="#flush-3">flush/3</a></td><td>Flush all mem-table data for a column family.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch-0">batch/0</a></td><td>create a new batch in memory.</td></tr><tr><td valign="top"><a href="#batch_clear-1">batch_clear/1</a></td><td>reset the batch, clear all operations.</td></tr><tr><td valign="top"><a href="#batch_count-1">batch_count/1</a></td><td>return the number of operations in the batch.</td></tr><tr><td valign="top"><a href="#batch_data_size-1">batch_data_size/1</a></td><td>Retrieve data size of the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-2">batch_delete/2</a></td><td>batch implementation of delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-3">batch_delete/3</a></td><td>like <code>batch_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_merge-3">batch_merge/3</a></td><td>add a merge operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_merge-4">batch_merge/4</a></td><td>like <code>batch_mege/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_put-3">batch_put/3</a></td><td>add a put operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_put-4">batch_put/4</a></td><td>like <code>batch_put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_rollback-1">batch_rollback/1</a></td><td>rollback the operations to the latest checkpoint.</td></tr><tr><td valign="top"><a href="#batch_savepoint-1">batch_savepoint/1</a></td><td>store a checkpoint in the batch to which you can rollback later.</td></tr><tr><td valign="top"><a href="#batch_single_delete-2">batch_single_delete/2</a></td><td>batch implementation of single_delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_single_delete-3">batch_single_delete/3</a></td><td>like <code>batch_single_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_tolist-1">batch_tolist/1</a></td><td>return all the operation sin the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#cache_info-1">cache_info/1</a></td><td>return informations of a cache as a list of tuples.</td></tr><tr><td valign="top"><a href="#cache_info-2">cache_info/2</a></td><td>return the information associated with Item for cache Cache.</td></tr><tr><td valign="top"><a href="#checkpoint-2">checkpoint/2</a></td><td>take a snapshot of a running RocksDB database in a separate directory
+http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>Close RocksDB.</td></tr><tr><td valign="top"><a href="#close_backup_engine-1">close_backup_engine/1</a></td><td>stop and close the backup engine
+note: experimental for testing only.</td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td></td></tr><tr><td valign="top"><a href="#compact_range-4">compact_range/4</a></td><td>Compact the underlying storage for the key range [*begin,*end].</td></tr><tr><td valign="top"><a href="#compact_range-5">compact_range/5</a></td><td> Compact the underlying storage for the key range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
+Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#create_new_backup-2">create_new_backup/2</a></td><td>Captures the state of the database in the latest backup.</td></tr><tr><td valign="top"><a href="#default_env-0">default_env/0</a></td><td></td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#delete_backup-2">delete_backup/2</a></td><td>deletes a specific backup.</td></tr><tr><td valign="top"><a href="#delete_range-4">delete_range/4</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
+including "BeginKey" and excluding "EndKey".</td></tr><tr><td valign="top"><a href="#delete_range-5">delete_range/5</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_column_family-1">destroy_column_family/1</a></td><td></td></tr><tr><td valign="top"><a href="#destroy_column_family-2">destroy_column_family/2</a></td><td>Destroy a column family.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td></td></tr><tr><td valign="top"><a href="#drop_column_family-2">drop_column_family/2</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#flush-2">flush/2</a></td><td>Flush all mem-table data.</td></tr><tr><td valign="top"><a href="#flush-3">flush/3</a></td><td>Flush all mem-table data for a column family.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold-5">fold/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
 Other specs are same with fold/4.</td></tr><tr><td valign="top"><a href="#fold_keys-4">fold_keys/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold_keys-5">fold_keys/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
-Other specs are same with fold_keys/4.</td></tr><tr><td valign="top"><a href="#garbage_collect_backup-1">garbage_collect_backup/1</a></td><td> Will delete all the files we don't need anymore
+Other specs are same with fold_keys/4.</td></tr><tr><td valign="top"><a href="#gc_backup_engine-1">gc_backup_engine/1</a></td><td> Will delete all the files we don't need anymore
 It will do the full scan of the files/ directory and delete all the
 files that are not referenced.</td></tr><tr><td valign="top"><a href="#get-3">get/3</a></td><td>Retrieve a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#get-4">get/4</a></td><td>Retrieve a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#get_approximate_memtable_stats-3">get_approximate_memtable_stats/3</a></td><td>The method is similar to GetApproximateSizes, except it
 returns approximate number of records in memtables.</td></tr><tr><td valign="top"><a href="#get_approximate_memtable_stats-4">get_approximate_memtable_stats/4</a></td><td></td></tr><tr><td valign="top"><a href="#get_approximate_sizes-3">get_approximate_sizes/3</a></td><td>For each i in [0,n-1], store in "Sizes[i]", the approximate
-file system space used by keys in "[range[i].start ..</td></tr><tr><td valign="top"><a href="#get_approximate_sizes-4">get_approximate_sizes/4</a></td><td></td></tr><tr><td valign="top"><a href="#get_backup_info-1">get_backup_info/1</a></td><td>Returns info about backups in backup_info.</td></tr><tr><td valign="top"><a href="#get_capacity-1">get_capacity/1</a></td><td> returns the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#get_latest_sequence_number-1">get_latest_sequence_number/1</a></td><td>get latest sequence from the log.</td></tr><tr><td valign="top"><a href="#get_pinned_usage-1">get_pinned_usage/1</a></td><td> returns the memory size for the entries in use by the system.</td></tr><tr><td valign="top"><a href="#get_property-2">get_property/2</a></td><td>Return the RocksDB internal status of the default column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_property-3">get_property/3</a></td><td>Return the RocksDB internal status of the specified column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_snapshot_sequence-1">get_snapshot_sequence/1</a></td><td>returns Snapshot's sequence number.</td></tr><tr><td valign="top"><a href="#get_usage-1">get_usage/1</a></td><td>returns the memory size for a specific entry in the cache.</td></tr><tr><td valign="top"><a href="#is_empty-1">is_empty/1</a></td><td>is the database empty.</td></tr><tr><td valign="top"><a href="#iterator-2">iterator/2</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator-3">iterator/3</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator_close-1">iterator_close/1</a></td><td>
+file system space used by keys in "[range[i].start ..</td></tr><tr><td valign="top"><a href="#get_approximate_sizes-4">get_approximate_sizes/4</a></td><td></td></tr><tr><td valign="top"><a href="#get_backup_info-1">get_backup_info/1</a></td><td>Returns info about backups in backup_info.</td></tr><tr><td valign="top"><a href="#get_capacity-1">get_capacity/1</a></td><td></td></tr><tr><td valign="top"><a href="#get_latest_sequence_number-1">get_latest_sequence_number/1</a></td><td>gThe sequence number of the most recent transaction.</td></tr><tr><td valign="top"><a href="#get_pinned_usage-1">get_pinned_usage/1</a></td><td></td></tr><tr><td valign="top"><a href="#get_property-2">get_property/2</a></td><td>Return the RocksDB internal status of the default column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_property-3">get_property/3</a></td><td>Return the RocksDB internal status of the specified column family specified at Property.</td></tr><tr><td valign="top"><a href="#get_snapshot_sequence-1">get_snapshot_sequence/1</a></td><td>returns Snapshot's sequence number.</td></tr><tr><td valign="top"><a href="#get_usage-1">get_usage/1</a></td><td></td></tr><tr><td valign="top"><a href="#is_empty-1">is_empty/1</a></td><td>is the database empty.</td></tr><tr><td valign="top"><a href="#iterator-2">iterator/2</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator-3">iterator/3</a></td><td>Return a iterator over the contents of the database.</td></tr><tr><td valign="top"><a href="#iterator_close-1">iterator_close/1</a></td><td>
 Close a iterator.</td></tr><tr><td valign="top"><a href="#iterator_move-2">iterator_move/2</a></td><td>
 Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterator_refresh-1">iterator_refresh/1</a></td><td>
 Refresh iterator.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>
-Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td>return a memory environment.</td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td>Similar to NewLRUCache, but create a cache based on CLOCK algorithm with
-better concurrent performance in some cases.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td>// Create a new cache with a fixed size capacity.</td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
+Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td></td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_cache-2">new_cache/2</a></td><td>// Create a new cache.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_env-0">new_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#new_env-1">new_env/1</a></td><td>return a db environment.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
 RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-4">new_sst_file_manager/4</a></td><td>create new SstFileManager that can be shared among multiple RocksDB
-instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td>like binary update but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
+instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open-3">open/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine for creating new backups.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
 This API should be used to open the db when key-values inserted are
 meant to be removed from the db in a non-strict <code>TTL</code> amount of time
 Therefore, this guarantees that key-values inserted will remain in the
@@ -374,7 +393,7 @@ Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_strict_capacity_limit-2">set_strict_capacity_limit/2</a></td><td>sets strict_capacity_limit flag of the cache.</td></tr><tr><td valign="top"><a href="#single_delete-3">single_delete/3</a></td><td>Remove the database entry for "key".</td></tr><tr><td valign="top"><a href="#single_delete-4">single_delete/4</a></td><td>like <code>single_delete/3</code> but on the specified column family.</td></tr><tr><td valign="top"><a href="#snapshot-1">snapshot/1</a></td><td>return a database snapshot
 Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#sst_file_manager_get-2">sst_file_manager_get/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_is-2">sst_file_manager_is/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_set-3">sst_file_manager_set/3</a></td><td></td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stats-2">stats/2</a></td><td>Return the current stats of the specified column family
-Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
+Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#tlog_iterator-2">tlog_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#tlog_iterator_close-1">tlog_iterator_close/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#tlog_next_binary_update-1">tlog_next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#tlog_next_update-1">tlog_next_update/1</a></td><td>like <code>tlog_nex_binary_update/1</code> but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td></td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
 our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_get-2">write_buffer_manager_get/2</a></td><td></td></tr><tr><td valign="top"><a href="#write_buffer_manager_is_enabled-1">write_buffer_manager_is_enabled/1</a></td><td></td></tr></table>
 
 
@@ -549,6 +568,39 @@ batch_tolist(Batch::<a href="#type-batch_handle">batch_handle()</a>) -&gt; Ops::
 
 return all the operation sin the batch as a list of operations
 
+<a name="cache_info-1"></a>
+
+### cache_info/1 ###
+
+<pre><code>
+cache_info(Cache) -&gt; InfoList
+</code></pre>
+
+<ul class="definitions"><li><code>Cache = <a href="#type-cache_handle">cache_handle()</a></code></li><li><code>InfoList = [InfoTuple]</code></li><li><code>InfoTuple = {capacity, non_neg_integer()} | {strict_capacity, boolean()} | {usage, non_neg_integer()} | {pinned_usage, non_neg_integer()}</code></li></ul>
+
+return informations of a cache as a list of tuples.
+
+{capacity, integer >=0}
+the maximum configured capacity of the cache.
+{strict_capacity, boolean}
+the flag whether to return error on insertion when cache reaches its full capacity.
+{usage, integer >=0}
+the memory size for the entries residing in the cache.
+{pinned_usage, integer >= 0}
+the memory size for the entries in use by the system
+
+<a name="cache_info-2"></a>
+
+### cache_info/2 ###
+
+<pre><code>
+cache_info(Cache, Item) -&gt; Value
+</code></pre>
+
+<ul class="definitions"><li><code>Cache = <a href="#type-cache_handle">cache_handle()</a></code></li><li><code>Item = capacity | strict_capacity | usage | pinned_usage</code></li><li><code>Value = term()</code></li></ul>
+
+return the information associated with Item for cache Cache
+
 <a name="checkpoint-2"></a>
 
 ### checkpoint/2 ###
@@ -573,25 +625,23 @@ close(DBHandle) -&gt; Res
 
 Close RocksDB
 
-<a name="close_backup-1"></a>
+<a name="close_backup_engine-1"></a>
 
-### close_backup/1 ###
+### close_backup_engine/1 ###
 
 <pre><code>
-close_backup(BackupEngine::<a href="#type-backup_engine">backup_engine()</a>) -&gt; ok
+close_backup_engine(BackupEngine::<a href="#type-backup_engine">backup_engine()</a>) -&gt; ok
 </code></pre>
 <br />
 
-stop and close the backup
+stop and close the backup engine
 note: experimental for testing only
 
 <a name="close_updates_iterator-1"></a>
 
 ### close_updates_iterator/1 ###
 
-`close_updates_iterator(Iterator) -> any()`
-
-close the transaction log
+`close_updates_iterator(Itr) -> any()`
 
 <a name="compact_range-4"></a>
 
@@ -646,6 +696,8 @@ count(DBHandle::<a href="#type-db_handle">db_handle()</a>) -&gt; non_neg_integer
 Return the approximate number of keys in the default column family.
 Implemented by calling GetIntProperty with "rocksdb.estimate-num-keys"
 
+this function is deprecated and will be removed in next major release.
+
 <a name="count-2"></a>
 
 ### count/2 ###
@@ -656,6 +708,8 @@ count(DBHandle::<a href="#type-db_handle">db_handle()</a>, CFHandle::<a href="#t
 <br />
 
 Return the approximate number of keys in the specified column family.
+
+this function is deprecated and will be removed in next major release.
 
 <a name="create_column_family-3"></a>
 
@@ -684,12 +738,7 @@ Captures the state of the database in the latest backup
 
 ### default_env/0 ###
 
-<pre><code>
-default_env() -&gt; {ok, <a href="#type-env_handle">env_handle()</a>}
-</code></pre>
-<br />
-
-return a default db environment
+`default_env() -> any()`
 
 <a name="delete-3"></a>
 
@@ -781,11 +830,17 @@ Be very careful using this method.
 
 ### destroy_column_family/1 ###
 
+`destroy_column_family(CFHandle) -> any()`
+
+<a name="destroy_column_family-2"></a>
+
+### destroy_column_family/2 ###
+
 <pre><code>
-destroy_column_family(CFHandle) -&gt; Res
+destroy_column_family(DBHandle, CFHandle) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
 
 Destroy a column family
 
@@ -804,11 +859,17 @@ destroy an environment
 
 ### drop_column_family/1 ###
 
+`drop_column_family(CFHandle) -> any()`
+
+<a name="drop_column_family-2"></a>
+
+### drop_column_family/2 ###
+
 <pre><code>
-drop_column_family(CFHandle) -&gt; Res
+drop_column_family(DBHandle, CFHandle) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
 
 Drop a column family
 
@@ -850,6 +911,9 @@ Fun/2 must return a new accumulator which is passed to the next call.
 The function returns the final value of the accumulator.
 Acc0 is returned if the default column family is empty.
 
+this function is deprecated and will be removed in next major release.
+You should use the `iterator` API instead.
+
 <a name="fold-5"></a>
 
 ### fold/5 ###
@@ -862,6 +926,9 @@ fold(DBHandle, CFHandle, Fun, AccIn, ReadOpts) -&gt; AccOut
 
 Calls Fun(Elem, AccIn) on successive elements in the specified column family
 Other specs are same with fold/4
+
+this function is deprecated and will be removed in next major release.
+You should use the `iterator` API instead.
 
 <a name="fold_keys-4"></a>
 
@@ -879,6 +946,9 @@ Fun/2 must return a new accumulator which is passed to the next call.
 The function returns the final value of the accumulator.
 Acc0 is returned if the default column family is empty.
 
+this function is deprecated and will be removed in next major release.
+You should use the `iterator` API instead.
+
 <a name="fold_keys-5"></a>
 
 ### fold_keys/5 ###
@@ -892,12 +962,15 @@ fold_keys(DBHandle, CFHandle, Fun, AccIn, ReadOpts) -&gt; AccOut
 Calls Fun(Elem, AccIn) on successive elements in the specified column family
 Other specs are same with fold_keys/4
 
-<a name="garbage_collect_backup-1"></a>
+this function is deprecated and will be removed in next major release.
+You should use the `iterator` API instead.
 
-### garbage_collect_backup/1 ###
+<a name="gc_backup_engine-1"></a>
+
+### gc_backup_engine/1 ###
 
 <pre><code>
-garbage_collect_backup(BackupEngine::<a href="#type-backup_engine">backup_engine()</a>) -&gt; ok
+gc_backup_engine(BackupEngine::<a href="#type-backup_engine">backup_engine()</a>) -&gt; ok
 </code></pre>
 <br />
 
@@ -998,12 +1071,7 @@ Returns info about backups in backup_info
 
 ### get_capacity/1 ###
 
-<pre><code>
-get_capacity(Cache::<a href="#type-cache_handle">cache_handle()</a>) -&gt; non_neg_integer()
-</code></pre>
-<br />
-
-returns the maximum configured capacity of the cache.
+`get_capacity(Cache) -> any()`
 
 <a name="get_latest_sequence_number-1"></a>
 
@@ -1014,18 +1082,13 @@ get_latest_sequence_number(Db::<a href="#type-db_handle">db_handle()</a>) -&gt; 
 </code></pre>
 <br />
 
-get latest sequence from the log
+gThe sequence number of the most recent transaction.
 
 <a name="get_pinned_usage-1"></a>
 
 ### get_pinned_usage/1 ###
 
-<pre><code>
-get_pinned_usage(Cache::<a href="#type-cache_handle">cache_handle()</a>) -&gt; non_neg_integer()
-</code></pre>
-<br />
-
-returns the memory size for the entries in use by the system
+`get_pinned_usage(Cache) -> any()`
 
 <a name="get_property-2"></a>
 
@@ -1064,12 +1127,7 @@ returns Snapshot's sequence number
 
 ### get_usage/1 ###
 
-<pre><code>
-get_usage(Cache::<a href="#type-cache_handle">cache_handle()</a>) -&gt; non_neg_integer()
-</code></pre>
-<br />
-
-returns the memory size for a specific entry in the cache.
+`get_usage(Cache) -> any()`
 
 <a name="is_empty-1"></a>
 
@@ -1174,12 +1232,7 @@ List column families
 
 ### mem_env/0 ###
 
-<pre><code>
-mem_env() -&gt; {ok, <a href="#type-env_handle">env_handle()</a>}
-</code></pre>
-<br />
-
-return a memory environment
+`mem_env() -> any()`
 
 <a name="merge-4"></a>
 
@@ -1205,31 +1258,50 @@ merge(DBHandle, CFHandle, Key, Value, WriteOpts) -&gt; Res
 
 Merge a key/value pair into the specified column family
 
+<a name="new_cache-2"></a>
+
+### new_cache/2 ###
+
+<pre><code>
+new_cache(Type::<a href="#type-cache_type">cache_type()</a>, Capacity::non_neg_integer()) -&gt; {ok, <a href="#type-cache_handle">cache_handle()</a>}
+</code></pre>
+<br />
+
+// Create a new cache.
+
 <a name="new_clock_cache-1"></a>
 
 ### new_clock_cache/1 ###
 
+`new_clock_cache(Capacity) -> any()`
+
+<a name="new_env-0"></a>
+
+### new_env/0 ###
+
 <pre><code>
-new_clock_cache(Capacity::non_neg_integer()) -&gt; {ok, <a href="#type-cache_handle">cache_handle()</a>}
+new_env() -&gt; {ok, <a href="#type-env_handle">env_handle()</a>}
 </code></pre>
 <br />
 
-Similar to NewLRUCache, but create a cache based on CLOCK algorithm with
-better concurrent performance in some cases. See util/clock_cache.cc for
-more detail.
+return a default db environment
+
+<a name="new_env-1"></a>
+
+### new_env/1 ###
+
+<pre><code>
+new_env(EnvType::<a href="#type-env_type">env_type()</a>) -&gt; {ok, <a href="#type-env_handle">env_handle()</a>}
+</code></pre>
+<br />
+
+return a db environment
 
 <a name="new_lru_cache-1"></a>
 
 ### new_lru_cache/1 ###
 
-<pre><code>
-new_lru_cache(Capacity::non_neg_integer()) -&gt; {ok, <a href="#type-cache_handle">cache_handle()</a>}
-</code></pre>
-<br />
-
-// Create a new cache with a fixed size capacity. The cache is sharded
-to 2^num_shard_bits shards, by hash of the key. The total capacity
-is divided and evenly assigned to each shard.
+`new_lru_cache(Capacity) -> any()`
 
 <a name="new_rate_limiter-2"></a>
 
@@ -1317,23 +1389,13 @@ override db_write_buffer_size.
 
 ### next_binary_update/1 ###
 
-<pre><code>
-next_binary_update(Iterator::term()) -&gt; {ok, LastSeq::non_neg_integer(), BinLog::binary()} | {error, term()}
-</code></pre>
-<br />
-
-go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.
+`next_binary_update(Itr) -> any()`
 
 <a name="next_update-1"></a>
 
 ### next_update/1 ###
 
-<pre><code>
-next_update(Iterator::term()) -&gt; {ok, LastSeq::non_neg_integer(), Log::<a href="#type-write_actions">write_actions()</a>, BinLog::binary()} | {error, term()}
-</code></pre>
-<br />
-
-like binary update but also return the batch as a list of operations
+`next_update(Itr) -> any()`
 
 <a name="open-2"></a>
 
@@ -1347,6 +1409,18 @@ open(Name, DBOpts) -&gt; Result
 
 Open RocksDB with the defalut column family
 
+<a name="open-3"></a>
+
+### open/3 ###
+
+<pre><code>
+open(Name, DBOpts, CFDescriptors) -&gt; {ok, <a href="#type-db_handle">db_handle()</a>, [<a href="#type-cf_handle">cf_handle()</a>]} | {error, any()}
+</code></pre>
+
+<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>CFDescriptors = [#cf_descriptor{name = string(), options = <a href="#type-cf_options">cf_options()</a>}]</code></li></ul>
+
+Open RocksDB with the specified column families
+
 <a name="open_backup_engine-1"></a>
 
 ### open_backup_engine/1 ###
@@ -1356,19 +1430,13 @@ open_backup_engine(Path::string) -&gt; {ok, <a href="#type-backup_engine">backup
 </code></pre>
 <br />
 
-open a new backup engine
+open a new backup engine for creating new backups.
 
 <a name="open_with_cf-3"></a>
 
 ### open_with_cf/3 ###
 
-<pre><code>
-open_with_cf(Name, DBOpts, CFDescriptors) -&gt; {ok, <a href="#type-db_handle">db_handle()</a>, [<a href="#type-cf_handle">cf_handle()</a>]} | {error, any()}
-</code></pre>
-
-<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>CFDescriptors = [#cf_descriptor{name = string(), options = <a href="#type-cf_options">cf_options()</a>}]</code></li></ul>
-
-Open RocksDB with the specified column families
+`open_with_cf(Name, DbOpts, CFDescriptors) -> any()`
 
 <a name="open_with_ttl-4"></a>
 
@@ -1748,16 +1816,55 @@ same as Write() with sync=true: in the latter case the changes won't be
 visible until the sync is done.
 Currently only works if allow_mmap_writes = false in Options.
 
-<a name="updates_iterator-2"></a>
+<a name="tlog_iterator-2"></a>
 
-### updates_iterator/2 ###
+### tlog_iterator/2 ###
 
 <pre><code>
-updates_iterator(Db::<a href="#type-db_handle">db_handle()</a>, Since::non_neg_integer()) -&gt; {ok, Iterator::term()}
+tlog_iterator(Db::<a href="#type-db_handle">db_handle()</a>, Since::non_neg_integer()) -&gt; {ok, Iterator::term()}
 </code></pre>
 <br />
 
 create a new iterator to retrive ethe transaction log since a sequce
+
+<a name="tlog_iterator_close-1"></a>
+
+### tlog_iterator_close/1 ###
+
+<pre><code>
+tlog_iterator_close(Iterator::term()) -&gt; ok
+</code></pre>
+<br />
+
+close the transaction log
+
+<a name="tlog_next_binary_update-1"></a>
+
+### tlog_next_binary_update/1 ###
+
+<pre><code>
+tlog_next_binary_update(Iterator::term()) -&gt; {ok, LastSeq::non_neg_integer(), BinLog::binary()} | {error, term()}
+</code></pre>
+<br />
+
+go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.
+
+<a name="tlog_next_update-1"></a>
+
+### tlog_next_update/1 ###
+
+<pre><code>
+tlog_next_update(Iterator::term()) -&gt; {ok, LastSeq::non_neg_integer(), Log::<a href="#type-write_actions">write_actions()</a>, BinLog::binary()} | {error, term()}
+</code></pre>
+<br />
+
+like `tlog_nex_binary_update/1` but also return the batch as a list of operations
+
+<a name="updates_iterator-2"></a>
+
+### updates_iterator/2 ###
+
+`updates_iterator(DBH, Since) -> any()`
 
 <a name="verify_backup-2"></a>
 
@@ -1782,6 +1889,7 @@ write(DBHandle, WriteActions, WriteOpts) -&gt; Res
 <ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>WriteActions = <a href="#type-write_actions">write_actions()</a></code></li><li><code>WriteOpts = <a href="#type-write_options">write_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
 
 Apply the specified updates to the database.
+this function will be removed on the next major release. You should use the `batch_*` API instead.
 
 <a name="write_batch-3"></a>
 
@@ -1799,7 +1907,7 @@ write the batch to the database
 ### write_binary_update/3 ###
 
 <pre><code>
-write_binary_update(Iterator::term(), BinLog::binary(), WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; ok | {error, term()}
+write_binary_update(DbHandle::<a href="#type-db_handle">db_handle()</a>, BinLog::binary(), WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; ok | {error, term()}
 </code></pre>
 <br />
 

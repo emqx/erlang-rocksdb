@@ -432,7 +432,7 @@ open(_Name, _DBOpts) ->
   ?nif_stub.
 
 %% @doc Open RocksDB with the specified column families
--spec(open_with_cf(Name, DBOpts, CFDescriptors) ->
+-spec(open(Name, DBOpts, CFDescriptors) ->
        {ok, db_handle(), list(cf_handle())} | {error, any()}
          when Name::file:filename_all(),
           DBOpts :: db_options(),
@@ -1356,7 +1356,7 @@ release_rate_limiter(_Limiter) ->
 %% ===================================================================
 %% Env API
 
-%% @sdoc return a default db environment
+%% @doc return a default db environment
 -spec new_env() -> {ok, env_handle()}.
 new_env() -> new_env(default).
 
