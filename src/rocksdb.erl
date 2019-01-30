@@ -78,13 +78,15 @@
 
 -export([new_cache/2,
          release_cache/1,
-         get_usage/1,
-         get_pinned_usage/1,
+         cache_info/1,
+         cache_info/2,
          set_capacity/2,
-         get_capacity/1,
          set_strict_capacity_limit/2]).
--export([new_lru_cache/1, new_clock_cache/1]).
 
+-export([new_lru_cache/1, new_clock_cache/1]).
+-export([get_usage/1]).
+-export([get_pinned_usage/1]).
+-export([get_capacity/1]).
 
 %% Limiter API
 -export([
@@ -1261,19 +1263,32 @@ restore_db_from_latest_backup(_BackupEngine,  _DbDir, _WalDir) ->
 new_cache(_Type, _Capacity) ->
   ?nif_stub.
 
-%% @doc returns the memory size for a specific entry in the cache.
--spec get_usage(cache_handle()) -> non_neg_integer().
-get_usage(_Cache) ->
+%% @doc return informations of a cache as a list of tuples.
+%%
+%%  {capacity, integer >=0}
+%%      the maximum configured capacity of the cache.
+%%  {strict_capacity, boolean}
+%%      the flag whether to return error on insertion when cache reaches its full capacity.
+%%  {usage, integer >=0}
+%%      the memory size for the entries residing in the cache.
+%%  {pinned_usage, integer >= 0}
+%%      the memory size for the entries in use by the system
+-spec cache_info(Cache) -> InfoList when
+  Cache :: cache_handle(),
+  InfoList :: [InfoTuple],
+  InfoTuple :: {capacity, non_neg_integer()}
+            |  {strict_capacity, boolean()}
+            |  {usage, non_neg_integer()}
+            |  {pinned_usage, non_neg_integer()}.     
+cache_info(_Cache) ->
   ?nif_stub.
 
-%% @doc  returns the memory size for the entries in use by the system
--spec get_pinned_usage(cache_handle()) -> non_neg_integer().
-get_pinned_usage(_Cache) ->
-  ?nif_stub.
-
-%% @doc  returns the maximum configured capacity of the cache.
--spec get_capacity(cache_handle()) -> non_neg_integer().
-get_capacity(_Cache) ->
+%% @doc return the information associated with Item for cache Cache
+-spec cache_info(Cache, Item) -> Value when
+  Cache :: cache_handle(),
+  Item :: capacity | strict_capacity | usage | pinned_usage,
+  Value :: term().
+cache_info(_Cache, _Item) ->
   ?nif_stub.
 
 %% @doc sets the maximum configured capacity of the cache. When the new
@@ -1296,6 +1311,9 @@ release_cache(_Cache) ->
 
 new_lru_cache(Capacity) -> new_cache(lru, Capacity).
 new_clock_cache(Capacity) -> new_cache(clock, Capacity).
+get_usage(Cache) -> cache_info(Cache, usage).
+get_pinned_usage(Cache) -> cache_info(Cache, pinned_usage).
+get_capacity(Cache) -> cache_info(Cache, capacity).
 
 %% ===================================================================
 %% Limiter functions

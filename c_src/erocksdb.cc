@@ -131,12 +131,11 @@ static ErlNifFunc nif_funcs[] =
 
         // cache
         {"new_cache", 2, erocksdb::NewCache, ERL_NIF_REGULAR_BOUND},
-        {"get_usage", 1, erocksdb::GetUsage, ERL_NIF_REGULAR_BOUND},
-        {"get_pinned_usage", 1, erocksdb::GetPinnedUsage, ERL_NIF_REGULAR_BOUND},
-        {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
-        {"get_capacity", 1, erocksdb::GetCapacity, ERL_NIF_REGULAR_BOUND},
+        {"cache_info", 1, erocksdb::CacheInfo, ERL_NIF_REGULAR_BOUND},
+        {"cache_info", 2, erocksdb::CacheInfo, ERL_NIF_REGULAR_BOUND},
         {"release_cache", 1, erocksdb::ReleaseCache, ERL_NIF_REGULAR_BOUND},
         {"set_strict_capacity_limit", 2, erocksdb::SetStrictCapacityLimit, ERL_NIF_REGULAR_BOUND},
+        {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
 
         // rate limiter
         {"new_rate_limiter", 2, erocksdb::NewRateLimiter, ERL_NIF_REGULAR_BOUND},
@@ -182,9 +181,12 @@ ERL_NIF_TERM ATOM_DEFAULT;
 ERL_NIF_TERM ATOM_MEMENV;
 
 // related to cache
-
 ERL_NIF_TERM ATOM_LRU;
 ERL_NIF_TERM ATOM_CLOCK;
+ERL_NIF_TERM ATOM_USAGE;
+ERL_NIF_TERM ATOM_PINNED_USAGE;
+ERL_NIF_TERM ATOM_CAPACITY;
+ERL_NIF_TERM ATOM_STRICT_CAPACITY;
 
 // generic
 ERL_NIF_TERM ATOM_DEFAULT_COLUMN_FAMILY;
@@ -472,6 +474,17 @@ try
 
   ATOM(erocksdb::ATOM_LRU, "lru");
   ATOM(erocksdb::ATOM_CLOCK, "clock");
+  ATOM(erocksdb::ATOM_USAGE, "usage");
+  ATOM(erocksdb::ATOM_PINNED_USAGE, "pinned_usage");
+  ATOM(erocksdb::ATOM_CAPACITY, "capacity");
+  ATOM(erocksdb::ATOM_STRICT_CAPACITY, "strict_capacity");
+
+  ERL_NIF_TERM ATOM_USAGE;
+  ERL_NIF_TERM ATOM_PINNED_USAGE;
+  ERL_NIF_TERM ATOM_CAPACITY;
+  ERL_NIF_TERM ATOM_STRICT_CAPACITY;
+
+
 
   ATOM(erocksdb::ATOM_DEFAULT_COLUMN_FAMILY, "default_column_family");
 

@@ -101,12 +101,11 @@ ERL_NIF_TERM PurgeOldBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 ERL_NIF_TERM RestoreDBFromBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM RestoreDBFromLatestBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
+/* Cache API */
 ERL_NIF_TERM NewCache(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM GetUsage(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM GetPinnedUsage(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM SetCapacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM GetCapacity(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM CacheInfo(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM ReleaseCache(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM SetCapacity(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM SetStrictCapacityLimit(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM NewRateLimiter(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
