@@ -173,7 +173,7 @@
 ]).
 
 -compile(no_native).
--on_load(init/0).
+-on_load(on_load/0).
 
 -define(nif_stub,nif_stub_error(?LINE)).
 nif_stub_error(Line) ->
@@ -186,8 +186,8 @@ nif_stub_error(Line) ->
         Reply
     end).
 
--spec init() -> ok | {error, any()}.
-init() ->
+-spec on_load() -> ok | {error, any()}.
+on_load() ->
   SoName = case code:priv_dir(?MODULE) of
          {error, bad_name} ->
            case code:which(?MODULE) of
