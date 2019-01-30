@@ -20,8 +20,7 @@
 -module(rocksdb).
 
 -export([
-  open/2,
-  open_with_cf/3,
+  open/2, open/3,
   open_with_ttl/4,
   close/1,
   set_db_background_threads/2, set_db_background_threads/3,
@@ -30,18 +29,22 @@
   is_empty/1,
   list_column_families/2,
   create_column_family/3,
-  drop_column_family/1,
-  destroy_column_family/1,
+  drop_column_family/2,
+  destroy_column_family/2,
   checkpoint/2,
   flush/2, flush/3,
   sync_wal/1,
-  count/1, count/2,
   stats/1, stats/2,
   get_property/2, get_property/3,
   get_approximate_sizes/3, get_approximate_sizes/4,
   get_approximate_memtable_stats/3, get_approximate_memtable_stats/4
 ]).
 
+-export([open_with_cf/3]).
+-export([drop_column_family/1]).
+-export([destroy_column_family/1]).
+
+-export([get_latest_sequence_number/1]).
 
 %% snapshot
 -export([
@@ -56,7 +59,6 @@
   merge/4, merge/5,
   delete/3, delete/4,
   single_delete/3, single_delete/4,
-  write/3,
   get/3, get/4,
   delete_range/4, delete_range/5,
   compact_range/4, compact_range/5,
@@ -67,19 +69,26 @@
   iterator_close/1
 ]).
 
+%% deprecated API
 
+-export([write/3]).
+-export([count/1, count/2]).
 -export([fold/4, fold/5, fold_keys/4, fold_keys/5]).
+
+
+
 %% Cache API
--export([
-  new_lru_cache/1,
-  new_clock_cache/1,
-  get_usage/1,
-  get_pinned_usage/1,
-  set_capacity/2,
-  get_capacity/1,
-  set_strict_capacity_limit/2,
-  release_cache/1
-]).
+-export([new_cache/2,
+         release_cache/1,
+         cache_info/1,
+         cache_info/2,
+         set_capacity/2,
+         set_strict_capacity_limit/2]).
+
+-export([new_lru_cache/1, new_clock_cache/1]).
+-export([get_usage/1]).
+-export([get_pinned_usage/1]).
+-export([get_capacity/1]).
 
 %% Limiter API
 -export([
@@ -106,23 +115,28 @@
   write_buffer_manager_is_enabled/1
 ]).
 
-%% env api
+%% Env api
 -export([
-  default_env/0,
-  mem_env/0,
+  new_env/0, new_env/1,
   set_env_background_threads/2, set_env_background_threads/3,
   destroy_env/1
 ]).
+-export([default_env/0, mem_env/0]).
 
+%% Log Iterator API
+-export([tlog_iterator/2,
+         tlog_iterator_close/1,
+         tlog_next_binary_update/1,
+         tlog_next_update/1]).
 
--export([get_latest_sequence_number/1]).
+-export([write_binary_update/3]).
+
 -export([updates_iterator/2]).
 -export([close_updates_iterator/1]).
 -export([next_binary_update/1]).
--export([write_binary_update/3]).
 -export([next_update/1]).
 
-%% batch functions
+%% Batch API
 -export([batch/0,
          release_batch/1,
          write_batch/3,
@@ -137,8 +151,12 @@
          batch_data_size/1,
          batch_tolist/1]).
 
+
+%% Backup Engine
 -export([
   open_backup_engine/1,
+  close_backup_engine/1,
+  gc_backup_engine/1,
   create_new_backup/2,
   stop_backup/1,
   get_backup_info/1,
@@ -146,9 +164,7 @@
   delete_backup/2,
   purge_old_backup/2,
   restore_db_from_backup/3, restore_db_from_backup/4,
-  restore_db_from_latest_backup/2, restore_db_from_latest_backup/3,
-  garbage_collect_backup/1,
-  close_backup/1
+  restore_db_from_latest_backup/2, restore_db_from_latest_backup/3
 ]).
 
 
@@ -172,29 +188,27 @@
   write_buffer_manager/0
 ]).
 
--on_load(init/0).
-
-%% This cannot be a separate function. Code must be inline to trigger
-%% Erlang compiler's use of optimized selective receive.
--define(WAIT_FOR_REPLY(Ref),
-    receive {Ref, Reply} ->
-        Reply
-    end).
-
--spec init() -> ok | {error, any()}.
-init() ->
-  SoName = case code:priv_dir(?MODULE) of
-         {error, bad_name} ->
-           case code:which(?MODULE) of
-             Filename when is_list(Filename) ->
-               filename:join([filename:dirname(Filename),"../priv", "liberocksdb"]);
-             _ ->
-               filename:join("../priv", "liberocksdb")
-           end;
-         Dir ->
-           filename:join(Dir, "liberocksdb")
-       end,
-  erlang:load_nif(SoName, application:get_all_env(rocksdb)).
+-deprecated({count, 1, next_major_release}).
+-deprecated({count, 2, next_major_release}).
+-deprecated({fold, 4, next_major_release}).
+-deprecated({fold, 5, next_major_release}).
+-deprecated({fold_keys, 4, next_major_release}).
+-deprecated({fold_keys, 5, next_major_release}).
+-deprecated({write, 3, next_major_release}).
+-deprecated({updates_iterator, 2, next_major_release}).
+-deprecated({close_updates_iterator, 1, next_major_release}).
+-deprecated({next_binary_update, 1, next_major_release}).
+-deprecated({next_update, 1, next_major_release}).
+-deprecated({default_env, 0, next_major_release}).
+-deprecated({mem_env, 0, next_major_release}).
+-deprecated({new_lru_cache, 1, next_major_release}).
+-deprecated({new_clock_cache, 1, next_major_release}).
+-deprecated({get_pinned_usage, 1, next_major_release}).
+-deprecated({get_usage, 1, next_major_release}).
+-deprecated({get_capacity, 1, next_major_release}).
+-deprecated({drop_column_family, 1, next_major_release}).
+-deprecated({destroy_column_family, 1, next_major_release}).
+-deprecated({open_with_cf, 3, next_major_release}).
 
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
@@ -202,6 +216,7 @@ init() ->
 -record(cf_descriptor, {name    :: string(),
                         options :: cf_options()}).
 
+-type cache_type() :: lru | clock.
 -type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | zstd | none.
 -type compaction_style() :: level | universal | fifo | none.
 -type compaction_pri() :: compensated_size | oldest_largest_seq_first | oldest_smallest_seq_first.
@@ -227,8 +242,8 @@ init() ->
 
 -type column_family() :: cf_handle() | default_column_family.
 
--opaque env() :: default | memenv | env_handle().
-
+-type env_type() :: default | memenv.
+-opaque env() :: env_type() | env_handle().
 -type env_priority() :: priority_high | priority_low.
 
 -type block_based_table_options() :: [{no_block_cache, boolean()} |
@@ -375,13 +390,46 @@ init() ->
 -type size_approximation_flag() :: none | include_memtables | include_files | include_both.
 -type range() :: {Start::binary(), Limit::binary()}.
 
+-compile(no_native).
+-on_load(on_load/0).
+
+-define(nif_stub,nif_stub_error(?LINE)).
+nif_stub_error(Line) ->
+    erlang:nif_error({nif_not_loaded,module,?MODULE,line,Line}).
+
+%% This cannot be a separate function. Code must be inline to trigger
+%% Erlang compiler's use of optimized selective receive.
+-define(WAIT_FOR_REPLY(Ref),
+    receive {Ref, Reply} ->
+        Reply
+    end).
+
+-spec on_load() -> ok | {error, any()}.
+on_load() ->
+  SoName = case code:priv_dir(?MODULE) of
+         {error, bad_name} ->
+           case code:which(?MODULE) of
+             Filename when is_list(Filename) ->
+               filename:join([filename:dirname(Filename),"../priv", "liberocksdb"]);
+             _ ->
+               filename:join("../priv", "liberocksdb")
+           end;
+         Dir ->
+           filename:join(Dir, "liberocksdb")
+       end,
+  erlang:load_nif(SoName, application:get_all_env(rocksdb)).
+
+%%--------------------------------------------------------------------
+%%% API
+%%--------------------------------------------------------------------
+
 %% @doc Open RocksDB with the defalut column family
 -spec open(Name, DBOpts) -> Result when
   Name :: file:filename_all(),
   DBOpts :: options(),
   Result :: {ok, db_handle()} | {error, any()}.
 open(_Name, _DBOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Open RocksDB with the specified column families
 -spec(open_with_cf(Name, DBOpts, CFDescriptors) ->
@@ -389,8 +437,12 @@ open(_Name, _DBOpts) ->
          when Name::file:filename_all(),
           DBOpts :: db_options(),
           CFDescriptors :: list(#cf_descriptor{})).
-open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
-  erlang:nif_error({error, not_loaded}).
+open(_Name, _DBOpts, _CFDescriptors) ->
+  ?nif_stub.
+
+open_with_cf(Name, DbOpts, CFDescriptors) ->
+  open(Name, DbOpts, CFDescriptors).
+
 
 %% @doc Open RocksDB with TTL support
 %% This API should be used to open the db when key-values inserted are
@@ -416,7 +468,7 @@ open_with_cf(_Name, _DBOpts, _CFDescriptors) ->
           TTL :: integer(),
           ReadOnly :: boolean()).
 open_with_ttl(_Name, _DBOpts, _TTL, _ReadOnly) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 
 %% @doc Close RocksDB
@@ -424,7 +476,7 @@ open_with_ttl(_Name, _DBOpts, _TTL, _ReadOnly) ->
   DBHandle :: db_handle(),
   Res :: ok | {error, any()}.
 close(_DBHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% ===============================================
 %% Column Families API
@@ -436,7 +488,7 @@ close(_DBHandle) ->
   DBOpts::db_options(),
   Res :: {ok, list(string())} | {error, any()}.
 list_column_families(_Name, _DbOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Create a new column family
 -spec create_column_family(DBHandle, Name, CFOpts) -> Res when
@@ -445,37 +497,48 @@ list_column_families(_Name, _DbOpts) ->
   CFOpts :: cf_options(),
   Res :: {ok, cf_handle()} | {error, any()}.
 create_column_family(_DBHandle, _Name, _CFOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Drop a column family
--spec drop_column_family(CFHandle) -> Res when
-  CFHandle::cf_handle(),
+-spec drop_column_family(DBHandle, CFHandle) -> Res when
+  DBHandle :: db_handle(),
+  CFHandle :: cf_handle(),
   Res :: ok | {error, any()}.
-drop_column_family(_CFHandle) ->
-  erlang:nif_error({error, not_loaded}).
+
+drop_column_family(_DbHandle, _CFHandle) ->
+  ?nif_stub.
 
 %% @doc Destroy a column family
--spec destroy_column_family(CFHandle) -> Res when
-  CFHandle::cf_handle(),
+-spec destroy_column_family(DBHandle, CFHandle) -> Res when
+  DBHandle :: db_handle(),
+  CFHandle :: cf_handle(),
   Res :: ok | {error, any()}.
+destroy_column_family(_DBHandle, _CFHandle) ->
+  ?nif_stub.
+
+drop_column_family(_CFHandle) ->
+  ?nif_stub.
+
 destroy_column_family(_CFHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
+
+
 
 %% @doc return a database snapshot
 %% Snapshots provide consistent read-only views over the entire state of the key-value store
 -spec snapshot(DbHandle::db_handle()) -> {ok, snapshot_handle()} | {error, any()}.
 snapshot(_DbHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc release a snapshot
 -spec release_snapshot(SnapshotHandle::snapshot_handle()) -> ok | {error, any()}.
 release_snapshot(_SnapshotHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc returns Snapshot's sequence number
 -spec get_snapshot_sequence(SnapshotHandle::snapshot_handle()) -> Sequence::non_neg_integer().
 get_snapshot_sequence(_SnapshotHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Put a key/value pair into the default column family
 -spec put(DBHandle, Key, Value, WriteOpts) -> Res when
@@ -485,7 +548,7 @@ get_snapshot_sequence(_SnapshotHandle) ->
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
 put(_DBHandle, _Key, _Value, _WriteOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Put a key/value pair into the specified column family
 -spec put(DBHandle, CFHandle, Key, Value, WriteOpts) -> Res when
@@ -496,7 +559,7 @@ put(_DBHandle, _Key, _Value, _WriteOpts) ->
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
 put(_DBHandle, _CFHandle, _Key, _Value, _WriteOpts) ->
-   erlang:nif_error({error, not_loaded}).
+   ?nif_stub.
 
 %% @doc Merge a key/value pair into the default column family
 -spec merge(DBHandle, Key, Value, WriteOpts) -> Res when
@@ -506,7 +569,7 @@ put(_DBHandle, _CFHandle, _Key, _Value, _WriteOpts) ->
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
 merge(_DBHandle, _Key, _Value, _WriteOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Merge a key/value pair into the specified column family
 -spec merge(DBHandle, CFHandle, Key, Value, WriteOpts) -> Res when
@@ -517,7 +580,7 @@ merge(_DBHandle, _Key, _Value, _WriteOpts) ->
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
 merge(_DBHandle, _CFHandle, _Key, _Value, _WriteOpts) ->
-   erlang:nif_error({error, not_loaded}).
+   ?nif_stub.
 
 %% @doc Delete a key/value pair in the default column family
 -spec(delete(DBHandle, Key, WriteOpts) ->
@@ -525,7 +588,7 @@ merge(_DBHandle, _CFHandle, _Key, _Value, _WriteOpts) ->
                     Key::binary(),
                     WriteOpts::write_options()).
 delete(_DBHandle, _Key, _WriteOpts) ->
-   erlang:nif_error({error, not_loaded}).
+   ?nif_stub.
 
 %% @doc Delete a key/value pair in the specified column family
 -spec delete(DBHandle, CFHandle, Key, WriteOpts) -> Res when
@@ -535,7 +598,7 @@ delete(_DBHandle, _Key, _WriteOpts) ->
   WriteOpts::write_options(),
   Res ::  ok | {error, any()}.
 delete(_DBHandle, _CFHandle, _Key, _WriteOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Remove the database entry for "key". Requires that the key exists
 %% and was not overwritten. Returns OK on success, and a non-OK status
@@ -558,7 +621,7 @@ delete(_DBHandle, _CFHandle, _Key, _WriteOpts) ->
                     Key::binary(),
                     WriteOpts::write_options()).
 single_delete(_DBHandle, _Key, _WriteOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc like `single_delete/3' but on the specified column family
 -spec single_delete(DBHandle, CFHandle, Key, WriteOpts) -> Res when
@@ -568,9 +631,10 @@ single_delete(_DBHandle, _Key, _WriteOpts) ->
   WriteOpts::write_options(),
   Res ::  ok | {error, any()}.
 single_delete(_DBHandle, _CFHandle, _Key, _WriteOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Apply the specified updates to the database.
+%% this function will be removed on the next major release. You should use the `batch_*' API instead.
 -spec write(DBHandle, WriteActions, WriteOpts) -> Res when
   DBHandle::db_handle(),
    WriteActions::write_actions(),
@@ -619,7 +683,7 @@ write_1([], Batch, DbHandle, WriteOpts) ->
   ReadOpts::read_options(),
    Res :: {ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}.
 get(_DBHandle, _Key, _ReadOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Retrieve a key/value pair in the specified column family
 -spec get(DBHandle, CFHandle, Key, ReadOpts) -> Res when
@@ -629,7 +693,7 @@ get(_DBHandle, _Key, _ReadOpts) ->
   ReadOpts::read_options(),
   Res :: {ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}.
 get(_DBHandle, _CFHandle, _Key, _ReadOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 
 %% @doc For each i in [0,n-1], store in "Sizes[i]", the approximate
@@ -648,7 +712,7 @@ get(_DBHandle, _CFHandle, _Key, _ReadOpts) ->
   IncludeFlags::size_approximation_flag(),
   Sizes :: [non_neg_integer()].
 get_approximate_sizes(_DBHandle, _Ranges, _IncludeFlags) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 -spec get_approximate_sizes(DBHandle, CFHandle, Ranges, IncludeFlags) -> Sizes when
   DBHandle::db_handle(),
@@ -657,7 +721,7 @@ get_approximate_sizes(_DBHandle, _Ranges, _IncludeFlags) ->
   IncludeFlags::size_approximation_flag(),
   Sizes :: [non_neg_integer()].
 get_approximate_sizes(_DBHandle, _CFHandle, _Ranges, _IncludeFlags) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc The method is similar to GetApproximateSizes, except it
 %% returns approximate number of records in memtables.
@@ -667,7 +731,7 @@ get_approximate_sizes(_DBHandle, _CFHandle, _Ranges, _IncludeFlags) ->
   LimitKey :: binary(),
   Res :: {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}.
 get_approximate_memtable_stats(_DBHandle, _StartKey, _LimitKey) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 -spec get_approximate_memtable_stats(DBHandle, CFHandle, StartKey, LimitKey) -> Res when
   DBHandle::db_handle(),
@@ -676,7 +740,7 @@ get_approximate_memtable_stats(_DBHandle, _StartKey, _LimitKey) ->
   LimitKey :: binary(),
   Res :: {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}.
 get_approximate_memtable_stats(_DBHandle, _CFHandle, _StartKey, _LimitKey) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
 %% including "BeginKey" and excluding "EndKey". Returns OK on success, and
@@ -700,7 +764,7 @@ get_approximate_memtable_stats(_DBHandle, _CFHandle, _StartKey, _LimitKey) ->
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
 delete_range(_DbHandle, _Start, _End, _WriteOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Removes the database entries in the range ["BeginKey", "EndKey").
 %% like `delete_range/3' but for a column family
@@ -712,7 +776,7 @@ delete_range(_DbHandle, _Start, _End, _WriteOpts) ->
   WriteOpts::write_options(),
   Res :: ok | {error, any()}.
 delete_range(_DbHandle, _CFHandle, _Start, _End, _WriteOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Compact the underlying storage for the key range [*begin,*end].
 %% The actual compaction interval might be superset of [*begin, *end].
@@ -738,7 +802,7 @@ delete_range(_DbHandle, _CFHandle, _Start, _End, _WriteOpts) ->
   CompactRangeOpts::compact_range_options(),
   Res :: ok | {error, any()}.
 compact_range(_DbHandle, _Start, _End, _CompactRangeOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc  Compact the underlying storage for the key range ["BeginKey", "EndKey").
 %% like `compact_range/3' but for a column family
@@ -750,7 +814,7 @@ compact_range(_DbHandle, _Start, _End, _CompactRangeOpts) ->
   CompactRangeOpts::compact_range_options(),
   Res :: ok | {error, any()}.
 compact_range(_DbHandle, _CFHandle, _Start, _End, _CompactRangeOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Return a iterator over the contents of the database.
 %% The result of iterator() is initially invalid (caller must
@@ -760,7 +824,7 @@ compact_range(_DbHandle, _CFHandle, _Start, _End, _CompactRangeOpts) ->
   ReadOpts::read_options(),
   Res :: {ok, itr_handle()} | {error, any()}.
 iterator(_DBHandle, _ReadOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Return a iterator over the contents of the database.
 %% The result of iterator() is initially invalid (caller must
@@ -771,7 +835,7 @@ iterator(_DBHandle, _ReadOpts) ->
   ReadOpts::read_options(),
   Res :: {ok, itr_handle()} | {error, any()}.
 iterator(_DBHandle, _CfHandle, _ReadOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc
 %% Return a iterator over the contents of the specified column family.
@@ -780,7 +844,7 @@ iterator(_DBHandle, _CfHandle, _ReadOpts) ->
                                                       CFHandle::cf_handle(),
                                                       ReadOpts::read_options()).
 iterators(_DBHandle, _CFHandle, _ReadOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 
 %% @doc
@@ -792,19 +856,19 @@ iterators(_DBHandle, _CFHandle, _ReadOpts) ->
              {error, iterator_closed} when ITRHandle::itr_handle(),
                                            ITRAction::iterator_action()).
 iterator_move(_ITRHandle, _ITRAction) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc
 %% Refresh iterator
 -spec(iterator_refresh(ITRHandle) -> ok when ITRHandle::itr_handle()).
 iterator_refresh(_ITRHandle) ->
-    erlang:nif_error({error, not_loaded}).
+    ?nif_stub.
 
 %% @doc
 %% Close a iterator
 -spec(iterator_close(ITRHandle) -> ok when ITRHandle::itr_handle()).
 iterator_close(_ITRHandle) ->
-    erlang:nif_error({error, not_loaded}).
+    ?nif_stub.
 
 -type fold_fun() :: fun(({Key::binary(), Value::binary()}, any()) -> any()).
 
@@ -813,6 +877,9 @@ iterator_close(_ITRHandle) ->
 %% Fun/2 must return a new accumulator which is passed to the next call.
 %% The function returns the final value of the accumulator.
 %% Acc0 is returned if the default column family is empty.
+%%
+%% this function is deprecated and will be removed in next major release.
+%% You should use the `iterator' API instead.
 -spec fold(DBHandle, Fun, AccIn, ReadOpts) -> AccOut when
   DBHandle::db_handle(),
   Fun::fold_fun(),
@@ -825,6 +892,9 @@ fold(DBHandle, Fun, Acc0, ReadOpts) ->
 
 %% @doc Calls Fun(Elem, AccIn) on successive elements in the specified column family
 %% Other specs are same with fold/4
+%%
+%% this function is deprecated and will be removed in next major release.
+%% You should use the `iterator' API instead.
 -spec fold(DBHandle, CFHandle, Fun, AccIn, ReadOpts) -> AccOut when
   DBHandle::db_handle(),
   CFHandle::cf_handle(),
@@ -843,6 +913,9 @@ fold(DbHandle, CFHandle, Fun, Acc0, ReadOpts) ->
 %% Fun/2 must return a new accumulator which is passed to the next call.
 %% The function returns the final value of the accumulator.
 %% Acc0 is returned if the default column family is empty.
+%%
+%% this function is deprecated and will be removed in next major release.
+%% You should use the `iterator' API instead.
 -spec fold_keys(DBHandle, Fun, AccIn, ReadOpts) -> AccOut when
   DBHandle::db_handle(),
   Fun::fold_keys_fun(),
@@ -857,6 +930,9 @@ fold_keys(DBHandle, UserFun, Acc0, ReadOpts) ->
 
 %% @doc Calls Fun(Elem, AccIn) on successive elements in the specified column family
 %% Other specs are same with fold_keys/4
+%%
+%% this function is deprecated and will be removed in next major release.
+%% You should use the `iterator' API instead.
 -spec fold_keys(DBHandle, CFHandle, Fun, AccIn, ReadOpts) -> AccOut when
   DBHandle::db_handle(),
   CFHandle::cf_handle(),
@@ -873,19 +949,19 @@ fold_keys(DBHandle, CFHandle, UserFun, Acc0, ReadOpts) ->
 %% @doc is the database empty
 -spec  is_empty(DBHandle::db_handle()) -> true | false.
 is_empty(_DbHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Destroy the contents of the specified database.
 %% Be very careful using this method.
 -spec destroy(Name::file:filename_all(), DBOpts::db_options()) -> ok | {error, any()}.
 destroy(_Name, _DBOpts) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Try to repair as much of the contents of the database as possible.
 %% Some data may be lost, so be careful when calling this function
 -spec repair(Name::file:filename_all(), DBOpts::db_options()) -> ok | {error, any()}.
 repair(_Name, _DBOpts) ->
-   erlang:nif_error({error, not_loaded}).
+   ?nif_stub.
 
 %% @doc take a snapshot of a running RocksDB database in a separate directory
 %% http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/
@@ -893,7 +969,7 @@ repair(_Name, _DBOpts) ->
   DbHandle::db_handle(), Path::file:filename_all()
 ) -> ok | {error, any()}.
 checkpoint(_DbHandle, _Path) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Flush all mem-table data.
 -spec flush(db_handle(), flush_options()) -> ok | {error, term()}.
@@ -903,7 +979,7 @@ flush(DbHandle, FlushOptions) ->
 %% @doc Flush all mem-table data for a column family
 -spec flush(db_handle(), column_family(), flush_options()) -> ok | {error, term()}.
 flush(_DbHandle, _Cf, _FlushOptions) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc  Sync the wal. Note that Write() followed by SyncWAL() is not exactly the
 %% same as Write() with sync=true: in the latter case the changes won't be
@@ -911,12 +987,14 @@ flush(_DbHandle, _Cf, _FlushOptions) ->
 %% Currently only works if allow_mmap_writes = false in Options.
 -spec sync_wal(db_handle()) -> ok | {error, term()}.
 sync_wal(_DbHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 
 
 %% @doc Return the approximate number of keys in the default column family.
 %% Implemented by calling GetIntProperty with "rocksdb.estimate-num-keys"
+%%
+%% this function is deprecated and will be removed in next major release.
 -spec count(DBHandle::db_handle()) ->  non_neg_integer() | {error, any()}.
 count(DBHandle) ->
   count_1(get_property(DBHandle, <<"rocksdb.estimate-num-keys">>)).
@@ -924,6 +1002,7 @@ count(DBHandle) ->
 %% @doc
 %% Return the approximate number of keys in the specified column family.
 %%
+%% this function is deprecated and will be removed in next major release.
 -spec count(DBHandle::db_handle(), CFHandle::cf_handle()) -> non_neg_integer() | {error, any()}.
 count(DBHandle, CFHandle) ->
   count_1(get_property(DBHandle, CFHandle, <<"rocksdb.estimate-num-keys">>)).
@@ -950,147 +1029,175 @@ stats(DBHandle, CfHandle) ->
   DBHandle::db_handle(), Property::binary()
 ) -> {ok, any()} | {error, any()}.
 get_property(_DBHandle, _Property) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Return the RocksDB internal status of the specified column family specified at Property
 -spec get_property(
   DBHandle::db_handle(), CFHandle::cf_handle(), Property::binary()
 ) -> string() | {error, any()}.
 get_property(_DBHandle, _CFHandle, _Property) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
-%% @doc get latest sequence from the log
+%% @doc gThe sequence number of the most recent transaction.
 -spec get_latest_sequence_number(Db :: db_handle()) -> Seq :: non_neg_integer().
 get_latest_sequence_number(_DbHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
+
+%% ===================================================================
+%% Transaction Log API
+
 
 %% @doc create a new iterator to retrive ethe transaction log since a sequce
--spec updates_iterator(Db :: db_handle(),Since :: non_neg_integer()) -> {ok, Iterator :: term()}.
-updates_iterator(_DbHandle, _Since) ->
-  erlang:nif_error({error, not_loaded}).
+-spec tlog_iterator(Db :: db_handle(),Since :: non_neg_integer()) -> {ok, Iterator :: term()}.
+tlog_iterator(_DbHandle, _Since) ->
+  ?nif_stub.
 
 %% @doc close the transaction log
-close_updates_iterator(_Iterator) ->
-  erlang:nif_error({error, not_loaded}).
+-spec tlog_iterator_close(term()) -> ok.
+tlog_iterator_close(_Iterator) ->
+  ?nif_stub.
 
 %% @doc go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.
--spec next_binary_update(
+-spec tlog_next_binary_update(
         Iterator :: term()
        ) -> {ok, LastSeq :: non_neg_integer(), BinLog :: binary()} | {error, term()}.
-next_binary_update(_Iterator) ->
-  erlang:nif_error({error, not_loaded}).
+tlog_next_binary_update(_Iterator) ->
+  ?nif_stub.
+
+%% @doc like `tlog_nex_binary_update/1' but also return the batch as a list of operations
+-spec tlog_next_update(
+        Iterator :: term()
+       ) -> {ok, LastSeq :: non_neg_integer(), Log :: write_actions(), BinLog :: binary()} | {error, term()}.
+tlog_next_update(_Iterator) ->
+  ?nif_stub.
 
 %% @doc apply a set of operation coming from a transaction log to another database. Can be useful to use it in slave
 %% mode.
 %%
 -spec write_binary_update(
-        Iterator :: term(), BinLog :: binary(), WriteOptions :: write_options()
+        DbHandle :: db_handle(), BinLog :: binary(), WriteOptions :: write_options()
        ) -> ok | {error, term()}.
-write_binary_update(_Iterator, _Update, _WriteOptions) ->
-  erlang:nif_error({error, not_loaded}).
+write_binary_update(_DbHandle, _Update, _WriteOptions) ->
+  ?nif_stub.
 
 
-%% @doc like binary update but also return the batch as a list of operations
--spec next_update(
-        Iterator :: term()
-       ) -> {ok, LastSeq :: non_neg_integer(), Log :: write_actions(), BinLog :: binary()} | {error, term()}.
-next_update(_Iterator) ->
-  erlang:nif_error({error, not_loaded}).
+
+updates_iterator(DBH, Since) -> tlog_iterator(DBH, Since).
+close_updates_iterator(Itr) -> tlog_iterator_close(Itr).
+next_binary_update(Itr) -> tlog_next_binary_update(Itr).
+next_update(Itr) -> tlog_next_update(Itr).
+
+%% ===================================================================
+%% Batch API
 
 %% @doc create a new batch in memory. A batch is a nif resource attached to the current process. Pay attention when you
 %% share it with other processes as it may not been released. To force its release you will need to use the close_batch
 %% function.
 -spec batch() -> {ok, Batch :: batch_handle()}.
 batch() ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 -spec release_batch(Batch :: batch_handle()) -> ok.
 release_batch(_Batch) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc write the batch to the database
 -spec write_batch(Db :: db_handle(), Batch :: batch_handle(), WriteOptions :: write_options()) -> ok | {error, term()}.
 write_batch(_DbHandle, _Batch, _WriteOptions) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc add a put operation to the batch
 -spec batch_put(Batch :: batch_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_put(_Batch, _Key, _Value) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc like `batch_put/3' but apply the operation to a column family
 -spec batch_put(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_put(_Batch, _ColumnFamily, _Key, _Value) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc add a merge operation to the batch
 -spec batch_merge(Batch :: batch_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_merge(_Batch, _Key, _Value) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc like `batch_mege/3' but apply the operation to a column family
 -spec batch_merge(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
 batch_merge(_Batch, _ColumnFamily, _Key, _Value) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc batch implementation of delete operation to the batch
 -spec batch_delete(Batch :: batch_handle(), Key :: binary()) -> ok.
 batch_delete(_Batch, _Key) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc like `batch_delete/2' but apply the operation to a column family
 -spec batch_delete(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
 batch_delete(_Batch, _ColumnFamily, _Key) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc batch implementation of single_delete operation to the batch
 -spec batch_single_delete(Batch :: batch_handle(), Key :: binary()) -> ok.
 batch_single_delete(_Batch, _Key) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc like `batch_single_delete/2' but apply the operation to a column family
 -spec batch_single_delete(Batch :: batch_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
 batch_single_delete(_Batch, _ColumnFamily, _Key) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc return the number of operations in the batch
 -spec batch_count(_Batch :: batch_handle()) -> Count :: non_neg_integer().
 batch_count(_Batch) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Retrieve data size of the batch.
 -spec batch_data_size(_Batch :: batch_handle()) -> BatchSize :: non_neg_integer().
 batch_data_size(_Batch) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc reset the batch, clear all operations.
 -spec batch_clear(Batch :: batch_handle()) -> ok.
 batch_clear(_Batch) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc store a checkpoint in the batch to which you can rollback later
 -spec batch_savepoint(Batch :: batch_handle()) -> ok.
 batch_savepoint(_Batch) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc rollback the operations to the latest checkpoint
 -spec batch_rollback(Batch :: batch_handle()) -> ok.
 batch_rollback(_Batch) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc return all the operation sin the batch as a list of operations
 -spec batch_tolist(Batch :: batch_handle()) -> Ops :: write_actions().
 batch_tolist(_Batch) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 
 %% ===================================================================
-%% backup functions
+%% Backup Engine API
 
-%% @doc open a new backup engine
+%% @doc open a new backup engine for creating new backups.
 -spec open_backup_engine(Path :: string) -> {ok, backup_engine()} | {error, term()}.
 open_backup_engine(_Path) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
+
+
+%% @doc stop and close the backup engine
+%% note: experimental for testing only
+-spec close_backup_engine(backup_engine()) -> ok.
+close_backup_engine(_BackupEngine) ->
+  ?nif_stub.
+
+%% @doc  Will delete all the files we don't need anymore
+%% It will do the full scan of the files/ directory and delete all the
+%% files that are not referenced.
+-spec gc_backup_engine(backup_engine()) -> ok.
+gc_backup_engine(_BackupEngine) ->
+  ?nif_stub.
 
 %% %% @doc Call this from another process if you want to stop the backup
 %% that is currently happening. It will return immediatelly, will
@@ -1101,33 +1208,33 @@ open_backup_engine(_Path) ->
 %% next time you create BackupableDB or RestoreBackupableDB.
 -spec stop_backup(backup_engine()) -> ok.
 stop_backup(_BackupEngine) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Captures the state of the database in the latest backup
 -spec create_new_backup(BackupEngine :: backup_engine(), Db :: db_handle()) -> ok | {error, term()}.
 create_new_backup(_BackupEngine, _DbHandle) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc Returns info about backups in backup_info
 -spec get_backup_info(backup_engine()) -> [backup_info()].
 get_backup_info(_BackupEngine) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc checks that each file exists and that the size of the file matches
 %% our expectations. it does not check file checksum.
 -spec verify_backup(BackupEngine :: backup_engine(), BackupId :: non_neg_integer()) -> ok | {error, any()}.
 verify_backup(_BackupEngine, _BackupId) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc deletes a specific backup
 -spec delete_backup(BackupEngine :: backup_engine(), BackupId :: non_neg_integer()) -> ok | {error, any()}.
 delete_backup(_BackupEngine, _BackupId) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc deletes old backups, keeping latest num_backups_to_keep alive
 -spec purge_old_backup(BackupEngine :: backup_engine(), NumBackupToKeep :: non_neg_integer()) -> ok | {error, any()}.
 purge_old_backup(_BackupEngine, _NumBackupToKeep) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc restore from backup with backup_id
 -spec restore_db_from_backup(BackupEngine, BackupId, DbDir) -> Result when
@@ -1136,7 +1243,7 @@ purge_old_backup(_BackupEngine, _NumBackupToKeep) ->
   DbDir :: string(),
   Result :: ok | {error, any()}.
 restore_db_from_backup(_BackupEngine, _BackupId, _DbDir) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc restore from backup with backup_id
 -spec restore_db_from_backup(BackupEngine, BackupId, DbDir, WalDir) -> Result when
@@ -1146,7 +1253,7 @@ restore_db_from_backup(_BackupEngine, _BackupId, _DbDir) ->
   WalDir :: string(),
   Result :: ok | {error, any()}.
 restore_db_from_backup(_BackupEngine, _BackupId, _DbDir, _WalDir) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc restore from the latest backup
 -spec restore_db_from_latest_backup(BackupEngine, DbDir) -> Result when
@@ -1154,7 +1261,7 @@ restore_db_from_backup(_BackupEngine, _BackupId, _DbDir, _WalDir) ->
   DbDir :: string(),
   Result :: ok | {error, any()}.
 restore_db_from_latest_backup(_BackupEngine, _DbDir) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc restore from the latest backup
 -spec restore_db_from_latest_backup(BackupEngine,  DbDir, WalDir) -> Result when
@@ -1163,53 +1270,51 @@ restore_db_from_latest_backup(_BackupEngine, _DbDir) ->
   WalDir :: string(),
   Result :: ok | {error, any()}.
 restore_db_from_latest_backup(_BackupEngine,  _DbDir, _WalDir) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
-%% @doc  Will delete all the files we don't need anymore
-%% It will do the full scan of the files/ directory and delete all the
-%% files that are not referenced.
--spec garbage_collect_backup(backup_engine()) -> ok.
-garbage_collect_backup(_BackupEngine) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc stop and close the backup
-%% note: experimental for testing only
--spec close_backup(backup_engine()) -> ok.
-close_backup(_BackupEngine) ->
-  erlang:nif_error({error, not_loaded}).
 
 
 %% ===================================================================
-%% cache functions
+%% Cache API
 
-%% @doc // Create a new cache with a fixed size capacity. The cache is sharded
+%% @doc // Create a new cache.
+
+%M Whi the type `lru' it create a cache  with a fixed size capacity. The cache is sharded
 %% to 2^num_shard_bits shards, by hash of the key. The total capacity
-%% is divided and evenly assigned to each shard.
--spec new_lru_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
-new_lru_cache(_Capacity) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc Similar to NewLRUCache, but create a cache based on CLOCK algorithm with
-%% better concurrent performance in some cases. See util/clock_cache.cc for
+%% is divided and evenly assigned to each shard. With the type `clock`, it creates a 
+%% cache based on CLOCK algorithm with better concurrent performance in some cases. See util/clock_cache.cc for
 %% more detail.
--spec new_clock_cache(Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
-new_clock_cache(_Capacity) ->
-  erlang:nif_error({error, not_loaded}).
+-spec new_cache(Type :: cache_type(), Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
+new_cache(_Type, _Capacity) ->
+  ?nif_stub.
 
-%% @doc returns the memory size for a specific entry in the cache.
--spec get_usage(cache_handle()) -> non_neg_integer().
-get_usage(_Cache) ->
-  erlang:nif_error({error, not_loaded}).
+%% @doc return informations of a cache as a list of tuples.
+%%
+%%  {capacity, integer >=0}
+%%      the maximum configured capacity of the cache.
+%%  {strict_capacity, boolean}
+%%      the flag whether to return error on insertion when cache reaches its full capacity.
+%%  {usage, integer >=0}
+%%      the memory size for the entries residing in the cache.
+%%  {pinned_usage, integer >= 0}
+%%      the memory size for the entries in use by the system
+-spec cache_info(Cache) -> InfoList when
+  Cache :: cache_handle(),
+  InfoList :: [InfoTuple],
+  InfoTuple :: {capacity, non_neg_integer()}
+            |  {strict_capacity, boolean()}
+            |  {usage, non_neg_integer()}
+            |  {pinned_usage, non_neg_integer()}.     
+cache_info(_Cache) ->
+  ?nif_stub.
 
-%% @doc  returns the memory size for the entries in use by the system
--spec get_pinned_usage(cache_handle()) -> non_neg_integer().
-get_pinned_usage(_Cache) ->
-  erlang:nif_error({error, not_loaded}).
-
-%% @doc  returns the maximum configured capacity of the cache.
--spec get_capacity(cache_handle()) -> non_neg_integer().
-get_capacity(_Cache) ->
-  erlang:nif_error({error, not_loaded}).
+%% @doc return the information associated with Item for cache Cache
+-spec cache_info(Cache, Item) -> Value when
+  Cache :: cache_handle(),
+  Item :: capacity | strict_capacity | usage | pinned_usage,
+  Value :: term().
+cache_info(_Cache, _Item) ->
+  ?nif_stub.
 
 %% @doc sets the maximum configured capacity of the cache. When the new
 %% capacity is less than the old capacity and the existing usage is
@@ -1217,73 +1322,82 @@ get_capacity(_Cache) ->
 %% purge the released entries from the cache in order to lower the usage
 -spec set_capacity(Cache :: cache_handle(), Capacity :: non_neg_integer()) -> ok.
 set_capacity(_Cache, _Capacity) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc sets strict_capacity_limit flag of the cache. If the flag is set
 %% to true, insert to cache will fail if no enough capacity can be free.
 -spec set_strict_capacity_limit(Cache :: cache_handle(), StrictCapacityLimit :: boolean()) -> ok.
 set_strict_capacity_limit(_Cache, _StrictCapacityLimit) ->
-    erlang:nif_error({error, not_loaded}).
+    ?nif_stub.
 
 %% @doc release the cache
 release_cache(_Cache) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
+
+new_lru_cache(Capacity) -> new_cache(lru, Capacity).
+new_clock_cache(Capacity) -> new_cache(clock, Capacity).
+get_usage(Cache) -> cache_info(Cache, usage).
+get_pinned_usage(Cache) -> cache_info(Cache, pinned_usage).
+get_capacity(Cache) -> cache_info(Cache, capacity).
 
 %% ===================================================================
 %% Limiter functions
 
 %% @doc create new Limiter
 new_rate_limiter(_RateBytesPerSec, _Auto) ->
-    erlang:nif_error({error, not_loaded}).
+    ?nif_stub.
 
 %% @doc release the limiter
 release_rate_limiter(_Limiter) ->
-    erlang:nif_error({error, not_loaded}).
+    ?nif_stub.
 
 
 
 %% ===================================================================
-%% env functions
+%% Env API
 
-%% @doc return a default db environment
--spec default_env() -> {ok, env_handle()}.
-default_env() ->
-  erlang:nif_error({error, not_loaded}).
+%% @sdoc return a default db environment
+-spec new_env() -> {ok, env_handle()}.
+new_env() -> new_env(default).
 
-%% @doc return a memory environment
--spec mem_env() -> {ok, env_handle()}.
-mem_env() ->
-  erlang:nif_error({error, not_loaded}).
+%% @doc return a db environment
+-spec new_env(EnvType :: env_type()) -> {ok, env_handle()}.
+new_env(_EnvType) ->
+  ?nif_stub.
 
 %% @doc set background threads of an environment
 -spec set_env_background_threads(Env :: env_handle(), N :: non_neg_integer()) -> ok.
 set_env_background_threads(_Env, _N) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc set background threads of low and high prioriry threads pool of an environment
 %% Flush threads are in the HIGH priority pool, while compaction threads are in the
 %% LOW priority pool. To increase the number of threads in each pool call:
 -spec set_env_background_threads(Env :: env_handle(), N :: non_neg_integer(), Priority :: env_priority()) -> ok.
 set_env_background_threads(_Env, _N, _PRIORITY) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc destroy an environment
 -spec destroy_env(Env :: env_handle()) -> ok.
 destroy_env(_Env) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 
 %% @doc set background threads of a database
 -spec set_db_background_threads(DB :: db_handle(), N :: non_neg_integer()) -> ok.
 set_db_background_threads(_Db, _N) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc set database background threads of low and high prioriry threads pool of an environment
 %% Flush threads are in the HIGH priority pool, while compaction threads are in the
 %% LOW priority pool. To increase the number of threads in each pool call:
 -spec set_db_background_threads(DB :: db_handle(), N :: non_neg_integer(), Priority :: env_priority()) -> ok.
 set_db_background_threads(_Db, _N, _PRIORITY) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
+
+default_env() -> new_env(default).
+
+mem_env() -> new_env(memenv).
 
 %% ===================================================================
 %% SstFileManager functions
@@ -1319,24 +1433,24 @@ new_sst_file_manager(Env) ->
   BytesMaxDeleteChunk :: integer(),
   Result :: {ok, sst_file_manager()} | {error, any()}.
 new_sst_file_manager(_Env, _RateBytesPerSec, _MaxTrashDbRatio, _BytesMaxDeleteChunk) ->
-    erlang:nif_error({error, not_loaded}).
+    ?nif_stub.
 
 %% @doc release the SstFileManager 
 -spec release_sst_file_manager(sst_file_manager()) -> ok.
 release_sst_file_manager(_SstFileManager) ->
-    erlang:nif_error({error, not_loaded}).
+    ?nif_stub.
 
 -spec sst_file_manager_set(sst_file_manager(), string(), integer() |float()) -> ok.
 sst_file_manager_set(_SstFileManager, _Property, _Val) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 -spec sst_file_manager_get(sst_file_manager(), string()) -> integer() |float().
 sst_file_manager_get(_SstFileManager, _Property) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 -spec sst_file_manager_is(sst_file_manager(), string()) -> boolean().
 sst_file_manager_is(_SstFileManager, _Property) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 
 %% ===================================================================
@@ -1345,7 +1459,7 @@ sst_file_manager_is(_SstFileManager, _Property) ->
 %% @doc  create a new WriteBufferManager.
 -spec new_write_buffer_manager(BufferSize::non_neg_integer()) -> {ok, write_buffer_manager()}.
 new_write_buffer_manager(_BufferSize) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% @doc  create a new WriteBufferManager. a  WriteBufferManager is for managing memory 
 %% allocation for one or more MemTables.
@@ -1361,19 +1475,19 @@ new_write_buffer_manager(_BufferSize) ->
 %% override db_write_buffer_size.
 -spec new_write_buffer_manager(BufferSize::non_neg_integer(), Cache::cache_handle()) -> {ok, write_buffer_manager()}.
 new_write_buffer_manager(_BufferSize, _Cache) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 -spec release_write_buffer_manager(write_buffer_manager()) -> ok.
 release_write_buffer_manager(_WriteBufferManager) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 -spec write_buffer_manager_get(write_buffer_manager(), string()) -> non_neg_integer().
 write_buffer_manager_get(_WriteBufferManager, _Property) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 -spec write_buffer_manager_is_enabled(write_buffer_manager()) -> boolean().
 write_buffer_manager_is_enabled(_WriteBufferManager) ->
-  erlang:nif_error({error, not_loaded}).
+  ?nif_stub.
 
 %% ===================================================================
 %% Internal functions

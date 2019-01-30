@@ -81,47 +81,30 @@ ManagedEnv::~ManagedEnv()
 
 const rocksdb::Env* ManagedEnv::env() { return env_; }
 
-
 ERL_NIF_TERM
-DefaultEnv(
-    ErlNifEnv* env,
+NewEnv(
+    ErlNifEnv *env,
     int /*argc*/,
-    const ERL_NIF_TERM[] /*argv*/)
+    const ERL_NIF_TERM argv[])
 {
-    ManagedEnv* env_ptr;
-    rocksdb::Env* default_env = rocksdb::Env::Default();
-
-    env_ptr = ManagedEnv::CreateEnvResource(default_env);
-
+    ManagedEnv *env_ptr;
+    rocksdb::Env *rdb_env;
+    if (argv[0] == erocksdb::ATOM_DEFAULT)
+    {
+        rdb_env = rocksdb::Env::Default();
+    } else if (argv[0] == erocksdb::ATOM_MEMENV) {
+        rdb_env = rocksdb::NewMemEnv(rocksdb::Env::Default());
+    } else {
+        return enif_make_badarg(env);
+    }
+    env_ptr = ManagedEnv::CreateEnvResource(rdb_env);
     // create a resource reference to send erlang
     ERL_NIF_TERM result = enif_make_resource(env, env_ptr);
     // clear the automatic reference from enif_alloc_resource in EnvObject
     enif_release_resource(env_ptr);
-    default_env = NULL;
-
+    rdb_env = NULL;
     return enif_make_tuple2(env, ATOM_OK, result);
-}   // erocksdb::SnapShot
-
-
-ERL_NIF_TERM
-MemEnv(
-    ErlNifEnv* env,
-    int /*argc*/,
-    const ERL_NIF_TERM[] /*argv*/)
-{
-    ManagedEnv* env_ptr;
-    rocksdb::Env* mem_env = rocksdb::NewMemEnv(rocksdb::Env::Default());
-
-    env_ptr = ManagedEnv::CreateEnvResource(mem_env);
-
-    // create a resource reference to send erlang
-    ERL_NIF_TERM result = enif_make_resource(env, env_ptr);
-    // clear the automatic reference from enif_alloc_resource in EnvObject
-    enif_release_resource(env_ptr);
-    mem_env = NULL;
-
-    return enif_make_tuple2(env, ATOM_OK, result);
-}   // erocksdb::SnapShot
+}
 
 
 ERL_NIF_TERM

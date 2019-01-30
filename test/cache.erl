@@ -24,7 +24,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 shared_cacheleak_test_() ->
-  {ok, Cache} = rocksdb:new_lru_cache(83886080),
+  {ok, Cache} = rocksdb:new_cache(lru, 83886080),
   ok = rocksdb:set_strict_capacity_limit(Cache, true),
   {timeout, 10*60, fun() ->
                        [] = os:cmd("rm -rf /tmp/erocksdb.sharedcacheleak.test"),
@@ -52,13 +52,13 @@ sharedcacheleak_loop(Count, Cache ,Blobs, MaxFinalRSS) ->
           {ok, Ref} = rocksdb:open("/tmp/erocksdb.sharedcacheleak.test",
                                    [{create_if_missing, true},
                                     {block_based_table_options, BlockOptions}]),
-          ?assertEqual(83886080, rocksdb:get_capacity(Cache)),
+          ?assertEqual(83886080, rocksdb:cache_info(Cache, capacity)),
           [ok = rocksdb:put(Ref, I, B, []) || {I, B} <- Blobs],
           rocksdb:fold(Ref, fun({_K, _V}, A) -> A end, [], [{fill_cache, true}]),
           [{ok, B} = rocksdb:get(Ref, I, []) || {I, B} <- Blobs],
           ok = rocksdb:close(Ref),
           erlang:garbage_collect(),
-          io:format(user, "cache usage: ~p\n", [rocksdb:get_usage(Cache)]),
+          io:format(user, "cache usage: ~p\n", [rocksdb:cache_info(Cache, usage)]),
           io:format(user, "RSS1: ~p\n", [rssmem()])
       end,
   {_Pid, Mref} = spawn_monitor(F),

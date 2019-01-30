@@ -55,6 +55,37 @@ OpenBackupEngine(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
   return enif_make_tuple2(env, ATOM_OK, result);
 } // OpenBackupEngine
 
+ERL_NIF_TERM
+GCBackupEngine(ErlNifEnv *env, int /*argc*/, const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<BackupEngineObject> backup_engine_ptr;
+    rocksdb::Status s;
+
+    if (!enif_get_backup_engine(env, argv[0], &backup_engine_ptr))
+        return enif_make_badarg(env);
+
+    s = backup_engine_ptr->m_BackupEngine->GarbageCollect();
+    if (s.ok())
+    {
+        return ATOM_OK;
+    }
+    return error_tuple(env, ATOM_ERROR, s);
+}
+
+ERL_NIF_TERM
+CloseBackupEngine(ErlNifEnv *env, int /*argc*/, const ERL_NIF_TERM argv[])
+{
+    BackupEngineObject *backup_engine_ptr;
+    backup_engine_ptr = BackupEngineObject::RetrieveBackupEngineObject(env, argv[0]);
+
+    if (NULL == backup_engine_ptr)
+        return enif_make_badarg(env);
+
+    // set closing flag
+    ErlRefObject::InitiateCloseRequest(backup_engine_ptr);
+    backup_engine_ptr = NULL;
+    return ATOM_OK;
+}
 
 ERL_NIF_TERM
 CreateNewBackup(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
@@ -259,37 +290,6 @@ RestoreDBFromLatestBackup(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 
-ERL_NIF_TERM
-GarbageCollect(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
-{
-    ReferencePtr<BackupEngineObject> backup_engine_ptr;
-    rocksdb::Status s;
-
-    if(!enif_get_backup_engine(env, argv[0], &backup_engine_ptr))
-        return enif_make_badarg(env);
-
-
-    s = backup_engine_ptr->m_BackupEngine->GarbageCollect();
-    if (s.ok()) {
-        return ATOM_OK;
-    }
-    return error_tuple(env, ATOM_ERROR, s);
-}
-
-ERL_NIF_TERM
-CloseBackup(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
-{
-    BackupEngineObject * backup_engine_ptr;
-    backup_engine_ptr = BackupEngineObject::RetrieveBackupEngineObject(env, argv[0]);
-
-    if (NULL==backup_engine_ptr)
-        return enif_make_badarg(env);
-
-    // set closing flag
-    ErlRefObject::InitiateCloseRequest(backup_engine_ptr);
-    backup_engine_ptr=NULL;
-    return ATOM_OK;
-}
 
 
 }

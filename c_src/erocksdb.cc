@@ -31,7 +31,7 @@ static ErlNifFunc nif_funcs[] =
     {
 
         {"open", 2, erocksdb::Open, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"open_with_cf", 3, erocksdb::OpenWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"open", 3, erocksdb::OpenWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"open_with_ttl", 4, erocksdb::OpenWithTTL, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
@@ -60,7 +60,9 @@ static ErlNifFunc nif_funcs[] =
         {"list_column_families", 2, erocksdb::ListColumnFamilies, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"create_column_family", 3, erocksdb::CreateColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"drop_column_family", 1, erocksdb::DropColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"drop_column_family", 2, erocksdb::DropColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"destroy_column_family", 1, erocksdb::DestroyColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"destroy_column_family", 2, erocksdb::DestroyColumnFamily, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // kv operations
         {"get", 3, erocksdb::Get, ERL_NIF_DIRTY_JOB_IO_BOUND},
@@ -89,11 +91,11 @@ static ErlNifFunc nif_funcs[] =
         {"get_latest_sequence_number", 1, erocksdb::GetLatestSequenceNumber, ERL_NIF_REGULAR_BOUND},
 
         // transactions
-        {"updates_iterator", 2, erocksdb::UpdatesIterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"close_updates_iterator", 1, erocksdb::UpdatesIteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"next_binary_update", 1, erocksdb::NextBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"tlog_iterator", 2, erocksdb::TransactionLogIterator, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"tlog_iterator_close", 1, erocksdb::TransactionLogIteratorClose, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"tlog_next_binary_update", 1, erocksdb::TransactionLogNextBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"tlog_next_update", 1, erocksdb::TransactionLogNextUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"write_binary_update", 3, erocksdb::WriteBinaryUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"next_update", 1, erocksdb::NextUpdate, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // Batch
         {"batch", 0, erocksdb::NewBatch, ERL_NIF_REGULAR_BOUND},
@@ -126,26 +128,23 @@ static ErlNifFunc nif_funcs[] =
         {"restore_db_from_backup", 4, erocksdb::RestoreDBFromBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"restore_db_from_latest_backup", 2, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"restore_db_from_latest_backup", 3, erocksdb::RestoreDBFromLatestBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"garbage_collect_backup", 1, erocksdb::GarbageCollect, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"close_backup", 1, erocksdb::CloseBackup, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"gc_backup_engine", 1, erocksdb::GCBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"close_backup_engine", 1, erocksdb::CloseBackupEngine, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // cache
-        {"new_lru_cache", 1, erocksdb::NewLRUCache, ERL_NIF_REGULAR_BOUND},
-        {"new_clock_cache", 1, erocksdb::NewClockCache, ERL_NIF_REGULAR_BOUND},
-        {"get_usage", 1, erocksdb::GetUsage, ERL_NIF_REGULAR_BOUND},
-        {"get_pinned_usage", 1, erocksdb::GetPinnedUsage, ERL_NIF_REGULAR_BOUND},
-        {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
-        {"get_capacity", 1, erocksdb::GetCapacity, ERL_NIF_REGULAR_BOUND},
+        {"new_cache", 2, erocksdb::NewCache, ERL_NIF_REGULAR_BOUND},
+        {"cache_info", 1, erocksdb::CacheInfo, ERL_NIF_REGULAR_BOUND},
+        {"cache_info", 2, erocksdb::CacheInfo, ERL_NIF_REGULAR_BOUND},
         {"release_cache", 1, erocksdb::ReleaseCache, ERL_NIF_REGULAR_BOUND},
         {"set_strict_capacity_limit", 2, erocksdb::SetStrictCapacityLimit, ERL_NIF_REGULAR_BOUND},
+        {"set_capacity", 2, erocksdb::SetCapacity, ERL_NIF_DIRTY_JOB_CPU_BOUND},
 
         // rate limiter
         {"new_rate_limiter", 2, erocksdb::NewRateLimiter, ERL_NIF_REGULAR_BOUND},
         {"release_rate_limiter", 1, erocksdb::ReleaseRateLimiter, ERL_NIF_REGULAR_BOUND},
 
         // env
-        {"default_env", 0, erocksdb::DefaultEnv, ERL_NIF_REGULAR_BOUND},
-        {"mem_env", 0, erocksdb::MemEnv, ERL_NIF_REGULAR_BOUND},
+        {"new_env", 1, erocksdb::NewEnv, ERL_NIF_REGULAR_BOUND},
         {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"destroy_env", 1, erocksdb::DestroyEnv, ERL_NIF_REGULAR_BOUND},
@@ -160,8 +159,7 @@ static ErlNifFunc nif_funcs[] =
         {"new_write_buffer_manager", 2, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"release_write_buffer_manager", 1, erocksdb::ReleaseWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"write_buffer_manager_get", 2, erocksdb::WriteBufferManager_Get, ERL_NIF_REGULAR_BOUND},
-        {"write_buffer_manager_is_enabled", 1, erocksdb::WriteBufferManager_IsEnabled, ERL_NIF_REGULAR_BOUND}
-};
+        {"write_buffer_manager_is_enabled", 1, erocksdb::WriteBufferManager_IsEnabled, ERL_NIF_REGULAR_BOUND}};
 
 namespace erocksdb {
 
@@ -183,6 +181,14 @@ ERL_NIF_TERM ATOM_UNDEFINED;
 // related to envs
 ERL_NIF_TERM ATOM_DEFAULT;
 ERL_NIF_TERM ATOM_MEMENV;
+
+// related to cache
+ERL_NIF_TERM ATOM_LRU;
+ERL_NIF_TERM ATOM_CLOCK;
+ERL_NIF_TERM ATOM_USAGE;
+ERL_NIF_TERM ATOM_PINNED_USAGE;
+ERL_NIF_TERM ATOM_CAPACITY;
+ERL_NIF_TERM ATOM_STRICT_CAPACITY;
 
 // generic
 ERL_NIF_TERM ATOM_DEFAULT_COLUMN_FAMILY;
@@ -467,6 +473,13 @@ try
 
   ATOM(erocksdb::ATOM_DEFAULT, "default");
   ATOM(erocksdb::ATOM_MEMENV, "memenv");
+
+  ATOM(erocksdb::ATOM_LRU, "lru");
+  ATOM(erocksdb::ATOM_CLOCK, "clock");
+  ATOM(erocksdb::ATOM_USAGE, "usage");
+  ATOM(erocksdb::ATOM_PINNED_USAGE, "pinned_usage");
+  ATOM(erocksdb::ATOM_CAPACITY, "capacity");
+  ATOM(erocksdb::ATOM_STRICT_CAPACITY, "strict_capacity");
 
   ATOM(erocksdb::ATOM_DEFAULT_COLUMN_FAMILY, "default_column_family");
 

@@ -108,16 +108,24 @@ CreateColumnFamily(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 }   // erocksdb::CreateColumnFamily
 
 ERL_NIF_TERM
-DropColumnFamily(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
+DropColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-    ReferencePtr<ColumnFamilyObject> cf_ptr;
-    if(!enif_get_cf(env, argv[0], &cf_ptr))
-        return enif_make_badarg(env);
-
-    // release snapshot object
-    ColumnFamilyObject* cf = cf_ptr.get();
-
-    rocksdb::Status status = cf->m_DbPtr->m_Db->DropColumnFamily(cf->m_ColumnFamily);
+    ReferencePtr<DbObject> db_ptr;
+    ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
+    ColumnFamilyObject *cf;
+    rocksdb::Status status;
+    if (argc > 1) {
+        if (!enif_get_db(env, argv[0], &db_ptr) || !enif_get_cf(env, argv[1], &cf_ptr)) 
+            return enif_make_badarg(env);
+        cf = cf_ptr.get();
+        status = db_ptr->m_Db->DropColumnFamily(cf->m_ColumnFamily);
+    } else {
+        if (!enif_get_cf(env, argv[0], &cf_ptr))
+            return enif_make_badarg(env);
+        // release snapshot object
+        ColumnFamilyObject *cf = cf_ptr.get();
+        status = cf->m_DbPtr->m_Db->DropColumnFamily(cf->m_ColumnFamily);
+    }
     if(status.ok())
     {
         // don't close it until someone calls destroy
@@ -128,25 +136,35 @@ DropColumnFamily(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 
 
 ERL_NIF_TERM
-DestroyColumnFamily(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
+DestroyColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 {
-    ReferencePtr<ColumnFamilyObject> cf_ptr;
-    if(!enif_get_cf(env, argv[0], &cf_ptr))
-        return enif_make_badarg(env);
-
-    // release snapshot object
-    ColumnFamilyObject* cf = cf_ptr.get();
-
-    rocksdb::Status status = cf->m_DbPtr->m_Db->DestroyColumnFamilyHandle(cf->m_ColumnFamily);
-    cf->m_ColumnFamily = NULL;
-    if(status.ok())
+    ReferencePtr<DbObject> db_ptr;
+    ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
+    ColumnFamilyObject *cf;
+    rocksdb::Status status;
+    if (argc > 1)
     {
+        if (!enif_get_db(env, argv[0], &db_ptr) || !enif_get_cf(env, argv[1], &cf_ptr))
+            return enif_make_badarg(env);
+        cf = cf_ptr.get();
+        status = db_ptr->m_Db->DestroyColumnFamilyHandle(cf->m_ColumnFamily);
+    }
+    else
+    {
+        if (!enif_get_cf(env, argv[0], &cf_ptr))
+            return enif_make_badarg(env);
+        cf = cf_ptr.get();
+        status = cf->m_DbPtr->m_Db->DestroyColumnFamilyHandle(cf->m_ColumnFamily);
+    }
+    cf->m_ColumnFamily = NULL;
+    if (status.ok())
+    {
+        // don't close it until someone calls destroy
         // set closing flag
         ErlRefObject::InitiateCloseRequest(cf);
         return ATOM_OK;
     }
     return error_tuple(env, ATOM_ERROR, status);
-}   // erocksdb::DropColumnFamily
-
+} // erocksdb::DropColumnFa
 
 }

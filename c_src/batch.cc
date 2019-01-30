@@ -28,7 +28,7 @@
 #include "util.h"
 
 #include "erocksdb_db.h"
-#include "transactions.h"
+#include "transaction_log.h"
 
 
 struct Batch
