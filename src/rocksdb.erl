@@ -172,35 +172,6 @@
   write_buffer_manager/0
 ]).
 
--compile(no_native).
--on_load(on_load/0).
-
--define(nif_stub,nif_stub_error(?LINE)).
-nif_stub_error(Line) ->
-    erlang:nif_error({nif_not_loaded,module,?MODULE,line,Line}).
-
-%% This cannot be a separate function. Code must be inline to trigger
-%% Erlang compiler's use of optimized selective receive.
--define(WAIT_FOR_REPLY(Ref),
-    receive {Ref, Reply} ->
-        Reply
-    end).
-
--spec on_load() -> ok | {error, any()}.
-on_load() ->
-  SoName = case code:priv_dir(?MODULE) of
-         {error, bad_name} ->
-           case code:which(?MODULE) of
-             Filename when is_list(Filename) ->
-               filename:join([filename:dirname(Filename),"../priv", "liberocksdb"]);
-             _ ->
-               filename:join("../priv", "liberocksdb")
-           end;
-         Dir ->
-           filename:join(Dir, "liberocksdb")
-       end,
-  erlang:load_nif(SoName, application:get_all_env(rocksdb)).
-
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
 
@@ -379,6 +350,39 @@ on_load() ->
 
 -type size_approximation_flag() :: none | include_memtables | include_files | include_both.
 -type range() :: {Start::binary(), Limit::binary()}.
+
+-compile(no_native).
+-on_load(on_load/0).
+
+-define(nif_stub,nif_stub_error(?LINE)).
+nif_stub_error(Line) ->
+    erlang:nif_error({nif_not_loaded,module,?MODULE,line,Line}).
+
+%% This cannot be a separate function. Code must be inline to trigger
+%% Erlang compiler's use of optimized selective receive.
+-define(WAIT_FOR_REPLY(Ref),
+    receive {Ref, Reply} ->
+        Reply
+    end).
+
+-spec on_load() -> ok | {error, any()}.
+on_load() ->
+  SoName = case code:priv_dir(?MODULE) of
+         {error, bad_name} ->
+           case code:which(?MODULE) of
+             Filename when is_list(Filename) ->
+               filename:join([filename:dirname(Filename),"../priv", "liberocksdb"]);
+             _ ->
+               filename:join("../priv", "liberocksdb")
+           end;
+         Dir ->
+           filename:join(Dir, "liberocksdb")
+       end,
+  erlang:load_nif(SoName, application:get_all_env(rocksdb)).
+
+%%--------------------------------------------------------------------
+%%% API
+%%--------------------------------------------------------------------
 
 %% @doc Open RocksDB with the defalut column family
 -spec open(Name, DBOpts) -> Result when
