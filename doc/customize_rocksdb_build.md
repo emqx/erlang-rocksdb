@@ -9,7 +9,7 @@ There are manyoptions added to customize build (all are `OFF` by default):
 * `WITH_SNAPPY=ON` the driver will link with snappy shared library provided by host system
 
 * `WITH_LZ4=ON` the driver will link with lz4 shared library provided by host system
-* 
+
 * `WITH_BZ2=ON` the driver will link with bzip2 shared library provided by host system
 
 * `WITH_ZLIB=ON` the driver will link with zlib shared library provided by host system
