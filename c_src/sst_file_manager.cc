@@ -211,10 +211,10 @@ sst_file_manager_info_1(
     if (item == erocksdb::ATOM_TOTAL_SIZE) {
         return enif_make_uint64(env, mgr_ptr->sst_file_manager()->GetTotalSize());
     }
-    else if (erocksdb::ATOM_DELETE_RATE_BYTES_PER_SEC) {
+    else if (item == erocksdb::ATOM_DELETE_RATE_BYTES_PER_SEC) {
         return enif_make_uint64(env, mgr_ptr->sst_file_manager()->GetDeleteRateBytesPerSecond());
     }
-    else if (erocksdb::ATOM_MAX_TRASH_DB_RATIO) {
+    else if (item == erocksdb::ATOM_MAX_TRASH_DB_RATIO) {
         return enif_make_double(env, mgr_ptr->sst_file_manager()->GetMaxTrashDBRatio());
     }
     else if (item == erocksdb::ATOM_TOTAL_TRASH_SIZE) {

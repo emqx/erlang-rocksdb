@@ -20,7 +20,7 @@
 
 
 basic_test() ->
-    {ok, Env} = rocksdb:default_env(),
+    {ok, Env} = rocksdb:new_env(),
     {ok, Mgr} = rocksdb:new_sst_file_manager(Env),
     0.25 = rocksdb:sst_file_manager_info(Mgr, max_trash_db_ratio),
     0 = rocksdb:sst_file_manager_info(Mgr, delete_rate_bytes_per_sec),
