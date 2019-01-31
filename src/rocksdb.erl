@@ -111,8 +111,7 @@
   new_write_buffer_manager/1,
   new_write_buffer_manager/2,
   release_write_buffer_manager/1,
-  write_buffer_manager_get/2,
-  write_buffer_manager_is_enabled/1
+  write_buffer_manager_info/1, write_buffer_manager_info/2
 ]).
 
 %% Env api
@@ -1281,7 +1280,7 @@ restore_db_from_latest_backup(_BackupEngine,  _DbDir, _WalDir) ->
 
 %M Whi the type `lru' it create a cache  with a fixed size capacity. The cache is sharded
 %% to 2^num_shard_bits shards, by hash of the key. The total capacity
-%% is divided and evenly assigned to each shard. With the type `clock`, it creates a 
+%% is divided and evenly assigned to each shard. With the type `clock`, it creates a
 %% cache based on CLOCK algorithm with better concurrent performance in some cases. See util/clock_cache.cc for
 %% more detail.
 -spec new_cache(Type :: cache_type(), Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
@@ -1419,7 +1418,7 @@ new_sst_file_manager(Env) ->
 %%     files, Set to 0 to disable deletion rate limiting.
 %%  * `MaxTrashDbRatio':  If the trash size constitutes for more than this
 %%     fraction of the total DB size we will start deleting new files passed to
-%%     DeleteScheduler immediately 
+%%     DeleteScheduler immediately
 %%  * `BytesMaxDeleteChunk':  if a file to delete is larger than delete
 %%     chunk, ftruncate the file by this size each time, rather than dropping the
 %%     whole file. 0 means to always delete the whole file. If the file has more
@@ -1428,15 +1427,15 @@ new_sst_file_manager(Env) ->
 %%     files already renamed as a trash may be partial, so users should not
 %%     directly recover them without checking.
 -spec new_sst_file_manager(Env, RateBytesPerSec, MaxTrashDbRatio, BytesMaxDeleteChunk) -> Result when
-  Env :: env_handle(), 
-  RateBytesPerSec :: integer(), 
-  MaxTrashDbRatio :: float(), 
+  Env :: env_handle(),
+  RateBytesPerSec :: integer(),
+  MaxTrashDbRatio :: float(),
   BytesMaxDeleteChunk :: integer(),
   Result :: {ok, sst_file_manager()} | {error, any()}.
 new_sst_file_manager(_Env, _RateBytesPerSec, _MaxTrashDbRatio, _BytesMaxDeleteChunk) ->
     ?nif_stub.
 
-%% @doc release the SstFileManager 
+%% @doc release the SstFileManager
 -spec release_sst_file_manager(sst_file_manager()) -> ok.
 release_sst_file_manager(_SstFileManager) ->
     ?nif_stub.
@@ -1462,7 +1461,7 @@ sst_file_manager_is(_SstFileManager, _Property) ->
 new_write_buffer_manager(_BufferSize) ->
   ?nif_stub.
 
-%% @doc  create a new WriteBufferManager. a  WriteBufferManager is for managing memory 
+%% @doc  create a new WriteBufferManager. a  WriteBufferManager is for managing memory
 %% allocation for one or more MemTables.
 %%
 %% The memory usage of memtable will report to this object. The same object
@@ -1470,7 +1469,7 @@ new_write_buffer_manager(_BufferSize) ->
 %% the DBs. If the total size of all live memtables of all the DBs exceeds
 %% a limit, a flush will be triggered in the next DB to which the next write
 %% is issued.
-%% 
+%%
 %% If the object is only passed to on DB, the behavior is the same as
 %% db_write_buffer_size. When write_buffer_manager is set, the value set will
 %% override db_write_buffer_size.
@@ -1482,12 +1481,23 @@ new_write_buffer_manager(_BufferSize, _Cache) ->
 release_write_buffer_manager(_WriteBufferManager) ->
   ?nif_stub.
 
--spec write_buffer_manager_get(write_buffer_manager(), string()) -> non_neg_integer().
-write_buffer_manager_get(_WriteBufferManager, _Property) ->
+%% @doc return informations of a Write Buffer Manager as a list of tuples.
+-spec write_buffer_manager_info(WriteBufferManager) -> InfoList when
+    WriteBufferManager :: write_buffer_manager(),
+    InfoList :: [InfoTuple],
+    InfoTuple :: {memory_usage, non_neg_integer()}
+               | {mutable_memtable_memory_usage, non_neg_integer()}
+               | {buffer_size, non_neg_integer()}
+               | {enabled, boolean()}.
+write_buffer_manager_info(_WriteBufferManager) ->
   ?nif_stub.
 
--spec write_buffer_manager_is_enabled(write_buffer_manager()) -> boolean().
-write_buffer_manager_is_enabled(_WriteBufferManager) ->
+%% @doc return the information associated with Item for a Write Buffer Manager.
+-spec write_buffer_manager_info(WriteBufferManager, Item) -> Value when
+    WriteBufferManager :: write_buffer_manager(),
+    Item :: memory_usage | mutable_memtable_memory_usage | buffer_size | enabled,
+    Value :: term().
+write_buffer_manager_info(_WriteBufferManager, _Item) ->
   ?nif_stub.
 
 %% ===================================================================

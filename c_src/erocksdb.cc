@@ -155,11 +155,12 @@ static ErlNifFunc nif_funcs[] =
         {"sst_file_manager_get", 2, erocksdb::SstFileManager_Get, ERL_NIF_REGULAR_BOUND},
         {"sst_file_manager_is", 2, erocksdb::SstFileManager_Is, ERL_NIF_REGULAR_BOUND},
 
+        // Write Buffer Manager
         {"new_write_buffer_manager", 1, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"new_write_buffer_manager", 2, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"release_write_buffer_manager", 1, erocksdb::ReleaseWriteBufferManager, ERL_NIF_REGULAR_BOUND},
-        {"write_buffer_manager_get", 2, erocksdb::WriteBufferManager_Get, ERL_NIF_REGULAR_BOUND},
-        {"write_buffer_manager_is_enabled", 1, erocksdb::WriteBufferManager_IsEnabled, ERL_NIF_REGULAR_BOUND}};
+        {"write_buffer_manager_info", 1, erocksdb::WriteBufferManagerInfo, ERL_NIF_REGULAR_BOUND},
+        {"write_buffer_manager_info", 2, erocksdb::WriteBufferManagerInfo, ERL_NIF_REGULAR_BOUND}};
 
 namespace erocksdb {
 
@@ -419,6 +420,12 @@ ERL_NIF_TERM ATOM_NONE;
 ERL_NIF_TERM ATOM_INCLUDE_MEMTABLES;
 ERL_NIF_TERM ATOM_INCLUDE_FILES;
 ERL_NIF_TERM ATOM_INCLUDE_BOTH;
+
+// write buffer manager
+ERL_NIF_TERM ATOM_ENABLED;
+ERL_NIF_TERM ATOM_BUFFER_SIZE;
+ERL_NIF_TERM ATOM_MUTABLE_MEMTABLE_MEMORY_USAGE;
+ERL_NIF_TERM ATOM_MEMORY_USAGE;
 
 }   // namespace erocksdb
 
@@ -711,6 +718,12 @@ try
   ATOM(erocksdb::ATOM_INCLUDE_MEMTABLES, "include_memtables");
   ATOM(erocksdb::ATOM_INCLUDE_FILES, "include_files");
   ATOM(erocksdb::ATOM_INCLUDE_BOTH, "include_both");
+
+  // write buffer manager
+  ATOM(erocksdb::ATOM_ENABLED, "enabled");
+  ATOM(erocksdb::ATOM_BUFFER_SIZE, "buffer_size");
+  ATOM(erocksdb::ATOM_MUTABLE_MEMTABLE_MEMORY_USAGE, "mutable_memtable_memory_usage");
+  ATOM(erocksdb::ATOM_MEMORY_USAGE, "memory_usage");
 
 #undef ATOM
 

@@ -123,10 +123,10 @@ ERL_NIF_TERM SstFileManager_Set(ErlNifEnv* env, int argc, const ERL_NIF_TERM arg
 ERL_NIF_TERM SstFileManager_Get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM SstFileManager_Is(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
+// write buffer manager
 ERL_NIF_TERM NewWriteBufferManager(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM ReleaseWriteBufferManager(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM WriteBufferManager_Get(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-ERL_NIF_TERM WriteBufferManager_IsEnabled(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM WriteBufferManagerInfo(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 void CreateBatchType(ErlNifEnv* env);
 
