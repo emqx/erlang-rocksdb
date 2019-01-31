@@ -22,11 +22,20 @@
 basic_test() ->
     {ok, Env} = rocksdb:default_env(),
     {ok, Mgr} = rocksdb:new_sst_file_manager(Env),
-    0.25 = rocksdb_sst_file_manager:get_max_trash_db_ratio(Mgr),
-    0 = rocksdb_sst_file_manager:get_delete_rate_bytes_per_second(Mgr),
-    ok = rocksdb_sst_file_manager:set_delete_rate_bytes_per_second(Mgr, 1024),
-    1024 = rocksdb_sst_file_manager:get_delete_rate_bytes_per_second(Mgr),
-    ok = rocksdb:release_sst_file_manager(Mgr).
+    0.25 = rocksdb:sst_file_manager_info(Mgr, max_trash_db_ratio),
+    0 = rocksdb:sst_file_manager_info(Mgr, delete_rate_bytes_per_sec),
+    ok = rocksdb:sst_file_manager_flag(Mgr, delete_rate_bytes_per_sec, 1024),
+    1024 = rocksdb:sst_file_manager_info(Mgr, delete_rate_bytes_per_sec),
+    [{total_size, _},
+     {delete_rate_bytes_per_sec, 1024},
+     {max_trash_db_ratio, 0.25},
+     {total_trash_size, _},
+     {is_max_allowed_space_reached, _},
+     {max_allowed_space_reached_including_compactions, _}] = rocksdb:sst_file_manager_info(Mgr),
+    ok = rocksdb:release_sst_file_manager(Mgr),
+    {ok, Mgr2} = rocksdb:new_sst_file_manager(Env, [{max_trash_db_ratio, 0.30}]),
+    0.30 = rocksdb:sst_file_manager_info(Mgr2, max_trash_db_ratio),
+    ok = rocksdb:release_sst_file_manager(Mgr2).
 
 simple_options_test() ->
   {ok, Env} = rocksdb:default_env(),
