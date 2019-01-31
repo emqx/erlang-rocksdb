@@ -380,7 +380,7 @@ Close a iterator.</td></tr><tr><td valign="top"><a href="#iterator_move-2">itera
 Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterator_refresh-1">iterator_refresh/1</a></td><td>
 Refresh iterator.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>
 Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td></td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_cache-2">new_cache/2</a></td><td>// Create a new cache.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_env-0">new_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#new_env-1">new_env/1</a></td><td>return a db environment.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
-RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-4">new_sst_file_manager/4</a></td><td>create new SstFileManager that can be shared among multiple RocksDB
+RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-2">new_sst_file_manager/2</a></td><td>create new SstFileManager that can be shared among multiple RocksDB
 instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open-3">open/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine for creating new backups.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
 This API should be used to open the db when key-values inserted are
 meant to be removed from the db in a non-strict <code>TTL</code> amount of time
@@ -391,10 +391,13 @@ Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-2">set_env_background_threads/2</a></td><td>set background threads of an environment.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-3">set_env_background_threads/3</a></td><td>set background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_strict_capacity_limit-2">set_strict_capacity_limit/2</a></td><td>sets strict_capacity_limit flag of the cache.</td></tr><tr><td valign="top"><a href="#single_delete-3">single_delete/3</a></td><td>Remove the database entry for "key".</td></tr><tr><td valign="top"><a href="#single_delete-4">single_delete/4</a></td><td>like <code>single_delete/3</code> but on the specified column family.</td></tr><tr><td valign="top"><a href="#snapshot-1">snapshot/1</a></td><td>return a database snapshot
-Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#sst_file_manager_get-2">sst_file_manager_get/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_is-2">sst_file_manager_is/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_set-3">sst_file_manager_set/3</a></td><td></td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
+Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#sst_file_manager_flag-3">sst_file_manager_flag/3</a></td><td>set certains flags for the SST file manager
+* <code>max_allowed_space_usage</code>: Update the maximum allowed space that should be used by RocksDB, if
+the total size of the SST files exceeds MaxAllowedSpace, writes to
+RocksDB will fail.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-1">sst_file_manager_info/1</a></td><td>return informations of a Sst File Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-2">sst_file_manager_info/2</a></td><td>return the information associated with Item for an SST File Manager SstFileManager.</td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stats-2">stats/2</a></td><td>Return the current stats of the specified column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#tlog_iterator-2">tlog_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#tlog_iterator_close-1">tlog_iterator_close/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#tlog_next_binary_update-1">tlog_next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#tlog_next_update-1">tlog_next_update/1</a></td><td>like <code>tlog_nex_binary_update/1</code> but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td></td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
-our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_get-2">write_buffer_manager_get/2</a></td><td></td></tr><tr><td valign="top"><a href="#write_buffer_manager_is_enabled-1">write_buffer_manager_is_enabled/1</a></td><td></td></tr></table>
+our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-1">write_buffer_manager_info/1</a></td><td>return informations of a Write Buffer Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-2">write_buffer_manager_info/2</a></td><td>return the information associated with Item for a Write Buffer Manager.</td></tr></table>
 
 
 <a name="functions"></a>
@@ -1326,32 +1329,32 @@ new_sst_file_manager(Env::<a href="#type-env_handle">env_handle()</a>) -&gt; {ok
 create new SstFileManager with the default options:
 RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.
 
-<a name="new_sst_file_manager-4"></a>
+<a name="new_sst_file_manager-2"></a>
 
-### new_sst_file_manager/4 ###
+### new_sst_file_manager/2 ###
 
 <pre><code>
-new_sst_file_manager(Env, RateBytesPerSec, MaxTrashDbRatio, BytesMaxDeleteChunk) -&gt; Result
+new_sst_file_manager(Env, OptionsList) -&gt; Result
 </code></pre>
 
-<ul class="definitions"><li><code>Env = <a href="#type-env_handle">env_handle()</a></code></li><li><code>RateBytesPerSec = integer()</code></li><li><code>MaxTrashDbRatio = float()</code></li><li><code>BytesMaxDeleteChunk = integer()</code></li><li><code>Result = {ok, <a href="#type-sst_file_manager">sst_file_manager()</a>} | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>Env = <a href="#type-env_handle">env_handle()</a></code></li><li><code>OptionsList = [OptionTuple]</code></li><li><code>OptionTuple = {delete_rate_bytes_per_sec, non_neg_integer()} | {max_trash_db_ratio, float()} | {bytes_max_delete_chunk, non_neg_integer()}</code></li><li><code>Result = {ok, <a href="#type-sst_file_manager">sst_file_manager()</a>} | {error, any()}</code></li></ul>
 
 create new SstFileManager that can be shared among multiple RocksDB
 instances to track SST file and control there deletion rate.
 
-* `Env` is an environment resource created using `rocksdb:default_env/0` or `rocksdb:memenv/0`.
-* `RateBytesPerSec`: How many bytes should be deleted per second, If
+* `Env` is an environment resource created using `rocksdb:new_env/{0,1}`.
+* `delete_rate_bytes_per_sec`: How many bytes should be deleted per second, If
 this value is set to 1024 (1 Kb / sec) and we deleted a file of size 4 Kb
 in 1 second, we will wait for another 3 seconds before we delete other
 files, Set to 0 to disable deletion rate limiting.
-* `MaxTrashDbRatio`:  If the trash size constitutes for more than this
+* `max_trash_db_ratio`:  If the trash size constitutes for more than this
 fraction of the total DB size we will start deleting new files passed to
 DeleteScheduler immediately
-* `BytesMaxDeleteChunk`:  if a file to delete is larger than delete
+* `bytes_max_delete_chunk`:  if a file to delete is larger than delete
 chunk, ftruncate the file by this size each time, rather than dropping the
 whole file. 0 means to always delete the whole file. If the file has more
 than one linked names, the file will be deleted as a whole. Either way,
-`RateBytesPerSec` will be appreciated. NOTE that with this option,
+`delete_rate_bytes_per_sec` will be appreciated. NOTE that with this option,
 files already renamed as a trash may be partial, so users should not
 directly recover them without checking.
 
@@ -1745,32 +1748,62 @@ snapshot(DbHandle::<a href="#type-db_handle">db_handle()</a>) -&gt; {ok, <a href
 return a database snapshot
 Snapshots provide consistent read-only views over the entire state of the key-value store
 
-<a name="sst_file_manager_get-2"></a>
+<a name="sst_file_manager_flag-3"></a>
 
-### sst_file_manager_get/2 ###
-
-<pre><code>
-sst_file_manager_get(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>, Property::string()) -&gt; integer() | float()
-</code></pre>
-<br />
-
-<a name="sst_file_manager_is-2"></a>
-
-### sst_file_manager_is/2 ###
+### sst_file_manager_flag/3 ###
 
 <pre><code>
-sst_file_manager_is(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>, Property::string()) -&gt; boolean()
+sst_file_manager_flag(SstFileManager, Flag, Value) -&gt; Result
 </code></pre>
-<br />
 
-<a name="sst_file_manager_set-3"></a>
+<ul class="definitions"><li><code>SstFileManager = <a href="#type-sst_file_manager">sst_file_manager()</a></code></li><li><code>Flag = max_allowed_space_usage | compaction_buffer_size | delete_rate_bytes_per_sec | max_trash_db_ratio</code></li><li><code>Value = non_neg_integer() | float()</code></li><li><code>Result = ok</code></li></ul>
 
-### sst_file_manager_set/3 ###
+set certains flags for the SST file manager
+* `max_allowed_space_usage`: Update the maximum allowed space that should be used by RocksDB, if
+the total size of the SST files exceeds MaxAllowedSpace, writes to
+RocksDB will fail.
+
+Setting MaxAllowedSpace to 0 will disable this feature; maximum allowed
+pace will be infinite (Default value).
+* `compaction_buffer_size`: Set the amount of buffer room each compaction should be able to leave.
+In other words, at its maximum disk space consumption, the compaction
+should still leave compaction_buffer_size available on the disk so that
+other background functions may continue, such as logging and flushing.
+* `delete_rate_bytes_per_sec`: Update the delete rate limit in bytes per second.
+zero means disable delete rate limiting and delete files immediately
+* `max_trash_db_ratio`: Update trash/DB size ratio where new files will be deleted immediately (float)
+
+<a name="sst_file_manager_info-1"></a>
+
+### sst_file_manager_info/1 ###
 
 <pre><code>
-sst_file_manager_set(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>, Property::string(), Val::integer() | float()) -&gt; ok
+sst_file_manager_info(SstFileManager) -&gt; InfoList
 </code></pre>
-<br />
+
+<ul class="definitions"><li><code>SstFileManager = <a href="#type-sst_file_manager">sst_file_manager()</a></code></li><li><code>InfoList = [InfoTuple]</code></li><li><code>InfoTuple = {total_size, non_neg_integer()} | {delete_rate_bytes_per_sec, non_neg_integer()} | {max_trash_db_ratio, float()} | {total_trash_size, non_neg_integer()} | {is_max_allowed_space_reached, boolean()} | {max_allowed_space_reached_including_compactions, boolean()}</code></li></ul>
+
+return informations of a Sst File Manager as a list of tuples.
+
+* `{total_size, Int>0}`: total size of all tracked files
+* `{delete_rate_bytes_per_sec, Int > 0}`: delete rate limit in bytes per second
+* `{max_trash_db_ratio, Float>0}`: trash/DB size ratio where new files will be deleted immediately
+* `{total_trash_size, Int > 0}`: total size of trash files
+* `{is_max_allowed_space_reached, Boolean}` true if the total size of SST files exceeded the maximum allowed space usage
+* `{max_allowed_space_reached_including_compactions, Boolean}`: true if the total size of SST files as well as
+estimated size of ongoing compactions exceeds the maximums allowed space usage
+
+<a name="sst_file_manager_info-2"></a>
+
+### sst_file_manager_info/2 ###
+
+<pre><code>
+sst_file_manager_info(SstFileManager, Item) -&gt; Value
+</code></pre>
+
+<ul class="definitions"><li><code>SstFileManager = <a href="#type-sst_file_manager">sst_file_manager()</a></code></li><li><code>Item = total_size | delete_rate_bytes_per_sec | max_trash_db_ratio | total_trash_size | is_max_allowed_space_reached | max_allowed_space_reached_including_compactions</code></li><li><code>Value = term()</code></li></ul>
+
+return the information associated with Item for an SST File Manager SstFileManager
 
 <a name="stats-1"></a>
 
@@ -1917,21 +1950,27 @@ write_binary_update(DbHandle::<a href="#type-db_handle">db_handle()</a>, BinLog:
 apply a set of operation coming from a transaction log to another database. Can be useful to use it in slave
 mode.
 
-<a name="write_buffer_manager_get-2"></a>
+<a name="write_buffer_manager_info-1"></a>
 
-### write_buffer_manager_get/2 ###
-
-<pre><code>
-write_buffer_manager_get(WriteBufferManager::<a href="#type-write_buffer_manager">write_buffer_manager()</a>, Property::string()) -&gt; non_neg_integer()
-</code></pre>
-<br />
-
-<a name="write_buffer_manager_is_enabled-1"></a>
-
-### write_buffer_manager_is_enabled/1 ###
+### write_buffer_manager_info/1 ###
 
 <pre><code>
-write_buffer_manager_is_enabled(WriteBufferManager::<a href="#type-write_buffer_manager">write_buffer_manager()</a>) -&gt; boolean()
+write_buffer_manager_info(WriteBufferManager) -&gt; InfoList
 </code></pre>
-<br />
+
+<ul class="definitions"><li><code>WriteBufferManager = <a href="#type-write_buffer_manager">write_buffer_manager()</a></code></li><li><code>InfoList = [InfoTuple]</code></li><li><code>InfoTuple = {memory_usage, non_neg_integer()} | {mutable_memtable_memory_usage, non_neg_integer()} | {buffer_size, non_neg_integer()} | {enabled, boolean()}</code></li></ul>
+
+return informations of a Write Buffer Manager as a list of tuples.
+
+<a name="write_buffer_manager_info-2"></a>
+
+### write_buffer_manager_info/2 ###
+
+<pre><code>
+write_buffer_manager_info(WriteBufferManager, Item) -&gt; Value
+</code></pre>
+
+<ul class="definitions"><li><code>WriteBufferManager = <a href="#type-write_buffer_manager">write_buffer_manager()</a></code></li><li><code>Item = memory_usage | mutable_memtable_memory_usage | buffer_size | enabled</code></li><li><code>Value = term()</code></li></ul>
+
+return the information associated with Item for a Write Buffer Manager.
 
