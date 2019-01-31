@@ -1,3 +1,10 @@
+erlang-rocksdb 1.0.0, released on 2019/01/31
+================================================
+
+- first stable version
+- miscellaneous build improvements with [new build options and optimisations](https://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/customize_rocksdb_build.md)
+- stable API (refactored in #87, #88)
+
 erlang-rocksdb 0.26.2, released on 2019/01/24
 ================================================
 
