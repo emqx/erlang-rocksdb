@@ -22,9 +22,13 @@ basic_test() ->
     Sz = 64 bsl 20,
     {ok, Cache} = rocksdb:new_lru_cache(1024*1024*128),
     {ok, Mgr} = rocksdb:new_write_buffer_manager(Sz, Cache),
-    Sz = rocksdb_write_buffer_manager:buffer_size(Mgr),
-    true = rocksdb_write_buffer_manager:enabled(Mgr),
-    0 = rocksdb_write_buffer_manager:memory_usage(Mgr),
+    Sz = rocksdb:write_buffer_manager_info(Mgr, buffer_size),
+    true = rocksdb:write_buffer_manager_info(Mgr, enabled),
+    0 = rocksdb:write_buffer_manager_info(Mgr, memory_usage),
+    [{memory_usage, 0},
+     {mutable_memtable_memory_usage, _},
+     {buffer_size, Sz},
+     {enabled, true}] = rocksdb:write_buffer_manager_info(Mgr),
     rocksdb:release_write_buffer_manager(Mgr).
 
 

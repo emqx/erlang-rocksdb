@@ -98,12 +98,10 @@
 
 %% sst file manager API
 -export([
-  new_sst_file_manager/1,
-  new_sst_file_manager/4,
+  new_sst_file_manager/1, new_sst_file_manager/2,
   release_sst_file_manager/1,
-  sst_file_manager_set/3,
-  sst_file_manager_get/2,
-  sst_file_manager_is/2
+  sst_file_manager_flag/3,
+  sst_file_manager_info/1, sst_file_manager_info/2
 ]).
 
 %% write buffer manager API
@@ -111,8 +109,7 @@
   new_write_buffer_manager/1,
   new_write_buffer_manager/2,
   release_write_buffer_manager/1,
-  write_buffer_manager_get/2,
-  write_buffer_manager_is_enabled/1
+  write_buffer_manager_info/1, write_buffer_manager_info/2
 ]).
 
 %% Env api
@@ -1281,7 +1278,7 @@ restore_db_from_latest_backup(_BackupEngine,  _DbDir, _WalDir) ->
 
 %M Whi the type `lru' it create a cache  with a fixed size capacity. The cache is sharded
 %% to 2^num_shard_bits shards, by hash of the key. The total capacity
-%% is divided and evenly assigned to each shard. With the type `clock`, it creates a 
+%% is divided and evenly assigned to each shard. With the type `clock`, it creates a
 %% cache based on CLOCK algorithm with better concurrent performance in some cases. See util/clock_cache.cc for
 %% more detail.
 -spec new_cache(Type :: cache_type(), Capacity :: non_neg_integer()) -> {ok, cache_handle()}.
@@ -1407,50 +1404,93 @@ mem_env() -> new_env(memenv).
 %% RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.
 -spec new_sst_file_manager(env_handle()) -> {ok, sst_file_manager()} | {error, any()}.
 new_sst_file_manager(Env) ->
-   ?MODULE:new_sst_file_manager(Env, 0, 0.25, 64 * 1024 * 1024).
+   ?MODULE:new_sst_file_manager(Env, []).
 
 %% @doc create new SstFileManager that can be shared among multiple RocksDB
 %% instances to track SST file and control there deletion rate.
 %%
-%% * `Env' is an environment resource created using `rocksdb:default_env/0' or `rocksdb:memenv/0`.
-%%  * `RateBytesPerSec': How many bytes should be deleted per second, If
+%%  * `Env' is an environment resource created using `rocksdb:new_env/{0,1}'.
+%%  * `delete_rate_bytes_per_sec': How many bytes should be deleted per second, If
 %%     this value is set to 1024 (1 Kb / sec) and we deleted a file of size 4 Kb
 %%     in 1 second, we will wait for another 3 seconds before we delete other
 %%     files, Set to 0 to disable deletion rate limiting.
-%%  * `MaxTrashDbRatio':  If the trash size constitutes for more than this
+%%  * `max_trash_db_ratio':  If the trash size constitutes for more than this
 %%     fraction of the total DB size we will start deleting new files passed to
-%%     DeleteScheduler immediately 
-%%  * `BytesMaxDeleteChunk':  if a file to delete is larger than delete
+%%     DeleteScheduler immediately
+%%  * `bytes_max_delete_chunk':  if a file to delete is larger than delete
 %%     chunk, ftruncate the file by this size each time, rather than dropping the
 %%     whole file. 0 means to always delete the whole file. If the file has more
 %%     than one linked names, the file will be deleted as a whole. Either way,
-%%     `RateBytesPerSec' will be appreciated. NOTE that with this option,
+%%     `delete_rate_bytes_per_sec' will be appreciated. NOTE that with this option,
 %%     files already renamed as a trash may be partial, so users should not
 %%     directly recover them without checking.
--spec new_sst_file_manager(Env, RateBytesPerSec, MaxTrashDbRatio, BytesMaxDeleteChunk) -> Result when
-  Env :: env_handle(), 
-  RateBytesPerSec :: integer(), 
-  MaxTrashDbRatio :: float(), 
-  BytesMaxDeleteChunk :: integer(),
+-spec new_sst_file_manager(Env, OptionsList) -> Result when
+  Env :: env_handle(),
+  OptionsList :: [OptionTuple],
+  OptionTuple :: {delete_rate_bytes_per_sec, non_neg_integer()}
+               | {max_trash_db_ratio, float()}
+               | {bytes_max_delete_chunk, non_neg_integer()},
   Result :: {ok, sst_file_manager()} | {error, any()}.
-new_sst_file_manager(_Env, _RateBytesPerSec, _MaxTrashDbRatio, _BytesMaxDeleteChunk) ->
+new_sst_file_manager(_Env, _OptionsList) ->
     ?nif_stub.
 
-%% @doc release the SstFileManager 
+%% @doc release the SstFileManager
 -spec release_sst_file_manager(sst_file_manager()) -> ok.
 release_sst_file_manager(_SstFileManager) ->
     ?nif_stub.
 
--spec sst_file_manager_set(sst_file_manager(), string(), integer() |float()) -> ok.
-sst_file_manager_set(_SstFileManager, _Property, _Val) ->
+%% @doc set certains flags for the SST file manager
+%% * `max_allowed_space_usage': Update the maximum allowed space that should be used by RocksDB, if
+%%    the total size of the SST files exceeds MaxAllowedSpace, writes to
+%%    RocksDB will fail.
+%%
+%%    Setting MaxAllowedSpace to 0 will disable this feature; maximum allowed
+%%    pace will be infinite (Default value).
+%% * `compaction_buffer_size': Set the amount of buffer room each compaction should be able to leave.
+%%    In other words, at its maximum disk space consumption, the compaction
+%%    should still leave compaction_buffer_size available on the disk so that
+%%    other background functions may continue, such as logging and flushing.
+%% * `delete_rate_bytes_per_sec': Update the delete rate limit in bytes per second.
+%%    zero means disable delete rate limiting and delete files immediately
+%% * `max_trash_db_ratio': Update trash/DB size ratio where new files will be deleted immediately (float)
+-spec sst_file_manager_flag(SstFileManager, Flag, Value) -> Result when
+  SstFileManager :: sst_file_manager(),
+  Flag :: max_allowed_space_usage | compaction_buffer_size | delete_rate_bytes_per_sec | max_trash_db_ratio,
+  Value :: non_neg_integer() | float(),
+  Result :: ok.
+sst_file_manager_flag(_SstFileManager, _Flag, _Val) ->
   ?nif_stub.
 
--spec sst_file_manager_get(sst_file_manager(), string()) -> integer() |float().
-sst_file_manager_get(_SstFileManager, _Property) ->
+%% @doc return informations of a Sst File Manager as a list of tuples.
+%%
+%% * `{total_size, Int>0}': total size of all tracked files
+%% * `{delete_rate_bytes_per_sec, Int > 0}': delete rate limit in bytes per second
+%% * `{max_trash_db_ratio, Float>0}': trash/DB size ratio where new files will be deleted immediately
+%% * `{total_trash_size, Int > 0}': total size of trash files
+%% * `{is_max_allowed_space_reached, Boolean}' true if the total size of SST files exceeded the maximum allowed space usage
+%% * `{max_allowed_space_reached_including_compactions, Boolean}': true if the total size of SST files as well as
+%%   estimated size of ongoing compactions exceeds the maximums allowed space usage
+-spec sst_file_manager_info(SstFileManager) -> InfoList when
+  SstFileManager :: sst_file_manager(),
+  InfoList :: [InfoTuple],
+  InfoTuple :: {total_size, non_neg_integer()}
+             | {delete_rate_bytes_per_sec, non_neg_integer()}
+             | {max_trash_db_ratio, float()}
+             | {total_trash_size, non_neg_integer()}
+             | {is_max_allowed_space_reached, boolean()}
+             | {max_allowed_space_reached_including_compactions, boolean()}.
+sst_file_manager_info(_SstFileManager) ->
   ?nif_stub.
 
--spec sst_file_manager_is(sst_file_manager(), string()) -> boolean().
-sst_file_manager_is(_SstFileManager, _Property) ->
+%% @doc return the information associated with Item for an SST File Manager SstFileManager
+-spec sst_file_manager_info(SstFileManager, Item) -> Value when
+    SstFileManager :: sst_file_manager(),
+    Item :: total_size | delete_rate_bytes_per_sec
+          | max_trash_db_ratio | total_trash_size
+          | is_max_allowed_space_reached
+          | max_allowed_space_reached_including_compactions,
+    Value :: term().
+sst_file_manager_info(_SstFileManager, _Item) ->
   ?nif_stub.
 
 
@@ -1462,7 +1502,7 @@ sst_file_manager_is(_SstFileManager, _Property) ->
 new_write_buffer_manager(_BufferSize) ->
   ?nif_stub.
 
-%% @doc  create a new WriteBufferManager. a  WriteBufferManager is for managing memory 
+%% @doc  create a new WriteBufferManager. a  WriteBufferManager is for managing memory
 %% allocation for one or more MemTables.
 %%
 %% The memory usage of memtable will report to this object. The same object
@@ -1470,7 +1510,7 @@ new_write_buffer_manager(_BufferSize) ->
 %% the DBs. If the total size of all live memtables of all the DBs exceeds
 %% a limit, a flush will be triggered in the next DB to which the next write
 %% is issued.
-%% 
+%%
 %% If the object is only passed to on DB, the behavior is the same as
 %% db_write_buffer_size. When write_buffer_manager is set, the value set will
 %% override db_write_buffer_size.
@@ -1482,12 +1522,23 @@ new_write_buffer_manager(_BufferSize, _Cache) ->
 release_write_buffer_manager(_WriteBufferManager) ->
   ?nif_stub.
 
--spec write_buffer_manager_get(write_buffer_manager(), string()) -> non_neg_integer().
-write_buffer_manager_get(_WriteBufferManager, _Property) ->
+%% @doc return informations of a Write Buffer Manager as a list of tuples.
+-spec write_buffer_manager_info(WriteBufferManager) -> InfoList when
+    WriteBufferManager :: write_buffer_manager(),
+    InfoList :: [InfoTuple],
+    InfoTuple :: {memory_usage, non_neg_integer()}
+               | {mutable_memtable_memory_usage, non_neg_integer()}
+               | {buffer_size, non_neg_integer()}
+               | {enabled, boolean()}.
+write_buffer_manager_info(_WriteBufferManager) ->
   ?nif_stub.
 
--spec write_buffer_manager_is_enabled(write_buffer_manager()) -> boolean().
-write_buffer_manager_is_enabled(_WriteBufferManager) ->
+%% @doc return the information associated with Item for a Write Buffer Manager.
+-spec write_buffer_manager_info(WriteBufferManager, Item) -> Value when
+    WriteBufferManager :: write_buffer_manager(),
+    Item :: memory_usage | mutable_memtable_memory_usage | buffer_size | enabled,
+    Value :: term().
+write_buffer_manager_info(_WriteBufferManager, _Item) ->
   ?nif_stub.
 
 %% ===================================================================

@@ -149,17 +149,19 @@ static ErlNifFunc nif_funcs[] =
         {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"destroy_env", 1, erocksdb::DestroyEnv, ERL_NIF_REGULAR_BOUND},
 
-        {"new_sst_file_manager", 4, erocksdb::NewSstFileManager, ERL_NIF_REGULAR_BOUND},
+        // SST File Manager
+        {"new_sst_file_manager", 2, erocksdb::NewSstFileManager, ERL_NIF_REGULAR_BOUND},
         {"release_sst_file_manager", 1, erocksdb::ReleaseSstFileManager, ERL_NIF_REGULAR_BOUND},
-        {"sst_file_manager_set", 3, erocksdb::SstFileManager_Set, ERL_NIF_REGULAR_BOUND},
-        {"sst_file_manager_get", 2, erocksdb::SstFileManager_Get, ERL_NIF_REGULAR_BOUND},
-        {"sst_file_manager_is", 2, erocksdb::SstFileManager_Is, ERL_NIF_REGULAR_BOUND},
+        {"sst_file_manager_flag", 3, erocksdb::SstFileManagerFlag, ERL_NIF_REGULAR_BOUND},
+        {"sst_file_manager_info", 1, erocksdb::SstFileManagerInfo, ERL_NIF_REGULAR_BOUND},
+        {"sst_file_manager_info", 2, erocksdb::SstFileManagerInfo, ERL_NIF_REGULAR_BOUND},
 
+        // Write Buffer Manager
         {"new_write_buffer_manager", 1, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"new_write_buffer_manager", 2, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"release_write_buffer_manager", 1, erocksdb::ReleaseWriteBufferManager, ERL_NIF_REGULAR_BOUND},
-        {"write_buffer_manager_get", 2, erocksdb::WriteBufferManager_Get, ERL_NIF_REGULAR_BOUND},
-        {"write_buffer_manager_is_enabled", 1, erocksdb::WriteBufferManager_IsEnabled, ERL_NIF_REGULAR_BOUND}};
+        {"write_buffer_manager_info", 1, erocksdb::WriteBufferManagerInfo, ERL_NIF_REGULAR_BOUND},
+        {"write_buffer_manager_info", 2, erocksdb::WriteBufferManagerInfo, ERL_NIF_REGULAR_BOUND}};
 
 namespace erocksdb {
 
@@ -419,6 +421,24 @@ ERL_NIF_TERM ATOM_NONE;
 ERL_NIF_TERM ATOM_INCLUDE_MEMTABLES;
 ERL_NIF_TERM ATOM_INCLUDE_FILES;
 ERL_NIF_TERM ATOM_INCLUDE_BOTH;
+
+// write buffer manager
+ERL_NIF_TERM ATOM_ENABLED;
+ERL_NIF_TERM ATOM_BUFFER_SIZE;
+ERL_NIF_TERM ATOM_MUTABLE_MEMTABLE_MEMORY_USAGE;
+ERL_NIF_TERM ATOM_MEMORY_USAGE;
+
+// sst file manager
+
+ERL_NIF_TERM ATOM_DELETE_RATE_BYTES_PER_SEC;
+ERL_NIF_TERM ATOM_MAX_TRASH_DB_RATIO;
+ERL_NIF_TERM ATOM_BYTES_MAX_DELETE_CHUNK;
+ERL_NIF_TERM ATOM_MAX_ALLOWED_SPACE_USAGE;
+ERL_NIF_TERM ATOM_COMPACTION_BUFFER_SIZE;
+ERL_NIF_TERM ATOM_IS_MAX_ALLOWED_SPACE_REACHED;
+ERL_NIF_TERM ATOM_MAX_ALLOWED_SPACE_REACHED_INCLUDING_COMPACTIONS;
+ERL_NIF_TERM ATOM_TOTAL_SIZE;
+ERL_NIF_TERM ATOM_TOTAL_TRASH_SIZE;
 
 }   // namespace erocksdb
 
@@ -711,6 +731,23 @@ try
   ATOM(erocksdb::ATOM_INCLUDE_MEMTABLES, "include_memtables");
   ATOM(erocksdb::ATOM_INCLUDE_FILES, "include_files");
   ATOM(erocksdb::ATOM_INCLUDE_BOTH, "include_both");
+
+  // write buffer manager
+  ATOM(erocksdb::ATOM_ENABLED, "enabled");
+  ATOM(erocksdb::ATOM_BUFFER_SIZE, "buffer_size");
+  ATOM(erocksdb::ATOM_MUTABLE_MEMTABLE_MEMORY_USAGE, "mutable_memtable_memory_usage");
+  ATOM(erocksdb::ATOM_MEMORY_USAGE, "memory_usage");
+
+  // sst file manager
+  ATOM(erocksdb::ATOM_DELETE_RATE_BYTES_PER_SEC, "delete_rate_bytes_per_sec");
+  ATOM(erocksdb::ATOM_MAX_TRASH_DB_RATIO, "max_trash_db_ratio");
+  ATOM(erocksdb::ATOM_BYTES_MAX_DELETE_CHUNK, "bytes_max_delete_chunk");
+  ATOM(erocksdb::ATOM_MAX_ALLOWED_SPACE_USAGE, "max_allowed_space_usage");
+  ATOM(erocksdb::ATOM_COMPACTION_BUFFER_SIZE, "compaction_buffer_size");
+  ATOM(erocksdb::ATOM_IS_MAX_ALLOWED_SPACE_REACHED, "is_max_allowed_space_reached");
+  ATOM(erocksdb::ATOM_MAX_ALLOWED_SPACE_REACHED_INCLUDING_COMPACTIONS, "max_allowed_space_reached_including_compactions");
+  ATOM(erocksdb::ATOM_TOTAL_SIZE, "total_size");
+  ATOM(erocksdb::ATOM_TOTAL_TRASH_SIZE, "total_trash_size");
 
 #undef ATOM
 
