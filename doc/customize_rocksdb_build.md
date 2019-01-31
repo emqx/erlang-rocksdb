@@ -2,13 +2,28 @@
 
 Since version 0.26.0 Erlang wrapper for RocksDB support customized build.
 
-There are three options added to customize build (all are `OFF` by default):
+There are manyoptions added to customize build (all are `OFF` by default):
 
-* `ERLANG_ROCKSDB_USE_SYSTEM_ROCKSDB` then `ON` the driver will link with RocksDB shared library provided by host system
+* `WIT_SYSTEM_ROCKSDB=ON` the driver will link with RocksDB shared library provided by host system
 
-* `ERLANG_ROCKSDB_USE_SYSTEM_SNAPPY` then `ON` the driver will link with snappy shared library provided by host system
+* `WITH_SNAPPY=ON` the driver will link with snappy shared library provided by host system
 
-* `ERLANG_ROCKSDB_USE_SYSTEM_LZ4` then `ON` the driver will link with lz4 shared library provided by host system
+* `WITH_LZ4=ON` the driver will link with lz4 shared library provided by host system
+* 
+* `WITH_BZ2=ON` the driver will link with bzip2 shared library provided by host system
+
+* `WITH_ZLIB=ON` the driver will link with zlib shared library provided by host system
+
+* `WITH_ZSTD=ON` the driver will link with zstd shared library provided by host system
+
+* `WITH_CCACHE=ON` the driver will use ccache to cache part of the build. you can also set the `CCACHE_DIR` 
+
+* `WITH_TBB=ON` to build with [Threading Building Blocks (TBB)](https://software.intel.com/en-us/intel-tbb)
+
+
+> ** NOTE **: withe 1.0.0  erlang-rocksdb doesn't build statically with `LZ4` and s`SNAPPY`. To reintroduce this behaviour
+> you can build it with the options `WITH_BUNDLE_SNAPPY` and `WITH_BUNDLE_LZ4`.
+
 
 All options passes via `ERLANG_ROCKSDB_OPTS` environment variable or via `rebar.config.script`. For example, command
 
@@ -36,3 +51,8 @@ gives following output on macOS
 ...
 
 ```
+
+### Build in parallel
+
+You can  build `erlang-rocksdb` in parallel by passing the following option `ERLANG_ROCKSDB_BUILDOPTS=-j` 
+or  `ERLANG_ROCKSDB_BUILDOPTS=-j N` where N is the number of threads you want to use.
