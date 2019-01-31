@@ -391,10 +391,7 @@ Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-2">set_env_background_threads/2</a></td><td>set background threads of an environment.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-3">set_env_background_threads/3</a></td><td>set background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_strict_capacity_limit-2">set_strict_capacity_limit/2</a></td><td>sets strict_capacity_limit flag of the cache.</td></tr><tr><td valign="top"><a href="#single_delete-3">single_delete/3</a></td><td>Remove the database entry for "key".</td></tr><tr><td valign="top"><a href="#single_delete-4">single_delete/4</a></td><td>like <code>single_delete/3</code> but on the specified column family.</td></tr><tr><td valign="top"><a href="#snapshot-1">snapshot/1</a></td><td>return a database snapshot
-Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#sst_file_manager_flag-3">sst_file_manager_flag/3</a></td><td>set certains flags for the SST file manager
-* <code>max_allowed_space_usage</code>: Update the maximum allowed space that should be used by RocksDB, if
-the total size of the SST files exceeds MaxAllowedSpace, writes to
-RocksDB will fail.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-1">sst_file_manager_info/1</a></td><td>return informations of a Sst File Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-2">sst_file_manager_info/2</a></td><td>return the information associated with Item for an SST File Manager SstFileManager.</td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
+Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#sst_file_manager_flag-3">sst_file_manager_flag/3</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_get-2">sst_file_manager_get/2</a></td><td></td></tr><tr><td valign="top"><a href="#sst_file_manager_is-2">sst_file_manager_is/2</a></td><td></td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stats-2">stats/2</a></td><td>Return the current stats of the specified column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#tlog_iterator-2">tlog_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#tlog_iterator_close-1">tlog_iterator_close/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#tlog_next_binary_update-1">tlog_next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#tlog_next_update-1">tlog_next_update/1</a></td><td>like <code>tlog_nex_binary_update/1</code> but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td></td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
 our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-1">write_buffer_manager_info/1</a></td><td>return informations of a Write Buffer Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-2">write_buffer_manager_info/2</a></td><td>return the information associated with Item for a Write Buffer Manager.</td></tr></table>
@@ -582,18 +579,14 @@ cache_info(Cache) -&gt; InfoList
 <ul class="definitions"><li><code>Cache = <a href="#type-cache_handle">cache_handle()</a></code></li><li><code>InfoList = [InfoTuple]</code></li><li><code>InfoTuple = {capacity, non_neg_integer()} | {strict_capacity, boolean()} | {usage, non_neg_integer()} | {pinned_usage, non_neg_integer()}</code></li></ul>
 
 return informations of a cache as a list of tuples.
-
-```
-
-   {capacity, integer >=0}
-       the maximum configured capacity of the cache.
-   {strict_capacity, boolean}
-       the flag whether to return error on insertion when cache reaches its full capacity.
-   {usage, integer >=0}
-       the memory size for the entries residing in the cache.
-   {pinned_usage, integer >= 0}
-       the memory size for the entries in use by the system
-```
+* `{capacity, integer >=0}`
+the maximum configured capacity of the cache.
+* `{strict_capacity, boolean}`
+the flag whether to return error on insertion when cache reaches its full capacity.
+* `{usage, integer >=0}`
+the memory size for the entries residing in the cache.
+* `{pinned_usage, integer >= 0}`
+the memory size for the entries in use by the system
 
 <a name="cache_info-2"></a>
 
@@ -1758,52 +1751,23 @@ sst_file_manager_flag(SstFileManager, Flag, Value) -&gt; Result
 
 <ul class="definitions"><li><code>SstFileManager = <a href="#type-sst_file_manager">sst_file_manager()</a></code></li><li><code>Flag = max_allowed_space_usage | compaction_buffer_size | delete_rate_bytes_per_sec | max_trash_db_ratio</code></li><li><code>Value = non_neg_integer() | float()</code></li><li><code>Result = ok</code></li></ul>
 
-set certains flags for the SST file manager
-* `max_allowed_space_usage`: Update the maximum allowed space that should be used by RocksDB, if
-the total size of the SST files exceeds MaxAllowedSpace, writes to
-RocksDB will fail.
+<a name="sst_file_manager_get-2"></a>
 
-Setting MaxAllowedSpace to 0 will disable this feature; maximum allowed
-pace will be infinite (Default value).
-* `compaction_buffer_size`: Set the amount of buffer room each compaction should be able to leave.
-In other words, at its maximum disk space consumption, the compaction
-should still leave compaction_buffer_size available on the disk so that
-other background functions may continue, such as logging and flushing.
-* `delete_rate_bytes_per_sec`: Update the delete rate limit in bytes per second.
-zero means disable delete rate limiting and delete files immediately
-* `max_trash_db_ratio`: Update trash/DB size ratio where new files will be deleted immediately (float)
-
-<a name="sst_file_manager_info-1"></a>
-
-### sst_file_manager_info/1 ###
+### sst_file_manager_get/2 ###
 
 <pre><code>
-sst_file_manager_info(SstFileManager) -&gt; InfoList
+sst_file_manager_get(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>, Property::string()) -&gt; integer() | float()
 </code></pre>
+<br />
 
-<ul class="definitions"><li><code>SstFileManager = <a href="#type-sst_file_manager">sst_file_manager()</a></code></li><li><code>InfoList = [InfoTuple]</code></li><li><code>InfoTuple = {total_size, non_neg_integer()} | {delete_rate_bytes_per_sec, non_neg_integer()} | {max_trash_db_ratio, float()} | {total_trash_size, non_neg_integer()} | {is_max_allowed_space_reached, boolean()} | {max_allowed_space_reached_including_compactions, boolean()}</code></li></ul>
+<a name="sst_file_manager_is-2"></a>
 
-return informations of a Sst File Manager as a list of tuples.
-
-* `{total_size, Int>0}`: total size of all tracked files
-* `{delete_rate_bytes_per_sec, Int > 0}`: delete rate limit in bytes per second
-* `{max_trash_db_ratio, Float>0}`: trash/DB size ratio where new files will be deleted immediately
-* `{total_trash_size, Int > 0}`: total size of trash files
-* `{is_max_allowed_space_reached, Boolean}` true if the total size of SST files exceeded the maximum allowed space usage
-* `{max_allowed_space_reached_including_compactions, Boolean}`: true if the total size of SST files as well as
-estimated size of ongoing compactions exceeds the maximums allowed space usage
-
-<a name="sst_file_manager_info-2"></a>
-
-### sst_file_manager_info/2 ###
+### sst_file_manager_is/2 ###
 
 <pre><code>
-sst_file_manager_info(SstFileManager, Item) -&gt; Value
+sst_file_manager_is(SstFileManager::<a href="#type-sst_file_manager">sst_file_manager()</a>, Property::string()) -&gt; boolean()
 </code></pre>
-
-<ul class="definitions"><li><code>SstFileManager = <a href="#type-sst_file_manager">sst_file_manager()</a></code></li><li><code>Item = total_size | delete_rate_bytes_per_sec | max_trash_db_ratio | total_trash_size | is_max_allowed_space_reached | max_allowed_space_reached_including_compactions</code></li><li><code>Value = term()</code></li></ul>
-
-return the information associated with Item for an SST File Manager SstFileManager
+<br />
 
 <a name="stats-1"></a>
 

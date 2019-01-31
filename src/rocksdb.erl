@@ -101,7 +101,8 @@
   new_sst_file_manager/1, new_sst_file_manager/2,
   release_sst_file_manager/1,
   sst_file_manager_flag/3,
-  sst_file_manager_info/1, sst_file_manager_info/2
+  sst_file_manager_get/2,
+  sst_file_manager_is/2
 ]).
 
 %% write buffer manager API
@@ -1286,16 +1287,14 @@ new_cache(_Type, _Capacity) ->
   ?nif_stub.
 
 %% @doc return informations of a cache as a list of tuples.
-%%<pre>
-%%  {capacity, integer >=0}
+%% * `{capacity, integer >=0}'
 %%      the maximum configured capacity of the cache.
-%%  {strict_capacity, boolean}
+%% * `{strict_capacity, boolean}'
 %%      the flag whether to return error on insertion when cache reaches its full capacity.
-%%  {usage, integer >=0}
+%% * `{usage, integer >=0}'
 %%      the memory size for the entries residing in the cache.
-%%  {pinned_usage, integer >= 0}
+%% * `{pinned_usage, integer >= 0}'
 %%      the memory size for the entries in use by the system
-%% </pre>
 -spec cache_info(Cache) -> InfoList when
   Cache :: cache_handle(),
   InfoList :: [InfoTuple],
@@ -1409,7 +1408,7 @@ new_sst_file_manager(Env) ->
 %% @doc create new SstFileManager that can be shared among multiple RocksDB
 %% instances to track SST file and control there deletion rate.
 %%
-%%  * `Env' is an environment resource created using `rocksdb:new_env/{0,1}'.
+%% * `Env' is an environment resource created using `rocksdb:new_env/{0,1}'.
 %%  * `delete_rate_bytes_per_sec': How many bytes should be deleted per second, If
 %%     this value is set to 1024 (1 Kb / sec) and we deleted a file of size 4 Kb
 %%     in 1 second, we will wait for another 3 seconds before we delete other
@@ -1439,20 +1438,7 @@ new_sst_file_manager(_Env, _OptionsList) ->
 release_sst_file_manager(_SstFileManager) ->
     ?nif_stub.
 
-%% @doc set certains flags for the SST file manager
-%% * `max_allowed_space_usage': Update the maximum allowed space that should be used by RocksDB, if
-%%    the total size of the SST files exceeds MaxAllowedSpace, writes to
-%%    RocksDB will fail.
-%%
-%%    Setting MaxAllowedSpace to 0 will disable this feature; maximum allowed
-%%    pace will be infinite (Default value).
-%% * `compaction_buffer_size': Set the amount of buffer room each compaction should be able to leave.
-%%    In other words, at its maximum disk space consumption, the compaction
-%%    should still leave compaction_buffer_size available on the disk so that
-%%    other background functions may continue, such as logging and flushing.
-%% * `delete_rate_bytes_per_sec': Update the delete rate limit in bytes per second.
-%%    zero means disable delete rate limiting and delete files immediately
-%% * `max_trash_db_ratio': Update trash/DB size ratio where new files will be deleted immediately (float)
+%% 
 -spec sst_file_manager_flag(SstFileManager, Flag, Value) -> Result when
   SstFileManager :: sst_file_manager(),
   Flag :: max_allowed_space_usage | compaction_buffer_size | delete_rate_bytes_per_sec | max_trash_db_ratio,
@@ -1461,36 +1447,12 @@ release_sst_file_manager(_SstFileManager) ->
 sst_file_manager_flag(_SstFileManager, _Flag, _Val) ->
   ?nif_stub.
 
-%% @doc return informations of a Sst File Manager as a list of tuples.
-%%
-%% * `{total_size, Int>0}': total size of all tracked files
-%% * `{delete_rate_bytes_per_sec, Int > 0}': delete rate limit in bytes per second
-%% * `{max_trash_db_ratio, Float>0}': trash/DB size ratio where new files will be deleted immediately
-%% * `{total_trash_size, Int > 0}': total size of trash files
-%% * `{is_max_allowed_space_reached, Boolean}' true if the total size of SST files exceeded the maximum allowed space usage
-%% * `{max_allowed_space_reached_including_compactions, Boolean}': true if the total size of SST files as well as
-%%   estimated size of ongoing compactions exceeds the maximums allowed space usage
--spec sst_file_manager_info(SstFileManager) -> InfoList when
-  SstFileManager :: sst_file_manager(),
-  InfoList :: [InfoTuple],
-  InfoTuple :: {total_size, non_neg_integer()}
-             | {delete_rate_bytes_per_sec, non_neg_integer()}
-             | {max_trash_db_ratio, float()}
-             | {total_trash_size, non_neg_integer()}
-             | {is_max_allowed_space_reached, boolean()}
-             | {max_allowed_space_reached_including_compactions, boolean()}.
-sst_file_manager_info(_SstFileManager) ->
+-spec sst_file_manager_get(sst_file_manager(), string()) -> integer() |float().
+sst_file_manager_get(_SstFileManager, _Property) ->
   ?nif_stub.
 
-%% @doc return the information associated with Item for an SST File Manager SstFileManager
--spec sst_file_manager_info(SstFileManager, Item) -> Value when
-    SstFileManager :: sst_file_manager(),
-    Item :: total_size | delete_rate_bytes_per_sec
-          | max_trash_db_ratio | total_trash_size
-          | is_max_allowed_space_reached
-          | max_allowed_space_reached_including_compactions,
-    Value :: term().
-sst_file_manager_info(_SstFileManager, _Item) ->
+-spec sst_file_manager_is(sst_file_manager(), string()) -> boolean().
+sst_file_manager_is(_SstFileManager, _Property) ->
   ?nif_stub.
 
 
