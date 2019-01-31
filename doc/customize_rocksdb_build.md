@@ -21,7 +21,7 @@ There are manyoptions added to customize build (all are `OFF` by default):
 * `WITH_TBB=ON` to build with [Threading Building Blocks (TBB)](https://software.intel.com/en-us/intel-tbb)
 
 
-> ** NOTE **: with the 1.0.0 release `erlang-rocksdb` doesn't build statically with `LZ4` and s`SNAPPY`. To reintroduce this behaviour
+> ⚠️ with the 1.0.0 release `erlang-rocksdb` doesn't build statically with `LZ4` and s`SNAPPY`. To reintroduce this behaviour
 > you can build it with the options `WITH_BUNDLE_SNAPPY` and `WITH_BUNDLE_LZ4`.
 
 
