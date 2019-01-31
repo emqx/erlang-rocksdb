@@ -582,18 +582,14 @@ cache_info(Cache) -&gt; InfoList
 <ul class="definitions"><li><code>Cache = <a href="#type-cache_handle">cache_handle()</a></code></li><li><code>InfoList = [InfoTuple]</code></li><li><code>InfoTuple = {capacity, non_neg_integer()} | {strict_capacity, boolean()} | {usage, non_neg_integer()} | {pinned_usage, non_neg_integer()}</code></li></ul>
 
 return informations of a cache as a list of tuples.
-
-```
-
-   {capacity, integer >=0}
-       the maximum configured capacity of the cache.
-   {strict_capacity, boolean}
-       the flag whether to return error on insertion when cache reaches its full capacity.
-   {usage, integer >=0}
-       the memory size for the entries residing in the cache.
-   {pinned_usage, integer >= 0}
-       the memory size for the entries in use by the system
-```
+* `{capacity, integer >=0}`
+the maximum configured capacity of the cache.
+* `{strict_capacity, boolean}`
+the flag whether to return error on insertion when cache reaches its full capacity.
+* `{usage, integer >=0}`
+the memory size for the entries residing in the cache.
+* `{pinned_usage, integer >= 0}`
+the memory size for the entries in use by the system
 
 <a name="cache_info-2"></a>
 

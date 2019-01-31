@@ -1,5 +1,5 @@
 %%==============================================================================
-%% Copyright 2016-2018 Benoît Chesneau
+%% Copyright 2016-2019 Benoît Chesneau
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 
 @copyright 2016-2019 Benoît Chesneau.
-@version 0.26.2 Erlang wrapper for RocksDB.
+@version 1.0.0 Erlang wrapper for RocksDB.
 @title erlang-rocksdb - Erlang wrapper for RocksDB.
 
 @doc
