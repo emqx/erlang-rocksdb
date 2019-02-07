@@ -176,6 +176,7 @@ target_sources(${ErlangRocksDBNIF_TARGET}
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/backup.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/batch.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/txn.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/bitset_merge_operator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/cache.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/counter_merge_operator.cc

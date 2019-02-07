@@ -27,6 +27,7 @@ namespace erocksdb {
 ERL_NIF_TERM Open(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM OpenWithCf(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM OpenWithTTL(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM OpenOptTxnDBWithCf(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM Close(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM GetProperty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM DeleteRange(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
@@ -88,6 +89,14 @@ ERL_NIF_TERM BatchToList(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM GetLatestSequenceNumber(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
+/* Transactions */
+ERL_NIF_TERM NewTxn(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM GetTxn(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM PutTxn(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM MergeTxn(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM DelTxn(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM CommitTxn(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
 /* Backup Engine */
 ERL_NIF_TERM OpenBackupEngine(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM CloseBackupEngine(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]);
@@ -128,6 +137,8 @@ ERL_NIF_TERM ReleaseWriteBufferManager(ErlNifEnv* env, int argc, const ERL_NIF_T
 ERL_NIF_TERM WriteBufferManagerInfo(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 void CreateBatchType(ErlNifEnv* env);
+void CreateTxnType(ErlNifEnv* env);
+void CreateOptTxnDBType(ErlNifEnv* env);
 
 } // namespace erocksdb
 

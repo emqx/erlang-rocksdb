@@ -148,6 +148,15 @@
          batch_data_size/1,
          batch_tolist/1]).
 
+%% Transaction API
+-export([
+         txn/2,
+         txn_put/3, txn_put/4,
+         txn_get/2, txn_get/3,
+         %% tnx_merge/3, tnx_merge/4,
+         txn_delete/2, txn_delete/3,
+         commit_txn/1
+        ]).
 
 %% Backup Engine
 -export([
@@ -174,6 +183,7 @@
   itr_handle/0,
   snapshot_handle/0,
   batch_handle/0,
+  txn_handle/0,
   rate_limiter_handle/0,
   compression_type/0,
   compaction_style/0,
@@ -232,6 +242,7 @@
 -opaque itr_handle() :: reference() | binary().
 -opaque snapshot_handle() :: reference() | binary().
 -opaque batch_handle() :: reference() | binary().
+-opaque txn_handle() :: reference() | binary().
 -opaque backup_engine() :: reference() | binary().
 -opaque cache_handle() :: reference() | binary().
 -opaque rate_limiter_handle() :: reference() | binary().
@@ -1173,6 +1184,61 @@ batch_rollback(_Batch) ->
 batch_tolist(_Batch) ->
   ?nif_stub.
 
+%% ===================================================================
+%% Transaction API
+
+%% @doc When opened as a Transaction or Optimistic Transaction db,
+%% a user can both read and write to a transaction without committing
+%% anything to the disk until they decide to do so.
+
+
+%% @doc txn doc goes here
+-spec txn(TxnDB :: db_handle(), WriteOptions :: write_options()) -> ok.
+txn(_TxnDB, _WriteOptions) ->
+  ?nif_stub.
+
+%% @doc add a put operation to the txn
+-spec txn_put(Txn :: txn_handle(), Key :: binary(), Value :: binary()) -> ok.
+txn_put(_Txn, _Key, _Value) ->
+  ?nif_stub.
+
+%% @doc like `txn_put/3' but apply the operation to a column family
+-spec txn_put(Txn :: txn_handle(), ColumnFamily :: cf_handle(), Key :: binary(),  Value :: binary()) -> ok.
+txn_put(_Txn, _ColumnFamily, _Key, _Value) ->
+  ?nif_stub.
+
+%% @doc add a get operation to the txn
+-spec txn_get(Txn :: txn_handle(), Key :: binary()) ->
+                     Res :: {ok, binary()} |
+                            not_found |
+                            {error, {corruption, string()}} |
+                            {error, any()}.
+txn_get(_Txn, _Key) ->
+  ?nif_stub.
+
+%% @doc like `txn_get/3' but apply the operation to a column family
+-spec txn_get(Txn :: txn_handle(), ColumnFamily :: cf_handle(), Key :: binary()) ->
+                     Res :: {ok, binary()} |
+                            not_found |
+                            {error, {corruption, string()}} |
+                            {error, any()}.
+txn_get(_Txn, _ColumnFamily, _Key) ->
+  ?nif_stub.
+
+%% @doc txn implementation of delete operation to the txn
+-spec txn_delete(Txn :: txn_handle(), Key :: binary()) -> ok.
+txn_delete(_Txn, _Key) ->
+  ?nif_stub.
+
+%% @doc like `txn_delete/2' but apply the operation to a column family
+-spec txn_delete(Txn :: txn_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
+txn_delete(_Txn, _ColumnFamily, _Key) ->
+  ?nif_stub.
+
+%% @doc commit a transaction to disk atomically (?)
+-spec commit_txn(Txn :: txn_handle()) -> ok.
+commit_txn(_Txn) ->
+  ?nif_stub.
 
 %% ===================================================================
 %% Backup Engine API
