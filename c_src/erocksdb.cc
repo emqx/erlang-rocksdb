@@ -33,7 +33,7 @@ static ErlNifFunc nif_funcs[] =
         {"open", 2, erocksdb::Open, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"open", 3, erocksdb::OpenWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"open_with_ttl", 4, erocksdb::OpenWithTTL, ERL_NIF_DIRTY_JOB_IO_BOUND},
-        {"open_with_txn", 4, erocksdb::OpenOptTxnDBWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"open_with_opt_txn", 3, erocksdb::OpenOptTxnDBWithCf, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // db management
@@ -102,10 +102,14 @@ static ErlNifFunc nif_funcs[] =
 
         {"txn", 2, erocksdb::NewTxn, ERL_NIF_REGULAR_BOUND},
         {"txn_put", 3, erocksdb::PutTxn, ERL_NIF_REGULAR_BOUND},
+        {"txn_put", 4, erocksdb::PutTxn, ERL_NIF_REGULAR_BOUND},
+        {"txn_get", 2, erocksdb::GetTxn, ERL_NIF_REGULAR_BOUND},
         {"txn_get", 3, erocksdb::GetTxn, ERL_NIF_REGULAR_BOUND},
         {"txn_merge", 3, erocksdb::MergeTxn, ERL_NIF_REGULAR_BOUND},
+        {"txn_merge", 4, erocksdb::MergeTxn, ERL_NIF_REGULAR_BOUND},
+        {"txn_delete", 2, erocksdb::DelTxn, ERL_NIF_REGULAR_BOUND},
         {"txn_delete", 3, erocksdb::DelTxn, ERL_NIF_REGULAR_BOUND},
-        {"txn_commit", 3, erocksdb::CommitTxn, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"txn_commit", 1, erocksdb::CommitTxn, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // Batch
         {"batch", 0, erocksdb::NewBatch, ERL_NIF_REGULAR_BOUND},
@@ -479,7 +483,6 @@ try
   erocksdb::SnapshotObject::CreateSnapshotObjectType(env);
   erocksdb::CreateBatchType(env);
   erocksdb::CreateTxnType(env);
-  erocksdb::CreateOptTxnDBType(env);
   erocksdb::TLogItrObject::CreateTLogItrObjectType(env);
   erocksdb::BackupEngineObject::CreateBackupEngineObjectType(env);
   erocksdb::Cache::CreateCacheType(env);

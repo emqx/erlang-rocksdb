@@ -138,7 +138,7 @@ ERL_NIF_TERM WriteBufferManagerInfo(ErlNifEnv* env, int argc, const ERL_NIF_TERM
 
 void CreateBatchType(ErlNifEnv* env);
 void CreateTxnType(ErlNifEnv* env);
-void CreateOptTxnDBType(ErlNifEnv* env);
+// void CreateOptTxnDBType(ErlNifEnv* env);
 
 } // namespace erocksdb
 

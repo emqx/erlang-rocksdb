@@ -21,6 +21,7 @@
 
 -export([
   open/2, open/3,
+  open_with_opt_txn/3,
   open_with_ttl/4,
   close/1,
   set_db_background_threads/2, set_db_background_threads/3,
@@ -153,9 +154,9 @@
          txn/2,
          txn_put/3, txn_put/4,
          txn_get/2, txn_get/3,
-         %% tnx_merge/3, tnx_merge/4,
+         txn_merge/3, txn_merge/4,
          txn_delete/2, txn_delete/3,
-         commit_txn/1
+         txn_commit/1
         ]).
 
 %% Backup Engine
@@ -450,6 +451,9 @@ open(_Name, _DBOpts, _CFDescriptors) ->
 
 open_with_cf(Name, DbOpts, CFDescriptors) ->
   open(Name, DbOpts, CFDescriptors).
+
+open_with_opt_txn(_Name, _DbOpts, _CFDescriptors) ->
+    ?nif_stub.
 
 
 %% @doc Open RocksDB with TTL support
@@ -1225,6 +1229,16 @@ txn_get(_Txn, _Key) ->
 txn_get(_Txn, _ColumnFamily, _Key) ->
   ?nif_stub.
 
+%% @doc add a merge operation to the txn
+-spec txn_merge(Txn :: txn_handle(), Key :: binary(), Value :: binary()) -> ok.
+txn_merge(_Txn, _Key, _Value) ->
+  ?nif_stub.
+
+%% @doc like `txn_merge/3' but apply the operation to a column family
+-spec txn_merge(Txn :: txn_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
+txn_merge(_Txn, _ColumnFamily, _Key, _Value) ->
+  ?nif_stub.
+
 %% @doc txn implementation of delete operation to the txn
 -spec txn_delete(Txn :: txn_handle(), Key :: binary()) -> ok.
 txn_delete(_Txn, _Key) ->
@@ -1236,8 +1250,8 @@ txn_delete(_Txn, _ColumnFamily, _Key) ->
   ?nif_stub.
 
 %% @doc commit a transaction to disk atomically (?)
--spec commit_txn(Txn :: txn_handle()) -> ok.
-commit_txn(_Txn) ->
+-spec txn_commit(Txn :: txn_handle()) -> ok.
+txn_commit(_Txn) ->
   ?nif_stub.
 
 %% ===================================================================
