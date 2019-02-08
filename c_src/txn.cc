@@ -17,6 +17,7 @@
 //
 // -------------------------------------------------------------------
 
+#include <iostream>
 
 #include "erl_nif.h"
 
@@ -39,18 +40,13 @@ struct Txn
     ErlNifEnv *env;
 };
 
-// struct OptTxnDb
-// {
-//     rocksdb::OptimisticTransactionDB* db;
-//     ErlNifEnv* env;
-// };
-
 static void cleanup_txn(Txn* txn)
 {
     if(txn->env != nullptr) {
         enif_free_env(txn->env);
         txn->env = nullptr;
     }
+    txn->base_db = nullptr;
     delete txn->txn;
 }
 
@@ -241,17 +237,14 @@ namespace erocksdb {
 
         rocksdb::Status status;
         rocksdb::ColumnFamilyHandle *cfh;
-        if (argc == 4)
-        {
+        if (argc == 4) {
             if(!enif_get_cf(env, argv[1], &cf_ptr) ||
                !enif_inspect_binary(env, argv[2], &key) ||
                !enif_inspect_binary(env, argv[3], &value)) {
                 return enif_make_badarg(env);
             }
             cfh = cf_ptr->m_ColumnFamily;
-        }
-        else if (argc == 3)
-        {
+        } else if (argc == 3) {
             if(!enif_inspect_binary(env, argv[1], &key) ||
                !enif_inspect_binary(env, argv[2], &value)) {
                 return enif_make_badarg(env);
@@ -340,7 +333,7 @@ namespace erocksdb {
         if( s.ok() ) {
             return ATOM_OK;
         } else {
-            return ATOM_ERROR;
+            return error_tuple(env, ATOM_ERROR, s);
         }
     }
 
