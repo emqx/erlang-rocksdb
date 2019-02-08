@@ -33,55 +33,57 @@
 
 #include "erocksdb_db.h"
 
-struct Txn
+struct TransactionResource
 {
-    rocksdb::Transaction *txn;
+    rocksdb::Transaction *transaction;
     rocksdb::DB *base_db;
     ErlNifEnv *env;
 };
 
-static void cleanup_txn(Txn* txn)
+static void cleanup_transaction(TransactionResource* transaction)
 {
-    if(txn->env != nullptr) {
-        enif_free_env(txn->env);
-        txn->env = nullptr;
+    if(transaction->env != nullptr) {
+        enif_free_env(transaction->env);
+        transaction->env = nullptr;
     }
-    txn->base_db = nullptr;
-    delete txn->txn;
+    transaction->base_db = nullptr;
+    delete transaction->transaction;
 }
 
 namespace erocksdb {
 
-    ErlNifResourceType *m_Txn_RESOURCE;
+    ErlNifResourceType *m_Transaction_RESOURCE;
 
     void
-    txn_resource_cleanup(ErlNifEnv * /*env*/, void *arg)
+    transaction_resource_cleanup(ErlNifEnv * /*env*/, void *arg)
     {
-        Txn* txn = reinterpret_cast<Txn*>(arg);
-        cleanup_txn(txn);
+        TransactionResource* transaction = reinterpret_cast<TransactionResource*>(arg);
+        cleanup_transaction(transaction);
     }
 
     void
-    CreateTxnType(ErlNifEnv *env)
+    CreateTransactionType(ErlNifEnv *env)
     {
         ErlNifResourceFlags flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
-        m_Txn_RESOURCE = enif_open_resource_type(env, NULL, "rocksdb_Transaction",
-                                                 txn_resource_cleanup, flags, NULL);
+        m_Transaction_RESOURCE = enif_open_resource_type(env, NULL, "rocksdb_Transaction",
+                                                 transaction_resource_cleanup, flags, NULL);
         return;
     }
 
     ERL_NIF_TERM
-    NewTxn(ErlNifEnv* env,
+    NewTransaction(ErlNifEnv* env,
            int argc,
            const ERL_NIF_TERM argv[])
     {
         if(argc != 2) {
             return enif_make_badarg(env);
         }
-        Txn* txn = reinterpret_cast<Txn*>(enif_alloc_resource(m_Txn_RESOURCE, sizeof(Txn)));
+        TransactionResource* transaction =
+            reinterpret_cast<TransactionResource*>(enif_alloc_resource(m_Transaction_RESOURCE,
+                                                                       sizeof(TransactionResource)));
 
         // not sure that we need this, since there are multiple usable arities
-        rocksdb::OptimisticTransactionOptions txn_options;
+        rocksdb::OptimisticTransactionOptions transaction_options;
         rocksdb::WriteOptions write_options;
         fold(env, argv[1], parse_write_option, write_options);
         ReferencePtr<DbObject> db_ptr;
@@ -91,31 +93,31 @@ namespace erocksdb {
 
         rocksdb::OptimisticTransactionDB* db =
             reinterpret_cast<rocksdb::OptimisticTransactionDB*>(db_ptr->m_Db);
-        // txn_options.set_snapshot = true;
-        txn->txn = db->BeginTransaction(write_options, txn_options);
-        txn->base_db = db->GetBaseDB();
-        txn->env = enif_alloc_env();
+        // transaction_options.set_snapshot = true;
+        transaction->transaction = db->BeginTransaction(write_options, transaction_options);
+        transaction->base_db = db->GetBaseDB();
+        transaction->env = enif_alloc_env();
 
-        ERL_NIF_TERM result = enif_make_resource(env, txn);
-        enif_release_resource(txn);
+        ERL_NIF_TERM result = enif_make_resource(env, transaction);
+        enif_release_resource(transaction);
         return enif_make_tuple2(env, ATOM_OK, result);
     }
 
     ERL_NIF_TERM
-    PutTxn(ErlNifEnv* env,
-           int argc,
-           const ERL_NIF_TERM argv[])
+    PutTransaction(ErlNifEnv* env,
+                   int argc,
+                   const ERL_NIF_TERM argv[])
     {
         ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
 
         ErlNifBinary key, value;
         rocksdb::Transaction *t = nullptr;
-        Txn *txn = nullptr;
+        TransactionResource *transaction = nullptr;
 
-        if(!enif_get_resource(env, argv[0], m_Txn_RESOURCE, (void **) &txn)) {
+        if(!enif_get_resource(env, argv[0], m_Transaction_RESOURCE, (void **) &transaction)) {
             return enif_make_badarg(env);
         }
-        t = txn->txn;
+        t = transaction->transaction;
         if(t == nullptr ) {
             return enif_make_badarg(env);
         }
@@ -126,8 +128,8 @@ namespace erocksdb {
                 return enif_make_badarg(env);
             }
 
-            enif_make_copy(txn->env, argv[1]);
-            enif_make_copy(txn->env, argv[2]);
+            enif_make_copy(transaction->env, argv[1]);
+            enif_make_copy(transaction->env, argv[2]);
 
             rocksdb::Slice key_slice(reinterpret_cast<char*>(key.data), key.size);
             rocksdb::Slice value_slice(reinterpret_cast<char*>(value.data), value.size);
@@ -140,9 +142,9 @@ namespace erocksdb {
                 return enif_make_badarg(env);
             }
 
-            enif_make_copy(txn->env, argv[1]);
-            enif_make_copy(txn->env, argv[2]);
-            enif_make_copy(txn->env, argv[3]);
+            enif_make_copy(transaction->env, argv[1]);
+            enif_make_copy(transaction->env, argv[2]);
+            enif_make_copy(transaction->env, argv[3]);
 
             rocksdb::Slice key_slice(reinterpret_cast<char*>(key.data), key.size);
             rocksdb::Slice value_slice(reinterpret_cast<char*>(value.data), value.size);
@@ -157,18 +159,18 @@ namespace erocksdb {
     }
 
     ERL_NIF_TERM
-    GetTxn(ErlNifEnv* env,
-           int argc,
-           const ERL_NIF_TERM argv[])
+    GetTransaction(ErlNifEnv* env,
+                   int argc,
+                   const ERL_NIF_TERM argv[])
     {
         ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
         rocksdb::Transaction *t = nullptr;
-        Txn *txn = nullptr;
+        TransactionResource *transaction = nullptr;
 
-        if(!enif_get_resource(env, argv[0], m_Txn_RESOURCE, (void **) &txn)) {
+        if(!enif_get_resource(env, argv[0], m_Transaction_RESOURCE, (void **) &transaction)) {
             return enif_make_badarg(env);
         }
-        t = txn->txn;
+        t = transaction->transaction;
         if(t == nullptr ) {
             return enif_make_badarg(env);
         }
@@ -195,7 +197,7 @@ namespace erocksdb {
             }
             status = t->GetForUpdate(opts, cf_ptr->m_ColumnFamily, key, &pvalue);
         } else {
-            status = t->GetForUpdate(opts, txn->base_db->DefaultColumnFamily(), key, &pvalue);
+            status = t->GetForUpdate(opts, transaction->base_db->DefaultColumnFamily(), key, &pvalue);
         }
 
         if (!status.ok())
@@ -216,19 +218,25 @@ namespace erocksdb {
         return enif_make_tuple2(env, ATOM_OK, value_bin);
     }
 
+    /*
+     * technically the below should work, but there are apparently
+     * some issues with regards to using merges within transactions.
+     * I'm commenting this out until such a time as rocks better
+     * supports merges within transactions.
+
     ERL_NIF_TERM
-    MergeTxn(ErlNifEnv* env,
-             int argc,
-             const ERL_NIF_TERM argv[])
+    MergeTransaction(ErlNifEnv* env,
+                     int argc,
+                     const ERL_NIF_TERM argv[])
     {
         ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
         rocksdb::Transaction *t = nullptr;
-        Txn *txn = nullptr;
+        TransactionResource *transaction = nullptr;
 
-        if(!enif_get_resource(env, argv[0], m_Txn_RESOURCE, (void **) &txn)) {
+        if(!enif_get_resource(env, argv[0], m_Transaction_RESOURCE, (void **) &transaction)) {
             return enif_make_badarg(env);
         }
-        t = txn->txn;
+        t = transaction->transaction;
         if(t == nullptr ) {
             return enif_make_badarg(env);
         }
@@ -249,7 +257,7 @@ namespace erocksdb {
                !enif_inspect_binary(env, argv[2], &value)) {
                 return enif_make_badarg(env);
             }
-            cfh = txn->base_db->DefaultColumnFamily();
+            cfh = transaction->base_db->DefaultColumnFamily();
         } else {
             return enif_make_badarg(env);
         }
@@ -265,19 +273,21 @@ namespace erocksdb {
         }
     }
 
+    */
+
     ERL_NIF_TERM
-    DelTxn(ErlNifEnv* env,
-           int argc,
-           const ERL_NIF_TERM argv[])
+    DelTransaction(ErlNifEnv* env,
+                   int argc,
+                   const ERL_NIF_TERM argv[])
     {
         ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
         rocksdb::Transaction *t = nullptr;
-        Txn *txn = nullptr;
+        TransactionResource *transaction = nullptr;
 
-        if(!enif_get_resource(env, argv[0], m_Txn_RESOURCE, (void **) &txn)) {
+        if(!enif_get_resource(env, argv[0], m_Transaction_RESOURCE, (void **) &transaction)) {
             return enif_make_badarg(env);
         }
-        t = txn->txn;
+        t = transaction->transaction;
         if(t == nullptr ) {
             return enif_make_badarg(env);
         }
@@ -296,7 +306,7 @@ namespace erocksdb {
         {
             if(!enif_inspect_binary(env, argv[1], &key))
                 return enif_make_badarg(env);
-            cfh = txn->base_db->DefaultColumnFamily();
+            cfh = transaction->base_db->DefaultColumnFamily();
         }
         rocksdb::Slice key_slice(reinterpret_cast<char*>(key.data), key.size);
         status = t->Delete(cfh, key_slice);
@@ -309,26 +319,26 @@ namespace erocksdb {
     }
 
     ERL_NIF_TERM
-    CommitTxn(ErlNifEnv* env,
-              int /*argc*/,
-              const ERL_NIF_TERM argv[])
+    CommitTransaction(ErlNifEnv* env,
+                      int /*argc*/,
+                      const ERL_NIF_TERM argv[])
     {
 
         ReferencePtr<erocksdb::ColumnFamilyObject> cf_ptr;
         rocksdb::Transaction *t = nullptr;
-        Txn *txn = nullptr;
+        TransactionResource *transaction = nullptr;
 
-        if(!enif_get_resource(env, argv[0], m_Txn_RESOURCE, (void **) &txn)) {
+        if(!enif_get_resource(env, argv[0], m_Transaction_RESOURCE, (void **) &transaction)) {
             return enif_make_badarg(env);
         }
-        t = txn->txn;
+        t = transaction->transaction;
         if(t == nullptr ) {
             return enif_make_badarg(env);
         }
 
         rocksdb::Status s = t->Commit();
         delete t;
-        txn->txn = nullptr;
+        transaction->transaction = nullptr;
 
         if( s.ok() ) {
             return ATOM_OK;

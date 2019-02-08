@@ -21,7 +21,7 @@
 
 -export([
   open/2, open/3,
-  open_with_opt_txn/3,
+  open_optimistic_transaction_db/2, open_optimistic_transaction_db/3,
   open_with_ttl/4,
   close/1,
   set_db_background_threads/2, set_db_background_threads/3,
@@ -151,12 +151,13 @@
 
 %% Transaction API
 -export([
-         txn/2,
-         txn_put/3, txn_put/4,
-         txn_get/2, txn_get/3,
-         txn_merge/3, txn_merge/4,
-         txn_delete/2, txn_delete/3,
-         txn_commit/1
+         transaction/2,
+         transaction_put/3, transaction_put/4,
+         transaction_get/2, transaction_get/3,
+         %% see comment in c_src/transaction.cc
+         %% transaction_merge/3, transaction_merge/4,
+         transaction_delete/2, transaction_delete/3,
+         transaction_commit/1
         ]).
 
 %% Backup Engine
@@ -184,7 +185,7 @@
   itr_handle/0,
   snapshot_handle/0,
   batch_handle/0,
-  txn_handle/0,
+  transaction_handle/0,
   rate_limiter_handle/0,
   compression_type/0,
   compaction_style/0,
@@ -243,7 +244,7 @@
 -opaque itr_handle() :: reference() | binary().
 -opaque snapshot_handle() :: reference() | binary().
 -opaque batch_handle() :: reference() | binary().
--opaque txn_handle() :: reference() | binary().
+-opaque transaction_handle() :: reference() | binary().
 -opaque backup_engine() :: reference() | binary().
 -opaque cache_handle() :: reference() | binary().
 -opaque rate_limiter_handle() :: reference() | binary().
@@ -452,7 +453,10 @@ open(_Name, _DBOpts, _CFDescriptors) ->
 open_with_cf(Name, DbOpts, CFDescriptors) ->
   open(Name, DbOpts, CFDescriptors).
 
-open_with_opt_txn(_Name, _DbOpts, _CFDescriptors) ->
+open_optimistic_transaction_db(_Name, _DbOpts) ->
+    open_optimistic_transaction_db(_Name, _DbOpts, [{"default", []}]).
+
+open_optimistic_transaction_db(_Name, _DbOpts, _CFDescriptors) ->
     ?nif_stub.
 
 
@@ -1196,62 +1200,64 @@ batch_tolist(_Batch) ->
 %% anything to the disk until they decide to do so.
 
 
-%% @doc txn doc goes here
--spec txn(TxnDB :: db_handle(), WriteOptions :: write_options()) -> ok.
-txn(_TxnDB, _WriteOptions) ->
+%% @doc transaction doc goes here
+-spec transaction(TransactionDB :: db_handle(), WriteOptions :: write_options()) -> ok.
+transaction(_TransactionDB, _WriteOptions) ->
   ?nif_stub.
 
-%% @doc add a put operation to the txn
--spec txn_put(Txn :: txn_handle(), Key :: binary(), Value :: binary()) -> ok.
-txn_put(_Txn, _Key, _Value) ->
+%% @doc add a put operation to the transaction
+-spec transaction_put(Transaction :: transaction_handle(), Key :: binary(), Value :: binary()) -> ok.
+transaction_put(_Transaction, _Key, _Value) ->
   ?nif_stub.
 
-%% @doc like `txn_put/3' but apply the operation to a column family
--spec txn_put(Txn :: txn_handle(), ColumnFamily :: cf_handle(), Key :: binary(),  Value :: binary()) -> ok.
-txn_put(_Txn, _ColumnFamily, _Key, _Value) ->
+%% @doc like `transaction_put/3' but apply the operation to a column family
+-spec transaction_put(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary(),  Value :: binary()) -> ok.
+transaction_put(_Transaction, _ColumnFamily, _Key, _Value) ->
   ?nif_stub.
 
-%% @doc add a get operation to the txn
--spec txn_get(Txn :: txn_handle(), Key :: binary()) ->
+%% @doc add a get operation to the transaction
+-spec transaction_get(Transaction :: transaction_handle(), Key :: binary()) ->
                      Res :: {ok, binary()} |
                             not_found |
                             {error, {corruption, string()}} |
                             {error, any()}.
-txn_get(_Txn, _Key) ->
+transaction_get(_Transaction, _Key) ->
   ?nif_stub.
 
-%% @doc like `txn_get/3' but apply the operation to a column family
--spec txn_get(Txn :: txn_handle(), ColumnFamily :: cf_handle(), Key :: binary()) ->
+%% @doc like `transaction_get/3' but apply the operation to a column family
+-spec transaction_get(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary()) ->
                      Res :: {ok, binary()} |
                             not_found |
                             {error, {corruption, string()}} |
                             {error, any()}.
-txn_get(_Txn, _ColumnFamily, _Key) ->
+transaction_get(_Transaction, _ColumnFamily, _Key) ->
   ?nif_stub.
 
-%% @doc add a merge operation to the txn
--spec txn_merge(Txn :: txn_handle(), Key :: binary(), Value :: binary()) -> ok.
-txn_merge(_Txn, _Key, _Value) ->
+%% see comment in c_src/transaction.cc
+
+%% %% @doc add a merge operation to the transaction
+%% -spec transaction_merge(Transaction :: transaction_handle(), Key :: binary(), Value :: binary()) -> ok.
+%% transaction_merge(_Transaction, _Key, _Value) ->
+%%   ?nif_stub.
+
+%% %% @doc like `transaction_merge/3' but apply the operation to a column family
+%% -spec transaction_merge(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
+%% transaction_merge(_Transaction, _ColumnFamily, _Key, _Value) ->
+%%   ?nif_stub.
+
+%% @doc transaction implementation of delete operation to the transaction
+-spec transaction_delete(Transaction :: transaction_handle(), Key :: binary()) -> ok.
+transaction_delete(_Transaction, _Key) ->
   ?nif_stub.
 
-%% @doc like `txn_merge/3' but apply the operation to a column family
--spec txn_merge(Txn :: txn_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
-txn_merge(_Txn, _ColumnFamily, _Key, _Value) ->
-  ?nif_stub.
-
-%% @doc txn implementation of delete operation to the txn
--spec txn_delete(Txn :: txn_handle(), Key :: binary()) -> ok.
-txn_delete(_Txn, _Key) ->
-  ?nif_stub.
-
-%% @doc like `txn_delete/2' but apply the operation to a column family
--spec txn_delete(Txn :: txn_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
-txn_delete(_Txn, _ColumnFamily, _Key) ->
+%% @doc like `transaction_delete/2' but apply the operation to a column family
+-spec transaction_delete(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
+transaction_delete(_Transaction, _ColumnFamily, _Key) ->
   ?nif_stub.
 
 %% @doc commit a transaction to disk atomically (?)
--spec txn_commit(Txn :: txn_handle()) -> ok.
-txn_commit(_Txn) ->
+-spec transaction_commit(Transaction :: transaction_handle()) -> ok.
+transaction_commit(_Transaction) ->
   ?nif_stub.
 
 %% ===================================================================

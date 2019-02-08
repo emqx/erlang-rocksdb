@@ -941,7 +941,7 @@ OpenWithTTL(
 }   // OpenWithTTL
 
 ERL_NIF_TERM
-OpenOptTxnDBWithCf(
+OpenOptimisticTransactionDB(
     ErlNifEnv* env,
     int /*argc*/,
     const ERL_NIF_TERM argv[])
