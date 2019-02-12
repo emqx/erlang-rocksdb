@@ -96,6 +96,7 @@ ERL_NIF_TERM PutTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 // see note in transaction.cc
 // ERL_NIF_TERM MergeTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM DelTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM IteratorTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM CommitTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 /* Backup Engine */

@@ -157,6 +157,7 @@
          %% see comment in c_src/transaction.cc
          %% transaction_merge/3, transaction_merge/4,
          transaction_delete/2, transaction_delete/3,
+         transaction_iterator/3, transaction_iterator/4,
          transaction_commit/1
         ]).
 
@@ -1253,6 +1254,31 @@ transaction_delete(_Transaction, _Key) ->
 %% @doc like `transaction_delete/2' but apply the operation to a column family
 -spec transaction_delete(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
 transaction_delete(_Transaction, _ColumnFamily, _Key) ->
+  ?nif_stub.
+
+%% @doc Return a iterator over the contents of the database and
+%% uncommited writes and deletes in the current transaction.
+%% The result of iterator() is initially invalid (caller must
+%% call iterator_move function on the iterator before using it).
+-spec transaction_iterator(DBHandle, TransactionHandle, ReadOpts) -> Res when
+  DBHandle::db_handle(),
+  TransactionHandle::transaction_handle(),
+  ReadOpts::read_options(),
+  Res :: {ok, itr_handle()} | {error, any()}.
+transaction_iterator(_DBHandle, _TransactionHandle, _Ta_ReadOpts) ->
+  ?nif_stub.
+
+%% @doc Return a iterator over the contents of the database and
+%% uncommited writes and deletes in the current transaction.
+%% The result of iterator() is initially invalid (caller must
+%% call iterator_move function on the iterator before using it).
+-spec transaction_iterator(DBHandle, TransactionHandle, CFHandle, ReadOpts) -> Res when
+  DBHandle::db_handle(),
+  TransactionHandle::transaction_handle(),
+  CFHandle::cf_handle(),
+  ReadOpts::read_options(),
+  Res :: {ok, itr_handle()} | {error, any()}.
+transaction_iterator(_DBHandle, _TransactionHandle, _CfHandle, _ReadOpts) ->
   ?nif_stub.
 
 %% @doc commit a transaction to disk atomically (?)

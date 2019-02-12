@@ -131,3 +131,44 @@ delete_test() ->
 %%     2 = binary_to_term(IBin1),
 
 %%     close_destroy(Db, "test.db").
+
+
+cf_iterators_test() ->
+    Db = destroy_reopen("test.db", [{create_if_missing, true}]),
+    {ok, TestH} = rocksdb:create_column_family(Db, "test", []),
+
+    rocksdb:put(Db, <<"a">>, <<"x">>, []),
+    rocksdb:put(Db, <<"b">>, <<"y">>, []),
+    rocksdb:put(Db, TestH, <<"a">>, <<"x1">>, []),
+    rocksdb:put(Db, TestH, <<"b">>, <<"y1">>, []),
+
+    {ok, Txn} = rocksdb:transaction(Db, []),
+
+    ok = rocksdb:transaction_put(Txn, <<"c">>, <<"v1">>),
+    ok = rocksdb:transaction_put(Txn, TestH, <<"d">>, <<"v2">>),
+
+    {ok, DefaultIt} = rocksdb:transaction_iterator(Db, Txn, []),
+    {ok, TestIt} = rocksdb:transaction_iterator(Db, Txn, TestH, []),
+
+    {ok, PlainIt} = rocksdb:iterator(Db, TestH, []),
+
+    ?assertEqual({ok, <<"a">>, <<"x">>}, rocksdb:iterator_move(DefaultIt, <<>>)),
+    ?assertEqual({ok, <<"a">>, <<"x1">>}, rocksdb:iterator_move(TestIt, <<>>)),
+    ?assertEqual({ok, <<"a">>, <<"x1">>}, rocksdb:iterator_move(PlainIt, <<>>)),
+
+    ?assertEqual({ok, <<"b">>, <<"y">>}, rocksdb:iterator_move(DefaultIt, next)),
+    ?assertEqual({ok, <<"c">>, <<"v1">>}, rocksdb:iterator_move(DefaultIt, next)),
+
+    ?assertEqual({ok, <<"b">>, <<"y1">>}, rocksdb:iterator_move(TestIt, next)),
+    ?assertEqual({ok, <<"d">>, <<"v2">>}, rocksdb:iterator_move(TestIt, next)),
+
+    ?assertEqual({ok, <<"b">>, <<"y1">>}, rocksdb:iterator_move(PlainIt, next)),
+    ?assertEqual({error, invalid_iterator}, rocksdb:iterator_move(PlainIt, next)),
+
+    ?assertEqual({ok, <<"b">>, <<"y">>}, rocksdb:iterator_move(DefaultIt, prev)),
+    ?assertEqual({ok, <<"b">>, <<"y1">>}, rocksdb:iterator_move(TestIt, prev)),
+    ok = rocksdb:iterator_close(TestIt),
+    ok = rocksdb:iterator_close(PlainIt),
+    ok = rocksdb:iterator_close(DefaultIt),
+
+    close_destroy(Db, "test.db").

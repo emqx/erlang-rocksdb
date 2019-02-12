@@ -32,6 +32,9 @@
 #include "util.h"
 
 #include "erocksdb_db.h"
+#include "erocksdb_iter.h"
+
+using namespace std;
 
 struct TransactionResource
 {
@@ -316,6 +319,78 @@ namespace erocksdb {
         } else {
             return error_tuple(env, ATOM_ERROR, status);
         }
+    }
+
+    ERL_NIF_TERM
+    IteratorTransaction(ErlNifEnv* env,
+                        int argc,
+                        const ERL_NIF_TERM argv[]) {
+        ReferencePtr<DbObject> db_ptr;
+        if(!enif_get_db(env, argv[0], &db_ptr)) {
+            cerr << "db" << endl;
+            return enif_make_badarg(env);
+        }
+
+        rocksdb::Transaction *t = nullptr;
+        TransactionResource *transaction = nullptr;
+
+        if(!enif_get_resource(env, argv[1], m_Transaction_RESOURCE, (void **) &transaction)) {
+            cerr << "resource" << endl;
+            return enif_make_badarg(env);
+        }
+        t = transaction->transaction;
+        if(t == nullptr ) {
+            cerr << "txn" << endl;
+            return enif_make_badarg(env);
+        }
+
+        int i = 2;
+        if(argc==4) i = 3;
+
+        if(!enif_is_list(env, argv[i])) {
+            cerr << "list" << endl;
+            return enif_make_badarg(env);
+        }
+
+        rocksdb::ReadOptions opts;
+        ItrBounds bounds;
+        auto itr_env = std::make_shared<ErlEnvCtr>();
+        if (!parse_iterator_options(env, itr_env->env, argv[i], opts, bounds)) {
+            cerr << "itercreate" << endl;
+            return enif_make_badarg(env);
+        }
+
+        ItrObject * itr_ptr;
+        rocksdb::Iterator * iterator;
+
+        if (argc == 4) {
+            ReferencePtr<ColumnFamilyObject> cf_ptr;
+            if(!enif_get_cf(env, argv[2], &cf_ptr)) {
+                return enif_make_badarg(env);
+            }
+            iterator = t->GetIterator(opts, cf_ptr->m_ColumnFamily);
+        } else {
+            iterator = t->GetIterator(opts);
+        }
+
+        itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), itr_env, iterator);
+
+        if(bounds.upper_bound_slice != nullptr) {
+            itr_ptr->SetUpperBoundSlice(bounds.upper_bound_slice);
+        }
+
+        if(bounds.lower_bound_slice != nullptr) {
+            itr_ptr->SetLowerBoundSlice(bounds.lower_bound_slice);
+        }
+
+        ERL_NIF_TERM result = enif_make_resource(env, itr_ptr);
+
+        // release reference created during CreateItrObject()
+        enif_release_resource(itr_ptr);
+
+        iterator = NULL;
+        return enif_make_tuple2(env, ATOM_OK, result);
+
     }
 
     ERL_NIF_TERM

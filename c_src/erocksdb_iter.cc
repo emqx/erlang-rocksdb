@@ -33,15 +33,8 @@
 #include "refobjects.h"
 #include "util.h"
 
+#include "erocksdb_iter.h"
 
-
-struct ItrBounds {
-    rocksdb::ReadOptions* read_options;
-    rocksdb::Slice *upper_bound_slice;
-    rocksdb::Slice *lower_bound_slice;
-
-    ItrBounds();
-};
 
 
 ItrBounds::ItrBounds()
