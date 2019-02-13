@@ -179,12 +179,12 @@ namespace erocksdb {
         }
 
         int i = 1;
-        if(argc == 4) {
+        if(argc == 3) {
             i = 2;
         }
 
         rocksdb::Slice key;
-        if(!binary_to_slice(env, argv[i], &key) || t == nullptr ) {
+        if(!binary_to_slice(env, argv[i], &key)) {
             return enif_make_badarg(env);
         }
 
@@ -193,7 +193,7 @@ namespace erocksdb {
 
         rocksdb::Status status;
         rocksdb::PinnableSlice pvalue;
-        if(argc == 4) {
+        if(argc == 3) {
             ReferencePtr<ColumnFamilyObject> cf_ptr;
             if(!enif_get_cf(env, argv[1], &cf_ptr)) {
                 return enif_make_badarg(env);
