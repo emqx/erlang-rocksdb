@@ -24,8 +24,8 @@ basic_test() ->
     ?assertEqual(not_found, rocksdb:get(Db, <<"a">>, [])),
     ?assertEqual(not_found, rocksdb:get(Db, <<"b">>, [])),
 
-    ?assertEqual({ok, <<"v1">>}, rocksdb:transaction_get(Transaction, <<"a">>, [])),
-    ?assertEqual({ok, <<"v2">>}, rocksdb:transaction_get(Transaction, <<"b">>, [])),
+    ?assertEqual({ok, <<"v1">>}, rocksdb:transaction_get(Transaction, <<"a">>)),
+    ?assertEqual({ok, <<"v2">>}, rocksdb:transaction_get(Transaction, <<"b">>)),
 
     ok = rocksdb:transaction_commit(Transaction),
 
@@ -49,8 +49,8 @@ delete_test() ->
     ?assertEqual(not_found, rocksdb:get(Db, <<"a">>, [])),
     ?assertEqual(not_found, rocksdb:get(Db, <<"b">>, [])),
 
-    ?assertEqual({ok, <<"v1">>}, rocksdb:transaction_get(Transaction, <<"a">>, [])),
-    ?assertEqual(not_found, rocksdb:transaction_get(Transaction, <<"b">>, [])),
+    ?assertEqual({ok, <<"v1">>}, rocksdb:transaction_get(Transaction, <<"a">>)),
+    ?assertEqual(not_found, rocksdb:transaction_get(Transaction, <<"b">>)),
 
     ok = rocksdb:transaction_commit(Transaction),
 
