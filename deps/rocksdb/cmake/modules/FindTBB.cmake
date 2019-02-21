@@ -20,12 +20,6 @@ HINTS ${TBB_ROOT_DIR}/lib ENV LIBRARY_PATH)
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(TBB DEFAULT_MSG TBB_LIBRARIES TBB_INCLUDE_DIR)
 
-if(NOT TBB_FOUND)
-    # TBB is optional for this project, so just skip error and continue
-    set(TBB_LIBRARIES "")
-    set(TBB_INCLUDE_DIR "")
-endif()
-
 mark_as_advanced(
 TBB_LIBRARIES
 TBB_INCLUDE_DIR)
