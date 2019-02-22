@@ -29,6 +29,7 @@
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/utilities/checkpoint.h"
+#include "rocksdb/utilities/optimistic_transaction_db.h"
 
 #include "atoms.h"
 #include "refobjects.h"
@@ -938,6 +939,76 @@ OpenWithTTL(
     enif_release_resource(db_ptr);
     return enif_make_tuple2(env, ATOM_OK, result);
 }   // OpenWithTTL
+
+ERL_NIF_TERM
+OpenOptimisticTransactionDB(
+    ErlNifEnv* env,
+    int /*argc*/,
+    const ERL_NIF_TERM argv[])
+{
+    char db_name[4096];
+    DbObject * db_ptr;
+    rocksdb::OptimisticTransactionDB *db;
+
+
+    if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+       !enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]))
+    {
+        return enif_make_badarg(env);
+    }   // if
+
+    // read db options
+    rocksdb::DBOptions db_opts;
+    fold(env, argv[1], parse_db_option, db_opts);
+
+    std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+    ERL_NIF_TERM head, tail = argv[2];
+    while(enif_get_list_cell(env, tail, &head, &tail))
+    {
+        ERL_NIF_TERM result = parse_cf_descriptor(env, head, column_families);
+        if (result != ATOM_OK)
+        {
+            return result;
+        }
+    }
+
+    std::vector<rocksdb::ColumnFamilyHandle*> handles;
+    rocksdb::Status status =
+        rocksdb::OptimisticTransactionDB::Open(db_opts, db_name, column_families, &handles, &db);
+
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+
+    db_ptr = DbObject::CreateDbObject(std::move(db));
+
+    ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
+
+    unsigned int num_cols;
+    enif_get_list_length(env, argv[2], &num_cols);
+
+    ERL_NIF_TERM cf_list = enif_make_list(env, 0);
+    try {
+        for (unsigned int i = 0; i < num_cols; ++i)
+        {
+            ColumnFamilyObject * handle_ptr;
+            handle_ptr = ColumnFamilyObject::CreateColumnFamilyObject(db_ptr, handles[i]);
+            ERL_NIF_TERM cf = enif_make_resource(env, handle_ptr);
+            enif_release_resource(handle_ptr);
+            handle_ptr = NULL;
+            cf_list = enif_make_list_cell(env, cf, cf_list);
+        }
+    } catch (const std::exception& e) {
+        // pass through
+    }
+    // clear the automatic reference from enif_alloc_resource in CreateDbObject
+    enif_release_resource(db_ptr);
+
+    ERL_NIF_TERM cf_list_out;
+    enif_make_reverse_list(env, cf_list, &cf_list_out);
+
+    return enif_make_tuple3(env, ATOM_OK, result, cf_list_out);
+}   // async_open
+
 
 ERL_NIF_TERM
 Close(

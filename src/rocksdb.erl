@@ -21,6 +21,7 @@
 
 -export([
   open/2, open/3,
+  open_optimistic_transaction_db/2, open_optimistic_transaction_db/3,
   open_with_ttl/4,
   close/1,
   set_db_background_threads/2, set_db_background_threads/3,
@@ -148,6 +149,17 @@
          batch_data_size/1,
          batch_tolist/1]).
 
+%% Transaction API
+-export([
+         transaction/2,
+         transaction_put/3, transaction_put/4,
+         transaction_get/2, transaction_get/3,
+         %% see comment in c_src/transaction.cc
+         %% transaction_merge/3, transaction_merge/4,
+         transaction_delete/2, transaction_delete/3,
+         transaction_iterator/3, transaction_iterator/4,
+         transaction_commit/1
+        ]).
 
 %% Backup Engine
 -export([
@@ -174,6 +186,7 @@
   itr_handle/0,
   snapshot_handle/0,
   batch_handle/0,
+  transaction_handle/0,
   rate_limiter_handle/0,
   compression_type/0,
   compaction_style/0,
@@ -232,6 +245,7 @@
 -opaque itr_handle() :: reference() | binary().
 -opaque snapshot_handle() :: reference() | binary().
 -opaque batch_handle() :: reference() | binary().
+-opaque transaction_handle() :: reference() | binary().
 -opaque backup_engine() :: reference() | binary().
 -opaque cache_handle() :: reference() | binary().
 -opaque rate_limiter_handle() :: reference() | binary().
@@ -439,6 +453,12 @@ open(_Name, _DBOpts, _CFDescriptors) ->
 
 open_with_cf(Name, DbOpts, CFDescriptors) ->
   open(Name, DbOpts, CFDescriptors).
+
+open_optimistic_transaction_db(_Name, _DbOpts) ->
+    open_optimistic_transaction_db(_Name, _DbOpts, [{"default", []}]).
+
+open_optimistic_transaction_db(_Name, _DbOpts, _CFDescriptors) ->
+    ?nif_stub.
 
 
 %% @doc Open RocksDB with TTL support
@@ -1173,6 +1193,98 @@ batch_rollback(_Batch) ->
 batch_tolist(_Batch) ->
   ?nif_stub.
 
+%% ===================================================================
+%% Transaction API
+
+%% @doc When opened as a Transaction or Optimistic Transaction db,
+%% a user can both read and write to a transaction without committing
+%% anything to the disk until they decide to do so.
+
+
+%% @doc transaction doc goes here
+-spec transaction(TransactionDB :: db_handle(), WriteOptions :: write_options()) -> ok.
+transaction(_TransactionDB, _WriteOptions) ->
+  ?nif_stub.
+
+%% @doc add a put operation to the transaction
+-spec transaction_put(Transaction :: transaction_handle(), Key :: binary(), Value :: binary()) -> ok.
+transaction_put(_Transaction, _Key, _Value) ->
+  ?nif_stub.
+
+%% @doc like `transaction_put/3' but apply the operation to a column family
+-spec transaction_put(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary(),  Value :: binary()) -> ok.
+transaction_put(_Transaction, _ColumnFamily, _Key, _Value) ->
+  ?nif_stub.
+
+%% @doc add a get operation to the transaction
+-spec transaction_get(Transaction :: transaction_handle(), Key :: binary()) ->
+                     Res :: {ok, binary()} |
+                            not_found |
+                            {error, {corruption, string()}} |
+                            {error, any()}.
+transaction_get(_Transaction, _Key) ->
+  ?nif_stub.
+
+%% @doc like `transaction_get/3' but apply the operation to a column family
+-spec transaction_get(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary()) ->
+                     Res :: {ok, binary()} |
+                            not_found |
+                            {error, {corruption, string()}} |
+                            {error, any()}.
+transaction_get(_Transaction, _ColumnFamily, _Key) ->
+  ?nif_stub.
+
+%% see comment in c_src/transaction.cc
+
+%% %% @doc add a merge operation to the transaction
+%% -spec transaction_merge(Transaction :: transaction_handle(), Key :: binary(), Value :: binary()) -> ok.
+%% transaction_merge(_Transaction, _Key, _Value) ->
+%%   ?nif_stub.
+
+%% %% @doc like `transaction_merge/3' but apply the operation to a column family
+%% -spec transaction_merge(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary(), Value :: binary()) -> ok.
+%% transaction_merge(_Transaction, _ColumnFamily, _Key, _Value) ->
+%%   ?nif_stub.
+
+%% @doc transaction implementation of delete operation to the transaction
+-spec transaction_delete(Transaction :: transaction_handle(), Key :: binary()) -> ok.
+transaction_delete(_Transaction, _Key) ->
+  ?nif_stub.
+
+%% @doc like `transaction_delete/2' but apply the operation to a column family
+-spec transaction_delete(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary()) -> ok.
+transaction_delete(_Transaction, _ColumnFamily, _Key) ->
+  ?nif_stub.
+
+%% @doc Return a iterator over the contents of the database and
+%% uncommited writes and deletes in the current transaction.
+%% The result of iterator() is initially invalid (caller must
+%% call iterator_move function on the iterator before using it).
+-spec transaction_iterator(DBHandle, TransactionHandle, ReadOpts) -> Res when
+  DBHandle::db_handle(),
+  TransactionHandle::transaction_handle(),
+  ReadOpts::read_options(),
+  Res :: {ok, itr_handle()} | {error, any()}.
+transaction_iterator(_DBHandle, _TransactionHandle, _Ta_ReadOpts) ->
+  ?nif_stub.
+
+%% @doc Return a iterator over the contents of the database and
+%% uncommited writes and deletes in the current transaction.
+%% The result of iterator() is initially invalid (caller must
+%% call iterator_move function on the iterator before using it).
+-spec transaction_iterator(DBHandle, TransactionHandle, CFHandle, ReadOpts) -> Res when
+  DBHandle::db_handle(),
+  TransactionHandle::transaction_handle(),
+  CFHandle::cf_handle(),
+  ReadOpts::read_options(),
+  Res :: {ok, itr_handle()} | {error, any()}.
+transaction_iterator(_DBHandle, _TransactionHandle, _CfHandle, _ReadOpts) ->
+  ?nif_stub.
+
+%% @doc commit a transaction to disk atomically (?)
+-spec transaction_commit(Transaction :: transaction_handle()) -> ok.
+transaction_commit(_Transaction) ->
+  ?nif_stub.
 
 %% ===================================================================
 %% Backup Engine API
