@@ -1196,12 +1196,10 @@ batch_tolist(_Batch) ->
 %% ===================================================================
 %% Transaction API
 
-%% @doc When opened as a Transaction or Optimistic Transaction db,
+%% @doc create a new transaction
+%% When opened as a Transaction or Optimistic Transaction db,
 %% a user can both read and write to a transaction without committing
 %% anything to the disk until they decide to do so.
-
-
-%% @doc transaction doc goes here
 -spec transaction(TransactionDB :: db_handle(), WriteOptions :: write_options()) -> ok.
 transaction(_TransactionDB, _WriteOptions) ->
   ?nif_stub.

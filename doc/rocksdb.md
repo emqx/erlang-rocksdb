@@ -291,7 +291,7 @@ __abstract datatype__: `rate_limiter_handle()`
 
 
 <pre><code>
-read_options() = [{verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {iterate_lower_bound, boolean()} | {tailing, boolean()} | {total_order_seek, boolean()} | {prefix_same_as_start, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
+read_options() = [{verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {iterate_lower_bound, binary()} | {tailing, boolean()} | {total_order_seek, boolean()} | {prefix_same_as_start, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
 </code></pre>
 
 
@@ -319,6 +319,14 @@ __abstract datatype__: `snapshot_handle()`
 
 
 __abstract datatype__: `sst_file_manager()`
+
+
+
+
+### <a name="type-transaction_handle">transaction_handle()</a> ###
+
+
+__abstract datatype__: `transaction_handle()`
 
 
 
@@ -381,7 +389,7 @@ Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterator_re
 Refresh iterator.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>
 Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td></td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_cache-2">new_cache/2</a></td><td>// Create a new cache.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_env-0">new_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#new_env-1">new_env/1</a></td><td>return a db environment.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
 RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-2">new_sst_file_manager/2</a></td><td>create new SstFileManager that can be shared among multiple RocksDB
-instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open-3">open/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine for creating new backups.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
+instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open-3">open/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine for creating new backups.</td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-2">open_optimistic_transaction_db/2</a></td><td></td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-3">open_optimistic_transaction_db/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
 This API should be used to open the db when key-values inserted are
 meant to be removed from the db in a non-strict <code>TTL</code> amount of time
 Therefore, this guarantees that key-values inserted will remain in the
@@ -396,7 +404,12 @@ Snapshots provide consistent read-only views over the entire state of the key-va
 the total size of the SST files exceeds MaxAllowedSpace, writes to
 RocksDB will fail.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-1">sst_file_manager_info/1</a></td><td>return informations of a Sst File Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-2">sst_file_manager_info/2</a></td><td>return the information associated with Item for an SST File Manager SstFileManager.</td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stats-2">stats/2</a></td><td>Return the current stats of the specified column family
-Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#tlog_iterator-2">tlog_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#tlog_iterator_close-1">tlog_iterator_close/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#tlog_next_binary_update-1">tlog_next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#tlog_next_update-1">tlog_next_update/1</a></td><td>like <code>tlog_nex_binary_update/1</code> but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td></td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
+Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#tlog_iterator-2">tlog_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#tlog_iterator_close-1">tlog_iterator_close/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#tlog_next_binary_update-1">tlog_next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#tlog_next_update-1">tlog_next_update/1</a></td><td>like <code>tlog_nex_binary_update/1</code> but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#transaction-2">transaction/2</a></td><td>create a new transaction
+When opened as a Transaction or Optimistic Transaction db,
+a user can both read and write to a transaction without committing
+anything to the disk until they decide to do so.</td></tr><tr><td valign="top"><a href="#transaction_commit-1">transaction_commit/1</a></td><td>commit a transaction to disk atomically (?).</td></tr><tr><td valign="top"><a href="#transaction_delete-2">transaction_delete/2</a></td><td>transaction implementation of delete operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_delete-3">transaction_delete/3</a></td><td>like <code>transaction_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_get-2">transaction_get/2</a></td><td>add a get operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_get-3">transaction_get/3</a></td><td>like <code>transaction_get/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_iterator-3">transaction_iterator/3</a></td><td>Return a iterator over the contents of the database and
+uncommited writes and deletes in the current transaction.</td></tr><tr><td valign="top"><a href="#transaction_iterator-4">transaction_iterator/4</a></td><td>Return a iterator over the contents of the database and
+uncommited writes and deletes in the current transaction.</td></tr><tr><td valign="top"><a href="#transaction_put-3">transaction_put/3</a></td><td>add a put operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_put-4">transaction_put/4</a></td><td>like <code>transaction_put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td></td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
 our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-1">write_buffer_manager_info/1</a></td><td>return informations of a Write Buffer Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-2">write_buffer_manager_info/2</a></td><td>return the information associated with Item for a Write Buffer Manager.</td></tr></table>
 
 
@@ -1434,6 +1447,18 @@ open_backup_engine(Path::string) -&gt; {ok, <a href="#type-backup_engine">backup
 
 open a new backup engine for creating new backups.
 
+<a name="open_optimistic_transaction_db-2"></a>
+
+### open_optimistic_transaction_db/2 ###
+
+`open_optimistic_transaction_db(Name, DbOpts) -> any()`
+
+<a name="open_optimistic_transaction_db-3"></a>
+
+### open_optimistic_transaction_db/3 ###
+
+`open_optimistic_transaction_db(Name, DbOpts, CFDescriptors) -> any()`
+
 <a name="open_with_cf-3"></a>
 
 ### open_with_cf/3 ###
@@ -1891,6 +1916,127 @@ tlog_next_update(Iterator::term()) -&gt; {ok, LastSeq::non_neg_integer(), Log::<
 <br />
 
 like `tlog_nex_binary_update/1` but also return the batch as a list of operations
+
+<a name="transaction-2"></a>
+
+### transaction/2 ###
+
+<pre><code>
+transaction(TransactionDB::<a href="#type-db_handle">db_handle()</a>, WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; ok
+</code></pre>
+<br />
+
+create a new transaction
+When opened as a Transaction or Optimistic Transaction db,
+a user can both read and write to a transaction without committing
+anything to the disk until they decide to do so.
+
+<a name="transaction_commit-1"></a>
+
+### transaction_commit/1 ###
+
+<pre><code>
+transaction_commit(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>) -&gt; ok
+</code></pre>
+<br />
+
+commit a transaction to disk atomically (?)
+
+<a name="transaction_delete-2"></a>
+
+### transaction_delete/2 ###
+
+<pre><code>
+transaction_delete(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, Key::binary()) -&gt; ok
+</code></pre>
+<br />
+
+transaction implementation of delete operation to the transaction
+
+<a name="transaction_delete-3"></a>
+
+### transaction_delete/3 ###
+
+<pre><code>
+transaction_delete(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary()) -&gt; ok
+</code></pre>
+<br />
+
+like `transaction_delete/2` but apply the operation to a column family
+
+<a name="transaction_get-2"></a>
+
+### transaction_get/2 ###
+
+<pre><code>
+transaction_get(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, Key::binary()) -&gt; Res::{ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}
+</code></pre>
+<br />
+
+add a get operation to the transaction
+
+<a name="transaction_get-3"></a>
+
+### transaction_get/3 ###
+
+<pre><code>
+transaction_get(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary()) -&gt; Res::{ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}
+</code></pre>
+<br />
+
+like `transaction_get/3` but apply the operation to a column family
+
+<a name="transaction_iterator-3"></a>
+
+### transaction_iterator/3 ###
+
+<pre><code>
+transaction_iterator(DBHandle, TransactionHandle, ReadOpts) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>TransactionHandle = <a href="#type-transaction_handle">transaction_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
+
+Return a iterator over the contents of the database and
+uncommited writes and deletes in the current transaction.
+The result of iterator() is initially invalid (caller must
+call iterator_move function on the iterator before using it).
+
+<a name="transaction_iterator-4"></a>
+
+### transaction_iterator/4 ###
+
+<pre><code>
+transaction_iterator(DBHandle, TransactionHandle, CFHandle, ReadOpts) -&gt; Res
+</code></pre>
+
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>TransactionHandle = <a href="#type-transaction_handle">transaction_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
+
+Return a iterator over the contents of the database and
+uncommited writes and deletes in the current transaction.
+The result of iterator() is initially invalid (caller must
+call iterator_move function on the iterator before using it).
+
+<a name="transaction_put-3"></a>
+
+### transaction_put/3 ###
+
+<pre><code>
+transaction_put(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, Key::binary(), Value::binary()) -&gt; ok
+</code></pre>
+<br />
+
+add a put operation to the transaction
+
+<a name="transaction_put-4"></a>
+
+### transaction_put/4 ###
+
+<pre><code>
+transaction_put(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary(), Value::binary()) -&gt; ok
+</code></pre>
+<br />
+
+like `transaction_put/3` but apply the operation to a column family
 
 <a name="updates_iterator-2"></a>
 
