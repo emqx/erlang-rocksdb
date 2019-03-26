@@ -1,3 +1,11 @@
+erlang-rocksdb 1.1.0, released on 2019/03/26
+================================================
+
+- bum rocksdb to version [5.18.3](https://github.com/facebook/rocksdb/releases/tag/v5.18.3)
+- add preliminary support for optimistic transactions
+- make build more parallel when cores are available
+- fix iterate_upper_bound type.
+
 erlang-rocksdb 1.0.0, released on 2019/01/31
 ================================================
 
