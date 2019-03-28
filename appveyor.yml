@@ -1,23 +1,15 @@
-version: '{build}'
+version: 1.0.{build}
 image: Visual Studio 2017
-branches:
-  only:
-  - build-windows
-environment:
-  matrix:
-  - erlang_vsn: 21.0
-install:
-- ps: >-
-    choco install erlang --version $env:erlang_vsn
-
-    choco install rebar3 --version 3.6.1
-build: off
+before_build:
+- md %APPVEYOR_BUILD_FOLDER%\build
+- cd %APPVEYOR_BUILD_FOLDER%\build
+- cmake -G "Visual Studio 15 Win64" -DOPTDBG=1 -DWITH_XPRESS=1 -DPORTABLE=1 ..
+- cd ..
+build:
+  project: build\rocksdb.sln
+  parallel: true
+  verbosity: normal
+test:
 test_script:
-- cmd: C:\ProgramData\chocolatey\lib\rebar3\tools/rebar3.cmd eunit
-notifications:
-- provider: Email
-  to:
-  - bchesneau@pm.me
-  on_build_success: true
-  on_build_failure: true
-  on_build_status_changed: true
+- ps: build_tools\run_ci_db_test.ps1 -SuiteRun db_basic_test,db_test2,db_test,env_basic_test,env_test -Concurrency 8
+
