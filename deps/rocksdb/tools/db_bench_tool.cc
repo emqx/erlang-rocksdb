@@ -32,6 +32,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "cloud/aws/aws_env.h"
 #include "db/db_impl.h"
 #include "db/malloc_stats.h"
 #include "db/version_set.h"
@@ -820,6 +821,11 @@ DEFINE_int32(table_cache_numshardbits, 4, "");
 #ifndef ROCKSDB_LITE
 DEFINE_string(env_uri, "", "URI for registry Env lookup. Mutually exclusive"
               " with --hdfs.");
+DEFINE_string(aws_access_id, "", "Access id for AWS");
+DEFINE_string(aws_secret_key, "", "Secret key for AWS");
+DEFINE_string(aws_region, "", "AWS region");
+DEFINE_bool(keep_local_sst_files , true ,
+            "Keep all files in local storage as well as cloud storage");
 #endif  // ROCKSDB_LITE
 DEFINE_string(hdfs, "", "Name of hdfs environment. Mutually exclusive with"
               " --env_uri.");
@@ -1053,6 +1059,58 @@ enum RepFactory {
   kHashLinkedList,
   kCuckoo
 };
+
+// create Factory for creating S3 Envs
+#ifdef USE_AWS
+rocksdb::Env* CreateAwsEnv(const std::string& dbpath,
+                            std::unique_ptr<rocksdb::Env>* result) {
+  fprintf(stderr, "Creating AwsEnv for path %s\n", dbpath.c_str());
+  std::shared_ptr<rocksdb::Logger> info_log;
+  info_log.reset(new rocksdb::StderrLogger(
+		     rocksdb::InfoLogLevel::WARN_LEVEL));
+  rocksdb::CloudEnvOptions coptions;
+  std::string region;
+  if (FLAGS_aws_access_id.size() == 0) {
+      rocksdb::Status st = rocksdb::AwsEnv::GetTestCredentials(&coptions.credentials.access_key_id,
+                                                      &coptions.credentials.secret_key,
+                                                      &region);
+      assert(st.ok());
+  } else {
+    coptions.credentials.access_key_id = FLAGS_aws_access_id;
+    coptions.credentials.secret_key = FLAGS_aws_secret_key;
+    region = FLAGS_aws_region;
+  }
+  coptions.keep_local_sst_files = FLAGS_keep_local_sst_files;
+  rocksdb::CloudEnv* s;
+  rocksdb::Status st = rocksdb::AwsEnv::NewAwsEnv(rocksdb::Env::Default(),
+		         "dbbench." + rocksdb::AwsEnv::GetTestBucketSuffix(),
+			 "", // src object prefix
+                         region, // src region
+		         "dbbench." + rocksdb::AwsEnv::GetTestBucketSuffix(),
+			 "", // destination object prefix
+                         region, // dest region
+		         coptions,
+			 std::move(info_log),
+			 &s);
+  assert(st.ok());
+  ((rocksdb::CloudEnvImpl*)s)->TEST_DisableCloudManifest();
+  // If we are keeping wal in cloud storage, then tail it as well.
+  // so that our unit tests can run to completion.
+  if (!coptions.keep_local_log_files) {
+    rocksdb::AwsEnv* aws = static_cast<rocksdb::AwsEnv *>(s);
+    aws->StartTailingStream();
+  }
+  result->reset(s);
+  return s;
+}
+
+static rocksdb::Registrar<rocksdb::Env>
+  s3_reg("s3://.*", [](const std::string& uri,
+                       std::unique_ptr<rocksdb::Env>* env_guard) {
+  CreateAwsEnv(uri, env_guard);
+  return env_guard->get();
+});
+#endif /* USE_AWS */
 
 static enum RepFactory StringToRepFactory(const char* ctype) {
   assert(ctype);
@@ -3056,7 +3114,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
     int64_t bytes = 0;
     int decompress_size;
     while (ok && bytes < 1024 * 1048576) {
-      CacheAllocationPtr uncompressed;
+      char *uncompressed = nullptr;
       switch (FLAGS_compression_type_e) {
         case rocksdb::kSnappyCompression: {
           // get size and allocate here to make comparison fair
@@ -3066,44 +3124,45 @@ void VerifyDBFromDB(std::string& truth_db_name) {
             ok = false;
             break;
           }
-          uncompressed = AllocateBlock(ulength, nullptr);
+          uncompressed = new char[ulength];
           ok = Snappy_Uncompress(compressed.data(), compressed.size(),
-                                 uncompressed.get());
+                                 uncompressed);
           break;
         }
       case rocksdb::kZlibCompression:
         uncompressed = Zlib_Uncompress(uncompression_ctx, compressed.data(),
                                        compressed.size(), &decompress_size, 2);
-        ok = uncompressed.get() != nullptr;
+        ok = uncompressed != nullptr;
         break;
       case rocksdb::kBZip2Compression:
         uncompressed = BZip2_Uncompress(compressed.data(), compressed.size(),
                                         &decompress_size, 2);
-        ok = uncompressed.get() != nullptr;
+        ok = uncompressed != nullptr;
         break;
       case rocksdb::kLZ4Compression:
         uncompressed = LZ4_Uncompress(uncompression_ctx, compressed.data(),
                                       compressed.size(), &decompress_size, 2);
-        ok = uncompressed.get() != nullptr;
+        ok = uncompressed != nullptr;
         break;
       case rocksdb::kLZ4HCCompression:
         uncompressed = LZ4_Uncompress(uncompression_ctx, compressed.data(),
                                       compressed.size(), &decompress_size, 2);
-        ok = uncompressed.get() != nullptr;
+        ok = uncompressed != nullptr;
         break;
       case rocksdb::kXpressCompression:
-        uncompressed.reset(XPRESS_Uncompress(
-            compressed.data(), compressed.size(), &decompress_size));
-        ok = uncompressed.get() != nullptr;
+        uncompressed = XPRESS_Uncompress(compressed.data(), compressed.size(),
+          &decompress_size);
+        ok = uncompressed != nullptr;
         break;
       case rocksdb::kZSTD:
         uncompressed = ZSTD_Uncompress(uncompression_ctx, compressed.data(),
                                        compressed.size(), &decompress_size);
-        ok = uncompressed.get() != nullptr;
+        ok = uncompressed != nullptr;
         break;
       default:
         ok = false;
       }
+      delete[] uncompressed;
       bytes += input.size();
       thread->stats.FinishedOps(nullptr, nullptr, 1, kUncompress);
     }

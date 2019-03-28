@@ -221,6 +221,18 @@ LIB_SOURCES =                                                   \
   utilities/ttl/db_ttl_impl.cc                                  \
   utilities/write_batch_with_index/write_batch_with_index.cc    \
   utilities/write_batch_with_index/write_batch_with_index_internal.cc    \
+  cloud/aws/aws_env.cc                                          \
+  cloud/aws/aws_kafka.cc                                        \
+  cloud/aws/aws_kinesis.cc                                      \
+  cloud/aws/aws_log.cc                                          \
+  cloud/aws/aws_retry.cc                                        \
+  cloud/aws/aws_s3.cc                                           \
+  cloud/db_cloud_impl.cc                                        \
+  cloud/cloud_env.cc                                            \
+  cloud/cloud_env_options.cc                                    \
+  cloud/manifest_reader.cc                                      \
+  cloud/purge.cc                                                \
+  cloud/cloud_manifest.cc                                       \
 
 ifeq (,$(shell $(CXX) -fsyntax-only -maltivec -xc /dev/null 2>&1))
 LIB_SOURCES_ASM =\
@@ -259,9 +271,9 @@ TEST_LIB_SOURCES = \
   util/testutil.cc                                              \
   utilities/cassandra/test_utils.cc                             \
 
-MAIN_SOURCES =                                                          \
-  cache/cache_bench.cc                                                  \
-  cache/cache_test.cc                                                   \
+MAIN_SOURCES =                                                    \
+  cloud/db_cloud_test.cc                                                \
+  cloud/cloud_manifest_test.cc                                           \
   db/column_family_test.cc                                              \
   db/compact_files_test.cc                                              \
   db/compaction_iterator_test.cc                                        \

@@ -55,6 +55,8 @@
 #include "util/testutil.h"
 #include "utilities/merge_operators.h"
 
+#include "cloud/aws/aws_env.h"
+
 namespace rocksdb {
 
 namespace anon {
@@ -680,6 +682,14 @@ class DBTestBase : public testing::Test {
     kEnd,
   };
 
+  // The types of envs that we want to test with
+  enum OptionConfigEnv {
+    kDefaultEnv = 0,  // posix env
+    kAwsEnv = 1,      // aws env
+    kEndEnv = 2,
+  };
+  int option_env_;
+
  public:
   std::string dbname_;
   std::string alternative_wal_dir_;
@@ -692,6 +702,8 @@ class DBTestBase : public testing::Test {
 
   int option_config_;
   Options last_options_;
+
+  Env* s3_env_;
 
   // Skip some options, as they may not be applicable to a specific test.
   // To add more skip constants, use values 4, 8, 16, etc.
@@ -707,6 +719,11 @@ class DBTestBase : public testing::Test {
     kSkipFIFOCompaction = 128,
     kSkipMmapReads = 256,
   };
+
+#ifdef USE_AWS
+  Env* CreateNewAwsEnv(const std::string& pathPrefix);
+  std::shared_ptr<Logger> info_log_;
+#endif
 
   const int kRangeDelSkipConfigs =
       // Plain tables do not support range deletions.
@@ -732,6 +749,7 @@ class DBTestBase : public testing::Test {
   }
 
   static bool ShouldSkipOptions(int option_config, int skip_mask = kNoSkip);
+  static bool ShouldSkipAwsOptions(int option_config);
 
   // Switch to a fresh database with the next option configuration to
   // test.  Return false if there are no more configurations to test.

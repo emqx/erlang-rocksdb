@@ -299,10 +299,16 @@ class VersionEdit {
   const std::vector<std::pair<int, FileMetaData>>& GetNewFiles() {
     return new_files_;
   }
-
   void MarkAtomicGroup(uint32_t remaining_entries) {
     is_in_atomic_group_ = true;
     remaining_entries_ = remaining_entries;
+  }
+
+  bool GetNextFileNumber(uint64_t* result) const {
+      if (has_next_file_number_) {
+          *result = next_file_number_;
+      }
+      return has_next_file_number_;
   }
 
   std::string DebugString(bool hex_key = false) const;

@@ -218,6 +218,8 @@ struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
   // Compression algorithm that will be used for the bottommost level that
   // contain files.
   //
+  // Default: kDisableCompressionOption (Disabled). The means that the setting
+  // specified via Options.compression applies to the bottommost level as well.
   // Default: kDisableCompressionOption (Disabled)
   CompressionType bottommost_compression = kDisableCompressionOption;
 

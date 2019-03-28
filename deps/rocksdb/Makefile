@@ -406,6 +406,8 @@ ANALYZETOOLOBJECTS = $(ANALYZER_LIB_SOURCES:.cc=.o)
 EXPOBJECTS = $(EXP_LIB_SOURCES:.cc=.o) $(LIBOBJECTS) $(TESTUTIL)
 
 TESTS = \
+	db_cloud_test \
+	cloud_manifest_test \
 	db_basic_test \
 	db_encryption_test \
 	db_test2 \
@@ -1555,6 +1557,12 @@ ldb_cmd_test: tools/ldb_cmd_test.o $(LIBOBJECTS) $(TESTHARNESS)
 	$(AM_LINK)
 
 ldb: tools/ldb.o $(LIBOBJECTS)
+	$(AM_LINK)
+
+db_cloud_test: cloud/db_cloud_test.o $(LIBOBJECTS) $(TESTHARNESS)
+	$(AM_LINK)
+
+cloud_manifest_test: cloud/cloud_manifest_test.o $(LIBOBJECTS) $(TESTHARNESS)
 	$(AM_LINK)
 
 iostats_context_test: monitoring/iostats_context_test.o $(LIBOBJECTS) $(TESTHARNESS)

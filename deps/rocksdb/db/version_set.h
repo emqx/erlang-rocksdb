@@ -984,6 +984,7 @@ class VersionSet {
 
   friend class Version;
   friend class DBImpl;
+  friend class ManifestReader;
 
   struct LogReporter : public log::Reader::Reporter {
     Status* status;

@@ -3,7 +3,7 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#ifndef ROCKSDB_LITE
+#if !defined(ROCKSDB_LITE) && !defined(USE_AWS)
 
 #include <functional>
 #include "db/db_test_util.h"
