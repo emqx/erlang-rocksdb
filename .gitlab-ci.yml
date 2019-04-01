@@ -3,6 +3,13 @@ image: erlang:21
 before_script:
     - apt-get -q update
     - apt-get -y install cmake
+    - ulimit -n 8192
+    - pushd /tmp && wget https://github.com/aws/aws-sdk-cpp/archive/1.3.50.tar.gz -O /tmp/aws-sdk.tar.gz && tar -xvf /tmp/aws-sdk.tar.gz > /dev/null && popd
+    - pushd /tmp/aws-sdk-cpp-1.3.50 && cmake -DBUILD_ONLY="s3;kinesis" . && make -j4 all && sudo make install && popd
+    - LIBRDKAFKA_VERSION=0.11.3
+    - wget https://github.com/edenhill/librdkafka/archive/v${LIBRDKAFKA_VERSION}.tar.gz
+    - tar -zxvf v${LIBRDKAFKA_VERSION}.tar.gz
+    - sudo bash -c "cd librdkafka-${LIBRDKAFKA_VERSION} && ./configure && make && make install"
 
 test:
     variables:
