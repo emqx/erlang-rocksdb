@@ -127,6 +127,19 @@ else()
       include_directories(${AWSSDK_INCLUDE_DIR})
       list(APPEND THIRDPARTY_LIBS ${AWSSDK_LINK_LIBRARIES})
   endif()
+
+  option(WITH_KAFKA "build with librdkafka (system)" OFF)
+  if(WITH_KAFKA)
+      # System lib used
+      # rdkafka uses pkgconfig instead of Findrdkafka.cmake
+      # https://stackoverflow.com/questions/29191855/what-is-the-proper-way-to-use-pkg-config-from-cmake
+      # find_package(rdkafka REQUIRED)
+      find_package(PkgConfig REQUIRED)
+      pkg_check_modules(RDKAFKA REQUIRED rdkafka++)
+      add_definitions(-DUSE_KAFKA)
+      include_directories(${RDKAFKA_INCLUDE_DIR})
+      list(APPEND THIRDPARTY_LIBS ${RDKAFKA_LIBRARIES})
+  endif()
 endif()
 
 string(TIMESTAMP GIT_DATE_TIME "%Y/%m/%d %H:%M:%S" UTC)
@@ -469,6 +482,7 @@ add_subdirectory(third-party/gtest-1.7.0/fused-src/gtest)
 
 set(SOURCES
         cloud/aws/aws_env.cc
+        cloud/aws/aws_kafka.cc
         cloud/aws/aws_kinesis.cc
         cloud/aws/aws_log.cc
         cloud/aws/aws_retry.cc
