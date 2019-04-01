@@ -135,14 +135,7 @@ if(WITH_TBB)
   find_package(TBB REQUIRED)
 endif()
 
-# Use RocksDB provided by host system
-# (for users with extra requirements)
-option(WITH_SYSTEM_ROCKSDB "require and build with system rocksdb" OFF)
-if (WITH_SYSTEM_ROCKSDB)
-  find_package(RocksDB 5.17.2 REQUIRED)
-else()
-  include(build-rocksdb)
-endif()
+include(build-rocksdb)
 
 option(WITH_AWS "build with S3 support" ON)
 if (WITH_AWS)
