@@ -121,6 +121,8 @@
 ]).
 -export([default_env/0, mem_env/0]).
 
+-export([new_aws_env/6]).
+
 %% Log Iterator API
 -export([tlog_iterator/2,
          tlog_iterator_close/1,
@@ -1504,6 +1506,19 @@ set_db_background_threads(_Db, _N, _PRIORITY) ->
 default_env() -> new_env(default).
 
 mem_env() -> new_env(memenv).
+
+
+-spec new_aws_env(SrcBucketName, SrcObjectPrefix, SrcBucketRegion,
+                  DestBucketName, DestObjectPrefix, DestBucketRegion) -> ok when
+    SrcBucketName :: string(),
+    SrcObjectPrefix :: string(),
+    SrcBucketRegion :: string(),
+    DestBucketName :: string(),
+    DestObjectPrefix :: string(),
+    DestBucketRegion :: string().
+new_aws_env(_SrcBucketName, _SrcObjectPrefix, _SrcBucketRegion,
+            _DestBucketName, _DestObjectPrefix, _DestBucketRegion) ->
+  ?nif_stub.
 
 %% ===================================================================
 %% SstFileManager functions

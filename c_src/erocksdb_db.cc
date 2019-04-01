@@ -335,7 +335,7 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
                 opts.create_if_missing = true;
             }
         }
-        else if (option[0] == erocksdb::ATOM_RATE_LIMITER) 
+        else if (option[0] == erocksdb::ATOM_RATE_LIMITER)
         {
             erocksdb::RateLimiter* rate_limiter_ptr = erocksdb::RateLimiter::RetrieveRateLimiterResource(env,option[1]);
             if(NULL!=rate_limiter_ptr) {
@@ -343,14 +343,14 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
                 opts.rate_limiter = rate_limiter;
             }
         }
-        else if (option[0] == erocksdb::ATOM_SST_FILE_MANAGER) 
+        else if (option[0] == erocksdb::ATOM_SST_FILE_MANAGER)
         {
             erocksdb::SstFileManager* ptr = erocksdb::SstFileManager::RetrieveSstFileManagerResource(env,option[1]);;
             if (NULL!=ptr) {
                 opts.sst_file_manager = ptr->sst_file_manager();
             }
         }
-        else if (option[0] == erocksdb::ATOM_WRITE_BUFFER_MANAGER) 
+        else if (option[0] == erocksdb::ATOM_WRITE_BUFFER_MANAGER)
         {
             erocksdb::WriteBufferManager* ptr = erocksdb::WriteBufferManager::RetrieveWriteBufferManagerResource(env,option[1]);;
             if (NULL!=ptr) {
@@ -1469,7 +1469,7 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     rocksdb::Status status;
     ReferencePtr<ColumnFamilyObject> cf_ptr;
     int i = 1;
-    
+
     if (!enif_get_db(env, argv[0], &db_ptr))
         return enif_make_badarg(env);
 
@@ -1504,13 +1504,13 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     int j = 0;
     int arity;
     const ERL_NIF_TERM *rterm;
-    
+
     rocksdb::Range *ranges = new rocksdb::Range[num_ranges];
     while (enif_get_list_cell(env, tail, &head, &tail))
     {
         if (enif_get_tuple(env, head, &arity, &rterm) && 2 == arity)
         {
-            if (!binary_to_slice(env, rterm[0], &start) || !binary_to_slice(env, rterm[1], &limit)) 
+            if (!binary_to_slice(env, rterm[0], &start) || !binary_to_slice(env, rterm[1], &limit))
             {
                 delete[] ranges;
                 return enif_make_badarg(env);

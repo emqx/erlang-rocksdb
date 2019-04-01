@@ -17,10 +17,15 @@
 //
 // -------------------------------------------------------------------
 
+#include <string>
+
 #include "env.h"
 
 #include "atoms.h"
 #include "util.h"
+
+#include "rocksdb/cloud/cloud_env_options.h"
+
 
 namespace erocksdb {
 
@@ -106,6 +111,58 @@ NewEnv(
     return enif_make_tuple2(env, ATOM_OK, result);
 }
 
+
+ERL_NIF_TERM
+NewAwsEnv(
+    ErlNifEnv *env,
+    int /*argc*/,
+    const ERL_NIF_TERM argv[])
+{
+
+    ManagedEnv *env_ptr;
+    rocksdb::CloudEnv *cloud_env;
+
+    std::string src_bucket_name;
+    std::string src_object_prefix;
+    std::string src_bucket_region;
+    std::string dest_bucket_name;
+    std::string dest_object_prefix;
+    std::string dest_bucket_region;
+
+
+    if(!enif_get_std_string(env, argv[0], src_bucket_name) ||
+            !enif_get_std_string(env, argv[1], src_object_prefix) ||
+            !enif_get_std_string(env, argv[2], src_bucket_region) ||
+            !enif_get_std_string(env, argv[3], dest_bucket_name) ||
+            !enif_get_std_string(env, argv[4], dest_object_prefix) ||
+            !enif_get_std_string(env, argv[5], dest_bucket_region))
+        return enif_make_badarg(env);
+
+    rocksdb::CloudEnvOptions opts;
+
+    rocksdb::Status status = rocksdb::CloudEnv::NewAwsEnv(rocksdb::Env::Default(),
+            reinterpret_cast<const std::string&>(src_bucket_name),
+            reinterpret_cast<const std::string&>(src_object_prefix),
+            reinterpret_cast<const std::string&>(src_bucket_region),
+            reinterpret_cast<const std::string&>(dest_bucket_name),
+            reinterpret_cast<const std::string&>(dest_object_prefix),
+            reinterpret_cast<const std::string&>(dest_bucket_region),
+            opts,
+            nullptr,
+            &cloud_env);
+
+    if(!status.ok())
+        return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+
+    env_ptr = ManagedEnv::CreateEnvResource(cloud_env);
+
+    // create a resource reference to send erlang
+    ERL_NIF_TERM result = enif_make_resource(env, env_ptr);
+    // clear the automatic reference from enif_alloc_resource in EnvObject
+    enif_release_resource(env_ptr);
+    cloud_env = NULL;
+    return enif_make_tuple2(env, ATOM_OK, result);
+}
 
 ERL_NIF_TERM
 SetEnvBackgroundThreads(
