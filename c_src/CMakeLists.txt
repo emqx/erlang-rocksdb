@@ -144,6 +144,10 @@ else()
   include(build-rocksdb)
 endif()
 
+option(WITH_AWS "build with S3 support" ON)
+if (WITH_AWS)
+    include(build-aws-sdk)
+endif()
 
 #--------------------------------------------------------------------------------
 include(FindErlang)
@@ -229,4 +233,5 @@ target_link_libraries(
     ${BZIP2_LIBRARIES}
     ${ZLIB_LIBRARY}
     ${TBB_LIBRARIES}
+    ${AWS_LIBRARIES}
 )

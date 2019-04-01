@@ -1,3 +1,5 @@
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${AWS_ROOT_DIR})
+
 set(ROCKSDB_ROOT_DIR "${PROJECT_SOURCE_DIR}/../deps/rocksdb")
 
 
@@ -37,6 +39,10 @@ endif()
 if(WITH_BUNDLE_LZ4)
     list(APPEND rocksdb_CMAKE_ARGS -DLZ4_ROOT_DIR=${LZ4_ROOT_DIR})
 endif()
+
+list(APPEND rocksdb_CMAKE_ARGS -DWITH_AWS=ON)
+#list(APPEND rocksdb_CMAKE_ARGS -Daws-sdk-cpp_DIR=${AWS_ROOT_DIR})
+
 
 message(STATUS "cmake args ${rocksdb_CMAKE_ARGS}")
 

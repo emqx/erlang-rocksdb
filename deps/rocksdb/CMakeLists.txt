@@ -119,6 +119,14 @@ else()
     include_directories(${ZSTD_INCLUDE_DIR})
     list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARIES})
   endif()
+
+  option(WITH_AWS "build with aws" OFF)
+  if(WITH_AWS)
+      find_package(AWSSDK REQUIRED COMPONENTS s3 kinesis)
+      add_definitions(-DUSE_AWS)
+      include_directories(${AWSSDK_INCLUDE_DIR})
+      list(APPEND THIRDPARTY_LIBS ${AWSSDK_LINK_LIBRARIES})
+  endif()
 endif()
 
 string(TIMESTAMP GIT_DATE_TIME "%Y/%m/%d %H:%M:%S" UTC)
@@ -460,6 +468,17 @@ add_subdirectory(third-party/gtest-1.7.0/fused-src/gtest)
 # Main library source code
 
 set(SOURCES
+        cloud/aws/aws_env.cc
+        cloud/aws/aws_kinesis.cc
+        cloud/aws/aws_log.cc
+        cloud/aws/aws_retry.cc
+        cloud/aws/aws_s3.cc
+        cloud/db_cloud_impl.cc
+        cloud/cloud_env.cc
+        cloud/cloud_env_options.cc
+        cloud/manifest_reader.cc
+        cloud/purge.cc
+        cloud/cloud_manifest.cc
         cache/clock_cache.cc
         cache/lru_cache.cc
         cache/sharded_cache.cc
