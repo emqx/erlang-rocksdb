@@ -20,7 +20,7 @@ test:
 
 test-shared_libs:
     before_script:
-        - apt-get update -qq && apt-get -y -qq install cmake liblz4-dev libsnappy-dev
+        - apt-get update -qq && apt-get -y -qq install cmake liblz4-dev libsnappy-dev sudo
         - ulimit -n 8192
         - pushd /tmp && wget https://github.com/aws/aws-sdk-cpp/archive/1.3.50.tar.gz -O /tmp/aws-sdk.tar.gz && tar -xvf /tmp/aws-sdk.tar.gz > /dev/null && popd
         - pushd /tmp/aws-sdk-cpp-1.3.50 && cmake -DBUILD_ONLY="s3;kinesis" . && make -j4 all && sudo make install && popd
