@@ -146,8 +146,10 @@ endif()
 
 option(WITH_AWS "build with S3 support" ON)
 if (WITH_AWS)
-    include(build-aws-sdk)
+    find_package(AWSSDK REQUIRED COMPONENTS s3 kinesis) 
+    message(STATUS "AWS libraries: ${AWSSDK_LINK_LIBRARIES}")
 endif()
+
 
 #--------------------------------------------------------------------------------
 include(FindErlang)
@@ -233,5 +235,5 @@ target_link_libraries(
     ${BZIP2_LIBRARIES}
     ${ZLIB_LIBRARY}
     ${TBB_LIBRARIES}
-    ${AWS_LIBRARIES}
+    ${AWSSDK_LINK_LIBRARIES}
 )
