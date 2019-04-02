@@ -122,7 +122,7 @@ else()
 
   option(WITH_AWS "build with aws" OFF)
   if(WITH_AWS)
-      find_package(AWSSDK REQUIRED COMPONENTS s3 kinesis)
+      find_package(AWSSDK REQUIRED COMPONENTS s3 kinesis core)
       add_definitions(-DUSE_AWS)
       include_directories(${AWSSDK_INCLUDE_DIR})
       list(APPEND THIRDPARTY_LIBS ${AWSSDK_LINK_LIBRARIES})
