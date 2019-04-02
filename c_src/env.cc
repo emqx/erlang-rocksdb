@@ -111,6 +111,131 @@ NewEnv(
     return enif_make_tuple2(env, ATOM_OK, result);
 }
 
+ERL_NIF_TERM
+parse_aws_access_credentials(
+        ErlNifEnv* env,
+        ERL_NIF_TERM item,
+        rocksdb::AwsCloudAccessCredentials& credentials)
+{
+    int arity;
+    const ERL_NIF_TERM* option;
+
+    if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
+    {
+        if(option[0] == erocksdb::ATOM_ACCESS_KEY_ID) {
+            std::string access_key_id;
+            if (enif_get_std_string(env, option[1], access_key_id))
+                credentials.access_key_id = access_key_id;
+        } else if(option[0] == erocksdb::ATOM_SECRET_KEY) {
+            std::string secret_key;
+            if (enif_get_std_string(env, option[1], secret_key))
+                credentials.secret_key = secret_key;
+        }
+    }
+    return erocksdb::ATOM_OK;
+}
+
+
+ERL_NIF_TERM
+parse_aws_options(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::AwsOptions& opts) {
+    int arity;
+    const ERL_NIF_TERM* option;
+
+    if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
+    {
+        if(option[0] == erocksdb::ATOM_REQUEST_TIMEOUT_MS) {
+            long int req_timeout;
+            if(enif_get_long(env, option[1], &req_timeout))
+                opts.requestTimeoutMs = reinterpret_cast<long>(req_timeout);
+        } else if(option[0] == erocksdb::ATOM_CONNECT_TIMEOUT_MS) {
+            long int connect_timeout;
+            if(enif_get_long(env, option[1], &connect_timeout))
+                opts.requestTimeoutMs = reinterpret_cast<long>(connect_timeout);
+        } else if(option[0] == erocksdb::ATOM_ENDPOINT_OVERRIDE) {
+            std::string endpointOverride;
+            if (enif_get_std_string(env, option[1], endpointOverride))
+                opts.endpointOverride = endpointOverride;
+        } else if(option[0] == erocksdb::ATOM_SCHEME) {
+            std::string scheme;
+            if (enif_get_std_string(env, option[1], scheme))
+                opts.scheme = scheme;
+        } else if(option[0] == erocksdb::ATOM_VERIFY_SSL) {
+            if (option[1] == ATOM_TRUE) {
+                opts.verifySSL = 1;
+            } else {
+                opts.verifySSL = 0;
+            }
+        } else if(option[0] == erocksdb::ATOM_PROXY_HOST) {
+            std::string proxyHost;
+            if (enif_get_std_string(env, option[1], proxyHost))
+                opts.proxyHost = proxyHost;
+        } else if(option[0] == erocksdb::ATOM_PROXY_SCHEME) {
+            std::string proxyScheme;
+            if (enif_get_std_string(env, option[1], proxyScheme))
+                opts.proxyScheme = proxyScheme;
+        } else if(option[0] == erocksdb::ATOM_PROXY_PORT) {
+            unsigned int proxyPort;
+            if (enif_get_uint(env, option[1], &proxyPort))
+                opts.proxyPort = proxyPort;
+         }else if(option[0] == erocksdb::ATOM_PROXY_USER_NAME) {
+            std::string proxyUserName;
+            if (enif_get_std_string(env, option[1], proxyUserName))
+                opts.proxyUserName = proxyUserName;
+        } else if(option[0] == erocksdb::ATOM_PROXY_PASSWORD) {
+            std::string proxyPassword;
+            if (enif_get_std_string(env, option[1], proxyPassword))
+                opts.proxyScheme = proxyPassword;
+        }
+    }
+    return erocksdb::ATOM_OK;
+}
+
+ERL_NIF_TERM
+parse_cloud_env_options(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::CloudEnvOptions& opts) {
+    int arity;
+    const ERL_NIF_TERM* option;
+
+    if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
+    {
+        if(option[0] == erocksdb::ATOM_CREDENTIALS) {
+            rocksdb::AwsCloudAccessCredentials credentials;
+            fold(env, option[1], parse_aws_access_credentials, credentials);
+            opts.credentials = credentials;
+        } else if(option[0] == erocksdb::ATOM_AWS_OPTIONS) {
+            rocksdb::AwsOptions aws_options;
+            fold(env, option[1], parse_aws_options, aws_options);
+            opts.aws_options = aws_options;
+        } else if (option[0] == erocksdb::ATOM_KEEP_LOCAL_SST_FILES) {
+            opts.keep_local_sst_files = (option[1] == erocksdb::ATOM_TRUE);
+        }  else if (option[0] == erocksdb::ATOM_KEEP_LOCAL_LOG_FILES) {
+            opts.keep_local_log_files = (option[1] == erocksdb::ATOM_TRUE);
+        } else if (option[0] == erocksdb::ATOM_PURGER_PERIODICITY_MILLIS) {
+            ErlNifUInt64 purger_periodicity_millis;
+            if (enif_get_uint64(env, option[1], &purger_periodicity_millis))
+                 opts.purger_periodicity_millis = static_cast<uint64_t>(purger_periodicity_millis);
+        }  else if (option[0] == erocksdb::ATOM_VALIDATE_FILESIZE) {
+            opts.validate_filesize = (option[1] == erocksdb::ATOM_TRUE);
+        } else if (option[0] == erocksdb::ATOM_SERVER_SIDE_ENCRYPTION) {
+            opts.server_side_encryption = (option[1] == erocksdb::ATOM_TRUE);
+        } else if (option[0] == erocksdb::ATOM_ENCRYPTION_KEY_ID) {
+            std::string encryption_key_id;
+            if (enif_get_std_string(env, option[1], encryption_key_id))
+                opts.encryption_key_id = encryption_key_id;
+        } else if (option[0] == erocksdb::ATOM_CREATE_BUCKET_IF_MISSING) {
+            opts.create_bucket_if_missing = (option[1] == erocksdb::ATOM_TRUE);
+        } else if(option[0] == erocksdb::ATOM_REQUEST_TIMEOUT_MS) {
+            ErlNifUInt64 req_timeout;
+            if(enif_get_uint64(env, option[1], &req_timeout))
+                opts.request_timeout_ms = static_cast<uint64_t>(req_timeout);
+        } else if (option[0] == erocksdb::ATOM_RUN_PURGER) {
+            opts.run_purger = (option[1] == erocksdb::ATOM_TRUE);
+        } else if (option[0] == erocksdb::ATOM_EPHEMERAL_RESYNC_ON_OPEN) {
+            opts.ephemeral_resync_on_open = (option[1] == erocksdb::ATOM_TRUE);
+        } else if (option[0] == erocksdb::ATOM_SKIP_DBID_VERIFICATION)
+            opts.skip_dbid_verification = (option[1] == erocksdb::ATOM_TRUE);
+    }
+    return erocksdb::ATOM_OK;
+}
 
 ERL_NIF_TERM
 NewAwsEnv(
@@ -139,6 +264,7 @@ NewAwsEnv(
         return enif_make_badarg(env);
 
     rocksdb::CloudEnvOptions opts;
+    fold(env, argv[6], parse_cloud_env_options, opts);
 
     rocksdb::Status status = rocksdb::CloudEnv::NewAwsEnv(rocksdb::Env::Default(),
             reinterpret_cast<const std::string&>(src_bucket_name),

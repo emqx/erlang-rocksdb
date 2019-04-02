@@ -121,7 +121,7 @@
 ]).
 -export([default_env/0, mem_env/0]).
 
--export([new_aws_env/6]).
+-export([new_aws_env/7]).
 
 %% Log Iterator API
 -export([tlog_iterator/2,
@@ -402,6 +402,34 @@
 
 -type size_approximation_flag() :: none | include_memtables | include_files | include_both.
 -type range() :: {Start::binary(), Limit::binary()}.
+
+-type aws_cloud_access_credentials() :: [{access_key_id, string()} |
+                                         {secret_key, string()}].
+
+-type aws_options() :: [{request_timeout_ms, non_neg_integer()} |
+                        {connect_timeout_ms, non_neg_integer()} |
+                        {endpoint_override, string()} |
+                        {scheme, string()} |
+                        {verify_ssl, boolean()} |
+                        {proxy_host, string()} |
+                        {proxy_scheme, string()} |
+                        {proxy_port, non_neg_integer()} |
+                        {proxy_user_name, string()} |
+                        {proxy_password, string()}].
+
+-type cloud_env_options() :: [{credentials, aws_cloud_access_credentials()} |
+                              {aws_options, aws_options()} |
+                              {keep_local_sst_files, boolean()} |
+                              {keep_local_log_files, boolean()} |
+                              {purger_periodicity_millis, non_neg_integer()} |
+                              {validate_filesize, boolean()} |
+                              {server_side_encryption, boolean()} |
+                              {encryption_key_id, string()} |
+                              {create_bucket_if_missing, boolean()} |
+                              {request_timeout_ms, non_neg_integer()} |
+                              {run_purger, boolean()} |
+                              {ephemeral_resync_on_open, boolean()} |
+                              {skip_dbid_verification, boolean()}].
 
 -compile(no_native).
 -on_load(on_load/0).
@@ -1508,16 +1536,15 @@ default_env() -> new_env(default).
 mem_env() -> new_env(memenv).
 
 
--spec new_aws_env(SrcBucketName, SrcObjectPrefix, SrcBucketRegion,
-                  DestBucketName, DestObjectPrefix, DestBucketRegion) -> ok when
-    SrcBucketName :: string(),
-    SrcObjectPrefix :: string(),
-    SrcBucketRegion :: string(),
-    DestBucketName :: string(),
-    DestObjectPrefix :: string(),
-    DestBucketRegion :: string().
+-spec new_aws_env(SrcBucketName :: string(),
+                  SrcObjectPrefix:: string(),
+                  SrcBucketRegion:: string(),
+                  DestBucketName:: string(),
+                  DestObjectPrefix :: string(),
+                  DestBucketRegion :: string(),
+                  Options :: cloud_env_options()) -> ok.
 new_aws_env(_SrcBucketName, _SrcObjectPrefix, _SrcBucketRegion,
-            _DestBucketName, _DestObjectPrefix, _DestBucketRegion) ->
+            _DestBucketName, _DestObjectPrefix, _DestBucketRegion, _Optons) ->
   ?nif_stub.
 
 %% ===================================================================

@@ -166,7 +166,7 @@ static ErlNifFunc nif_funcs[] =
         {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"destroy_env", 1, erocksdb::DestroyEnv, ERL_NIF_REGULAR_BOUND},
-        {"new_aws_env", 6, erocksdb::NewAwsEnv, ERL_NIF_REGULAR_BOUND},
+        {"new_aws_env", 7, erocksdb::NewAwsEnv, ERL_NIF_REGULAR_BOUND},
 
         // SST File Manager
         {"new_sst_file_manager", 2, erocksdb::NewSstFileManager, ERL_NIF_REGULAR_BOUND},
@@ -458,6 +458,33 @@ ERL_NIF_TERM ATOM_IS_MAX_ALLOWED_SPACE_REACHED;
 ERL_NIF_TERM ATOM_MAX_ALLOWED_SPACE_REACHED_INCLUDING_COMPACTIONS;
 ERL_NIF_TERM ATOM_TOTAL_SIZE;
 ERL_NIF_TERM ATOM_TOTAL_TRASH_SIZE;
+
+
+// cloud
+ERL_NIF_TERM ATOM_CREDENTIALS;
+ERL_NIF_TERM ATOM_ACCESS_KEY_ID;
+ERL_NIF_TERM ATOM_SECRET_KEY;
+ERL_NIF_TERM ATOM_REQUEST_TIMEOUT_MS;
+ERL_NIF_TERM ATOM_CONNECT_TIMEOUT_MS;
+ERL_NIF_TERM ATOM_ENDPOINT_OVERRIDE;
+ERL_NIF_TERM ATOM_SCHEME;
+ERL_NIF_TERM ATOM_VERIFY_SSL;
+ERL_NIF_TERM ATOM_PROXY_HOST;
+ERL_NIF_TERM ATOM_PROXY_SCHEME;
+ERL_NIF_TERM ATOM_PROXY_PORT;
+ERL_NIF_TERM ATOM_PROXY_USER_NAME;
+ERL_NIF_TERM ATOM_PROXY_PASSWORD;
+ERL_NIF_TERM ATOM_AWS_OPTIONS;
+ERL_NIF_TERM ATOM_KEEP_LOCAL_SST_FILES;
+ERL_NIF_TERM ATOM_KEEP_LOCAL_LOG_FILES;
+ERL_NIF_TERM ATOM_PURGER_PERIODICITY_MILLIS;
+ERL_NIF_TERM ATOM_VALIDATE_FILESIZE;
+ERL_NIF_TERM ATOM_SERVER_SIDE_ENCRYPTION;
+ERL_NIF_TERM ATOM_ENCRYPTION_KEY_ID;
+ERL_NIF_TERM ATOM_CREATE_BUCKET_IF_MISSING;
+ERL_NIF_TERM ATOM_RUN_PURGER;
+ERL_NIF_TERM ATOM_EPHEMERAL_RESYNC_ON_OPEN;
+ERL_NIF_TERM ATOM_SKIP_DBID_VERIFICATION;
 
 }   // namespace erocksdb
 
@@ -768,6 +795,32 @@ try
   ATOM(erocksdb::ATOM_MAX_ALLOWED_SPACE_REACHED_INCLUDING_COMPACTIONS, "max_allowed_space_reached_including_compactions");
   ATOM(erocksdb::ATOM_TOTAL_SIZE, "total_size");
   ATOM(erocksdb::ATOM_TOTAL_TRASH_SIZE, "total_trash_size");
+
+  // cloud
+  ATOM(erocksdb::ATOM_CREDENTIALS, "credentials");
+  ATOM(erocksdb::ATOM_ACCESS_KEY_ID, "access_key_id");
+  ATOM(erocksdb::ATOM_SECRET_KEY, "secret_key");
+  ATOM(erocksdb::ATOM_REQUEST_TIMEOUT_MS, "request_timeout_ms");
+  ATOM(erocksdb::ATOM_CONNECT_TIMEOUT_MS, "connect_timeout_ms");
+  ATOM(erocksdb::ATOM_ENDPOINT_OVERRIDE, "endpoint_override");
+  ATOM(erocksdb::ATOM_SCHEME, "scheme");
+  ATOM(erocksdb::ATOM_VERIFY_SSL, "verify_ssl");
+  ATOM(erocksdb::ATOM_PROXY_HOST, "proxy_host");
+  ATOM(erocksdb::ATOM_PROXY_SCHEME, "proxy_scheme");
+  ATOM(erocksdb::ATOM_PROXY_PORT, "proxy_port");
+  ATOM(erocksdb::ATOM_PROXY_USER_NAME, "proxy_user_name");
+  ATOM(erocksdb::ATOM_PROXY_PASSWORD, "proxy_password");
+  ATOM(erocksdb::ATOM_AWS_OPTIONS, "aws_options");
+  ATOM(erocksdb::ATOM_KEEP_LOCAL_SST_FILES, "keep_local_sst_files");
+  ATOM(erocksdb::ATOM_KEEP_LOCAL_LOG_FILES, "keep_local_log_files");
+  ATOM(erocksdb::ATOM_PURGER_PERIODICITY_MILLIS, "purger_peridicity_millis");
+  ATOM(erocksdb::ATOM_VALIDATE_FILESIZE, "validate_filesize");
+  ATOM(erocksdb::ATOM_SERVER_SIDE_ENCRYPTION, "server_side_encryption");
+  ATOM(erocksdb::ATOM_ENCRYPTION_KEY_ID, "encryption_key_id");
+  ATOM(erocksdb::ATOM_CREATE_BUCKET_IF_MISSING, "ATOM_CREATE_BUCKET_IF_MISSING");
+  ATOM(erocksdb::ATOM_RUN_PURGER, "run_purger");
+  ATOM(erocksdb::ATOM_EPHEMERAL_RESYNC_ON_OPEN, "ephemeral_resync_on_open");
+  ATOM(erocksdb::ATOM_SKIP_DBID_VERIFICATION, "skip_dbid_verification");
 
 #undef ATOM
 
