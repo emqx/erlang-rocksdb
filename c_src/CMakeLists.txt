@@ -221,6 +221,7 @@ target_link_libraries(
     ${TARGET_LINKER_OPTIONS}
     ${ERLANG_ERL_INTERFACE_LIB}
     ${ERLANG_EI_LIB}
+    ${AWSSDK_LINK_LIBRARIES}
     ${ROCKSDB_LIBRARIES}
     ${ZSTD_LIBRARY}
     ${LZ4_LIBRARY}
@@ -228,5 +229,4 @@ target_link_libraries(
     ${BZIP2_LIBRARIES}
     ${ZLIB_LIBRARY}
     ${TBB_LIBRARIES}
-    ${AWSSDK_LINK_LIBRARIES}
 )
