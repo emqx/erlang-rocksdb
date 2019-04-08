@@ -1265,7 +1265,9 @@ batch_tolist(_Batch) ->
 %% When opened as a Transaction or Optimistic Transaction db,
 %% a user can both read and write to a transaction without committing
 %% anything to the disk until they decide to do so.
--spec transaction(TransactionDB :: db_handle(), WriteOptions :: write_options()) -> ok.
+-spec transaction(TransactionDB :: db_handle(), WriteOptions :: write_options()) ->
+                         {ok, transaction_handle()}.
+
 transaction(_TransactionDB, _WriteOptions) ->
   ?nif_stub.
 
