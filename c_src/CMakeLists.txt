@@ -139,7 +139,7 @@ include(build-rocksdb)
 
 option(WITH_AWS "build with S3 support" ON)
 if (WITH_AWS)
-    find_package(AWSSDK REQUIRED COMPONENTS core s3 kinesis) 
+    find_package(AWSSDK REQUIRED COMPONENTS s3 kinesis) 
     message(STATUS "AWS libraries: ${AWSSDK_LINK_LIBRARIES}")
 endif()
 
@@ -221,8 +221,8 @@ target_link_libraries(
     ${TARGET_LINKER_OPTIONS}
     ${ERLANG_ERL_INTERFACE_LIB}
     ${ERLANG_EI_LIB}
-    ${AWSSDK_LINK_LIBRARIES}
     ${ROCKSDB_LIBRARIES}
+    ${AWSSDK_LINK_LIBRARIES}
     ${ZSTD_LIBRARY}
     ${LZ4_LIBRARY}
     ${SNAPPY_LIBRARY}
