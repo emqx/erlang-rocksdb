@@ -30,6 +30,7 @@
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/utilities/checkpoint.h"
 #include "rocksdb/utilities/optimistic_transaction_db.h"
+#include "rocksdb/cloud/db_cloud.h"
 
 #include "atoms.h"
 #include "refobjects.h"
@@ -1008,6 +1009,128 @@ OpenOptimisticTransactionDB(
 
     return enif_make_tuple3(env, ATOM_OK, result, cf_list_out);
 }   // async_open
+
+
+ERL_NIF_TERM
+OpenDBCloud(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    char db_name[4096];
+    char cache_path[4096];
+    ErlNifUInt64 cache_size;
+    DbObject * db_ptr;
+    rocksdb::DBCloud *db;
+
+
+    if (argc == 4) {
+        if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+                !enif_is_list(env, argv[1]) ||
+                !enif_get_string(env, argv[2], cache_path, sizeof(cache_path), ERL_NIF_LATIN1) ||
+                !enif_get_uint64(env, argv[3], &cache_size))
+        {
+            return enif_make_badarg(env);
+        }
+        // parse db options
+        rocksdb::DBOptions *db_opts = new rocksdb::DBOptions;
+        fold(env, argv[1], parse_db_option, *db_opts);
+
+        // parse column family options
+        rocksdb::ColumnFamilyOptions *cf_opts = new rocksdb::ColumnFamilyOptions;
+        fold(env, argv[1], parse_cf_option, *cf_opts);
+
+
+        // final options
+        rocksdb::Options *opts = new rocksdb::Options(*db_opts, *cf_opts);
+        rocksdb::Status status =
+            rocksdb::DBCloud::Open(
+                    *opts, db_name,
+                    cache_path, static_cast<uint64_t>(cache_size),
+                    &db);
+        delete opts;
+        delete db_opts;
+        delete cf_opts;
+
+        if(!status.ok())
+            return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+
+        db_ptr = DbObject::CreateDbObject(std::move(db));
+        ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
+        enif_release_resource(db_ptr);
+        return enif_make_tuple2(env, ATOM_OK, result);
+    }   else {
+
+        if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+           !enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]) ||
+           !enif_get_string(env, argv[3], cache_path, sizeof(cache_path), ERL_NIF_LATIN1) ||
+           !enif_get_uint64(env, argv[4], &cache_size) || !enif_is_atom(env, argv[5]))
+        {
+            return enif_make_badarg(env);
+        }   // if
+
+        // read db options
+        rocksdb::DBOptions *db_opts = new rocksdb::DBOptions;
+        fold(env, argv[1], parse_db_option, *db_opts);
+        rocksdb::Options *opts = new rocksdb::Options(*db_opts, rocksdb::ColumnFamilyOptions());
+
+
+        std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+        ERL_NIF_TERM head, tail = argv[2];
+        while(enif_get_list_cell(env, tail, &head, &tail))
+        {
+            ERL_NIF_TERM result = parse_cf_descriptor(env, head, column_families);
+            if (result != ATOM_OK)
+            {
+                return result;
+            }
+        }
+
+        bool read_only = (argv[5] == erocksdb::ATOM_TRUE);
+        std::vector<rocksdb::ColumnFamilyHandle*> handles;
+
+        rocksdb::Status status =
+            rocksdb::DBCloud::Open(*opts, db_name, column_families,
+                    cache_path, static_cast<uint64_t>(cache_size),
+                    &handles, &db,
+                    read_only);
+
+        delete opts;
+        delete db_opts;
+        if(!status.ok())
+            return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
+
+        db_ptr = DbObject::CreateDbObject(std::move(db));
+
+        ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
+
+        unsigned int num_cols;
+        enif_get_list_length(env, argv[2], &num_cols);
+
+        ERL_NIF_TERM cf_list = enif_make_list(env, 0);
+        try {
+            for (unsigned int i = 0; i < num_cols; ++i)
+            {
+                ColumnFamilyObject * handle_ptr;
+                handle_ptr = ColumnFamilyObject::CreateColumnFamilyObject(db_ptr, handles[i]);
+                ERL_NIF_TERM cf = enif_make_resource(env, handle_ptr);
+                enif_release_resource(handle_ptr);
+                handle_ptr = NULL;
+                cf_list = enif_make_list_cell(env, cf, cf_list);
+            }
+        } catch (const std::exception& e) {
+            // pass through
+        }
+        // clear the automatic reference from enif_alloc_resource in CreateDbObject
+        enif_release_resource(db_ptr);
+
+        ERL_NIF_TERM cf_list_out;
+        enif_make_reverse_list(env, cf_list, &cf_list_out);
+
+        return enif_make_tuple3(env, ATOM_OK, result, cf_list_out);
+    }
+}   // OpenDbCloud
+
 
 
 ERL_NIF_TERM

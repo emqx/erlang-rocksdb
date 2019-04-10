@@ -179,6 +179,10 @@
 ]).
 
 
+-export([open_cloud_db/4,
+         open_cloud_db/5,
+         open_cloud_db/6]).
+
 -export_type([
   env/0,
   env_handle/0,
@@ -515,6 +519,37 @@ open_optimistic_transaction_db(_Name, _DbOpts, _CFDescriptors) ->
           TTL :: integer(),
           ReadOnly :: boolean()).
 open_with_ttl(_Name, _DBOpts, _TTL, _ReadOnly) ->
+  ?nif_stub.
+
+
+-spec open_cloud_db(Name, DBOpts, CachePath, CacheSize) -> DBResult when
+    Name::file:filename_all(),
+    DBOpts :: db_options(),
+    CachePath :: file:filename_all(),
+    CacheSize :: non_neg_integer(),
+    DBResult :: {ok, db_handle()} | {error, any()}.
+open_cloud_db(_Name, _DBOpts, _CachePath, _CacheSize) ->
+  ?nif_stub.
+
+-spec open_cloud_db(Name, DBOpts, CFDescriptors, CachePath, CacheSize) -> DBResult when
+    Name::file:filename_all(),
+    DBOpts :: db_options(),
+    CFDescriptors :: list(#cf_descriptor{}),
+    CachePath :: file:filename_all(),
+    CacheSize :: non_neg_integer(),
+    DBResult :: {ok, db_handle(), list(cf_handle())} | {error, any()}.
+open_cloud_db(Name, DBOpts,  CFDescriptors, CachePath, CacheSize) ->
+  open_cloud_db(Name, DBOpts,CFDescriptors, CachePath, CacheSize, false).
+
+-spec open_cloud_db(Name, DBOpts, CFDescriptors, CachePath, CacheSize, ReadOnly) -> DBResult when
+    Name::file:filename_all(),
+    DBOpts :: db_options(),
+    CFDescriptors :: list(#cf_descriptor{}),
+    CachePath :: file:filename_all(),
+    CacheSize :: non_neg_integer(),
+    ReadOnly :: true | false,
+    DBResult :: {ok, db_handle(), list(cf_handle())} | {error, any()}.
+open_cloud_db(_Name, _DBOpts, _CFDescriptors, _CachePath, _CacheSize, _ReadOnly) ->
   ?nif_stub.
 
 

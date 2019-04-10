@@ -35,6 +35,9 @@ static ErlNifFunc nif_funcs[] =
         {"open_with_ttl", 4, erocksdb::OpenWithTTL, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"open_optimistic_transaction_db", 3,
          erocksdb::OpenOptimisticTransactionDB, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"open_db_cloud", 4,  erocksdb::OpenDBCloud, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"open_db_cloud", 6,  erocksdb::OpenDBCloud, ERL_NIF_DIRTY_JOB_IO_BOUND},
+
         {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // db management
