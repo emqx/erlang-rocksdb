@@ -11,11 +11,16 @@ before_script:
     - wget https://github.com/edenhill/librdkafka/archive/v${LIBRDKAFKA_VERSION}.tar.gz
     - tar -zxvf v${LIBRDKAFKA_VERSION}.tar.gz
     - sudo bash -c "cd librdkafka-${LIBRDKAFKA_VERSION} && ./configure && make && make install"
+    - wget https://dl.min.io/server/minio/release/linux-amd64/minio
+    - chmod a+x minio
 
 test:
     variables:
         ERLANG_ROCKSDB_OPTS: "-DWITH_BUNDLE_LZ4=ON -DWITH_BUNDLE_SNAPPY=ON"
+        MINIO_ACCESS_KEY: "admin"
+        MINIO_SECRET_KEY: "password"
     script:
+        - minio server /data &
         - ./deps/rebar3 eunit
 
 test-shared_libs:
@@ -28,7 +33,12 @@ test-shared_libs:
         - wget https://github.com/edenhill/librdkafka/archive/v${LIBRDKAFKA_VERSION}.tar.gz
         - tar -zxvf v${LIBRDKAFKA_VERSION}.tar.gz
         - sudo bash -c "cd librdkafka-${LIBRDKAFKA_VERSION} && ./configure && make && make install"
+        - wget https://dl.min.io/server/minio/release/linux-amd64/minio
+        - chmod a+x minio
     variables:
         ERLANG_ROCKSDB_OPTS: "-DWITH_LZ4=ON -DWITH_SNAPPY=ON"
+        MINIO_ACCESS_KEY: "admin"
+        MINIO_SECRET_KEY: "password"
     script:
+        - minio server /data &
         - ./deps/rebar3 eunit
