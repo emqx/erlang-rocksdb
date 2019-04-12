@@ -1922,7 +1922,7 @@ like `tlog_nex_binary_update/1` but also return the batch as a list of operation
 ### transaction/2 ###
 
 <pre><code>
-transaction(TransactionDB::<a href="#type-db_handle">db_handle()</a>, WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; ok
+transaction(TransactionDB::<a href="#type-db_handle">db_handle()</a>, WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; {ok, <a href="#type-transaction_handle">transaction_handle()</a>}
 </code></pre>
 <br />
 
