@@ -12,8 +12,8 @@ before_script:
     - tar -zxvf v${LIBRDKAFKA_VERSION}.tar.gz
     - sudo bash -c "cd librdkafka-${LIBRDKAFKA_VERSION} && ./configure && make && make install"
     - mkdir -p /tmp/data
-    - pushd /tmp && wget --no-check-certificate https://dl.min.io/server/minio/release/linux-amd64/minio
-    - pushd /tmp && chmod a+x minio
+    - pushd /tmp && wget --no-check-certificate https://dl.min.io/server/minio/release/linux-amd64/minio && popd
+    - pushd /tmp && chmod a+x minio && popd
 
 test:
     variables:
@@ -35,8 +35,8 @@ test-shared_libs:
         - tar -zxvf v${LIBRDKAFKA_VERSION}.tar.gz
         - sudo bash -c "cd librdkafka-${LIBRDKAFKA_VERSION} && ./configure && make && make install"
         - mkdir -p /tmp/data
-        - pushd /tmp && wget --no-check-certificate  https://dl.min.io/server/minio/release/linux-amd64/minio
-        - pushd /tmp && chmod a+x minio
+        - pushd /tmp && wget --no-check-certificate  https://dl.min.io/server/minio/release/linux-amd64/minio && popd
+        - pushd /tmp && chmod a+x minio && popd
     variables:
         ERLANG_ROCKSDB_OPTS: "-DWITH_LZ4=ON -DWITH_SNAPPY=ON"
         MINIO_ACCESS_KEY: "admin"
