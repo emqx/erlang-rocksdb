@@ -98,9 +98,9 @@ CreateColumnFamily(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
     if (status.ok())
     {
         ColumnFamilyObject * handle_ptr = ColumnFamilyObject::CreateColumnFamilyObject(db_ptr.get(), handle);
-        ERL_NIF_TERM result = enif_make_resource(env, handle_ptr);
+        ERL_NIF_TERM res = enif_make_resource(env, handle_ptr);
         enif_release_resource(handle_ptr);
-        return enif_make_tuple2(env, ATOM_OK, result);
+        return enif_make_tuple2(env, ATOM_OK, res);
     }
 
     return error_tuple(env, ATOM_ERROR, status);
@@ -123,7 +123,7 @@ DropColumnFamily(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
         if (!enif_get_cf(env, argv[0], &cf_ptr))
             return enif_make_badarg(env);
         // release snapshot object
-        ColumnFamilyObject *cf = cf_ptr.get();
+        cf = cf_ptr.get();
         status = cf->m_DbPtr->m_Db->DropColumnFamily(cf->m_ColumnFamily);
     }
     if(status.ok())

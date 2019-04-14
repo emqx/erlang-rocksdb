@@ -194,7 +194,6 @@ namespace erocksdb {
         rocksdb::Status status;
         rocksdb::PinnableSlice pvalue;
         if(argc == 3) {
-            ReferencePtr<ColumnFamilyObject> cf_ptr;
             if(!enif_get_cf(env, argv[1], &cf_ptr)) {
                 return enif_make_badarg(env);
             }
