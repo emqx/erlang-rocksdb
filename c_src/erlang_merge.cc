@@ -213,12 +213,12 @@ namespace erocksdb {
                     if (len > 0) {
                         tail = op[1];
                         while(enif_get_list_cell(env, tail, &head, &tail)) {
-                            for(auto it = list_in.begin(); it!=list_in.end();) {
-                                if(enif_compare(*it, head) == 0) {
-                                    list_in.erase(it);
+                            for(auto list_it = list_in.begin(); list_it!=list_in.end();) {
+                                if(enif_compare(*list_it, head) == 0) {
+                                    list_in.erase(list_it);
                                     break;
                                 } else {
-                                    ++it;
+                                    ++list_it;
                                 }
                             }
                         }
