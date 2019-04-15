@@ -4,13 +4,16 @@
 
 Copyright (c) 2016-2019 Benoît Chesneau.
 
-__Version:__ 1.1.0 Erlang wrapper for RocksDB.
+__Version:__ 1.0.0 Erlang wrapper for RocksDB-Cloud.
+
+This binding wrap [rocksdb-cloud](https://github.com/rockset/rocksdb-cloud/) . It's based on
+the [Erlang rocksdb binding](https://gitlab.com/barrel-db/erlang-rocksdb).
 
 Feedback and pull requests welcome! If a particular feature of RocksDB is important to you, please let me know by opening an issue, and I'll prioritize it.
 
 ## Features
 
-- rocksdb 5.17.2 with snappy 1.1.7, lz4 1.8.3
+- rocksdb-cloud 5.18.3 with snappy 1.1.7, lz4 1.8.3
 - Erlang 19.3 and sup with dirty-nifs enabled
 - all basics db operations
 - batchs support
@@ -25,9 +28,10 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 
 ## Usage
 
-See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) for more explanation.
+See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) for more explanation and specifically
+the [RocksDB Cloud usage](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/Rocksdb-Cloud) page.
 
-> Note: since the version **0.26.0**, `cmake>=3.4` is required to install `erlang-rocksdb`.
+> Note: `cmake>=3.4` is required to install `erlang-rocksdb`.
 
 ## Customized build ##
 

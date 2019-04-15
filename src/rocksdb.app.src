@@ -16,8 +16,8 @@
 %% limitations under the License.
 {application, rocksdb,
  [
-  {description, "RocksDB for Erlang"},
-  {vsn, "1.1.0"},
+  {description, "RocksDB Cloud for Erlang"},
+  {vsn, "1.0.0"},
   {registered, []},
   {applications, [
           kernel,
@@ -25,6 +25,7 @@
          ]},
   {env, []},
 
+  {pkg_name, "rocksdb_cloud"},
   {maintainers,["Benoit Chesneau"]},
   {licenses, ["Apache 2.0"]},
   {links, [{"Gitlab", "https://gitlab.com/barrel-db/erlang-rocksdb"}]},

@@ -1,3 +1,9 @@
+erlang-rocksdb 1.0.0.cloud, released on 2019/04/15
+===========================================
+
+- new rocksdb_cloud branch bringing support of [rocksdb cloud](https://github.com/rockset/rocksdb-cloud/) from rockset
+- suppot cloud env and cloud db creation.
+
 erlang-rocksdb 1.1.0, released on 2019/03/26
 ================================================
 
