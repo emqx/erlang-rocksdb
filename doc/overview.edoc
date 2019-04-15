@@ -44,7 +44,7 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 ## Usage
 
 See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) for more explanation and specifically
-the [RocksDB Cloud usage](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/Rocksdb-Cloud) page.
+the [RocksDB Cloud usage](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/Getting-Started-with-Rocksdb-Cloud) page.
 
 > Note: `cmake>=3.4' is required to install `erlang-rocksdb'.
 
