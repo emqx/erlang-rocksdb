@@ -169,7 +169,8 @@ static ErlNifFunc nif_funcs[] =
         {"set_env_background_threads", 2, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"set_env_background_threads", 3, erocksdb::SetEnvBackgroundThreads, ERL_NIF_REGULAR_BOUND},
         {"destroy_env", 1, erocksdb::DestroyEnv, ERL_NIF_REGULAR_BOUND},
-        {"new_aws_env", 7, erocksdb::NewAwsEnv, ERL_NIF_REGULAR_BOUND},
+        {"new_cloud_env", 7, erocksdb::NewCloudEnv, ERL_NIF_REGULAR_BOUND},
+        {"cloud_env_empty_bucket", 3, erocksdb::CloudEnvEmptyBucket, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
         // SST File Manager
         {"new_sst_file_manager", 2, erocksdb::NewSstFileManager, ERL_NIF_REGULAR_BOUND},

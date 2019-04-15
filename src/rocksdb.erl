@@ -121,7 +121,8 @@
 ]).
 -export([default_env/0, mem_env/0]).
 
--export([new_aws_env/7]).
+-export([new_cloud_env/7]).
+-export([cloud_env_empty_bucket/3]).
 
 %% Log Iterator API
 -export([tlog_iterator/2,
@@ -1573,15 +1574,21 @@ default_env() -> new_env(default).
 mem_env() -> new_env(memenv).
 
 
--spec new_aws_env(SrcBucketName :: string(),
+-spec new_cloud_env(SrcBucketName :: string(),
                   SrcObjectPrefix:: string(),
                   SrcBucketRegion:: string(),
                   DestBucketName:: string(),
                   DestObjectPrefix :: string(),
                   DestBucketRegion :: string(),
                   Options :: cloud_env_options()) -> ok.
-new_aws_env(_SrcBucketName, _SrcObjectPrefix, _SrcBucketRegion,
+new_cloud_env(_SrcBucketName, _SrcObjectPrefix, _SrcBucketRegion,
             _DestBucketName, _DestObjectPrefix, _DestBucketRegion, _Optons) ->
+  ?nif_stub.
+
+-spec cloud_env_empty_bucket(CloudEnv :: env_handle(),
+                             BucketPrfix :: string(),
+                             BucketPath :: string()) -> ok | error.
+cloud_env_empty_bucket(_CloudEnv, _BucketPrefix, _BucketPath) ->
   ?nif_stub.
 
 %% ===================================================================

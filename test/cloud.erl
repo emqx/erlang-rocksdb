@@ -3,12 +3,22 @@
 -include_lib("eunit/include/eunit.hrl").
 
 
+access_key() ->
+  os:getenv("MINIO_ACCESS_KEY", "admin").
+
+secret_key()->
+  os:getenv("MINIO_SECRET_KEY", "password").
+
+endpoint() ->
+  os:getenv("ENDPOINT", "127.0.0.1:9000").
+
+
 cloud_env() ->
-  Credentials = [{access_key_id, "admin"},
-                 {secret_key, "password"}],
-  AwsOptions =  [{endpoint_override, "127.0.0.1:9000"}, {scheme, "http"}],
+  Credentials = [{access_key_id, access_key()},
+                 {secret_key, secret_key()}],
+  AwsOptions =  [{endpoint_override, endpoint()}, {scheme, "http"}],
   EnvOptions = [{credentials, Credentials}, {aws_options, AwsOptions}],
-  rocksdb:new_aws_env("test", "", "", "test", "", "", EnvOptions).
+  rocksdb:new_cloud_env("test", "", "", "test", "", "", EnvOptions).
 
 
 open_db() ->

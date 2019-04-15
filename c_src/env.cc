@@ -238,7 +238,7 @@ parse_cloud_env_options(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::CloudEnvOpti
 }
 
 ERL_NIF_TERM
-NewAwsEnv(
+NewCloudEnv(
     ErlNifEnv *env,
     int /*argc*/,
     const ERL_NIF_TERM argv[])
@@ -288,6 +288,35 @@ NewAwsEnv(
     enif_release_resource(env_ptr);
     cloud_env = NULL;
     return enif_make_tuple2(env, ATOM_OK, result);
+}
+
+ERL_NIF_TERM
+CloudEnvEmptyBucket(
+        ErlNifEnv* env,
+        int /* argc */,
+        const ERL_NIF_TERM argv[])
+{
+
+    ManagedEnv* env_ptr = ManagedEnv::RetrieveEnvResource(env, argv[0]);
+
+    if(NULL==env_ptr)
+        return enif_make_badarg(env);
+
+    rocksdb::CloudEnv* cloud_env = (rocksdb::CloudEnv* )env_ptr->env();
+
+    std::string bucket_prefix;
+    std::string path_prefix;
+    if(!enif_get_std_string(env, argv[1], bucket_prefix) ||
+            !enif_get_std_string(env, argv[2], path_prefix))
+        return enif_make_badarg(env);
+
+    try {
+        cloud_env->EmptyBucket(bucket_prefix, path_prefix);
+    } catch (const std::exception& e) {
+        // pass through
+        return ATOM_ERROR;
+    }
+    return ATOM_OK;
 }
 
 ERL_NIF_TERM
