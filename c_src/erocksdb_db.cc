@@ -1854,7 +1854,26 @@ SetDBBackgroundThreads(
     return ATOM_OK;
 }   // erocksdb::SetDBBackgroundThreads
 
+ERL_NIF_TERM
+CloudDbSavePoint(
+  ErlNifEnv* env,
+  int /*argc*/,
+  const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<DbObject> db_ptr;
+    if(!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
 
+    rocksdb::DBCloud* db_cloud = (rocksdb::DBCloud* )db_ptr->m_Db;
+    rocksdb::Status status;
+    status = db_cloud->Savepoint();
+
+    if (!status.ok())
+        return error_tuple(env, ATOM_ERROR, status);
+
+    return ATOM_OK;
+
+} // erocksdb::SyncWal
 
 }
 

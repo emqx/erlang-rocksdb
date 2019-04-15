@@ -40,6 +40,8 @@ static ErlNifFunc nif_funcs[] =
 
         {"close", 1, erocksdb::Close, ERL_NIF_DIRTY_JOB_IO_BOUND},
 
+        {"cloud_db_savepoint", 1, erocksdb::CloudDbSavePoint,  ERL_NIF_DIRTY_JOB_IO_BOUND},
+
         // db management
         {"checkpoint", 2, erocksdb::Checkpoint, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"repair", 2, erocksdb::Repair, ERL_NIF_DIRTY_JOB_IO_BOUND},

@@ -123,6 +123,7 @@
 
 -export([new_cloud_env/7]).
 -export([cloud_env_empty_bucket/3]).
+-export([cloud_db_savepoint/1]).
 
 %% Log Iterator API
 -export([tlog_iterator/2,
@@ -1669,6 +1670,13 @@ new_cloud_env(_SrcBucketName, _SrcObjectPrefix, _SrcBucketRegion,
                              BucketPrfix :: string(),
                              BucketPath :: string()) -> ok | error.
 cloud_env_empty_bucket(_CloudEnv, _BucketPrefix, _BucketPath) ->
+  ?nif_stub.
+
+
+%% @doc Synchronously copy all relevant files (if any) from source cloud storage the
+%% destination cloud storage.
+-spec cloud_db_savepoint(DBHandle::db_handle()) -> ok | {error, any()}.
+cloud_db_savepoint(_Db) ->
   ?nif_stub.
 
 %% ===================================================================

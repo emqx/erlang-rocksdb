@@ -142,7 +142,7 @@ ERL_NIF_TERM WriteBufferManagerInfo(ErlNifEnv* env, int argc, const ERL_NIF_TERM
 ERL_NIF_TERM NewCloudEnv(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM OpenDBCloud(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM CloudEnvEmptyBucket(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-
+ERL_NIF_TERM CloudDbSavePoint(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 void CreateBatchType(ErlNifEnv* env);
 void CreateTransactionType(ErlNifEnv* env);
