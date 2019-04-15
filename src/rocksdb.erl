@@ -522,7 +522,12 @@ open_optimistic_transaction_db(_Name, _DbOpts, _CFDescriptors) ->
 open_with_ttl(_Name, _DBOpts, _TTL, _ReadOnly) ->
   ?nif_stub.
 
-
+%% @doc open a database with Cloud support.
+%%
+%% Important: The caller is responsible for ensuring that only one database at
+%% a time is running with the same cloud destination bucket and path. Running
+%% two databases concurrently with the same destination path will lead to
+%% corruption if it lasts for more than couple of minutes.
 -spec open_cloud_db(Name, DBOpts, CachePath, CacheSize) -> DBResult when
     Name::file:filename_all(),
     DBOpts :: db_options(),
@@ -1573,16 +1578,91 @@ default_env() -> new_env(default).
 
 mem_env() -> new_env(memenv).
 
-
+%% @doc create a new cloud environment
+%%  * `SrcBucketName' bucket name suffix where db data is read from
+%%  * `SrcObjectPrefix' all db objects in source bucket are prepended with this
+%%  * `SrcBucketRegion' :: on aws or azure regions where the source bucket will be created.
+%%     can be empty.
+%%  * `DestBucketName': bucket name suffix where db data is written to
+%%  * `DestObjectPrefix': all db objects in destination bucket are prepended with
+%%     this
+%%  * `DestBucketRegion' :: on aws or azure regions where the bucket will be created.
+%%  * `CloudEnvOptions': options of the environnemt.
+%%
+%% If src_bucket_name is empty, then the associated db does not read any
+%% data from cloud storage.
+%% If dest_bucket_name is empty, then the associated db does not write any
+%% data to cloud storage.
+%%
+%% CloudEnvOptions:
+%%
+%%  * `credentials' :: `credentials()' : access credentials
+%%  * `aws_options' :: `aws_options()' : to customize AWS access
+%%  * `keep_local_sst_files':  If `true',  then sst files are stored locally and uploaded to the cloud in
+%%  the background. On restart, all files from the cloud that are not present
+%%  locally are downloaded.
+%%  If `false' (default), then local sst files are created, uploaded to cloud immediately,
+%%  and local file is deleted. All reads are satisfied by fetching
+%%  data from the cloud.
+%%  * `keep_local_log_files':  If `true' (default),  then .log and MANIFEST files are stored in a local file system.
+%%  they are not uploaded to any cloud logging system.
+%%  If `false', then .log and MANIFEST files are not stored locally, and are
+%%  stored in a cloud-logging system like Kinesis.
+%%  * `purger_periodicity_millis': The time period when the purger checks and deleted obselete files.
+%%  This is the time when the purger wakes up, scans the cloud bucket
+%%  for files that are not part of any DB and then deletes them. Default: 10 minutes
+%%  * `validate_filesize':  Validate that locally cached files have the same size as those
+%%  stored in the cloud.
+%%  * `server_side_encryption':  If `true', enables server side encryption.
+%%  If used with encryption_key_id in S3 mode uses AWS KMS.
+%%  Otherwise, uses S3 server-side encryption where key is automatically created by Amazon.
+%%  Default: false.
+%%  * `encryption_key_id': If non-empty, uses the key ID for encryption.
+%%  * `create_bucket_if_missing': If false, it will not attempt to create cloud bucket if it doesn't exist. default: true
+%%  * `request_timeout_ms': request timeout for requests from the cloud storage. A value of 0
+%%   means the default timeout assigned by the underlying cloud storage.
+%%  * `run_purger': Use this to turn off the purger. You can do this if you don't use the clone
+%%   feature of RocksDB cloud. Default: true
+%%  * `ephemeral_resync_on_open': An ephemeral clone is a clone that has no destination bucket path. All
+%%  updates to this clone are stored locally and not uploaded to cloud.
+%%  It is called ephemeral because locally made updates can get lost if
+%%  the machines dies.
+%%  This flag controls whether the ephemeral db needs to be resynced to
+%%  the source cloud bucket at every db open time.
+%%  If true,  then the local ephemeral db is re-synced to the src cloud
+%%            bucket every time the db is opened. Any previous writes
+%%            to this ephemeral db are lost.
+%%  If false, then the local ephemeral db is initialized from data in the
+%%            src cloud bucket only if the local copy does not exist.
+%%            If the local copy of the db already exists, then no data
+%%            from the src cloud bucket is copied to the local db dir.
+%%  Default:  false
+%%  * `skip_dbid_verification' If true, we will skip the dbid verification on startup. This is currently
+%%  only used in tests and is not recommended setting. Default: false.
+%%
+%%  AwsEnvOptions::
+%%
+%%  * Timeout control : `request_timeout_ms', `connect_timeout_ms'
+%%  * Endpoint override:
+%%    `endpoint_override' local S3/Minio server "127.0.0.1:9000"
+%%    `scheme': "http" or "https"
+%%    `verify_ssl': false - don't verify, true - do verify
+%%  * Proxy settings, not using by default and if proxyHost == ""
+%%  `proxy_host', `proxy_scheme', `proxy_port', `proxy_user_name', `proxy_password'
+%%
+%%  Credentials
+%%
+%%  Credentials needed to access AWS cloud service
+%%  `access_key_id', `secret_key'
 -spec new_cloud_env(SrcBucketName :: string(),
                   SrcObjectPrefix:: string(),
                   SrcBucketRegion:: string(),
                   DestBucketName:: string(),
                   DestObjectPrefix :: string(),
                   DestBucketRegion :: string(),
-                  Options :: cloud_env_options()) -> ok.
+                  CloudEnvOptions :: cloud_env_options()) -> ok.
 new_cloud_env(_SrcBucketName, _SrcObjectPrefix, _SrcBucketRegion,
-            _DestBucketName, _DestObjectPrefix, _DestBucketRegion, _Optons) ->
+            _DestBucketName, _DestObjectPrefix, _DestBucketRegion, _CloudEnvOptions) ->
   ?nif_stub.
 
 -spec cloud_env_empty_bucket(CloudEnv :: env_handle(),
