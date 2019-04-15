@@ -31,7 +31,7 @@ See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) fo
 
 ## Customized build ##
 
-See the [Customized builds](http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/customize_rocksdb_build.md) for more information.
+See the [Customized builds](http://gitlab.com/barrel-db/erlang-rocksdb/blob/rocksdb-cloud/doc/customize_rocksdb_build.md) for more information.
 
 ## Support
 
@@ -46,5 +46,5 @@ Erlang RocksDB is licensed under the Apache License 2.
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/rocksdb.md" class="module">rocksdb</a></td></tr></table>
+<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/rocksdb-cloud/doc/rocksdb.md" class="module">rocksdb</a></td></tr></table>
 

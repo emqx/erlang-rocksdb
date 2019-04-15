@@ -25,6 +25,26 @@ access_hint() = normal | sequential | willneed | none
 
 
 
+### <a name="type-aws_cloud_access_credentials">aws_cloud_access_credentials()</a> ###
+
+
+<pre><code>
+aws_cloud_access_credentials() = [{access_key_id, string()} | {secret_key, string()}]
+</code></pre>
+
+
+
+
+### <a name="type-aws_options">aws_options()</a> ###
+
+
+<pre><code>
+aws_options() = [{request_timeout_ms, non_neg_integer()} | {connect_timeout_ms, non_neg_integer()} | {endpoint_override, string()} | {scheme, string()} | {verify_ssl, boolean()} | {proxy_host, string()} | {proxy_scheme, string()} | {proxy_port, non_neg_integer()} | {proxy_user_name, string()} | {proxy_password, string()}]
+</code></pre>
+
+
+
+
 ### <a name="type-backup_engine">backup_engine()</a> ###
 
 
@@ -92,6 +112,16 @@ __abstract datatype__: `cf_handle()`
 
 <pre><code>
 cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {memtable_memory_budget, pos_integer()} | {write_buffer_size, pos_integer()} | {max_write_buffer_number, pos_integer()} | {min_write_buffer_number_to_merge, pos_integer()} | {compression, <a href="#type-compression_type">compression_type()</a>} | {num_levels, pos_integer()} | {level0_file_num_compaction_trigger, integer()} | {level0_slowdown_writes_trigger, integer()} | {level0_stop_writes_trigger, integer()} | {max_mem_compaction_level, pos_integer()} | {target_file_size_base, pos_integer()} | {target_file_size_multiplier, pos_integer()} | {max_bytes_for_level_base, pos_integer()} | {max_bytes_for_level_multiplier, pos_integer()} | {max_compaction_bytes, pos_integer()} | {soft_rate_limit, float()} | {hard_rate_limit, float()} | {arena_block_size, integer()} | {disable_auto_compactions, boolean()} | {purge_redundant_kvs_while_flush, boolean()} | {compaction_style, <a href="#type-compaction_style">compaction_style()</a>} | {compaction_pri, <a href="#type-compaction_pri">compaction_pri()</a>} | {filter_deletes, boolean()} | {max_sequential_skip_in_iterations, pos_integer()} | {inplace_update_support, boolean()} | {inplace_update_num_locks, pos_integer()} | {table_factory_block_cache_size, pos_integer()} | {in_memory_mode, boolean()} | {block_based_table_options, <a href="#type-block_based_table_options">block_based_table_options()</a>} | {level_compaction_dynamic_level_bytes, boolean()} | {optimize_filters_for_hits, boolean()} | {prefix_transform, [{fixed_prefix_transform, integer()} | {capped_prefix_transform, integer()}]} | {merge_operator, <a href="#type-merge_operator">merge_operator()</a>}]
+</code></pre>
+
+
+
+
+### <a name="type-cloud_env_options">cloud_env_options()</a> ###
+
+
+<pre><code>
+cloud_env_options() = [{credentials, <a href="#type-aws_cloud_access_credentials">aws_cloud_access_credentials()</a>} | {aws_options, <a href="#type-aws_options">aws_options()</a>} | {keep_local_sst_files, boolean()} | {keep_local_log_files, boolean()} | {purger_periodicity_millis, non_neg_integer()} | {validate_filesize, boolean()} | {server_side_encryption, boolean()} | {encryption_key_id, string()} | {create_bucket_if_missing, boolean()} | {request_timeout_ms, non_neg_integer()} | {run_purger, boolean()} | {ephemeral_resync_on_open, boolean()} | {skip_dbid_verification, boolean()}]
 </code></pre>
 
 
@@ -373,7 +403,8 @@ write_options() = [{sync, boolean()} | {disable_wal, boolean()} | {ignore_missin
 
 <table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#batch-0">batch/0</a></td><td>create a new batch in memory.</td></tr><tr><td valign="top"><a href="#batch_clear-1">batch_clear/1</a></td><td>reset the batch, clear all operations.</td></tr><tr><td valign="top"><a href="#batch_count-1">batch_count/1</a></td><td>return the number of operations in the batch.</td></tr><tr><td valign="top"><a href="#batch_data_size-1">batch_data_size/1</a></td><td>Retrieve data size of the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-2">batch_delete/2</a></td><td>batch implementation of delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_delete-3">batch_delete/3</a></td><td>like <code>batch_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_merge-3">batch_merge/3</a></td><td>add a merge operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_merge-4">batch_merge/4</a></td><td>like <code>batch_mege/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_put-3">batch_put/3</a></td><td>add a put operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_put-4">batch_put/4</a></td><td>like <code>batch_put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_rollback-1">batch_rollback/1</a></td><td>rollback the operations to the latest checkpoint.</td></tr><tr><td valign="top"><a href="#batch_savepoint-1">batch_savepoint/1</a></td><td>store a checkpoint in the batch to which you can rollback later.</td></tr><tr><td valign="top"><a href="#batch_single_delete-2">batch_single_delete/2</a></td><td>batch implementation of single_delete operation to the batch.</td></tr><tr><td valign="top"><a href="#batch_single_delete-3">batch_single_delete/3</a></td><td>like <code>batch_single_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#batch_tolist-1">batch_tolist/1</a></td><td>return all the operation sin the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#cache_info-1">cache_info/1</a></td><td>return informations of a cache as a list of tuples.</td></tr><tr><td valign="top"><a href="#cache_info-2">cache_info/2</a></td><td>return the information associated with Item for cache Cache.</td></tr><tr><td valign="top"><a href="#checkpoint-2">checkpoint/2</a></td><td>take a snapshot of a running RocksDB database in a separate directory
 http://rocksdb.org/blog/2609/use-checkpoints-for-efficient-snapshots/.</td></tr><tr><td valign="top"><a href="#close-1">close/1</a></td><td>Close RocksDB.</td></tr><tr><td valign="top"><a href="#close_backup_engine-1">close_backup_engine/1</a></td><td>stop and close the backup engine
-note: experimental for testing only.</td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td></td></tr><tr><td valign="top"><a href="#compact_range-4">compact_range/4</a></td><td>Compact the underlying storage for the key range [*begin,*end].</td></tr><tr><td valign="top"><a href="#compact_range-5">compact_range/5</a></td><td> Compact the underlying storage for the key range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
+note: experimental for testing only.</td></tr><tr><td valign="top"><a href="#close_updates_iterator-1">close_updates_iterator/1</a></td><td></td></tr><tr><td valign="top"><a href="#cloud_db_savepoint-1">cloud_db_savepoint/1</a></td><td>Synchronously copy all relevant files (if any) from source cloud storage the
+destination cloud storage.</td></tr><tr><td valign="top"><a href="#cloud_env_empty_bucket-3">cloud_env_empty_bucket/3</a></td><td></td></tr><tr><td valign="top"><a href="#compact_range-4">compact_range/4</a></td><td>Compact the underlying storage for the key range [*begin,*end].</td></tr><tr><td valign="top"><a href="#compact_range-5">compact_range/5</a></td><td> Compact the underlying storage for the key range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#count-1">count/1</a></td><td>Return the approximate number of keys in the default column family.</td></tr><tr><td valign="top"><a href="#count-2">count/2</a></td><td>
 Return the approximate number of keys in the specified column family.</td></tr><tr><td valign="top"><a href="#create_column_family-3">create_column_family/3</a></td><td>Create a new column family.</td></tr><tr><td valign="top"><a href="#create_new_backup-2">create_new_backup/2</a></td><td>Captures the state of the database in the latest backup.</td></tr><tr><td valign="top"><a href="#default_env-0">default_env/0</a></td><td></td></tr><tr><td valign="top"><a href="#delete-3">delete/3</a></td><td>Delete a key/value pair in the default column family.</td></tr><tr><td valign="top"><a href="#delete-4">delete/4</a></td><td>Delete a key/value pair in the specified column family.</td></tr><tr><td valign="top"><a href="#delete_backup-2">delete_backup/2</a></td><td>deletes a specific backup.</td></tr><tr><td valign="top"><a href="#delete_range-4">delete_range/4</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,
 including "BeginKey" and excluding "EndKey".</td></tr><tr><td valign="top"><a href="#delete_range-5">delete_range/5</a></td><td>Removes the database entries in the range ["BeginKey", "EndKey").</td></tr><tr><td valign="top"><a href="#destroy-2">destroy/2</a></td><td>Destroy the contents of the specified database.</td></tr><tr><td valign="top"><a href="#destroy_column_family-1">destroy_column_family/1</a></td><td></td></tr><tr><td valign="top"><a href="#destroy_column_family-2">destroy_column_family/2</a></td><td>Destroy a column family.</td></tr><tr><td valign="top"><a href="#destroy_env-1">destroy_env/1</a></td><td>destroy an environment.</td></tr><tr><td valign="top"><a href="#drop_column_family-1">drop_column_family/1</a></td><td></td></tr><tr><td valign="top"><a href="#drop_column_family-2">drop_column_family/2</a></td><td>Drop a column family.</td></tr><tr><td valign="top"><a href="#flush-2">flush/2</a></td><td>Flush all mem-table data.</td></tr><tr><td valign="top"><a href="#flush-3">flush/3</a></td><td>Flush all mem-table data for a column family.</td></tr><tr><td valign="top"><a href="#fold-4">fold/4</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the default column family
 starting with AccIn == Acc0.</td></tr><tr><td valign="top"><a href="#fold-5">fold/5</a></td><td>Calls Fun(Elem, AccIn) on successive elements in the specified column family
@@ -387,9 +418,12 @@ file system space used by keys in "[range[i].start ..</td></tr><tr><td valign="t
 Close a iterator.</td></tr><tr><td valign="top"><a href="#iterator_move-2">iterator_move/2</a></td><td>
 Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterator_refresh-1">iterator_refresh/1</a></td><td>
 Refresh iterator.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>
-Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td></td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_cache-2">new_cache/2</a></td><td>// Create a new cache.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_env-0">new_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#new_env-1">new_env/1</a></td><td>return a db environment.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
+Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td></td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_cache-2">new_cache/2</a></td><td>// Create a new cache.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_cloud_env-7">new_cloud_env/7</a></td><td>create a new cloud environment
+* <code>SrcBucketName</code> bucket name suffix where db data is read from
+* <code>SrcObjectPrefix</code> all db objects in source bucket are prepended with this
+* <code>SrcBucketRegion</code> :: on aws or azure regions where the source bucket will be created.</td></tr><tr><td valign="top"><a href="#new_env-0">new_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#new_env-1">new_env/1</a></td><td>return a db environment.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
 RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-2">new_sst_file_manager/2</a></td><td>create new SstFileManager that can be shared among multiple RocksDB
-instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open-3">open/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine for creating new backups.</td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-2">open_optimistic_transaction_db/2</a></td><td></td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-3">open_optimistic_transaction_db/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
+instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open-3">open/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine for creating new backups.</td></tr><tr><td valign="top"><a href="#open_cloud_db-4">open_cloud_db/4</a></td><td>open a database with Cloud support.</td></tr><tr><td valign="top"><a href="#open_cloud_db-5">open_cloud_db/5</a></td><td></td></tr><tr><td valign="top"><a href="#open_cloud_db-6">open_cloud_db/6</a></td><td></td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-2">open_optimistic_transaction_db/2</a></td><td></td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-3">open_optimistic_transaction_db/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
 This API should be used to open the db when key-values inserted are
 meant to be removed from the db in a non-strict <code>TTL</code> amount of time
 Therefore, this guarantees that key-values inserted will remain in the
@@ -657,6 +691,27 @@ note: experimental for testing only
 ### close_updates_iterator/1 ###
 
 `close_updates_iterator(Itr) -> any()`
+
+<a name="cloud_db_savepoint-1"></a>
+
+### cloud_db_savepoint/1 ###
+
+<pre><code>
+cloud_db_savepoint(DBHandle::<a href="#type-db_handle">db_handle()</a>) -&gt; ok | {error, any()}
+</code></pre>
+<br />
+
+Synchronously copy all relevant files (if any) from source cloud storage the
+destination cloud storage.
+
+<a name="cloud_env_empty_bucket-3"></a>
+
+### cloud_env_empty_bucket/3 ###
+
+<pre><code>
+cloud_env_empty_bucket(CloudEnv::<a href="#type-env_handle">env_handle()</a>, BucketPrfix::string(), BucketPath::string()) -&gt; ok | error
+</code></pre>
+<br />
 
 <a name="compact_range-4"></a>
 
@@ -1290,6 +1345,92 @@ new_cache(Type::<a href="#type-cache_type">cache_type()</a>, Capacity::non_neg_i
 
 `new_clock_cache(Capacity) -> any()`
 
+<a name="new_cloud_env-7"></a>
+
+### new_cloud_env/7 ###
+
+<pre><code>
+new_cloud_env(SrcBucketName::string(), SrcObjectPrefix::string(), SrcBucketRegion::string(), DestBucketName::string(), DestObjectPrefix::string(), DestBucketRegion::string(), CloudEnvOptions::<a href="#type-cloud_env_options">cloud_env_options()</a>) -&gt; ok
+</code></pre>
+<br />
+
+create a new cloud environment
+* `SrcBucketName` bucket name suffix where db data is read from
+* `SrcObjectPrefix` all db objects in source bucket are prepended with this
+* `SrcBucketRegion` :: on aws or azure regions where the source bucket will be created.
+can be empty.
+* `DestBucketName`: bucket name suffix where db data is written to
+* `DestObjectPrefix`: all db objects in destination bucket are prepended with
+this
+* `DestBucketRegion` :: on aws or azure regions where the bucket will be created.
+* `CloudEnvOptions`: options of the environnemt.
+
+If src_bucket_name is empty, then the associated db does not read any
+data from cloud storage.
+If dest_bucket_name is empty, then the associated db does not write any
+data to cloud storage.
+
+CloudEnvOptions:
+
+* `credentials` :: `credentials()` : access credentials
+* `aws_options` :: `aws_options()` : to customize AWS access
+* `keep_local_sst_files`:  If `true`,  then sst files are stored locally and uploaded to the cloud in
+the background. On restart, all files from the cloud that are not present
+locally are downloaded.
+If `false` (default), then local sst files are created, uploaded to cloud immediately,
+and local file is deleted. All reads are satisfied by fetching
+data from the cloud.
+* `keep_local_log_files`:  If `true` (default),  then .log and MANIFEST files are stored in a local file system.
+they are not uploaded to any cloud logging system.
+If `false`, then .log and MANIFEST files are not stored locally, and are
+stored in a cloud-logging system like Kinesis.
+* `purger_periodicity_millis`: The time period when the purger checks and deleted obselete files.
+This is the time when the purger wakes up, scans the cloud bucket
+for files that are not part of any DB and then deletes them. Default: 10 minutes
+* `validate_filesize`:  Validate that locally cached files have the same size as those
+stored in the cloud.
+* `server_side_encryption`:  If `true`, enables server side encryption.
+If used with encryption_key_id in S3 mode uses AWS KMS.
+Otherwise, uses S3 server-side encryption where key is automatically created by Amazon.
+Default: false.
+* `encryption_key_id`: If non-empty, uses the key ID for encryption.
+* `create_bucket_if_missing`: If false, it will not attempt to create cloud bucket if it doesn't exist. default: true
+* `request_timeout_ms`: request timeout for requests from the cloud storage. A value of 0
+means the default timeout assigned by the underlying cloud storage.
+* `run_purger`: Use this to turn off the purger. You can do this if you don't use the clone
+feature of RocksDB cloud. Default: true
+* `ephemeral_resync_on_open`: An ephemeral clone is a clone that has no destination bucket path. All
+updates to this clone are stored locally and not uploaded to cloud.
+It is called ephemeral because locally made updates can get lost if
+the machines dies.
+This flag controls whether the ephemeral db needs to be resynced to
+the source cloud bucket at every db open time.
+If true,  then the local ephemeral db is re-synced to the src cloud
+bucket every time the db is opened. Any previous writes
+to this ephemeral db are lost.
+If false, then the local ephemeral db is initialized from data in the
+src cloud bucket only if the local copy does not exist.
+If the local copy of the db already exists, then no data
+from the src cloud bucket is copied to the local db dir.
+Default:  false
+* `skip_dbid_verification` If true, we will skip the dbid verification on startup. This is currently
+only used in tests and is not recommended setting. Default: false.
+
+AwsEnvOptions::
+
+* Timeout control : `request_timeout_ms`, `connect_timeout_ms`
+* Endpoint override:
+`endpoint_override` local S3/Minio server "127.0.0.1:9000"
+`scheme`: "http" or "https"
+`verify_ssl`: false - don't verify, true - do verify
+* Proxy settings, not using by default and if proxyHost == ""
+`proxy_host`, `proxy_scheme`, `proxy_port`, `proxy_user_name`, `proxy_password`
+
+Credentials
+
+Credentials needed to access AWS cloud service
+`access_key_id`, `secret_key`
+
 <a name="new_env-0"></a>
 
 ### new_env/0 ###
@@ -1446,6 +1587,43 @@ open_backup_engine(Path::string) -&gt; {ok, <a href="#type-backup_engine">backup
 <br />
 
 open a new backup engine for creating new backups.
+
+<a name="open_cloud_db-4"></a>
+
+### open_cloud_db/4 ###
+
+<pre><code>
+open_cloud_db(Name, DBOpts, CachePath, CacheSize) -&gt; DBResult
+</code></pre>
+
+<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>CachePath = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>CacheSize = non_neg_integer()</code></li><li><code>DBResult = {ok, <a href="#type-db_handle">db_handle()</a>} | {error, any()}</code></li></ul>
+
+open a database with Cloud support.
+
+Important: The caller is responsible for ensuring that only one database at
+a time is running with the same cloud destination bucket and path. Running
+two databases concurrently with the same destination path will lead to
+corruption if it lasts for more than couple of minutes.
+
+<a name="open_cloud_db-5"></a>
+
+### open_cloud_db/5 ###
+
+<pre><code>
+open_cloud_db(Name, DBOpts, CFDescriptors, CachePath, CacheSize) -&gt; DBResult
+</code></pre>
+
+<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>CFDescriptors = [#cf_descriptor{name = string(), options = <a href="#type-cf_options">cf_options()</a>}]</code></li><li><code>CachePath = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>CacheSize = non_neg_integer()</code></li><li><code>DBResult = {ok, <a href="#type-db_handle">db_handle()</a>, [<a href="#type-cf_handle">cf_handle()</a>]} | {error, any()}</code></li></ul>
+
+<a name="open_cloud_db-6"></a>
+
+### open_cloud_db/6 ###
+
+<pre><code>
+open_cloud_db(Name, DBOpts, CFDescriptors, CachePath, CacheSize, ReadOnly) -&gt; DBResult
+</code></pre>
+
+<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>CFDescriptors = [#cf_descriptor{name = string(), options = <a href="#type-cf_options">cf_options()</a>}]</code></li><li><code>CachePath = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>CacheSize = non_neg_integer()</code></li><li><code>ReadOnly = true | false</code></li><li><code>DBResult = {ok, <a href="#type-db_handle">db_handle()</a>, [<a href="#type-cf_handle">cf_handle()</a>]} | {error, any()}</code></li></ul>
 
 <a name="open_optimistic_transaction_db-2"></a>
 
@@ -1922,7 +2100,7 @@ like `tlog_nex_binary_update/1` but also return the batch as a list of operation
 ### transaction/2 ###
 
 <pre><code>
-transaction(TransactionDB::<a href="#type-db_handle">db_handle()</a>, WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; ok
+transaction(TransactionDB::<a href="#type-db_handle">db_handle()</a>, WriteOptions::<a href="#type-write_options">write_options()</a>) -&gt; {ok, <a href="#type-transaction_handle">transaction_handle()</a>}
 </code></pre>
 <br />
 
