@@ -18,6 +18,8 @@ cloud_env() ->
                  {secret_key, secret_key()}],
   AwsOptions =  [{endpoint_override, endpoint()}, {scheme, "http"}],
   EnvOptions = [{credentials, Credentials}, {aws_options, AwsOptions}],
+  {ok, CloudEnv} = rocksdb:new_cloud_env("test", "", "", "test", "", "", EnvOptions),
+  ok = rocksdb:cloud_env_empty_bucket(CloudEnv, "", "/"),
   rocksdb:new_cloud_env("test", "", "", "test", "", "", EnvOptions).
 
 
