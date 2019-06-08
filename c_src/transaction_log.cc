@@ -40,7 +40,7 @@ TransactionLogIterator(
 {
 
     ErlNifSInt64 since;
-    rocksdb::unique_ptr<rocksdb::TransactionLogIterator> iter;
+    std::unique_ptr<rocksdb::TransactionLogIterator> iter;
     ReferencePtr<DbObject> db_ptr;
 
     if(!enif_get_db(env, argv[0], &db_ptr))
