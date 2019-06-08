@@ -503,6 +503,11 @@ class SpecialEnv : public EnvWrapper {
     return s;
   }
 
+  virtual uint64_t NowCPUNanos() override {
+    now_cpu_count_.fetch_add(1);
+    return target()->NowCPUNanos();
+  }
+
   virtual uint64_t NowNanos() override {
     return (time_elapse_only_sleep_ ? 0 : target()->NowNanos()) +
            addon_time_.load() * 1000;
@@ -571,6 +576,8 @@ class SpecialEnv : public EnvWrapper {
   std::function<void()>* table_write_callback_;
 
   std::atomic<int64_t> addon_time_;
+
+  std::atomic<int> now_cpu_count_;
 
   std::atomic<int> delete_count_;
 
@@ -645,29 +652,28 @@ class DBTestBase : public testing::Test {
     kPlainTableAllBytesPrefix = 6,
     kVectorRep = 7,
     kHashLinkList = 8,
-    kHashCuckoo = 9,
-    kMergePut = 10,
-    kFilter = 11,
-    kFullFilterWithNewTableReaderForCompactions = 12,
-    kUncompressed = 13,
-    kNumLevel_3 = 14,
-    kDBLogDir = 15,
-    kWalDirAndMmapReads = 16,
-    kManifestFileSize = 17,
-    kPerfOptions = 18,
-    kHashSkipList = 19,
-    kUniversalCompaction = 20,
-    kUniversalCompactionMultiLevel = 21,
-    kCompressedBlockCache = 22,
-    kInfiniteMaxOpenFiles = 23,
-    kxxHashChecksum = 24,
-    kFIFOCompaction = 25,
-    kOptimizeFiltersForHits = 26,
-    kRowCache = 27,
-    kRecycleLogFiles = 28,
-    kConcurrentSkipList = 29,
-    kPipelinedWrite = 30,
-    kConcurrentWALWrites = 31,
+    kMergePut = 9,
+    kFilter = 10,
+    kFullFilterWithNewTableReaderForCompactions = 11,
+    kUncompressed = 12,
+    kNumLevel_3 = 13,
+    kDBLogDir = 14,
+    kWalDirAndMmapReads = 15,
+    kManifestFileSize = 16,
+    kPerfOptions = 17,
+    kHashSkipList = 18,
+    kUniversalCompaction = 19,
+    kUniversalCompactionMultiLevel = 20,
+    kCompressedBlockCache = 21,
+    kInfiniteMaxOpenFiles = 22,
+    kxxHashChecksum = 23,
+    kFIFOCompaction = 24,
+    kOptimizeFiltersForHits = 25,
+    kRowCache = 26,
+    kRecycleLogFiles = 27,
+    kConcurrentSkipList = 28,
+    kPipelinedWrite = 29,
+    kConcurrentWALWrites = 30,
     kDirectIO,
     kLevelSubcompactions,
     kBlockBasedTableWithIndexRestartInterval,
@@ -703,7 +709,6 @@ class DBTestBase : public testing::Test {
     kSkipPlainTable = 8,
     kSkipHashIndex = 16,
     kSkipNoSeekToLast = 32,
-    kSkipHashCuckoo = 64,
     kSkipFIFOCompaction = 128,
     kSkipMmapReads = 256,
   };
@@ -832,6 +837,10 @@ class DBTestBase : public testing::Test {
                   const Snapshot* snapshot = nullptr);
 
   Status Get(const std::string& k, PinnableSlice* v);
+
+  std::vector<std::string> MultiGet(std::vector<int> cfs,
+                                    const std::vector<std::string>& k,
+                                    const Snapshot* snapshot = nullptr);
 
   uint64_t GetNumSnapshots();
 
