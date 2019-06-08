@@ -1,50 +1,31 @@
+## RocksDB: A Persistent Key-Value Store for Flash and RAM Storage
 
+[![Linux/Mac Build Status](https://travis-ci.org/facebook/rocksdb.svg?branch=master)](https://travis-ci.org/facebook/rocksdb)
+[![Windows Build status](https://ci.appveyor.com/api/projects/status/fbgfu0so3afcno78/branch/master?svg=true)](https://ci.appveyor.com/project/Facebook/rocksdb/branch/master)
+[![PPC64le Build Status](http://140.211.168.68:8080/buildStatus/icon?job=Rocksdb)](http://140.211.168.68:8080/job/Rocksdb)
 
-# erlang-rocksdb - Erlang wrapper for RocksDB. #
+RocksDB is developed and maintained by Facebook Database Engineering Team.
+It is built on earlier work on [LevelDB](https://github.com/google/leveldb) by Sanjay Ghemawat (sanjay@google.com)
+and Jeff Dean (jeff@google.com)
 
-Copyright (c) 2016-2019 Benoît Chesneau.
+This code is a library that forms the core building block for a fast
+key value server, especially suited for storing data on flash drives.
+It has a Log-Structured-Merge-Database (LSM) design with flexible tradeoffs
+between Write-Amplification-Factor (WAF), Read-Amplification-Factor (RAF)
+and Space-Amplification-Factor (SAF). It has multi-threaded compactions,
+making it specially suitable for storing multiple terabytes of data in a
+single database.
 
-__Version:__ 1.0.0 Erlang wrapper for RocksDB.
+Start with example usage here: https://github.com/facebook/rocksdb/tree/master/examples
 
-Feedback and pull requests welcome! If a particular feature of RocksDB is important to you, please let me know by opening an issue, and I'll prioritize it.
+See the [github wiki](https://github.com/facebook/rocksdb/wiki) for more explanation.
 
-## Features
+The public interface is in `include/`.  Callers should not include or
+rely on the details of any other header files in this package.  Those
+internal APIs may be changed without warning.
 
-- rocksdb 5.17.2 with snappy 1.1.7, lz4 1.8.3
-- Erlang 19.3 and sup with dirty-nifs enabled
-- all basics db operations
-- batchs support
-- snapshots support
-- checkpoint support
-- column families support
-- transaction logs
-- backup support
-- erlang merge operator
-- customized build support
-- Tested on macosx, freebsd, solaris and linux
-
-## Usage
-
-See the [Gitlab Wiki](https://gitlab.com/barrel-db/erlang-rocksdb/wikis/home) for more explanation.
-
-> Note: since the version **0.26.0**, `cmake>=3.4` is required to install `erlang-rocksdb`.
-
-## Customized build ##
-
-See the [Customized builds](http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/customize_rocksdb_build.md) for more information.
-
-## Support
-
-Support, Design and discussions are done via the [Gitlab Tracker](https://gitlab.com/barrel-db/erlang-rocksdb/issues) or [email](mailto:incoming+barrel-db/erlang-rocksdb@gitlab.com).
+Design discussions are conducted in https://www.facebook.com/groups/rocksdb.dev/
 
 ## License
 
-Erlang RocksDB is licensed under the Apache License 2.
-
-
-## Modules ##
-
-
-<table width="100%" border="0" summary="list of modules">
-<tr><td><a href="http://gitlab.com/barrel-db/erlang-rocksdb/blob/master/doc/rocksdb.md" class="module">rocksdb</a></td></tr></table>
-
+RocksDB is dual-licensed under both the GPLv2 (found in the COPYING file in the root directory) and Apache 2.0 License (found in the LICENSE.Apache file in the root directory).  You may select, at your option, one of the above-listed licenses.
