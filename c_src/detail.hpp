@@ -29,7 +29,6 @@
 namespace erocksdb {
     template<typename T>
     bool compare_and_swap(std::atomic<T>& a, T expected, T val) {
-        T old = expected;
         return a.compare_exchange_strong(expected, val);
     }
 }

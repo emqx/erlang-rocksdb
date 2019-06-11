@@ -102,7 +102,7 @@ ErlRefObject::InitiateCloseRequest(
 
     // special handling since destructor may have been called
     if (NULL!=Object && 0==Object->m_CloseRequested)
-        ret_flag=compare_and_swap(Object->m_CloseRequested, 0u, 1u);
+        ret_flag=erocksdb::compare_and_swap(Object->m_CloseRequested, 0u, 1u);
 
     // vtable is still good, this thread is initiating close
     //   ask object to clean-up
