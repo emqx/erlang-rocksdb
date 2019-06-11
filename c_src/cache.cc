@@ -92,7 +92,7 @@ NewCache(
     Cache *cache_ptr;
     std::shared_ptr<rocksdb::Cache> cache;
 
-    if (!enif_is_atom(env, argv[0]) || !enif_get_uint64(env, argv[1], &capacity)) 
+    if (!enif_is_atom(env, argv[0]) || !enif_get_uint64(env, argv[1], &capacity))
         return enif_make_badarg(env);
 
     if (argv[0] == erocksdb::ATOM_LRU) {
@@ -168,7 +168,7 @@ CacheInfo(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 
     if (argc > 1)
     {
-        return cache_info_1(env, cache, argv[1]);
+        return cache_info_1(env, std::move(cache), argv[1]);
     }
 
     std::array<ERL_NIF_TERM, 4> items = {
@@ -182,10 +182,9 @@ CacheInfo(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     for(const auto& item : items) {
         info = enif_make_list_cell(
                 env,
-                enif_make_tuple2(env, item, cache_info_1(env, cache, item)),
+                enif_make_tuple2(env, item, cache_info_1(env, std::move(cache), item)),
                 info);
     }
-
     return info;
 }
 
