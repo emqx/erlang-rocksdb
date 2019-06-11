@@ -56,17 +56,19 @@ sharedcacheleak_loop(Count, Cache ,Blobs, MaxFinalRSS) ->
           [ok = rocksdb:put(Ref, I, B, []) || {I, B} <- Blobs],
           rocksdb:fold(Ref, fun({_K, _V}, A) -> A end, [], [{fill_cache, true}]),
           [{ok, B} = rocksdb:get(Ref, I, []) || {I, B} <- Blobs],
-          ok = rocksdb:close(Ref),
-          erlang:garbage_collect(),
-          io:format(user, "cache usage: ~p\n", [rocksdb:cache_info(Cache, usage)]),
-          io:format(user, "RSS1: ~p\n", [rssmem()])
+          ok = rocksdb:close(Ref)
+
       end,
   {_Pid, Mref} = spawn_monitor(F),
   receive
     {'DOWN', Mref, process, _, _} ->
+      erlang:garbage_collect(),
       ok
   end,
   RSS = rssmem(),
+  io:format(user, "cache usage: ~p\n", [rocksdb:cache_info(Cache, usage)]),
+  io:format(user, "RSS1: ~p\n", [RSS]),
+
   io:format(user, "RSS: ~p, Max: ~p~n", [RSS, MaxFinalRSS]),
   ?assert(MaxFinalRSS > RSS),
   sharedcacheleak_loop(Count-1, Cache, Blobs, MaxFinalRSS).
