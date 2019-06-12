@@ -43,18 +43,12 @@ EXECUTE_PROCESS(COMMAND
 
 MESSAGE(STATUS "Using OTP lib: ${ERLANG_OTP_LIB_DIR} - found")
 
-EXECUTE_PROCESS(COMMAND ls ${ERLANG_OTP_LIB_DIR}
-  COMMAND grep erl_interface
-  COMMAND sort -n
-  COMMAND tail -1
-  COMMAND tr -d \n
+EXECUTE_PROCESS(COMMAND
+  erl -noshell -eval "io:format(\"~s\",[lists:nth(1,lists:filter(fun(E) -> lists:prefix(\"erl_interface\",E) end,element(2,file:list_dir(code:lib_dir()))))])" -s erlang halt
   OUTPUT_VARIABLE ERLANG_EI_DIR)
 
-EXECUTE_PROCESS(COMMAND ls ${ERLANG_OTP_ROOT_DIR}
-  COMMAND grep erts
-  COMMAND sort -n
-  COMMAND tail -1
-  COMMAND tr -d \n
+EXECUTE_PROCESS(COMMAND
+  erl -noshell -eval "io:format(\"~s\",[lists:nth(1,lists:filter(fun(E) -> lists:prefix(\"erts\",E) end,element(2,file:list_dir(code:lib_dir()))))])" -s erlang halt
   OUTPUT_VARIABLE ERLANG_ERTS_DIR)
 
 MESSAGE(STATUS "Using erl_interface version: ${ERLANG_EI_DIR}")

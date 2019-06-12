@@ -30,6 +30,10 @@ list(APPEND rocksdb_CMAKE_ARGS -DWITH_ZLIB=${ZLIB_FOUND})
 list(APPEND rocksdb_CMAKE_ARGS -DWITH_BZ2=${BZIP2_FOUND})
 list(APPEND rocksdb_CMAKE_ARGS -DWITH_ZSTD=${ZSTD_FOUND})
 
+if(MSVC)
+    list(APPEND rocksdb_CMAKE_ARGS -DWITHOUT_THIRDPARTY_INC=ON)
+endif()
+
 if(WITH_BUNDLE_SNAPPY)
     list(APPEND rocksdb_CMAKE_ARGS -DSNAPPY_ROOT_DIR=${SNAPPY_ROOT_DIR})
 endif()
@@ -41,15 +45,19 @@ endif()
 message(STATUS "cmake args ${rocksdb_CMAKE_ARGS}")
 
 include(ExternalProject)
+if(MSVC)
+   set(BUILD_CMD ${CMAKE_COMMAND}  --build . --config Release --target rocksdb -- -m)
+else()
+   set(BUILD_CMD $(MAKE) rocksdb)
+endif()
 
 ExternalProject_Add(rocksdb
     SOURCE_DIR "${ROCKSDB_ROOT_DIR}"
     DOWNLOAD_COMMAND ""
     CMAKE_ARGS ${rocksdb_CMAKE_ARGS}
-    BUILD_COMMAND $(MAKE) rocksdb
+    BUILD_COMMAND ${BUILD_CMD}
     INSTALL_COMMAND ""
     )
-
 
 ExternalProject_Get_Property(rocksdb BINARY_DIR)
 
@@ -63,9 +71,13 @@ if(WITH_BUNDLE_LZ4)
     ExternalProject_Add_StepDependencies(rocksdb build lz4)
 endif()
 
-
-set(ROCKSDB_LIBRARIES
-    ${BINARY_DIR}/librocksdb${CMAKE_STATIC_LIBRARY_SUFFIX})
+if(MSVC)
+    set(ROCKSDB_LIBRARIES
+        ${BINARY_DIR}/Release/rocksdb${CMAKE_STATIC_LIBRARY_SUFFIX})
+else()
+    set(ROCKSDB_LIBRARIES
+        ${BINARY_DIR}/librocksdb${CMAKE_STATIC_LIBRARY_SUFFIX})
+endif()
 
 set(ROCKSDB_FOUND TRUE)
 
