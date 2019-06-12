@@ -881,7 +881,7 @@ OpenWithCf(
             handle_ptr = NULL;
             cf_list = enif_make_list_cell(env, cf, cf_list);
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         // pass through
     }
     // clear the automatic reference from enif_alloc_resource in CreateDbObject
@@ -1000,7 +1000,7 @@ OpenOptimisticTransactionDB(
             handle_ptr = NULL;
             cf_list = enif_make_list_cell(env, cf, cf_list);
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         // pass through
     }
     // clear the automatic reference from enif_alloc_resource in CreateDbObject
