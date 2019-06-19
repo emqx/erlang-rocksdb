@@ -34,6 +34,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(priv_dir "${PROJECT_SOURCE_DIR}/../priv")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${priv_dir})
+if(MSVC)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+endif()
 
 #set( _erocksdb_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
 #if(WIN32)
@@ -65,6 +68,10 @@ endif ()
 
 set(ErlangRocksDBNIF_TARGET erocksdb)
 add_library(${ErlangRocksDBNIF_TARGET} MODULE "")
+
+if(MSVC)
+  set_target_properties(${ErlangRocksDBNIF_TARGET} PROPERTIES OUTPUT_NAME "liberocksdb")
+endif()
 
 set(CMAKE_BUILD_TYPE Release)
 
@@ -172,7 +179,7 @@ set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_EXTENSIONS OFF)
 
 if(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi /nologo /EHsc /GS /Gd /GR /GF /fp:precise /Zc:wchar_t /Zc:forScope /errorReport:queue")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FC /d2Zi+ /W4 /wd4127 /wd4800 /wd4996 /wd4351 /wd4100 /wd4204 /wd4324")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FC /W4 /wd4127 /wd4800 /wd4996 /wd4351 /wd4100 /wd4204 /wd4324")
 else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -Wextra -Wall")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wsign-compare -Wshadow -Wno-unused-parameter -Wno-unused-variable -Woverloaded-virtual -Wnon-virtual-dtor -Wno-missing-field-initializers -Wno-strict-aliasing")
@@ -224,12 +231,12 @@ target_include_directories(${ErlangRocksDBNIF_TARGET}
     ${PROJECT_BINARY_DIR}
 )
 
-target_compile_options(${ErlangRocksDBNIF_TARGET}
-    PUBLIC
-    -Wall
-    -Wextra
-    -pedantic-errors
-)
+#target_compile_options(${ErlangRocksDBNIF_TARGET}
+#    PUBLIC
+#    -Wall
+#    -Wextra
+#    -pedantic-errors
+#)
 
 set(TARGET_LINKER_OPTIONS)
 if(APPLE)
@@ -250,3 +257,12 @@ target_link_libraries(
     ${ZLIB_LIBRARY}
     ${TBB_LIBRARIES}
 )
+
+if(MSVC)
+	target_link_libraries(
+		${ErlangRocksDBNIF_TARGET}
+		PRIVATE
+		Shlwapi
+		Rpcrt4
+	)
+endif(MSVC)
