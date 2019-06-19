@@ -231,7 +231,7 @@ Iterators(
             result = enif_make_list_cell(env, itr_res, result);
             enif_release_resource(itr_ptr);
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         // pass through and return nullptr
     }
     opts=NULL;

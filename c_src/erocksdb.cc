@@ -772,7 +772,7 @@ try
 
 return 0;
 }
-catch(std::exception& e)
+catch(std::exception& )
 {
     /* Refuse to load the NIF module (I see no way right now to return a more specific exception
     or log extra information): */
