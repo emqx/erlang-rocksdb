@@ -1,8 +1,5 @@
 version: '{build}'
 image: Visual Studio 2017
-branches:
-  only:
-  - build-windows
 environment:
   matrix:
   - erlang_vsn: 21.0
