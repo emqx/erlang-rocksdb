@@ -19,7 +19,7 @@ notifications:
   on_build_failure: true
   on_build_status_changed: true
 artifacts:
-  - path: _build
+  - path: '_build'
   - name: build
   - type: zip
 
