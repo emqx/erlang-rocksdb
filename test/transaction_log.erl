@@ -22,14 +22,13 @@
 
 destroy_reopen(DbName, Options) ->
   _ = rocksdb:destroy(DbName, []),
-  _ = rocksdb_test_util:rm_rf(DbName),
   {ok, Db} = rocksdb:open(DbName, Options),
   Db.
 
 close_destroy(Db, DbName) ->
-  rocksdb:close(Db),
-  rocksdb:destroy(DbName, []),
-  rocksdb_test_util:rm_rf(DbName).
+  ok = rocksdb:close(Db),
+  timer:sleep(500),
+  ok = rocksdb:destroy(DbName, []).
 
 basic_test() ->
   Db = destroy_reopen("test.db", [{create_if_missing, true}]),
