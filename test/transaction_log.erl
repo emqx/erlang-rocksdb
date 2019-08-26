@@ -28,7 +28,8 @@ destroy_reopen(DbName, Options) ->
 
 close_destroy(Db, DbName) ->
   rocksdb:close(Db),
-  rocksdb:destroy(DbName, []).
+  rocksdb:destroy(DbName, []),
+  rocksdb_test_util:rm_rf(DbName).
 
 basic_test() ->
   Db = destroy_reopen("test.db", [{create_if_missing, true}]),
