@@ -397,12 +397,21 @@ Status DBImpl::AtomicFlushMemTablesToOutputFiles(
     s = error_status.ok() ? s : error_status;
   }
 
+  // If db is NOT shutting down, and one or more column families have been
+  // dropped.
+  // TODO: use separate status code for db shutdown and column family dropped.
+  if (s.IsShutdownInProgress() &&
+      !shutting_down_.load(std::memory_order_acquire)) {
+    s = Status::OK();
+  }
+
   if (s.ok() || s.IsShutdownInProgress()) {
     // Sync on all distinct output directories.
     for (auto dir : distinct_output_dirs) {
       if (dir != nullptr) {
-        s = dir->Fsync();
-        if (!s.ok()) {
+        Status error_status = dir->Fsync();
+        if (!error_status.ok()) {
+          s = error_status;
           break;
         }
       }
@@ -469,7 +478,7 @@ Status DBImpl::AtomicFlushMemTablesToOutputFiles(
         &job_context->memtables_to_free, directories_.GetDbDir(), log_buffer);
   }
 
-  if (s.ok() || s.IsShutdownInProgress()) {
+  if (s.ok()) {
     assert(num_cfs ==
            static_cast<int>(job_context->superversion_contexts.size()));
     for (int i = 0; i != num_cfs; ++i) {
@@ -684,6 +693,10 @@ Status DBImpl::CompactRange(const CompactRangeOptions& options,
   }
 
   int max_level_with_files = 0;
+  // max_file_num_to_ignore can be used to filter out newly created SST files,
+  // useful for bottom level compaction in a manual compaction
+  uint64_t max_file_num_to_ignore = port::kMaxUint64;
+  uint64_t next_file_number = port::kMaxUint64;
   {
     InstrumentedMutexLock l(&mutex_);
     Version* base = cfd->current();
@@ -693,9 +706,11 @@ Status DBImpl::CompactRange(const CompactRangeOptions& options,
         max_level_with_files = level;
       }
     }
+    next_file_number = versions_->current_next_file_number();
   }
 
   int final_output_level = 0;
+
   if (cfd->ioptions()->compaction_style == kCompactionStyleUniversal &&
       cfd->NumberLevels() > 1) {
     // Always compact all files together.
@@ -705,8 +720,8 @@ Status DBImpl::CompactRange(const CompactRangeOptions& options,
       final_output_level--;
     }
     s = RunManualCompaction(cfd, ColumnFamilyData::kCompactAllLevels,
-                            final_output_level, options.target_path_id,
-                            options.max_subcompactions, begin, end, exclusive);
+                            final_output_level, options, begin, end, exclusive,
+                            false, max_file_num_to_ignore);
   } else {
     for (int level = 0; level <= max_level_with_files; level++) {
       int output_level;
@@ -731,6 +746,10 @@ Status DBImpl::CompactRange(const CompactRangeOptions& options,
           continue;
         }
         output_level = level;
+        // update max_file_num_to_ignore only for bottom level compaction
+        // because data in newly compacted files in middle levels may still need
+        // to be pushed down
+        max_file_num_to_ignore = next_file_number;
       } else {
         output_level = level + 1;
         if (cfd->ioptions()->compaction_style == kCompactionStyleLevel &&
@@ -739,9 +758,8 @@ Status DBImpl::CompactRange(const CompactRangeOptions& options,
           output_level = ColumnFamilyData::kCompactToBaseLevel;
         }
       }
-      s = RunManualCompaction(cfd, level, output_level, options.target_path_id,
-                              options.max_subcompactions, begin, end,
-                              exclusive);
+      s = RunManualCompaction(cfd, level, output_level, options, begin, end,
+                              exclusive, false, max_file_num_to_ignore);
       if (!s.ok()) {
         break;
       }
@@ -779,6 +797,29 @@ Status DBImpl::CompactRange(const CompactRangeOptions& options,
 
   return s;
 }
+
+class SnapshotListFetchCallbackImpl : public SnapshotListFetchCallback {
+ public:
+  SnapshotListFetchCallbackImpl(DBImpl* db_impl, Env* env,
+                                uint64_t snap_refresh_nanos, Logger* info_log)
+      : SnapshotListFetchCallback(env, snap_refresh_nanos),
+        db_impl_(db_impl),
+        info_log_(info_log) {}
+  virtual void Refresh(std::vector<SequenceNumber>* snapshots,
+                       SequenceNumber max) override {
+    size_t prev = snapshots->size();
+    snapshots->clear();
+    db_impl_->LoadSnapshots(snapshots, nullptr, max);
+    size_t now = snapshots->size();
+    ROCKS_LOG_DEBUG(info_log_,
+                    "Compaction snapshot count refreshed from %zu to %zu", prev,
+                    now);
+  }
+
+ private:
+  DBImpl* db_impl_;
+  Logger* info_log_;
+};
 
 Status DBImpl::CompactFiles(const CompactionOptions& compact_options,
                             ColumnFamilyHandle* column_family,
@@ -951,6 +992,9 @@ Status DBImpl::CompactFilesImpl(
 
   assert(is_snapshot_supported_ || snapshots_.empty());
   CompactionJobStats compaction_job_stats;
+  SnapshotListFetchCallbackImpl fetch_callback(
+      this, env_, c->mutable_cf_options()->snap_refresh_nanos,
+      immutable_db_options_.info_log.get());
   CompactionJob compaction_job(
       job_context->job_id, c.get(), immutable_db_options_,
       env_options_for_compaction_, versions_.get(), &shutting_down_,
@@ -960,7 +1004,9 @@ Status DBImpl::CompactFilesImpl(
       snapshot_checker, table_cache_, &event_logger_,
       c->mutable_cf_options()->paranoid_file_checks,
       c->mutable_cf_options()->report_bg_io_stats, dbname_,
-      &compaction_job_stats, Env::Priority::USER);
+      &compaction_job_stats, Env::Priority::USER,
+      immutable_db_options_.max_subcompactions <= 1 ? &fetch_callback
+                                                    : nullptr);
 
   // Creating a compaction influences the compaction score because the score
   // takes running compactions into account (by skipping files that are already
@@ -1324,11 +1370,11 @@ Status DBImpl::Flush(const FlushOptions& flush_options,
   return s;
 }
 
-Status DBImpl::RunManualCompaction(ColumnFamilyData* cfd, int input_level,
-                                   int output_level, uint32_t output_path_id,
-                                   uint32_t max_subcompactions,
-                                   const Slice* begin, const Slice* end,
-                                   bool exclusive, bool disallow_trivial_move) {
+Status DBImpl::RunManualCompaction(
+    ColumnFamilyData* cfd, int input_level, int output_level,
+    const CompactRangeOptions& compact_range_options, const Slice* begin,
+    const Slice* end, bool exclusive, bool disallow_trivial_move,
+    uint64_t max_file_num_to_ignore) {
   assert(input_level == ColumnFamilyData::kCompactAllLevels ||
          input_level >= 0);
 
@@ -1341,7 +1387,7 @@ Status DBImpl::RunManualCompaction(ColumnFamilyData* cfd, int input_level,
   manual.cfd = cfd;
   manual.input_level = input_level;
   manual.output_level = output_level;
-  manual.output_path_id = output_path_id;
+  manual.output_path_id = compact_range_options.target_path_id;
   manual.done = false;
   manual.in_progress = false;
   manual.incomplete = false;
@@ -1416,9 +1462,9 @@ Status DBImpl::RunManualCompaction(ColumnFamilyData* cfd, int input_level,
         (((manual.manual_end = &manual.tmp_storage1) != nullptr) &&
          ((compaction = manual.cfd->CompactRange(
                *manual.cfd->GetLatestMutableCFOptions(), manual.input_level,
-               manual.output_level, manual.output_path_id, max_subcompactions,
-               manual.begin, manual.end, &manual.manual_end,
-               &manual_conflict)) == nullptr &&
+               manual.output_level, compact_range_options, manual.begin,
+               manual.end, &manual.manual_end, &manual_conflict,
+               max_file_num_to_ignore)) == nullptr &&
           manual_conflict))) {
       // exclusive manual compactions should not see a conflict during
       // CompactRange
@@ -2034,6 +2080,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
   autovector<BGFlushArg> bg_flush_args;
   std::vector<SuperVersionContext>& superversion_contexts =
       job_context->superversion_contexts;
+  autovector<ColumnFamilyData*> column_families_not_to_flush;
   while (!flush_queue_.empty()) {
     // This cfd is already referenced
     const FlushRequest& flush_req = PopFirstFromFlushQueue();
@@ -2044,9 +2091,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
       ColumnFamilyData* cfd = iter.first;
       if (cfd->IsDropped() || !cfd->imm()->IsFlushPending()) {
         // can't flush this CF, try next one
-        if (cfd->Unref()) {
-          delete cfd;
-        }
+        column_families_not_to_flush.push_back(cfd);
         continue;
       }
       superversion_contexts.emplace_back(SuperVersionContext(true));
@@ -2083,6 +2128,11 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
         delete cfd;
         arg.cfd_ = nullptr;
       }
+    }
+  }
+  for (auto cfd : column_families_not_to_flush) {
+    if (cfd->Unref()) {
+      delete cfd;
     }
   }
   return status;
@@ -2604,6 +2654,9 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     GetSnapshotContext(job_context, &snapshot_seqs,
                        &earliest_write_conflict_snapshot, &snapshot_checker);
     assert(is_snapshot_supported_ || snapshots_.empty());
+    SnapshotListFetchCallbackImpl fetch_callback(
+        this, env_, c->mutable_cf_options()->snap_refresh_nanos,
+        immutable_db_options_.info_log.get());
     CompactionJob compaction_job(
         job_context->job_id, c.get(), immutable_db_options_,
         env_options_for_compaction_, versions_.get(), &shutting_down_,
@@ -2613,7 +2666,9 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
         earliest_write_conflict_snapshot, snapshot_checker, table_cache_,
         &event_logger_, c->mutable_cf_options()->paranoid_file_checks,
         c->mutable_cf_options()->report_bg_io_stats, dbname_,
-        &compaction_job_stats, thread_pri);
+        &compaction_job_stats, thread_pri,
+        immutable_db_options_.max_subcompactions <= 1 ? &fetch_callback
+                                                      : nullptr);
     compaction_job.Prepare();
 
     NotifyOnCompactionBegin(c->column_family_data(), c.get(), status,

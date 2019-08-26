@@ -124,6 +124,25 @@ class DBImpl : public DB {
       const std::vector<Slice>& keys,
       std::vector<std::string>* values) override;
 
+  // This MultiGet is a batched version, which may be faster than calling Get
+  // multiple times, especially if the keys have some spatial locality that
+  // enables them to be queried in the same SST files/set of files. The larger
+  // the batch size, the more scope for batching and performance improvement
+  // The values and statuses parameters are arrays with number of elements
+  // equal to keys.size(). This allows the storage for those to be alloacted
+  // by the caller on the stack for small batches
+  virtual void MultiGet(const ReadOptions& options,
+                        ColumnFamilyHandle* column_family,
+                        const size_t num_keys, const Slice* keys,
+                        PinnableSlice* values, Status* statuses,
+                        const bool sorted_input = false) override;
+
+  void MultiGetImpl(
+      const ReadOptions& options, ColumnFamilyHandle* column_family,
+      autovector<KeyContext, MultiGetContext::MAX_BATCH_SIZE>& key_context,
+      bool sorted_input, ReadCallback* callback = nullptr,
+      bool* is_blob_index = nullptr);
+
   virtual Status CreateColumnFamily(const ColumnFamilyOptions& cf_options,
                                     const std::string& column_family,
                                     ColumnFamilyHandle** handle) override;
@@ -376,11 +395,15 @@ class DBImpl : public DB {
 
   virtual Status GetDbIdentity(std::string& identity) const override;
 
+  // max_file_num_to_ignore allows bottom level compaction to filter out newly
+  // compacted SST files. Setting max_file_num_to_ignore to kMaxUint64 will
+  // disable the filtering
   Status RunManualCompaction(ColumnFamilyData* cfd, int input_level,
-                             int output_level, uint32_t output_path_id,
-                             uint32_t max_subcompactions, const Slice* begin,
-                             const Slice* end, bool exclusive,
-                             bool disallow_trivial_move = false);
+                             int output_level,
+                             const CompactRangeOptions& compact_range_options,
+                             const Slice* begin, const Slice* end,
+                             bool exclusive, bool disallow_trivial_move,
+                             uint64_t max_file_num_to_ignore);
 
   // Return an internal iterator over the current state of the database.
   // The keys of this iterator are internal keys (see format.h).
@@ -537,6 +560,13 @@ class DBImpl : public DB {
   ColumnFamilyHandle* DefaultColumnFamily() const override;
 
   const SnapshotList& snapshots() const { return snapshots_; }
+
+  void LoadSnapshots(std::vector<SequenceNumber>* snap_vector,
+                     SequenceNumber* oldest_write_conflict_snapshot,
+                     const SequenceNumber& max_seq) const {
+    InstrumentedMutexLock l(mutex());
+    snapshots().GetAll(snap_vector, oldest_write_conflict_snapshot, max_seq);
+  }
 
   const ImmutableDBOptions& immutable_db_options() const {
     return immutable_db_options_;
@@ -716,7 +746,7 @@ class DBImpl : public DB {
   // Not thread-safe.
   void SetRecoverableStatePreReleaseCallback(PreReleaseCallback* callback);
 
-  InstrumentedMutex* mutex() { return &mutex_; }
+  InstrumentedMutex* mutex() const { return &mutex_; }
 
   Status NewDB();
 
@@ -779,6 +809,23 @@ class DBImpl : public DB {
 
   // Additonal options for compaction and flush
   EnvOptions env_options_for_compaction_;
+
+  std::unique_ptr<ColumnFamilyMemTablesImpl> column_family_memtables_;
+
+  // Increase the sequence number after writing each batch, whether memtable is
+  // disabled for that or not. Otherwise the sequence number is increased after
+  // writing each key into memtable. This implies that when disable_memtable is
+  // set, the seq is not increased at all.
+  //
+  // Default: false
+  const bool seq_per_batch_;
+  // This determines during recovery whether we expect one writebatch per
+  // recovered transaction, or potentially multiple writebatches per
+  // transaction. For WriteUnprepared, this is set to false, since multiple
+  // batches can exist per transaction.
+  //
+  // Default: true
+  const bool batch_per_txn_;
 
   // Except in DB::Open(), WriteOptionsFile can only be called when:
   // Persist options to options file.
@@ -1013,8 +1060,8 @@ class DBImpl : public DB {
       JobContext* job_context, LogBuffer* log_buffer, Env::Priority thread_pri);
 
   // REQUIRES: log_numbers are sorted in ascending order
-  Status RecoverLogFiles(const std::vector<uint64_t>& log_numbers,
-                         SequenceNumber* next_sequence, bool read_only);
+  virtual Status RecoverLogFiles(const std::vector<uint64_t>& log_numbers,
+                                 SequenceNumber* next_sequence, bool read_only);
 
   // The following two methods are used to flush a memtable to
   // storage. The first one is used at database RecoveryTime (when the
@@ -1271,7 +1318,6 @@ class DBImpl : public DB {
   // expesnive mutex_ lock during WAL write, which update log_empty_.
   bool log_empty_;
 
-  std::unique_ptr<ColumnFamilyMemTablesImpl> column_family_memtables_;
   struct LogFileNumberSize {
     explicit LogFileNumberSize(uint64_t _number) : number(_number) {}
     void AddSize(uint64_t new_size) { size += new_size; }
@@ -1659,24 +1705,14 @@ class DBImpl : public DB {
   size_t GetWalPreallocateBlockSize(uint64_t write_buffer_size) const;
   Env::WriteLifeTimeHint CalculateWALWriteHint() { return Env::WLTH_SHORT; }
 
+  Status CreateWAL(uint64_t log_file_num, uint64_t recycle_log_number,
+                   size_t preallocate_block_size, log::Writer** new_log);
+
   // When set, we use a separate queue for writes that dont write to memtable.
   // In 2PC these are the writes at Prepare phase.
   const bool two_write_queues_;
   const bool manual_wal_flush_;
-  // Increase the sequence number after writing each batch, whether memtable is
-  // disabled for that or not. Otherwise the sequence number is increased after
-  // writing each key into memtable. This implies that when disable_memtable is
-  // set, the seq is not increased at all.
-  //
-  // Default: false
-  const bool seq_per_batch_;
-  // This determines during recovery whether we expect one writebatch per
-  // recovered transaction, or potentially multiple writebatches per
-  // transaction. For WriteUnprepared, this is set to false, since multiple
-  // batches can exist per transaction.
-  //
-  // Default: true
-  const bool batch_per_txn_;
+
   // LastSequence also indicates last published sequence visibile to the
   // readers. Otherwise LastPublishedSequence should be used.
   const bool last_seq_same_as_publish_seq_;

@@ -39,6 +39,7 @@
 #include "table/get_context.h"
 #include "table/internal_iterator.h"
 #include "table/meta_blocks.h"
+#include "table/multiget_context.h"
 #include "table/partitioned_filter_block.h"
 #include "table/persistent_cache_helper.h"
 #include "table/sst_file_writer_collectors.h"
@@ -837,6 +838,11 @@ Status BlockBasedTable::Open(const ImmutableCFOptions& ioptions,
                                          rep->persistent_cache_key_prefix_size),
                              rep->ioptions.statistics);
 
+  // Meta-blocks are not dictionary compressed. Explicitly set the dictionary
+  // handle to null, otherwise it may be seen as uninitialized during the below
+  // meta-block reads.
+  rep->compression_dict_handle = BlockHandle::NullBlockHandle();
+
   // Read metaindex
   std::unique_ptr<Block> meta;
   std::unique_ptr<InternalIterator> meta_iter;
@@ -967,7 +973,7 @@ Status BlockBasedTable::TryReadPropertiesWithGlobalSeqno(
         (*table_properties)
             ->properties_offsets.find(
                 ExternalSstFilePropertyNames::kGlobalSeqno);
-    size_t block_size = props_block_handle.size();
+    size_t block_size = static_cast<size_t>(props_block_handle.size());
     if (seqno_pos_iter != (*table_properties)->properties_offsets.end()) {
       uint64_t global_seqno_offset = seqno_pos_iter->second;
       EncodeFixed64(
@@ -2166,10 +2172,6 @@ BlockBasedTable::PartitionedIndexIteratorState::PartitionedIndexIteratorState(
       index_key_includes_seq_(index_key_includes_seq),
       index_key_is_full_(index_key_is_full) {}
 
-template <class TBlockIter, typename TValue>
-const size_t BlockBasedTableIterator<TBlockIter, TValue>::kMaxReadaheadSize =
-    256 * 1024;
-
 InternalIteratorBase<BlockHandle>*
 BlockBasedTable::PartitionedIndexIteratorState::NewSecondaryIterator(
     const BlockHandle& handle) {
@@ -2346,6 +2348,7 @@ void BlockBasedTableIterator<TBlockIter, TValue>::Seek(const Slice& target) {
   block_iter_.Seek(target);
 
   FindKeyForward();
+  CheckOutOfBound();
   assert(
       !block_iter_.Valid() ||
       (key_includes_seq_ && icomp_.Compare(target, block_iter_.key()) <= 0) ||
@@ -2409,6 +2412,7 @@ void BlockBasedTableIterator<TBlockIter, TValue>::SeekToFirst() {
   InitDataBlock();
   block_iter_.SeekToFirst();
   FindKeyForward();
+  CheckOutOfBound();
 }
 
 template <class TBlockIter, typename TValue>
@@ -2433,11 +2437,29 @@ void BlockBasedTableIterator<TBlockIter, TValue>::Next() {
 }
 
 template <class TBlockIter, typename TValue>
+bool BlockBasedTableIterator<TBlockIter, TValue>::NextAndGetResult(
+    Slice* ret_key) {
+  Next();
+  bool is_valid = Valid();
+  if (is_valid) {
+    *ret_key = key();
+  }
+  return is_valid;
+}
+
+template <class TBlockIter, typename TValue>
 void BlockBasedTableIterator<TBlockIter, TValue>::Prev() {
   assert(block_iter_points_to_real_block_);
   block_iter_.Prev();
   FindKeyBackward();
 }
+
+// Found that 256 KB readahead size provides the best performance, based on
+// experiments, for auto readahead. Experiment data is in PR #3282.
+template <class TBlockIter, typename TValue>
+const size_t
+    BlockBasedTableIterator<TBlockIter, TValue>::kMaxAutoReadaheadSize =
+        256 * 1024;
 
 template <class TBlockIter, typename TValue>
 void BlockBasedTableIterator<TBlockIter, TValue>::InitDataBlock() {
@@ -2451,32 +2473,47 @@ void BlockBasedTableIterator<TBlockIter, TValue>::InitDataBlock() {
     }
     auto* rep = table_->get_rep();
 
-    // Automatically prefetch additional data when a range scan (iterator) does
-    // more than 2 sequential IOs. This is enabled only for user reads and when
-    // ReadOptions.readahead_size is 0.
-    if (!for_compaction_ && read_options_.readahead_size == 0) {
-      num_file_reads_++;
-      if (num_file_reads_ > 2) {
-        if (!rep->file->use_direct_io() &&
-            (data_block_handle.offset() +
-                 static_cast<size_t>(data_block_handle.size()) +
-                 kBlockTrailerSize >
-             readahead_limit_)) {
-          // Buffered I/O
-          // Discarding the return status of Prefetch calls intentionally, as we
-          // can fallback to reading from disk if Prefetch fails.
-          rep->file->Prefetch(data_block_handle.offset(), readahead_size_);
-          readahead_limit_ =
-              static_cast<size_t>(data_block_handle.offset() + readahead_size_);
-          // Keep exponentially increasing readahead size until
-          // kMaxReadaheadSize.
-          readahead_size_ = std::min(kMaxReadaheadSize, readahead_size_ * 2);
-        } else if (rep->file->use_direct_io() && !prefetch_buffer_) {
-          // Direct I/O
-          // Let FilePrefetchBuffer take care of the readahead.
-          prefetch_buffer_.reset(new FilePrefetchBuffer(
-              rep->file.get(), kInitReadaheadSize, kMaxReadaheadSize));
+    // Prefetch additional data for range scans (iterators). Enabled only for
+    // user reads.
+    // Implicit auto readahead:
+    //   Enabled after 2 sequential IOs when ReadOptions.readahead_size == 0.
+    // Explicit user requested readahead:
+    //   Enabled from the very first IO when ReadOptions.readahead_size is set.
+    if (!for_compaction_) {
+      if (read_options_.readahead_size == 0) {
+        // Implicit auto readahead
+        num_file_reads_++;
+        if (num_file_reads_ > kMinNumFileReadsToStartAutoReadahead) {
+          if (!rep->file->use_direct_io() &&
+              (data_block_handle.offset() +
+                   static_cast<size_t>(data_block_handle.size()) +
+                   kBlockTrailerSize >
+               readahead_limit_)) {
+            // Buffered I/O
+            // Discarding the return status of Prefetch calls intentionally, as
+            // we can fallback to reading from disk if Prefetch fails.
+            rep->file->Prefetch(data_block_handle.offset(), readahead_size_);
+            readahead_limit_ = static_cast<size_t>(data_block_handle.offset() +
+                                                   readahead_size_);
+            // Keep exponentially increasing readahead size until
+            // kMaxAutoReadaheadSize.
+            readahead_size_ =
+                std::min(kMaxAutoReadaheadSize, readahead_size_ * 2);
+          } else if (rep->file->use_direct_io() && !prefetch_buffer_) {
+            // Direct I/O
+            // Let FilePrefetchBuffer take care of the readahead.
+            prefetch_buffer_.reset(
+                new FilePrefetchBuffer(rep->file.get(), kInitAutoReadaheadSize,
+                                       kMaxAutoReadaheadSize));
+          }
         }
+      } else if (!prefetch_buffer_) {
+        // Explicit user requested readahead
+        // The actual condition is:
+        // if (read_options_.readahead_size != 0 && !prefetch_buffer_)
+        prefetch_buffer_.reset(new FilePrefetchBuffer(
+            rep->file.get(), read_options_.readahead_size,
+            read_options_.readahead_size));
       }
     }
 
@@ -2490,20 +2527,34 @@ void BlockBasedTableIterator<TBlockIter, TValue>::InitDataBlock() {
 }
 
 template <class TBlockIter, typename TValue>
-void BlockBasedTableIterator<TBlockIter, TValue>::FindKeyForward() {
-  assert(!is_out_of_bound_);
+void BlockBasedTableIterator<TBlockIter, TValue>::FindBlockForward() {
   // TODO the while loop inherits from two-level-iterator. We don't know
   // whether a block can be empty so it can be replaced by an "if".
-  while (!block_iter_.Valid()) {
+  do {
     if (!block_iter_.status().ok()) {
       return;
     }
+    // Whether next data block is out of upper bound, if there is one.
+    bool next_block_is_out_of_bound = false;
+    if (read_options_.iterate_upper_bound != nullptr &&
+        block_iter_points_to_real_block_) {
+      next_block_is_out_of_bound =
+          (user_comparator_.Compare(*read_options_.iterate_upper_bound,
+                                    index_iter_->user_key()) <= 0);
+    }
     ResetDataIter();
-    // We used to check the current index key for upperbound.
-    // It will only save a data reading for a small percentage of use cases,
-    // so for code simplicity, we removed it. We can add it back if there is a
-    // significnat performance regression.
     index_iter_->Next();
+    if (next_block_is_out_of_bound) {
+      // The next block is out of bound. No need to read it.
+      TEST_SYNC_POINT_CALLBACK("BlockBasedTableIterator:out_of_bound", nullptr);
+      // We need to make sure this is not the last data block before setting
+      // is_out_of_bound_, since the index key for the last data block can be
+      // larger than smallest key of the next file on the same level.
+      if (index_iter_->Valid()) {
+        is_out_of_bound_ = true;
+      }
+      return;
+    }
 
     if (index_iter_->Valid()) {
       InitDataBlock();
@@ -2511,26 +2562,20 @@ void BlockBasedTableIterator<TBlockIter, TValue>::FindKeyForward() {
     } else {
       return;
     }
-  }
+  } while (!block_iter_.Valid());
+}
 
-  // Check upper bound on the current key
-  bool reached_upper_bound =
-      (read_options_.iterate_upper_bound != nullptr &&
-       block_iter_points_to_real_block_ && block_iter_.Valid() &&
-       user_comparator_.Compare(ExtractUserKey(block_iter_.key()),
-                                *read_options_.iterate_upper_bound) >= 0);
-  TEST_SYNC_POINT_CALLBACK(
-      "BlockBasedTable::BlockEntryIteratorState::KeyReachedUpperBound",
-      &reached_upper_bound);
-  if (reached_upper_bound) {
-    is_out_of_bound_ = true;
-    return;
+template <class TBlockIter, typename TValue>
+void BlockBasedTableIterator<TBlockIter, TValue>::FindKeyForward() {
+  assert(!is_out_of_bound_);
+
+  if (!block_iter_.Valid()) {
+    FindBlockForward();
   }
 }
 
 template <class TBlockIter, typename TValue>
 void BlockBasedTableIterator<TBlockIter, TValue>::FindKeyBackward() {
-  assert(!is_out_of_bound_);
   while (!block_iter_.Valid()) {
     if (!block_iter_.status().ok()) {
       return;
@@ -2549,6 +2594,15 @@ void BlockBasedTableIterator<TBlockIter, TValue>::FindKeyBackward() {
 
   // We could have check lower bound here too, but we opt not to do it for
   // code simplicity.
+}
+
+template <class TBlockIter, typename TValue>
+void BlockBasedTableIterator<TBlockIter, TValue>::CheckOutOfBound() {
+  if (read_options_.iterate_upper_bound != nullptr &&
+      block_iter_points_to_real_block_ && block_iter_.Valid()) {
+    is_out_of_bound_ = user_comparator_.Compare(
+                           *read_options_.iterate_upper_bound, user_key()) <= 0;
+  }
 }
 
 InternalIterator* BlockBasedTable::NewIterator(
@@ -2623,6 +2677,29 @@ bool BlockBasedTable::FullFilterKeyMayMatch(
   return may_match;
 }
 
+void BlockBasedTable::FullFilterKeysMayMatch(
+    const ReadOptions& read_options, FilterBlockReader* filter,
+    MultiGetRange* range, const bool no_io,
+    const SliceTransform* prefix_extractor) const {
+  if (filter == nullptr || filter->IsBlockBased()) {
+    return;
+  }
+  if (filter->whole_key_filtering()) {
+    filter->KeysMayMatch(range, prefix_extractor, kNotValid, no_io);
+  } else if (!read_options.total_order_seek && prefix_extractor &&
+             rep_->table_properties->prefix_extractor_name.compare(
+                 prefix_extractor->Name()) == 0) {
+    for (auto iter = range->begin(); iter != range->end(); ++iter) {
+      Slice user_key = iter->lkey->user_key();
+
+      if (!prefix_extractor->InDomain(user_key)) {
+        range->SkipKey(iter);
+      }
+    }
+    filter->PrefixesMayMatch(range, prefix_extractor, kNotValid, false);
+  }
+}
+
 Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& key,
                             GetContext* get_context,
                             const SliceTransform* prefix_extractor,
@@ -2631,17 +2708,22 @@ Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& key,
   Status s;
   const bool no_io = read_options.read_tier == kBlockCacheTier;
   CachableEntry<FilterBlockReader> filter_entry;
-  if (!skip_filters) {
-    filter_entry =
-        GetFilter(prefix_extractor, /*prefetch_buffer*/ nullptr,
-                  read_options.read_tier == kBlockCacheTier, get_context);
-  }
-  FilterBlockReader* filter = filter_entry.value;
+  bool may_match;
+  FilterBlockReader* filter = nullptr;
+  {
+    if (!skip_filters) {
+      filter_entry =
+          GetFilter(prefix_extractor, /*prefetch_buffer*/ nullptr,
+                    read_options.read_tier == kBlockCacheTier, get_context);
+    }
+    filter = filter_entry.value;
 
-  // First check the full filter
-  // If full filter not useful, Then go into each block
-  if (!FullFilterKeyMayMatch(read_options, filter, key, no_io,
-                             prefix_extractor)) {
+    // First check the full filter
+    // If full filter not useful, Then go into each block
+    may_match = FullFilterKeyMayMatch(read_options, filter, key, no_io,
+                                      prefix_extractor);
+  }
+  if (!may_match) {
     RecordTick(rep_->ioptions.statistics, BLOOM_FILTER_USEFUL);
     PERF_COUNTER_BY_LEVEL_ADD(bloom_filter_useful, 1, rep_->level);
   } else {
@@ -2745,6 +2827,122 @@ Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& key,
     filter_entry.Release(rep_->table_options.block_cache.get());
   }
   return s;
+}
+
+using MultiGetRange = MultiGetContext::Range;
+void BlockBasedTable::MultiGet(const ReadOptions& read_options,
+                               const MultiGetRange* mget_range,
+                               const SliceTransform* prefix_extractor,
+                               bool skip_filters) {
+  const bool no_io = read_options.read_tier == kBlockCacheTier;
+  CachableEntry<FilterBlockReader> filter_entry;
+  FilterBlockReader* filter = nullptr;
+  MultiGetRange sst_file_range(*mget_range, mget_range->begin(),
+                               mget_range->end());
+  {
+    if (!skip_filters) {
+      // TODO: Figure out where the stats should go
+      filter_entry = GetFilter(prefix_extractor, /*prefetch_buffer*/ nullptr,
+                               read_options.read_tier == kBlockCacheTier,
+                               nullptr /*get_context*/);
+    }
+    filter = filter_entry.value;
+
+    // First check the full filter
+    // If full filter not useful, Then go into each block
+    FullFilterKeysMayMatch(read_options, filter, &sst_file_range, no_io,
+                           prefix_extractor);
+  }
+  if (skip_filters || !sst_file_range.empty()) {
+    IndexBlockIter iiter_on_stack;
+    // if prefix_extractor found in block differs from options, disable
+    // BlockPrefixIndex. Only do this check when index_type is kHashSearch.
+    bool need_upper_bound_check = false;
+    if (rep_->index_type == BlockBasedTableOptions::kHashSearch) {
+      need_upper_bound_check = PrefixExtractorChanged(
+          rep_->table_properties.get(), prefix_extractor);
+    }
+    auto iiter = NewIndexIterator(
+        read_options, need_upper_bound_check, &iiter_on_stack,
+        /* index_entry */ nullptr, sst_file_range.begin()->get_context);
+    std::unique_ptr<InternalIteratorBase<BlockHandle>> iiter_unique_ptr;
+    if (iiter != &iiter_on_stack) {
+      iiter_unique_ptr.reset(iiter);
+    }
+
+    for (auto miter = sst_file_range.begin(); miter != sst_file_range.end();
+         ++miter) {
+      Status s;
+      GetContext* get_context = miter->get_context;
+      const Slice& key = miter->ikey;
+      bool matched = false;  // if such user key matched a key in SST
+      bool done = false;
+      for (iiter->Seek(key); iiter->Valid() && !done; iiter->Next()) {
+        DataBlockIter biter;
+        NewDataBlockIterator<DataBlockIter>(
+            rep_, read_options, iiter->value(), &biter, false,
+            true /* key_includes_seq */, get_context);
+
+        if (read_options.read_tier == kBlockCacheTier &&
+            biter.status().IsIncomplete()) {
+          // couldn't get block from block_cache
+          // Update Saver.state to Found because we are only looking for
+          // whether we can guarantee the key is not there when "no_io" is set
+          get_context->MarkKeyMayExist();
+          break;
+        }
+        if (!biter.status().ok()) {
+          s = biter.status();
+          break;
+        }
+
+        bool may_exist = biter.SeekForGet(key);
+        if (!may_exist) {
+          // HashSeek cannot find the key this block and the the iter is not
+          // the end of the block, i.e. cannot be in the following blocks
+          // either. In this case, the seek_key cannot be found, so we break
+          // from the top level for-loop.
+          break;
+        }
+
+        // Call the *saver function on each entry/block until it returns false
+        for (; biter.Valid(); biter.Next()) {
+          ParsedInternalKey parsed_key;
+          if (!ParseInternalKey(biter.key(), &parsed_key)) {
+            s = Status::Corruption(Slice());
+          }
+
+          if (!get_context->SaveValue(
+                  parsed_key, biter.value(), &matched,
+                  biter.IsValuePinned() ? &biter : nullptr)) {
+            done = true;
+            break;
+          }
+        }
+        s = biter.status();
+        if (done) {
+          // Avoid the extra Next which is expensive in two-level indexes
+          break;
+        }
+      }
+      if (matched && filter != nullptr && !filter->IsBlockBased()) {
+        RecordTick(rep_->ioptions.statistics, BLOOM_FILTER_FULL_TRUE_POSITIVE);
+        PERF_COUNTER_BY_LEVEL_ADD(bloom_filter_full_true_positive, 1,
+                                  rep_->level);
+      }
+      if (s.ok()) {
+        s = iiter->status();
+      }
+      *(miter->s) = s;
+    }
+  }
+
+  // if rep_->filter_entry is not set, we should call Release(); otherwise
+  // don't call, in this case we have a local copy in rep_->filter_entry,
+  // it's pinned to the cache and will be released in the destructor
+  if (!rep_->filter_entry.IsSet()) {
+    filter_entry.Release(rep_->table_options.block_cache.get());
+  }
 }
 
 Status BlockBasedTable::Prefetch(const Slice* const begin,

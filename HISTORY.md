@@ -1,12 +1,40 @@
 # Rocksdb Change Log
-## 6.1.2 (6/4/2019)
+## 6.2.2 (6/7/2019)
+### Bug Fixes
+* Disable dynamic extension support by default for CMake.
+
+## 6.2.1 (6/4/2019)
 ### Bug Fixes
 * Fix flush's/compaction's merge processing logic which allowed `Put`s covered by range tombstones to reappear. Note `Put`s may exist even if the user only ever called `Merge()` due to an internal conversion during compaction to the bottommost level.
+
+## 6.2.0 (4/30/2019)
+### New Features
+* Add an option `strict_bytes_per_sync` that causes a file-writing thread to block rather than exceed the limit on bytes pending writeback specified by `bytes_per_sync` or `wal_bytes_per_sync`.
+* Improve range scan performance by avoiding per-key upper bound check in BlockBasedTableIterator.
+* Introduce Periodic Compaction for Level style compaction. Files are re-compacted periodically and put in the same level.
+* Block-based table index now contains exact highest key in the file, rather than an upper bound. This may improve Get() and iterator Seek() performance in some situations, especially when direct IO is enabled and block cache is disabled. A setting BlockBasedTableOptions::index_shortening is introduced to control this behavior. Set it to kShortenSeparatorsAndSuccessor to get the old behavior.
+* When reading from option file/string/map, customized envs can be filled according to object registry.
+* Add an option `snap_refresh_nanos` (default to 0.5s) to periodically refresh the snapshot list in compaction jobs. Assign to 0 to disable the feature.
+* Improve range scan performance when using explicit user readahead by not creating new table readers for every iterator.
+
+### Public API Change
+* Change the behavior of OptimizeForPointLookup(): move away from hash-based block-based-table index, and use whole key memtable filtering.
+* Change the behavior of OptimizeForSmallDb(): use a 16MB block cache, put index and filter blocks into it, and cost the memtable size to it. DBOptions.OptimizeForSmallDb() and ColumnFamilyOptions.OptimizeForSmallDb() start to take an optional cache object.
+* Added BottommostLevelCompaction::kForceOptimized to avoid double compacting newly compacted files in the bottommost level compaction of manual compaction. Note this option may prohibit the manual compaction to produce a single file in the bottommost level.
+
+### Bug Fixes
+* Adjust WriteBufferManager's dummy entry size to block cache from 1MB to 256KB.
+* Fix a race condition between WritePrepared::Get and ::Put with duplicate keys.
+* Fix crash when memtable prefix bloom is enabled and read/write a key out of domain of prefix extractor.
+* Close a WAL file before another thread deletes it.
+* Fix an assertion failure `IsFlushPending() == true` caused by one bg thread releasing the db mutex in ~ColumnFamilyData and another thread clearing `flush_requested_` flag.
 
 ## 6.1.1 (4/9/2019)
 ### New Features
 * When reading from option file/string/map, customized comparators and/or merge operators can be filled according to object registry.
+
 ### Public API Change
+
 ### Bug Fixes
 * Fix a bug in 2PC where a sequence of txn prepare, memtable flush, and crash could result in losing the prepared transaction.
 * Fix a bug in Encryption Env which could cause encrypted files to be read beyond file boundaries.

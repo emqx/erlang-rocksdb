@@ -392,7 +392,7 @@ class DataBlockIter final : public BlockIter<Slice> {
 
   virtual void Prev() override;
 
-  virtual void Next() override;
+  virtual void Next() final override;
 
   // Try to advance to the next entry in the block. If there is data corruption
   // or error, report it to the caller instead of aborting the process. May
@@ -494,6 +494,13 @@ class IndexBlockIter final : public BlockIter<BlockHandle> {
     key_.SetIsUserKey(!key_includes_seq_);
     prefix_index_ = prefix_index;
     value_delta_encoded_ = !value_is_full;
+  }
+
+  Slice user_key() const override {
+    if (key_includes_seq_) {
+      return ExtractUserKey(key());
+    }
+    return key();
   }
 
   virtual BlockHandle value() const override {

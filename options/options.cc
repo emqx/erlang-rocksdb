@@ -88,6 +88,7 @@ AdvancedColumnFamilyOptions::AdvancedColumnFamilyOptions(const Options& options)
       force_consistency_checks(options.force_consistency_checks),
       report_bg_io_stats(options.report_bg_io_stats),
       ttl(options.ttl),
+      periodic_compaction_seconds(options.periodic_compaction_seconds),
       sample_for_compression(options.sample_for_compression) {
   assert(memtable_factory.get() != nullptr);
   if (max_bytes_for_level_multiplier_additional.size() <
@@ -214,6 +215,9 @@ void ColumnFamilyOptions::Dump(Logger* log) const {
     ROCKS_LOG_HEADER(
         log, "               Options.max_bytes_for_level_base: %" PRIu64,
         max_bytes_for_level_base);
+    ROCKS_LOG_HEADER(
+        log, "                     Options.snap_refresh_nanos: %" PRIu64,
+        snap_refresh_nanos);
     ROCKS_LOG_HEADER(log, "Options.level_compaction_dynamic_level_bytes: %d",
                      level_compaction_dynamic_level_bytes);
     ROCKS_LOG_HEADER(log, "         Options.max_bytes_for_level_multiplier: %f",
@@ -352,6 +356,9 @@ void ColumnFamilyOptions::Dump(Logger* log) const {
                      report_bg_io_stats);
     ROCKS_LOG_HEADER(log, "                              Options.ttl: %" PRIu64,
                      ttl);
+    ROCKS_LOG_HEADER(log,
+                     "         Options.periodic_compaction_seconds: %" PRIu64,
+                     periodic_compaction_seconds);
 }  // ColumnFamilyOptions::Dump
 
 void Options::Dump(Logger* log) const {
@@ -409,8 +416,11 @@ Options::PrepareForBulkLoad()
 }
 
 Options* Options::OptimizeForSmallDb() {
-  ColumnFamilyOptions::OptimizeForSmallDb();
-  DBOptions::OptimizeForSmallDb();
+  // 16MB block cache
+  std::shared_ptr<Cache> cache = NewLRUCache(16 << 20);
+
+  ColumnFamilyOptions::OptimizeForSmallDb(&cache);
+  DBOptions::OptimizeForSmallDb(&cache);
   return this;
 }
 
@@ -465,27 +475,45 @@ ColumnFamilyOptions* ColumnFamilyOptions::OldDefaults(
 }
 
 // Optimization functions
-DBOptions* DBOptions::OptimizeForSmallDb() {
+DBOptions* DBOptions::OptimizeForSmallDb(std::shared_ptr<Cache>* cache) {
   max_file_opening_threads = 1;
   max_open_files = 5000;
+
+  // Cost memtable to block cache too.
+  std::shared_ptr<rocksdb::WriteBufferManager> wbm =
+      std::make_shared<rocksdb::WriteBufferManager>(
+          0, (cache != nullptr) ? *cache : std::shared_ptr<Cache>());
+  write_buffer_manager = wbm;
+
   return this;
 }
 
-ColumnFamilyOptions* ColumnFamilyOptions::OptimizeForSmallDb() {
+ColumnFamilyOptions* ColumnFamilyOptions::OptimizeForSmallDb(
+    std::shared_ptr<Cache>* cache) {
   write_buffer_size = 2 << 20;
   target_file_size_base = 2 * 1048576;
   max_bytes_for_level_base = 10 * 1048576;
+  snap_refresh_nanos = 0;
   soft_pending_compaction_bytes_limit = 256 * 1048576;
   hard_pending_compaction_bytes_limit = 1073741824ul;
+
+  BlockBasedTableOptions table_options;
+  table_options.block_cache =
+      (cache != nullptr) ? *cache : std::shared_ptr<Cache>();
+  table_options.cache_index_and_filter_blocks = true;
+  // Two level iterator to avoid LRU cache imbalance
+  table_options.index_type =
+      BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch;
+  table_factory.reset(new BlockBasedTableFactory(table_options));
+
+
   return this;
 }
 
 #ifndef ROCKSDB_LITE
 ColumnFamilyOptions* ColumnFamilyOptions::OptimizeForPointLookup(
     uint64_t block_cache_size_mb) {
-  prefix_extractor.reset(NewNoopTransform());
   BlockBasedTableOptions block_based_options;
-  block_based_options.index_type = BlockBasedTableOptions::kHashSearch;
   block_based_options.data_block_index_type =
       BlockBasedTableOptions::kDataBlockBinaryAndHash;
   block_based_options.data_block_hash_table_util_ratio = 0.75;
@@ -494,6 +522,7 @@ ColumnFamilyOptions* ColumnFamilyOptions::OptimizeForPointLookup(
       NewLRUCache(static_cast<size_t>(block_cache_size_mb * 1024 * 1024));
   table_factory.reset(new BlockBasedTableFactory(block_based_options));
   memtable_prefix_bloom_size_ratio = 0.02;
+  memtable_whole_key_filtering = true;
   return this;
 }
 
