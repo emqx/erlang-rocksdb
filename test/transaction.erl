@@ -16,7 +16,7 @@ close_destroy(Db, DbName) ->
     rocksdb_test_util:rm_rf(DbName).
 
 basic_test() ->
-    Db = destroy_reopen("test.db", [{create_if_missing, true}]),
+    Db = destroy_reopen("transaction_testdb", [{create_if_missing, true}]),
 
     {ok, Transaction} = rocksdb:transaction(Db, []),
 
@@ -35,11 +35,11 @@ basic_test() ->
     ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db, <<"b">>, [])),
 
     ?assertException(error, badarg, rocksdb:transaction_put(Transaction, <<"a">>, <<"v2">>)),
-    close_destroy(Db, "test.db"),
+    close_destroy(Db, "transaction_testdb"),
     ok.
 
 delete_test() ->
-    Db = destroy_reopen("test.db", [{create_if_missing, true}]),
+    Db = destroy_reopen("transaction_testdb", [{create_if_missing, true}]),
 
     {ok, Transaction} = rocksdb:transaction(Db, []),
 
@@ -59,11 +59,11 @@ delete_test() ->
     ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db, <<"a">>, [])),
     ?assertEqual(not_found, rocksdb:get(Db, <<"b">>, [])),
 
-    close_destroy(Db, "test.db"),
+    close_destroy(Db, "transaction_testdb"),
     ok.
 
 cf_iterators_test() ->
-    Db = destroy_reopen("test.db", [{create_if_missing, true}]),
+    Db = destroy_reopen("transaction_testdb", [{create_if_missing, true}]),
     {ok, TestH} = rocksdb:create_column_family(Db, "test", []),
 
     rocksdb:put(Db, <<"a">>, <<"x">>, []),
@@ -103,4 +103,4 @@ cf_iterators_test() ->
     ok = rocksdb:iterator_close(PlainIt),
     ok = rocksdb:iterator_close(DefaultIt),
 
-    close_destroy(Db, "test.db").
+    close_destroy(Db, "transaction_testdb").
