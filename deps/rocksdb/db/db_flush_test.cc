@@ -488,6 +488,63 @@ TEST_P(DBAtomicFlushTest,
   Destroy(options);
 }
 
+TEST_P(DBAtomicFlushTest, TriggerFlushAndClose) {
+  bool atomic_flush = GetParam();
+  if (!atomic_flush) {
+    return;
+  }
+  const int kNumKeysTriggerFlush = 4;
+  Options options = CurrentOptions();
+  options.create_if_missing = true;
+  options.atomic_flush = atomic_flush;
+  options.memtable_factory.reset(
+      new SpecialSkipListFactory(kNumKeysTriggerFlush));
+  CreateAndReopenWithCF({"pikachu"}, options);
+
+  for (int i = 0; i != kNumKeysTriggerFlush; ++i) {
+    ASSERT_OK(Put(0, "key" + std::to_string(i), "value" + std::to_string(i)));
+  }
+  SyncPoint::GetInstance()->DisableProcessing();
+  SyncPoint::GetInstance()->ClearAllCallBacks();
+  SyncPoint::GetInstance()->EnableProcessing();
+  ASSERT_OK(Put(0, "key", "value"));
+  Close();
+
+  ReopenWithColumnFamilies({kDefaultColumnFamilyName, "pikachu"}, options);
+  ASSERT_EQ("value", Get(0, "key"));
+}
+
+TEST_P(DBAtomicFlushTest, PickMemtablesRaceWithBackgroundFlush) {
+  bool atomic_flush = GetParam();
+  Options options = CurrentOptions();
+  options.create_if_missing = true;
+  options.atomic_flush = atomic_flush;
+  options.max_write_buffer_number = 4;
+  // Set min_write_buffer_number_to_merge to be greater than 1, so that
+  // a column family with one memtable in the imm will not cause IsFlushPending
+  // to return true when flush_requested_ is false.
+  options.min_write_buffer_number_to_merge = 2;
+  CreateAndReopenWithCF({"pikachu"}, options);
+  ASSERT_EQ(2, handles_.size());
+  ASSERT_OK(dbfull()->PauseBackgroundWork());
+  ASSERT_OK(Put(0, "key00", "value00"));
+  ASSERT_OK(Put(1, "key10", "value10"));
+  FlushOptions flush_opts;
+  flush_opts.wait = false;
+  ASSERT_OK(dbfull()->Flush(flush_opts, handles_));
+  ASSERT_OK(Put(0, "key01", "value01"));
+  // Since max_write_buffer_number is 4, the following flush won't cause write
+  // stall.
+  ASSERT_OK(dbfull()->Flush(flush_opts));
+  ASSERT_OK(dbfull()->DropColumnFamily(handles_[1]));
+  ASSERT_OK(dbfull()->DestroyColumnFamilyHandle(handles_[1]));
+  handles_[1] = nullptr;
+  ASSERT_OK(dbfull()->ContinueBackgroundWork());
+  ASSERT_OK(dbfull()->TEST_WaitForFlushMemTable(handles_[0]));
+  delete handles_[0];
+  handles_.clear();
+}
+
 INSTANTIATE_TEST_CASE_P(DBFlushDirectIOTest, DBFlushDirectIOTest,
                         testing::Bool());
 

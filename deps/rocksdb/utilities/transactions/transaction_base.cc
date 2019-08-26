@@ -123,7 +123,7 @@ Status TransactionBaseImpl::TryLock(ColumnFamilyHandle* column_family,
 
 void TransactionBaseImpl::SetSavePoint() {
   if (save_points_ == nullptr) {
-    save_points_.reset(new std::stack<TransactionBaseImpl::SavePoint>());
+    save_points_.reset(new std::stack<TransactionBaseImpl::SavePoint, autovector<TransactionBaseImpl::SavePoint>>());
   }
   save_points_->emplace(snapshot_, snapshot_needed_, snapshot_notifier_,
                         num_puts_, num_deletes_, num_merges_);
@@ -279,6 +279,16 @@ std::vector<Status> TransactionBaseImpl::MultiGet(
   }
 
   return stat_list;
+}
+
+void TransactionBaseImpl::MultiGet(const ReadOptions& read_options,
+                                   ColumnFamilyHandle* column_family,
+                                   const size_t num_keys, const Slice* keys,
+                                   PinnableSlice* values, Status* statuses,
+                                   bool sorted_input) {
+  write_batch_.MultiGetFromBatchAndDB(db_, read_options, column_family,
+                                      num_keys, keys, values, statuses,
+                                      sorted_input);
 }
 
 std::vector<Status> TransactionBaseImpl::MultiGetForUpdate(
@@ -587,7 +597,7 @@ void TransactionBaseImpl::TrackKey(TransactionKeyMap* key_map, uint32_t cfh_id,
   auto& cf_key_map = (*key_map)[cfh_id];
   auto iter = cf_key_map.find(key);
   if (iter == cf_key_map.end()) {
-    auto result = cf_key_map.insert({key, TransactionKeyMapInfo(seq)});
+    auto result = cf_key_map.emplace(key, TransactionKeyMapInfo(seq));
     iter = result.first;
   } else if (seq < iter->second.seq) {
     // Now tracking this key with an earlier sequence number

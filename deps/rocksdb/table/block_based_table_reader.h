@@ -27,6 +27,8 @@
 #include "table/block_based_table_factory.h"
 #include "table/filter_block.h"
 #include "table/format.h"
+#include "table/get_context.h"
+#include "table/multiget_context.h"
 #include "table/persistent_cache_helper.h"
 #include "table/table_properties_internal.h"
 #include "table/table_reader.h"
@@ -120,6 +122,11 @@ class BlockBasedTable : public TableReader {
   Status Get(const ReadOptions& readOptions, const Slice& key,
              GetContext* get_context, const SliceTransform* prefix_extractor,
              bool skip_filters = false) override;
+
+  void MultiGet(const ReadOptions& readOptions,
+                const MultiGetContext::Range* mget_range,
+                const SliceTransform* prefix_extractor,
+                bool skip_filters = false) override;
 
   // Pre-fetch the disk blocks that correspond to the key range specified by
   // (kbegin, kend). The call will return error status in the event of
@@ -353,6 +360,11 @@ class BlockBasedTable : public TableReader {
   bool FullFilterKeyMayMatch(
       const ReadOptions& read_options, FilterBlockReader* filter,
       const Slice& user_key, const bool no_io,
+      const SliceTransform* prefix_extractor = nullptr) const;
+
+  void FullFilterKeysMayMatch(
+      const ReadOptions& read_options, FilterBlockReader* filter,
+      MultiGetRange* range, const bool no_io,
       const SliceTransform* prefix_extractor = nullptr) const;
 
   static Status PrefetchTail(
@@ -599,7 +611,8 @@ class BlockBasedTableIterator : public InternalIteratorBase<TValue> {
   void SeekForPrev(const Slice& target) override;
   void SeekToFirst() override;
   void SeekToLast() override;
-  void Next() override;
+  void Next() final override;
+  bool NextAndGetResult(Slice* ret_key) override;
   void Prev() override;
   bool Valid() const override {
     return !is_out_of_bound_ && block_iter_points_to_real_block_ &&
@@ -608,6 +621,10 @@ class BlockBasedTableIterator : public InternalIteratorBase<TValue> {
   Slice key() const override {
     assert(Valid());
     return block_iter_.key();
+  }
+  Slice user_key() const override {
+    assert(Valid());
+    return block_iter_.user_key();
   }
   TValue value() const override {
     assert(Valid());
@@ -623,6 +640,7 @@ class BlockBasedTableIterator : public InternalIteratorBase<TValue> {
     }
   }
 
+  // Whether iterator invalidated for being out of bound.
   bool IsOutOfBound() override { return is_out_of_bound_; }
 
   void SetPinnedItersMgr(PinnedIteratorsManager* pinned_iters_mgr) override {
@@ -671,8 +689,10 @@ class BlockBasedTableIterator : public InternalIteratorBase<TValue> {
   }
 
   void InitDataBlock();
-  void FindKeyForward();
+  inline void FindKeyForward();
+  void FindBlockForward();
   void FindKeyBackward();
+  void CheckOutOfBound();
 
  private:
   BlockBasedTable* table_;
@@ -697,13 +717,15 @@ class BlockBasedTableIterator : public InternalIteratorBase<TValue> {
   bool for_compaction_;
   BlockHandle prev_index_value_;
 
-  static const size_t kInitReadaheadSize = 8 * 1024;
+  // All the below fields control iterator readahead
+  static const size_t kInitAutoReadaheadSize = 8 * 1024;
   // Found that 256 KB readahead size provides the best performance, based on
-  // experiments.
-  static const size_t kMaxReadaheadSize;
-  size_t readahead_size_ = kInitReadaheadSize;
+  // experiments, for auto readahead. Experiment data is in PR #3282.
+  static const size_t kMaxAutoReadaheadSize;
+  static const int kMinNumFileReadsToStartAutoReadahead = 2;
+  size_t readahead_size_ = kInitAutoReadaheadSize;
   size_t readahead_limit_ = 0;
-  int num_file_reads_ = 0;
+  int64_t num_file_reads_ = 0;
   std::unique_ptr<FilePrefetchBuffer> prefetch_buffer_;
 };
 
