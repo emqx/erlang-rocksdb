@@ -22,6 +22,7 @@
 
 destroy_reopen(DbName, Options) ->
   _ = rocksdb:destroy(DbName, []),
+  _ = rocksdb_test_util:rm_rf(DbName),
   {ok, Db} = rocksdb:open(DbName, Options),
   Db.
 

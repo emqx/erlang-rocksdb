@@ -21,31 +21,34 @@
 -include_lib("eunit/include/eunit.hrl").
 
 
+-define(DB, "test.db").
+-define(BACKUP_DB, "test_backup.db").
+
+
 checkpoint_test() ->
-  os:cmd("rm -rf test.db"),
-  os:cmd("rm -rf test_backup.db"),
-  {ok, Ref} = rocksdb:open("test.db", [{create_if_missing, true}]),
+  clean_dbs(),
+  {ok, Ref} = rocksdb:open(?DB, [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
     ?assertEqual({ok, <<"x">>}, rocksdb:get(Ref, <<"a">>, [])),
-    ok = rocksdb:checkpoint(Ref, "test_backup.db"),
-    ?assert(filelib:is_dir("test_backup.db")),
+    ok = rocksdb:checkpoint(Ref, ?BACKUP_DB),
+    ?assert(filelib:is_dir(?BACKUP_DB)),
     rocksdb:put(Ref, <<"a">>, <<"y">>, []),
     ?assertEqual({ok, <<"y">>}, rocksdb:get(Ref, <<"a">>, []))
   after
     rocksdb:close(Ref)
   end,
-  {ok, Ref2} = rocksdb:open("test_backup.db", []),
+  {ok, Ref2} = rocksdb:open(?BACKUP_DB, []),
   try
     ?assertEqual({ok, <<"x">>}, rocksdb:get(Ref2, <<"a">>, []))
   after
-    rocksdb:close(Ref2)
+    rocksdb:close(Ref2),
+    clean_dbs()
   end.
 
 iterator_test() ->
-  os:cmd("rm -rf test.db"),
-  os:cmd("rm -rf test_backup.db"),
-  {ok, Ref} = rocksdb:open("test.db", [{create_if_missing, true}]),
+  clean_dbs(),
+  {ok, Ref} = rocksdb:open(?DB, [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
     rocksdb:put(Ref, <<"b">>, <<"y">>, []),
@@ -53,7 +56,7 @@ iterator_test() ->
     ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
     ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I, next)),
     ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, prev)),
-    ok = rocksdb:checkpoint(Ref, "test_backup.db"),
+    ok = rocksdb:checkpoint(Ref, ?BACKUP_DB),
     rocksdb:put(Ref, <<"b">>, <<"z">>, []),
 
     {ok, I2} = rocksdb:iterator(Ref, []),
@@ -63,13 +66,19 @@ iterator_test() ->
   after
     rocksdb:close(Ref)
   end,
-
-  {ok, Ref2} = rocksdb:open("test_backup.db", []),
+  {ok, Ref2} = rocksdb:open(?BACKUP_DB, []),
   try
     {ok, I3} = rocksdb:iterator(Ref2, []),
     ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I3, <<>>)),
     ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I3, next)),
     ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I3, prev))
   after
-    rocksdb:close(Ref2)
+    rocksdb:close(Ref2),
+    clean_dbs()
   end.
+
+
+clean_dbs() ->
+  rocksdb_test_util:rm_rf(?DB),
+  rocksdb_test_util:rm_rf(?BACKUP_DB).
+

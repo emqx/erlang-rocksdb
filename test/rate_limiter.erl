@@ -24,7 +24,7 @@
 
 simple_rate_limiter_test() ->
   {ok, Limiter} = rocksdb:new_rate_limiter(83886080, true),
-  {ok, Ref} = rocksdb:open("/tmp/rocksdb_rate_limiter.test",
+  {ok, Ref} = rocksdb:open("rocksdb_rate_limiter.test",
     [{create_if_missing, true},{rate_limiter, Limiter}]),
   Key = <<"key">>,
   OriginalData = <<"sample_data">>,
@@ -32,5 +32,6 @@ simple_rate_limiter_test() ->
   {ok, Data} = rocksdb:get(Ref, Key, []),
   ?assertEqual(Data, OriginalData),
   ok = rocksdb:close(Ref),
-  ok = rocksdb:destroy("/tmp/rocksdb_rate_limiter.test", []),
+  ok = rocksdb:destroy("rocksdb_rate_limiter.test", []),
+  ok = rocksdb_test_util:rm_rf("rocksdb_rate_limiter.test"),
   ok = rocksdb:release_rate_limiter(Limiter).

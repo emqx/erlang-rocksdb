@@ -21,7 +21,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 basic_test() ->
-  rocksdb:destroy("test.db", []),
+  rocksdb_test_util:rm_rf("test.db"),
   {ok, Db} = rocksdb:open_with_ttl("test.db", [{create_if_missing, true}], 1, false),
   ?assertEqual({ok, ["default"]}, rocksdb:list_column_families("test.db", [])),
   ok = rocksdb:put(Db, <<"a">>, <<"a1">>, []),
@@ -30,6 +30,7 @@ basic_test() ->
   rocksdb:compact_range(Db, <<"0">>, <<"b">>, []),
   not_found = rocksdb:get(Db, <<"a">>, []),
   rocksdb:close(Db),
-
+  rocksdb:destroy("test.db", []),
+  rocksdb_test_util:rm_rf("test.db"),
   ok.
 

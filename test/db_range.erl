@@ -14,7 +14,7 @@
 
 
 delete_range_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"1">>, []),
@@ -34,14 +34,15 @@ delete_range_test() ->
       )
     )
   after
-    rocksdb:close(Ref)
+    rocksdb:close(Ref),
+    rocksdb:destroy("ltest", []),
+    rocksdb_test_util:rm_rf("ltest")
   end.
 
 cf_delete_range_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"), %% NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   {ok, TestH} = rocksdb:create_column_family(Ref, "test", []),
-
   try
     rocksdb:put(Ref, TestH, <<"a">>, <<"1">>, []),
     rocksdb:put(Ref, TestH, <<"b">>, <<"2">>, []),
@@ -61,6 +62,9 @@ cf_delete_range_test() ->
       )
     )
   after
-    rocksdb:close(Ref)
+    rocksdb:close(Ref),
+    rocksdb:destroy("ltest", []),
+    rocksdb_test_util:rm_rf("ltest")
+
   end.
 

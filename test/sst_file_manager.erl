@@ -42,7 +42,7 @@ simple_options_test() ->
   {ok, Mgr} = rocksdb:new_sst_file_manager(Env),
   Options = [{create_if_missing, true}, {env, Env}, {sst_file_manager, Mgr}],
 
-  {ok, Ref} = rocksdb:open("/tmp/rocksdb_sst_file_mgr.test", Options),
+  {ok, Ref} = rocksdb:open("rocksdb_sst_file_mgr.test", Options),
   Key = <<"key">>,
   OriginalData = <<"sample_data">>,
   ok = rocksdb:put(Ref, Key, OriginalData, []),
@@ -51,5 +51,6 @@ simple_options_test() ->
   ok = rocksdb:close(Ref),
   ok = rocksdb:release_sst_file_manager(Mgr),
   ok = rocksdb:destroy_env(Env),
-  ok = rocksdb:destroy("/tmp/rocksdb_sst_file_mgr.test", []),
+  ok = rocksdb:destroy("rocksdb_sst_file_mgr.test", []),
+  ok = rocksdb_test_util:rm_rf("rocksdb_sst_file_mgr.test"),
   ok.

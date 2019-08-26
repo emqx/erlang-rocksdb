@@ -22,13 +22,13 @@
   restore_latest_test/0
 ]).
 
--define(source, "/tmp/testsource").
--define(target, "/tmp/testtarget").
--define(latest, "/tmp/testatest").
+-define(source, "testsource").
+-define(target, "testtarget").
+-define(latest, "testlatest").
 
 simple_test() ->
-  os:cmd("rm -rf " ++ ?source),
-  os:cmd("rm -rf " ++ ?target),
+  rocksdb_test_util:rm_rf(?source),
+  rocksdb_test_util:rm_rf(?target),
   DB = open(),
   Backup = open_backup(),
   write(50, DB),
@@ -45,14 +45,14 @@ simple_test() ->
 
   rocksdb:close_backup_engine(Backup),
   rocksdb:close(DB),
-  rocksdb:destroy(?source, []),
-  rocksdb:destroy(?target, []),
+  destroy_and_rm(?source, []),
+  destroy_and_rm(?target, []),
   ok.
 
 restore_latest_test() ->
-  os:cmd("rm -rf " ++ ?source),
-  os:cmd("rm -rf " ++ ?target),
-  os:cmd("rm -rf " ++ ?latest),
+  rocksdb_test_util:rm_rf(?source),
+  rocksdb_test_util:rm_rf(?target),
+  rocksdb_test_util:rm_rf(?latest),
 
   DB = open(),
   Backup = open_backup(),
@@ -81,10 +81,10 @@ restore_latest_test() ->
   rocksdb:close_backup_engine(Backup2),
   rocksdb:close(LatestDb),
 
-  rocksdb:destroy(?source, []),
-  rocksdb:destroy(?target, []),
-  rocksdb:destroy(?source, []),
-  rocksdb:destroy(?latest, []),
+  destroy_and_rm(?source, []),
+  destroy_and_rm(?target, []),
+  destroy_and_rm(?source, []),
+  destroy_and_rm(?latest, []),
   ok.
 
 open() ->
@@ -109,3 +109,9 @@ write(Same, Same, _DB) ->
 write(N, End, DB) ->
   rocksdb:put(DB, <<N:64/integer>>, <<N:64/integer>>, []),
   write(N+1, End, DB).
+
+
+destroy_and_rm(Dir, Options) ->
+  rocksdb:destroy(Dir, Options),
+  rocksdb_test_util:rm_rf(Dir),
+  ok.

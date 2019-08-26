@@ -22,8 +22,8 @@
 
 
 merge_int_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -49,11 +49,11 @@ merge_int_test() ->
 
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_list_append_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -73,11 +73,11 @@ merge_list_append_test() ->
   {ok, Bin2} = rocksdb:get(Db, <<"list">>, []),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_list_substract_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -90,11 +90,11 @@ merge_list_substract_test() ->
   [b, d, e, a, b, c] = binary_to_term(Bin1),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_list_set_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -114,11 +114,11 @@ merge_list_set_test() ->
   {ok, Bin2}  = rocksdb:get(Db, <<"list">>, []),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_list_delete_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -144,11 +144,11 @@ merge_list_delete_test() ->
   {ok, Bin3} = rocksdb:get(Db, <<"list">>, []),
   [a, b] = binary_to_term(Bin3),
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_list_insert_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -164,11 +164,11 @@ merge_list_insert_test() ->
   {ok, Bin1} = rocksdb:get(Db, <<"list">>, []),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_binary_append_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -189,12 +189,11 @@ merge_binary_append_test() ->
   <<"abc">> = binary_to_term(Bin3),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_binary_replace_test() ->
-
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -222,11 +221,11 @@ merge_binary_replace_test() ->
   <<"abcdef">> = binary_to_term(Bin4),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_binary_erase_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -252,11 +251,11 @@ merge_binary_erase_test() ->
   <<"ab">> = binary_to_term(Bin3),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 merge_binary_insert_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, erlang_merge_operator}]),
 
@@ -282,12 +281,12 @@ merge_binary_insert_test() ->
 
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 
 merge_bitset_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_merge_db.test",
+ rocksdb_test_util:rm_rf("rocksdb_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, {bitset_merge_operator, 1024}}]),
 
@@ -316,12 +315,12 @@ merge_bitset_test() ->
   {ok, << 0, 48, _/binary>> } = rocksdb:get(Db, <<"unsetbitmap">>, []),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_merge_db.test", []).
 
 
 merge_counter_test() ->
-  [] = os:cmd("rm -rf /tmp/rocksdb_counter_merge_db.test"),
-  {ok, Db} = rocksdb:open("/tmp/rocksdb_counter_merge_db.test",
+  rocksdb_test_util:rm_rf("rocksdb_counter_merge_db.test"),
+  {ok, Db} = rocksdb:open("rocksdb_counter_merge_db.test",
                            [{create_if_missing, true},
                             {merge_operator, counter_merge_operator}]),
 
@@ -339,4 +338,9 @@ merge_counter_test() ->
   {ok, <<"0">>} = rocksdb:get(Db, <<"c">>, []),
 
   ok = rocksdb:close(Db),
-  ok = rocksdb:destroy("/tmp/rocksdb_counter_merge_db.test", []).
+  ok = destroy_and_rm("rocksdb_counter_merge_db.test", []).
+
+
+destroy_and_rm(Dir, Options) ->
+  rocksdb:destroy(Dir, Options),
+  rocksdb_test_util:rm_rf(Dir).

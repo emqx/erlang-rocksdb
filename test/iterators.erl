@@ -26,7 +26,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 prev_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -38,10 +38,12 @@ prev_test() ->
     ?assertEqual(ok, rocksdb:iterator_close(I))
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
 
 seek_for_prev_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"1">>, []),
@@ -56,11 +58,13 @@ seek_for_prev_test() ->
     ?assertEqual(ok, rocksdb:iterator_close(I))
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
 
 
 cf_iterator_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref, [DefaultH]} = rocksdb:open_with_cf("ltest", [{create_if_missing, true}], [{"default", []}]),
   {ok, TestH} = rocksdb:create_column_family(Ref, "test", []),
   try
@@ -82,10 +86,12 @@ cf_iterator_test() ->
     ok = rocksdb:iterator_close(DefaultIt)
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
 
 cf_iterators_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref, [DefaultH]} = rocksdb:open_with_cf("ltest", [{create_if_missing, true}], [{"default", []}]),
   {ok, TestH} = rocksdb:create_column_family(Ref, "test", []),
   try
@@ -105,11 +111,13 @@ cf_iterators_test() ->
     ok = rocksdb:iterator_close(DefaultIt)
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
 
 
 drop_cf_with_iterator_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref, [DefaultH]} = rocksdb:open_with_cf("ltest", [{create_if_missing, true}], [{"default", []}]),
   {ok, TestH} = rocksdb:create_column_family(Ref, "test", []),
   try
@@ -136,10 +144,12 @@ drop_cf_with_iterator_test() ->
 
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
 
 refresh_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -154,10 +164,12 @@ refresh_test() ->
     ?assertError(badarg, rocksdb:iterator_refresh(I))
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
 
 iterate_upper_bound_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -170,10 +182,12 @@ iterate_upper_bound_test() ->
     ?assertEqual(ok, rocksdb:iterator_close(I))
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
 
 iterate_outer_bound_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -186,10 +200,12 @@ iterate_outer_bound_test() ->
     ?assertEqual(ok, rocksdb:iterator_close(I))
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
 
 prefix_same_as_start_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("test_prefix"),  % NOTE
   {ok, Ref} = rocksdb:open("test_prefix", [{create_if_missing, true},
                                            {prefix_extractor, {fixed_prefix_transform, 8}}]),
   try
@@ -213,7 +229,9 @@ prefix_same_as_start_test() ->
     ?assertError(badarg, rocksdb:iterator_refresh(I))
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  rocksdb:destroy("test_prefix", []),
+  rocksdb_test_util:rm_rf("test_prefix").
 
 seek_iterator(Itr, Prefix, Suffix) ->
   rocksdb:iterator_move(Itr, test_key(Prefix, Suffix)).

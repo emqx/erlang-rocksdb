@@ -19,7 +19,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 get_test() ->
-  os:cmd("rm -rf test.db"),
+  rocksdb_test_util:rm_rf("test.db"),
   {ok, Db} = rocksdb:open("test.db", [{create_if_missing, true}]),
   try
     rocksdb:put(Db, <<"a">>, <<"x">>, []),
@@ -31,10 +31,11 @@ get_test() ->
     rocksdb:release_snapshot(Snapshot)
   after
     rocksdb:close(Db)
-  end.
+  end,
+  destroy_and_rm("test.db").
 
 multiple_snapshot_test() ->
-  os:cmd("rm -rf test.db"),
+  rocksdb_test_util:rm_rf("test.db"),
   {ok, Db} = rocksdb:open("test.db", [{create_if_missing, true}]),
   try
     rocksdb:put(Db, <<"a">>, <<"1">>, []),
@@ -63,11 +64,12 @@ multiple_snapshot_test() ->
     rocksdb:release_snapshot(Snapshot3)
   after
     rocksdb:close(Db)
-  end.
+  end,
+  destroy_and_rm("test.db").
 
 
 iterator_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -93,11 +95,12 @@ iterator_test() ->
     rocksdb:release_snapshot(Snapshot)
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  destroy_and_rm("ltest").
 
 
 release_snapshot_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
 
   try
@@ -119,11 +122,12 @@ release_snapshot_test() ->
 
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  destroy_and_rm("ltest").
 
 
 close_iterator_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
 
   try
@@ -142,10 +146,11 @@ close_iterator_test() ->
     rocksdb:release_snapshot(Snapshot)
   after
     rocksdb:close(Ref)
-  end.
+  end,
+  destroy_and_rm("ltest").
 
 db_close_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
 
   rocksdb:put(Ref, <<"a">>, <<"x">>, []),
@@ -168,7 +173,7 @@ db_close_test() ->
   ?assertError(badarg, rocksdb:iterator(Ref, [{snapshot, Snapshot}])),
 
 
-  os:cmd("rm -rf ltest"),
+  rocksdb_test_util:rm_rf("ltest"),
   {ok, Db} = rocksdb:open("ltest", [{create_if_missing, true}]),
   rocksdb:put(Db, <<"a">>, <<"x">>, []),
   ?assertEqual({ok, <<"x">>}, rocksdb:get(Db, <<"a">>, [])),
@@ -178,10 +183,12 @@ db_close_test() ->
   rocksdb:close(Db),
 
   %% snapshot has been released when the db was closed, it can't be reused
-  ?assertError(badarg, rocksdb:get(Db, <<"a">>, [{snapshot, Snapshot2}])).
+  ?assertError(badarg, rocksdb:get(Db, <<"a">>, [{snapshot, Snapshot2}])),
+  destroy_and_rm("ltest").
+
 
 cleanup_test() ->
-  os:cmd("rm -rf ltest"),  % NOTE
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   rocksdb:put(Ref, <<"a">>, <<"x">>, []),
   rocksdb:put(Ref, <<"b">>, <<"y">>, []),
@@ -201,4 +208,9 @@ cleanup_test() ->
   receive
     {ok, <<"y">>} -> ok
   end,
-  rocksdb:close(Ref).
+  rocksdb:close(Ref),
+  destroy_and_rm("ltest").
+
+destroy_and_rm(Dir) ->
+  rocksdb:destroy(Dir, []),
+  rocksdb_test_util:rm_rf(Dir).

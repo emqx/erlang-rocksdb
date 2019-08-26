@@ -29,14 +29,13 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(COMMON_INSTANCE_DIR, "/tmp/erocksdb.cleanup.test").
-
--define(CF_INSTANCE_DIR, "/tmp/erocksdb_CF.cleanup.test").
+-define(COMMON_INSTANCE_DIR, "erocksdb.cleanup.test").
+-define(CF_INSTANCE_DIR, "erocksdb_CF.cleanup.test").
 
 
 %% Purposely reopen an already opened database to test failure assumption
 assumption_test() ->
-  os:cmd("rm -rf " ++ ?COMMON_INSTANCE_DIR),
+  rocksdb_test_util:rm_rf(?COMMON_INSTANCE_DIR),
   DB = open(),
   try
     io:format(user, "assumption_test: top\n", []),
@@ -45,15 +44,16 @@ assumption_test() ->
     ok
   after
     rocksdb:close(DB),
-    timer:sleep(500)
-  end,
-  rocksdb:destroy(?COMMON_INSTANCE_DIR, []).
+    timer:sleep(500),
+    destroy_and_rm(?COMMON_INSTANCE_DIR)
+  end.
 
 %% Open/close
 open_close_test() ->
   DB = open(),
   rocksdb:close(DB),
-  check().
+  check(),
+  destroy_and_rm(?COMMON_INSTANCE_DIR).
 
 %% Open w/o close
 open_exit_test() ->
@@ -62,7 +62,7 @@ open_exit_test() ->
          end),
   timer:sleep(500),
   check(),
-  rocksdb:destroy(?COMMON_INSTANCE_DIR, []).
+  destroy_and_rm(?COMMON_INSTANCE_DIR).
 
 %% Iterator open/close
 iterator_test() ->
@@ -77,9 +77,9 @@ iterator_test() ->
     ok
   after
     catch rocksdb:close(DB),
-    timer:sleep(500)
-  end,
-  rocksdb:destroy(?COMMON_INSTANCE_DIR, []).
+    timer:sleep(500),
+    destroy_and_rm(?COMMON_INSTANCE_DIR)
+  end.
 
 %% Close DB while iterator running
 %% Expected: reopen should fail while iterator reference alive
@@ -116,9 +116,9 @@ iterator_db_close_test() ->
     ok
   after
     catch rocksdb:close(DB),
-    timer:sleep(500)
-  end,
-  rocksdb:destroy(?COMMON_INSTANCE_DIR, []).
+    timer:sleep(500),
+    destroy_and_rm(?COMMON_INSTANCE_DIR)
+  end.
 
 %% Iterate open, iterator process exit w/o close
 iterator_exit_test() ->
@@ -134,9 +134,9 @@ iterator_exit_test() ->
     ok
   after
     catch rocksdb:close(DB),
-    timer:sleep(500)
-  end,
-  rocksdb:destroy(?COMMON_INSTANCE_DIR, []).
+    timer:sleep(500),
+    destroy_and_rm(?COMMON_INSTANCE_DIR)
+  end.
 
 
 iterator_with_cf_exit_test() ->
@@ -156,9 +156,9 @@ iterator_with_cf_exit_test() ->
     ok
   after
     catch rocksdb:close(DB),
-    timer:sleep(500)
-  end,
-  rocksdb:destroy(?CF_INSTANCE_DIR, []).
+    timer:sleep(500),
+    destroy_and_rm(?CF_INSTANCE_DIR)
+  end.
 
 
 spawn_wait(F) ->
@@ -240,3 +240,7 @@ do_iterate({ok, K, _V}, {Itr, Expected, Delay}) ->
   (Delay == 0) orelse timer:sleep(Delay),
   do_iterate(rocksdb:iterator_move(Itr, next),
          {Itr, Expected + 1, Delay}).
+
+destroy_and_rm(Dir) ->
+  rocksdb:destroy(Dir, []),
+  rocksdb_test_util:rm_rf(Dir).

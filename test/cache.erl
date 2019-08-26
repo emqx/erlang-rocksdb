@@ -23,16 +23,22 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(DB, "erocksdb.sharedcacheleak.test").
+
 shared_cacheleak_test_() ->
   {ok, Cache} = rocksdb:new_cache(lru, 83886080),
   %%ok = rocksdb:set_strict_capacity_limit(Cache, true),
   {timeout, 10*60, fun() ->
-                       [] = os:cmd("rm -rf /tmp/erocksdb.sharedcacheleak.test"),
+                       ok = rocksdb_test_util:rm_rf(?DB),
                        Blobs = [{<<I:128/unsigned>>, compressible_bytes(10240)} ||
                                 I <- lists:seq(1, 10000)],
-                       ok = sharedcacheleak_loop(10, Cache, Blobs, 500000),
-                       rocksdb:release_cache(Cache),
-                       erlang:garbage_collect()
+                       try
+                         ok = sharedcacheleak_loop(10, Cache, Blobs, 500000)
+                       after
+                         rocksdb:release_cache(Cache),
+                         rocksdb_test_util:rm_rf(?DB),
+                         erlang:garbage_collect()
+                       end
                    end}.
 
 %% It's very important for this test that the data is compressible. Otherwise,
@@ -49,15 +55,13 @@ sharedcacheleak_loop(Count, Cache ,Blobs, MaxFinalRSS) ->
   %% process to make sure everything got cleaned up as expected.
   F = fun() ->
           BlockOptions = [{block_cache, Cache}],
-          {ok, Ref} = rocksdb:open("/tmp/erocksdb.sharedcacheleak.test",
-                                   [{create_if_missing, true},
-                                    {block_based_table_options, BlockOptions}]),
+          {ok, Ref} = rocksdb:open(?DB, [{create_if_missing, true},
+                                         {block_based_table_options, BlockOptions}]),
           ?assertEqual(83886080, rocksdb:cache_info(Cache, capacity)),
           [ok = rocksdb:put(Ref, I, B, []) || {I, B} <- Blobs],
           rocksdb:fold(Ref, fun({_K, _V}, A) -> A end, [], [{fill_cache, true}]),
           [{ok, B} = rocksdb:get(Ref, I, []) || {I, B} <- Blobs],
           ok = rocksdb:close(Ref)
-
       end,
   {_Pid, Mref} = spawn_monitor(F),
   receive
