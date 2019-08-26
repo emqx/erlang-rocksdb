@@ -8,9 +8,10 @@ install:
     choco install erlang --version $env:erlang_vsn
 
     choco install rebar3 --version 3.6.1
-build: off
+build_script:
+- cmd: C:\ProgramData\chocolatey\lib\rebar3\tools\rebar3.cmd compile
 test_script:
-  - cmd: C:\ProgramData\chocolatey\lib\rebar3\tools\rebar3.cmd eunit
+- cmd: C:\ProgramData\chocolatey\lib\rebar3\tools\rebar3.cmd eunit
 notifications:
 - provider: Email
   to:
