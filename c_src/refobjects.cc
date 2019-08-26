@@ -963,6 +963,8 @@ TLogItrObject::~TLogItrObject() {
     if (NULL != m_DbPtr.get())
         m_DbPtr->RemoveTLogReference(this);
 
+
+    delete m_Iter;
     m_Iter = NULL;
 
     // do not clean up m_CloseMutex and m_CloseCond
