@@ -182,7 +182,7 @@ CacheInfo(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     for(const auto& item : items) {
         info = enif_make_list_cell(
                 env,
-                enif_make_tuple2(env, item, cache_info_1(env, std::move(cache), item)),
+                enif_make_tuple2(env, item, cache_info_1(env, cache, item)),
                 info);
     }
     return info;
