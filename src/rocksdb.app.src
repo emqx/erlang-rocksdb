@@ -25,7 +25,6 @@
          ]},
   {env, []},
 
-  {maintainers,["Benoit Chesneau"]},
   {licenses, ["Apache 2.0"]},
   {links, [{"Gitlab", "https://gitlab.com/barrel-db/erlang-rocksdb"}]},
   {files, ["rebar.config",
