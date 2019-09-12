@@ -4,7 +4,7 @@ Since version 0.26.0 Erlang wrapper for RocksDB support customized build.
 
 There are manyoptions added to customize build (all are `OFF` by default):
 
-* `WIT_SYSTEM_ROCKSDB=ON` the driver will link with RocksDB shared library provided by host system
+* `WITH_SYSTEM_ROCKSDB=ON` the driver will link with RocksDB shared library provided by host system
 
 * `WITH_SNAPPY=ON` the driver will link with snappy shared library provided by host system
 
