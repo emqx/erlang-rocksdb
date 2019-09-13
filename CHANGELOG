@@ -1,3 +1,8 @@
+erlang-rocksdb 1.3.2, released on 2019/09/13
+================================================
+
+- fix build using installed rocksdb on the system
+
 erlang-rocksdb 1.3.1, released on 2019/08/28
 ================================================
 
