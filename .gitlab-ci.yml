@@ -17,3 +17,11 @@ test-shared_libs:
         ERLANG_ROCKSDB_OPTS: "-DWITH_LZ4=ON -DWITH_SNAPPY=ON"
     script:
         - ./deps/rebar3 eunit
+
+test-shared_rocksdb:
+    before-script:
+        - apt-get update -qq && apt-get -y -qq install cmake liblz4-dev libsnappy-dev librocksdb-dev
+    variables:
+        ERLANG_ROCKSDB_OPTS: "-DWITH_SYSTEM_ROCKSDB=ON"
+    script:
+        - ./deps/rebar3 eunit
