@@ -8,17 +8,20 @@ else
     CMAKE=cmake
 fi
 
-if [[ "$@" =~ "-j" ]]; then
-    ${CMAKE} --build . -- "$@" || exit 1
-else
-    CORES=$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)
+case "$@" in
+    *-j*)
+        ${CMAKE} --build . -- "$@" || exit 1
+        ;;
+    *)
+        CORES=$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)
 
-    if [ "x$CORES" = "x" ]; then
-        PAR=""
-    else
-        PAR="-- -j $CORES"
-    fi
-    ${CMAKE} --build . $PAR $@ || exit 1
-fi
+        if [ "x$CORES" = "x" ]; then
+            PAR=""
+        else
+            PAR="-- -j $CORES"
+        fi
+        ${CMAKE} --build . $PAR $@ || exit 1
+        ;;
+esac
 
 echo done.
