@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python2
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import os
 import sys
@@ -37,7 +37,8 @@ default_params = {
     "delpercent": 4,
     "delrangepercent": 1,
     "destroy_db_initially": 0,
-    "enable_pipelined_write": lambda: random.randint(0, 1),
+    # Temporarily disable it until its concurrency issue are fixed
+    "enable_pipelined_write": 0,
     "expected_values_path": expected_values_file.name,
     "flush_one_in": 1000000,
     "max_background_compactions": 20,
@@ -140,6 +141,7 @@ atomic_flush_params = {
     "write_buffer_size": 1024 * 1024,
     # disable pipelined write when test_atomic_flush is true
     "enable_pipelined_write": 0,
+    "snap_refresh_nanos": 0,
 }
 
 
@@ -343,8 +345,9 @@ def whitebox_crash_main(args, unknown_args):
         if additional_opts['kill_random_test'] is None and (retncode == 0):
             # we expect zero retncode if no kill option
             expected = True
-        elif additional_opts['kill_random_test'] is not None and retncode < 0:
-            # we expect negative retncode if kill option was given
+        elif additional_opts['kill_random_test'] is not None and retncode <= 0:
+            # When kill option is given, the test MIGHT kill itself.
+            # If it does, negative retncode is expected. Otherwise 0.
             expected = True
 
         if not expected:

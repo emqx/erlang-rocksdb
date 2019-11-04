@@ -10,12 +10,12 @@
 #pragma once
 #include <algorithm>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
-#include "rocksdb/cache.h"
 #include "db/dbformat.h"
-#include "util/arena.h"
+#include "memory/arena.h"
+#include "rocksdb/cache.h"
 #include "util/autovector.h"
 
 namespace rocksdb {
@@ -51,6 +51,8 @@ struct FileDescriptor {
         file_size(_file_size),
         smallest_seqno(_smallest_seqno),
         largest_seqno(_largest_seqno) {}
+
+  FileDescriptor(const FileDescriptor& fd) { *this=fd; }
 
   FileDescriptor& operator=(const FileDescriptor& fd) {
     table_reader = fd.table_reader;
@@ -316,6 +318,7 @@ class VersionEdit {
   friend class ReactiveVersionSet;
   friend class VersionSet;
   friend class Version;
+  friend class AtomicGroupReadBuffer;
 
   bool GetLevel(Slice* input, int* level, const char** msg);
 

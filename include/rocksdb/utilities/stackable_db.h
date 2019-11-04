@@ -120,6 +120,16 @@ class StackableDB : public DB {
     return db_->IngestExternalFiles(args);
   }
 
+  using DB::CreateColumnFamilyWithImport;
+  virtual Status CreateColumnFamilyWithImport(
+      const ColumnFamilyOptions& options, const std::string& column_family_name,
+      const ImportColumnFamilyOptions& import_options,
+      const ExportImportFilesMetaData& metadata,
+      ColumnFamilyHandle** handle) override {
+    return db_->CreateColumnFamilyWithImport(options, column_family_name,
+                                             import_options, metadata, handle);
+  }
+
   virtual Status VerifyChecksum() override { return db_->VerifyChecksum(); }
 
   using DB::KeyMayExist;
@@ -199,10 +209,11 @@ class StackableDB : public DB {
   }
 
   using DB::GetApproximateSizes;
-  virtual void GetApproximateSizes(
-      ColumnFamilyHandle* column_family, const Range* r, int n, uint64_t* sizes,
-      uint8_t include_flags = INCLUDE_FILES) override {
-    return db_->GetApproximateSizes(column_family, r, n, sizes, include_flags);
+  virtual Status GetApproximateSizes(const SizeApproximationOptions& options,
+                                     ColumnFamilyHandle* column_family,
+                                     const Range* r, int n,
+                                     uint64_t* sizes) override {
+    return db_->GetApproximateSizes(options, column_family, r, n, sizes);
   }
 
   using DB::GetApproximateMemTableStats;
@@ -314,6 +325,16 @@ class StackableDB : public DB {
                                        ColumnFamilyMetaData* cf_meta) override {
     db_->GetColumnFamilyMetaData(column_family, cf_meta);
   }
+
+  using DB::StartBlockCacheTrace;
+  Status StartBlockCacheTrace(
+      const TraceOptions& options,
+      std::unique_ptr<TraceWriter>&& trace_writer) override {
+    return db_->StartBlockCacheTrace(options, std::move(trace_writer));
+  }
+
+  using DB::EndBlockCacheTrace;
+  Status EndBlockCacheTrace() override { return db_->EndBlockCacheTrace(); }
 
 #endif  // ROCKSDB_LITE
 

@@ -10,11 +10,7 @@
 
 #include "db/internal_stats.h"
 
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS
-#endif
-
-#include <inttypes.h>
+#include <cinttypes>
 #include <algorithm>
 #include <limits>
 #include <string>
@@ -22,8 +18,8 @@
 #include <vector>
 
 #include "db/column_family.h"
-#include "db/db_impl.h"
-#include "table/block_based_table_factory.h"
+#include "db/db_impl/db_impl.h"
+#include "table/block_based/block_based_table_factory.h"
 #include "util/string_util.h"
 
 namespace rocksdb {
