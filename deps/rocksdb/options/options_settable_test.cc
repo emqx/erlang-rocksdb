@@ -7,15 +7,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS
-#endif
-
 #include <cstring>
 
 #include "options/options_helper.h"
 #include "rocksdb/convenience.h"
-#include "util/testharness.h"
+#include "test_util/testharness.h"
 
 #ifndef GFLAGS
 bool FLAGS_enable_print = false;
@@ -269,6 +265,7 @@ TEST_F(OptionsSettableTest, DBOptionsAllFieldsSettable) {
                              "allow_mmap_writes=false;"
                              "stats_dump_period_sec=70127;"
                              "stats_persist_period_sec=54321;"
+                             "persist_stats_to_disk=true;"
                              "stats_history_buffer_size=14159;"
                              "allow_fallocate=true;"
                              "allow_mmap_reads=false;"
@@ -279,6 +276,7 @@ TEST_F(OptionsSettableTest, DBOptionsAllFieldsSettable) {
                              "advise_random_on_open=true;"
                              "fail_if_options_file_error=false;"
                              "enable_pipelined_write=false;"
+                             "unordered_write=false;"
                              "allow_concurrent_memtable_write=true;"
                              "wal_recovery_mode=kPointInTimeRecovery;"
                              "enable_write_thread_adaptive_yield=true;"
@@ -297,7 +295,8 @@ TEST_F(OptionsSettableTest, DBOptionsAllFieldsSettable) {
                              "manual_wal_flush=false;"
                              "seq_per_batch=false;"
                              "atomic_flush=false;"
-                             "avoid_unnecessary_blocking_io=false",
+                             "avoid_unnecessary_blocking_io=false;"
+                             "log_readahead_size=0",
                              new_options));
 
   ASSERT_EQ(unset_bytes_base, NumUnsetBytes(new_options_ptr, sizeof(DBOptions),

@@ -294,11 +294,11 @@ class TransactionBaseImpl : public Transaction {
 
   struct SavePoint {
     std::shared_ptr<const Snapshot> snapshot_;
-    bool snapshot_needed_;
+    bool snapshot_needed_ = false;
     std::shared_ptr<TransactionNotifier> snapshot_notifier_;
-    uint64_t num_puts_;
-    uint64_t num_deletes_;
-    uint64_t num_merges_;
+    uint64_t num_puts_ = 0;
+    uint64_t num_deletes_ = 0;
+    uint64_t num_merges_ = 0;
 
     // Record all keys tracked since the last savepoint
     TransactionKeyMap new_keys_;
@@ -312,10 +312,18 @@ class TransactionBaseImpl : public Transaction {
           num_puts_(num_puts),
           num_deletes_(num_deletes),
           num_merges_(num_merges) {}
+
+    SavePoint() = default;
   };
 
   // Records writes pending in this transaction
   WriteBatchWithIndex write_batch_;
+
+  // Map from column_family_id to map of keys that are involved in this
+  // transaction.
+  // For Pessimistic Transactions this is the list of locked keys.
+  // Optimistic Transactions will wait till commit time to do conflict checking.
+  TransactionKeyMap tracked_keys_;
 
  private:
   friend class WritePreparedTxn;
@@ -326,12 +334,6 @@ class TransactionBaseImpl : public Transaction {
   // Stack of the Snapshot saved at each save point.  Saved snapshots may be
   // nullptr if there was no snapshot at the time SetSavePoint() was called.
   std::unique_ptr<std::stack<TransactionBaseImpl::SavePoint, autovector<TransactionBaseImpl::SavePoint>>> save_points_;
-
-  // Map from column_family_id to map of keys that are involved in this
-  // transaction.
-  // For Pessimistic Transactions this is the list of locked keys.
-  // Optimistic Transactions will wait till commit time to do conflict checking.
-  TransactionKeyMap tracked_keys_;
 
   // If true, future Put/Merge/Deletes will be indexed in the
   // WriteBatchWithIndex.

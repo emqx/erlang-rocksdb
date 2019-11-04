@@ -467,6 +467,8 @@ class StatusJni : public RocksDBNativeClass<rocksdb::Status*, StatusJni> {
         return 0xC;
       case rocksdb::Status::Code::kTryAgain:
         return 0xD;
+      case rocksdb::Status::Code::kColumnFamilyDropped:
+        return 0xE;
       default:
         return 0x7F;  // undefined
     }
@@ -583,6 +585,12 @@ class StatusJni : public RocksDBNativeClass<rocksdb::Status*, StatusJni> {
         status = std::unique_ptr<rocksdb::Status>(
             new rocksdb::Status(rocksdb::Status::TryAgain(
               rocksdb::SubCodeJni::toCppSubCode(jsub_code_value))));
+        break;
+      case 0xE:
+        // ColumnFamilyDropped
+        status = std::unique_ptr<rocksdb::Status>(
+            new rocksdb::Status(rocksdb::Status::ColumnFamilyDropped(
+                rocksdb::SubCodeJni::toCppSubCode(jsub_code_value))));
         break;
       case 0x7F:
       default:
@@ -5894,8 +5902,10 @@ class IndexTypeJni {
        return 0x0;
      case rocksdb::BlockBasedTableOptions::IndexType::kHashSearch:
        return 0x1;
-    case rocksdb::BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch:
+     case rocksdb::BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch:
        return 0x2;
+     case rocksdb::BlockBasedTableOptions::IndexType::kBinarySearchWithFirstKey:
+       return 0x3;
      default:
        return 0x7F;  // undefined
    }
@@ -5912,6 +5922,9 @@ class IndexTypeJni {
        return rocksdb::BlockBasedTableOptions::IndexType::kHashSearch;
      case 0x2:
        return rocksdb::BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch;
+     case 0x3:
+       return rocksdb::BlockBasedTableOptions::IndexType::
+           kBinarySearchWithFirstKey;
      default:
        // undefined/default
        return rocksdb::BlockBasedTableOptions::IndexType::kBinarySearch;

@@ -7,10 +7,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS
-#endif
-
 #ifdef GFLAGS
 #ifdef NUMA
 #include <numa.h>
@@ -20,7 +16,7 @@
 #include <unistd.h>
 #endif
 #include <fcntl.h>
-#include <inttypes.h>
+#include <cinttypes>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,7 +29,7 @@
 #include <thread>
 #include <unordered_map>
 
-#include "db/db_impl.h"
+#include "db/db_impl/db_impl.h"
 #include "db/malloc_stats.h"
 #include "db/version_set.h"
 #include "hdfs/env_hdfs.h"
@@ -53,6 +49,7 @@
 #include "rocksdb/rate_limiter.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/slice_transform.h"
+#include "rocksdb/stats_history.h"
 #include "rocksdb/utilities/object_registry.h"
 #include "rocksdb/utilities/optimistic_transaction_db.h"
 #include "rocksdb/utilities/options_util.h"
@@ -60,6 +57,8 @@
 #include "rocksdb/utilities/transaction.h"
 #include "rocksdb/utilities/transaction_db.h"
 #include "rocksdb/write_batch.h"
+#include "test_util/testutil.h"
+#include "test_util/transaction_test_util.h"
 #include "util/cast_util.h"
 #include "util/compression.h"
 #include "util/crc32c.h"
@@ -68,8 +67,6 @@
 #include "util/random.h"
 #include "util/stderr_logger.h"
 #include "util/string_util.h"
-#include "util/testutil.h"
-#include "util/transaction_test_util.h"
 #include "util/xxhash.h"
 #include "utilities/blob_db/blob_db.h"
 #include "utilities/merge_operators.h"
@@ -752,6 +749,19 @@ DEFINE_uint64(blob_db_bytes_per_sync, 0, "Bytes to sync blob file at.");
 DEFINE_uint64(blob_db_file_size, 256 * 1024 * 1024,
               "Target size of each blob file.");
 
+// Secondary DB instance Options
+DEFINE_bool(use_secondary_db, false,
+            "Open a RocksDB secondary instance. A primary instance can be "
+            "running in another db_bench process.");
+
+DEFINE_string(secondary_path, "",
+              "Path to a directory used by the secondary instance to store "
+              "private files, e.g. info log.");
+
+DEFINE_int32(secondary_update_interval, 5,
+             "Secondary instance attempts to catch up with the primary every "
+             "secondary_update_interval seconds.");
+
 #endif  // ROCKSDB_LITE
 
 DEFINE_bool(report_bg_io_stats, false,
@@ -761,6 +771,20 @@ DEFINE_bool(use_stderr_info_logger, false,
             "Write info logs to stderr instead of to LOG file. ");
 
 DEFINE_string(trace_file, "", "Trace workload to a file. ");
+
+DEFINE_int32(trace_replay_fast_forward, 1,
+             "Fast forward trace replay, must >= 1. ");
+
+DEFINE_int32(block_cache_trace_sampling_frequency, 1,
+             "Block cache trace sampling frequency, termed s. It uses spatial "
+             "downsampling and samples accesses to one out of s blocks.");
+DEFINE_int64(
+    block_cache_trace_max_trace_file_size_in_bytes,
+    uint64_t{64} * 1024 * 1024 * 1024,
+    "The maximum block cache trace file size in bytes. Block cache accesses "
+    "will not be logged if the trace file size exceeds this threshold. Default "
+    "is 64 GB.");
+DEFINE_string(block_cache_trace_file, "", "Block cache trace file path.");
 
 static enum rocksdb::CompressionType StringToCompressionType(const char* ctype) {
   assert(ctype);
@@ -889,6 +913,9 @@ DEFINE_uint64(delayed_write_rate, 8388608u,
               "level0_slowdown_writes_trigger triggers");
 
 DEFINE_bool(enable_pipelined_write, true,
+            "Allow WAL and memtable writes to be pipelined");
+
+DEFINE_bool(unordered_write, false,
             "Allow WAL and memtable writes to be pipelined");
 
 DEFINE_bool(allow_concurrent_memtable_write, true,
@@ -1120,6 +1147,8 @@ DEFINE_uint64(stats_dump_period_sec, rocksdb::Options().stats_dump_period_sec,
 DEFINE_uint64(stats_persist_period_sec,
               rocksdb::Options().stats_persist_period_sec,
               "Gap between persisting stats in seconds");
+DEFINE_bool(persist_stats_to_disk, rocksdb::Options().persist_stats_to_disk,
+            "whether to persist stats to disk");
 DEFINE_uint64(stats_history_buffer_size,
               rocksdb::Options().stats_history_buffer_size,
               "Max number of stats snapshots to keep in memory");
@@ -1519,7 +1548,6 @@ class ReporterAgent {
  private:
   std::string Header() const { return "secs_elapsed,interval_qps"; }
   void SleepAndReport() {
-    uint64_t kMicrosInSecond = 1000 * 1000;
     auto time_started = env_->NowMicros();
     while (true) {
       {
@@ -2066,6 +2094,7 @@ class Benchmark {
   Options open_options_;  // keep options around to properly destroy db later
 #ifndef ROCKSDB_LITE
   TraceOptions trace_options_;
+  TraceOptions block_cache_trace_options_;
 #endif
   int64_t reads_;
   int64_t deletes_;
@@ -2102,10 +2131,10 @@ class Benchmark {
       cv_.SignalAll();
     }
 
-    bool WaitForRecovery(uint64_t /*abs_time_us*/) {
+    bool WaitForRecovery(uint64_t abs_time_us) {
       InstrumentedMutexLock l(&mutex_);
       if (!recovery_complete_) {
-        cv_.Wait(/*abs_time_us*/);
+        cv_.TimedWait(abs_time_us);
       }
       if (recovery_complete_) {
         recovery_complete_ = false;
@@ -2368,16 +2397,17 @@ class Benchmark {
       return nullptr;
     }
     if (FLAGS_use_clock_cache) {
-      auto cache = NewClockCache((size_t)capacity, FLAGS_cache_numshardbits);
+      auto cache = NewClockCache(static_cast<size_t>(capacity),
+                                 FLAGS_cache_numshardbits);
       if (!cache) {
         fprintf(stderr, "Clock cache not supported.");
         exit(1);
       }
       return cache;
     } else {
-      return NewLRUCache((size_t)capacity, FLAGS_cache_numshardbits,
-                         false /*strict_capacity_limit*/,
-                         FLAGS_cache_high_pri_pool_ratio);
+      return NewLRUCache(
+          static_cast<size_t>(capacity), FLAGS_cache_numshardbits,
+          false /*strict_capacity_limit*/, FLAGS_cache_high_pri_pool_ratio);
     }
   }
 
@@ -2565,36 +2595,38 @@ class Benchmark {
     return base_name + ToString(id);
   }
 
-void VerifyDBFromDB(std::string& truth_db_name) {
-  DBWithColumnFamilies truth_db;
-  auto s = DB::OpenForReadOnly(open_options_, truth_db_name, &truth_db.db);
-  if (!s.ok()) {
-    fprintf(stderr, "open error: %s\n", s.ToString().c_str());
-    exit(1);
-  }
-  ReadOptions ro;
-  ro.total_order_seek = true;
-  std::unique_ptr<Iterator> truth_iter(truth_db.db->NewIterator(ro));
-  std::unique_ptr<Iterator> db_iter(db_.db->NewIterator(ro));
-  // Verify that all the key/values in truth_db are retrivable in db with ::Get
-  fprintf(stderr, "Verifying db >= truth_db with ::Get...\n");
-  for (truth_iter->SeekToFirst(); truth_iter->Valid(); truth_iter->Next()) {
+  void VerifyDBFromDB(std::string& truth_db_name) {
+    DBWithColumnFamilies truth_db;
+    auto s = DB::OpenForReadOnly(open_options_, truth_db_name, &truth_db.db);
+    if (!s.ok()) {
+      fprintf(stderr, "open error: %s\n", s.ToString().c_str());
+      exit(1);
+    }
+    ReadOptions ro;
+    ro.total_order_seek = true;
+    std::unique_ptr<Iterator> truth_iter(truth_db.db->NewIterator(ro));
+    std::unique_ptr<Iterator> db_iter(db_.db->NewIterator(ro));
+    // Verify that all the key/values in truth_db are retrivable in db with
+    // ::Get
+    fprintf(stderr, "Verifying db >= truth_db with ::Get...\n");
+    for (truth_iter->SeekToFirst(); truth_iter->Valid(); truth_iter->Next()) {
       std::string value;
       s = db_.db->Get(ro, truth_iter->key(), &value);
       assert(s.ok());
       // TODO(myabandeh): provide debugging hints
       assert(Slice(value) == truth_iter->value());
+    }
+    // Verify that the db iterator does not give any extra key/value
+    fprintf(stderr, "Verifying db == truth_db...\n");
+    for (db_iter->SeekToFirst(), truth_iter->SeekToFirst(); db_iter->Valid();
+         db_iter->Next(), truth_iter->Next()) {
+      assert(truth_iter->Valid());
+      assert(truth_iter->value() == db_iter->value());
+    }
+    // No more key should be left unchecked in truth_db
+    assert(!truth_iter->Valid());
+    fprintf(stderr, "...Verified\n");
   }
-  // Verify that the db iterator does not give any extra key/value
-  fprintf(stderr, "Verifying db == truth_db...\n");
-  for (db_iter->SeekToFirst(), truth_iter->SeekToFirst(); db_iter->Valid(); db_iter->Next(), truth_iter->Next()) {
-    assert(truth_iter->Valid());
-    assert(truth_iter->value() == db_iter->value());
-  }
-  // No more key should be left unchecked in truth_db
-  assert(!truth_iter->Valid());
-  fprintf(stderr, "...Verified\n");
-}
 
   void Run() {
     if (!SanityCheck()) {
@@ -2836,6 +2868,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
         PrintStats("rocksdb.levelstats");
       } else if (name == "sstables") {
         PrintStats("rocksdb.sstables");
+      } else if (name == "stats_history") {
+        PrintStatsHistory();
       } else if (name == "replay") {
         if (num_threads > 1) {
           fprintf(stderr, "Multi-threaded replay is not yet supported\n");
@@ -2900,6 +2934,47 @@ void VerifyDBFromDB(std::string& truth_db_name) {
           fprintf(stdout, "Tracing the workload to: [%s]\n",
                   FLAGS_trace_file.c_str());
         }
+        // Start block cache tracing.
+        if (!FLAGS_block_cache_trace_file.empty()) {
+          // Sanity checks.
+          if (FLAGS_block_cache_trace_sampling_frequency <= 0) {
+            fprintf(stderr,
+                    "Block cache trace sampling frequency must be higher than "
+                    "0.\n");
+            exit(1);
+          }
+          if (FLAGS_block_cache_trace_max_trace_file_size_in_bytes <= 0) {
+            fprintf(stderr,
+                    "The maximum file size for block cache tracing must be "
+                    "higher than 0.\n");
+            exit(1);
+          }
+          block_cache_trace_options_.max_trace_file_size =
+              FLAGS_block_cache_trace_max_trace_file_size_in_bytes;
+          block_cache_trace_options_.sampling_frequency =
+              FLAGS_block_cache_trace_sampling_frequency;
+          std::unique_ptr<TraceWriter> block_cache_trace_writer;
+          Status s = NewFileTraceWriter(FLAGS_env, EnvOptions(),
+                                        FLAGS_block_cache_trace_file,
+                                        &block_cache_trace_writer);
+          if (!s.ok()) {
+            fprintf(stderr,
+                    "Encountered an error when creating trace writer, %s\n",
+                    s.ToString().c_str());
+            exit(1);
+          }
+          s = db_.db->StartBlockCacheTrace(block_cache_trace_options_,
+                                           std::move(block_cache_trace_writer));
+          if (!s.ok()) {
+            fprintf(
+                stderr,
+                "Encountered an error when starting block cache tracing, %s\n",
+                s.ToString().c_str());
+            exit(1);
+          }
+          fprintf(stdout, "Tracing block cache accesses to: [%s]\n",
+                  FLAGS_block_cache_trace_file.c_str());
+        }
 #endif  // ROCKSDB_LITE
 
         if (num_warmup > 0) {
@@ -2928,11 +3003,25 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       }
     }
 
+    if (secondary_update_thread_) {
+      secondary_update_stopped_.store(1, std::memory_order_relaxed);
+      secondary_update_thread_->join();
+      secondary_update_thread_.reset();
+    }
+
 #ifndef ROCKSDB_LITE
     if (name != "replay" && FLAGS_trace_file != "") {
       Status s = db_.db->EndTrace();
       if (!s.ok()) {
         fprintf(stderr, "Encountered an error ending the trace, %s\n",
+                s.ToString().c_str());
+      }
+    }
+    if (!FLAGS_block_cache_trace_file.empty()) {
+      Status s = db_.db->EndBlockCacheTrace();
+      if (!s.ok()) {
+        fprintf(stderr,
+                "Encountered an error ending the block cache tracing, %s\n",
                 s.ToString().c_str());
       }
     }
@@ -2947,11 +3036,22 @@ void VerifyDBFromDB(std::string& truth_db_name) {
                   ->ToString()
                   .c_str());
     }
+
+#ifndef ROCKSDB_LITE
+    if (FLAGS_use_secondary_db) {
+      fprintf(stdout, "Secondary instance updated  %" PRIu64 " times.\n",
+              secondary_db_updates_);
+    }
+#endif  // ROCKSDB_LITE
   }
 
  private:
   std::shared_ptr<TimestampEmulator> timestamp_emulator_;
-
+  std::unique_ptr<port::Thread> secondary_update_thread_;
+  std::atomic<int> secondary_update_stopped_{0};
+#ifndef ROCKSDB_LITE
+  uint64_t secondary_db_updates_ = 0;
+#endif  // ROCKSDB_LITE
   struct ThreadArg {
     Benchmark* bm;
     SharedState* shared;
@@ -3508,9 +3608,10 @@ void VerifyDBFromDB(std::string& truth_db_name) {
     }
     if (FLAGS_max_bytes_for_level_multiplier_additional_v.size() > 0) {
       if (FLAGS_max_bytes_for_level_multiplier_additional_v.size() !=
-          (unsigned int)FLAGS_num_levels) {
+          static_cast<unsigned int>(FLAGS_num_levels)) {
         fprintf(stderr, "Insufficient number of fanouts specified %d\n",
-                (int)FLAGS_max_bytes_for_level_multiplier_additional_v.size());
+                static_cast<int>(
+                    FLAGS_max_bytes_for_level_multiplier_additional_v.size()));
         exit(1);
       }
       options.max_bytes_for_level_multiplier_additional =
@@ -3552,6 +3653,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
     options.enable_write_thread_adaptive_yield =
         FLAGS_enable_write_thread_adaptive_yield;
     options.enable_pipelined_write = FLAGS_enable_pipelined_write;
+    options.unordered_write = FLAGS_unordered_write;
     options.write_thread_max_yield_usec = FLAGS_write_thread_max_yield_usec;
     options.write_thread_slow_yield_usec = FLAGS_write_thread_slow_yield_usec;
     options.rate_limit_delay_max_milliseconds =
@@ -3611,6 +3713,11 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       fprintf(stderr, "Cannot use readonly flag with transaction_db\n");
       exit(1);
     }
+    if (FLAGS_use_secondary_db &&
+        (FLAGS_transaction_db || FLAGS_optimistic_transaction_db)) {
+      fprintf(stderr, "Cannot use use_secondary_db flag with transaction_db\n");
+      exit(1);
+    }
 #endif  // ROCKSDB_LITE
 
   }
@@ -3627,6 +3734,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
         static_cast<unsigned int>(FLAGS_stats_dump_period_sec);
     options.stats_persist_period_sec =
         static_cast<unsigned int>(FLAGS_stats_persist_period_sec);
+    options.persist_stats_to_disk = FLAGS_persist_stats_to_disk;
     options.stats_history_buffer_size =
         static_cast<size_t>(FLAGS_stats_history_buffer_size);
 
@@ -3781,6 +3889,11 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       } else if (FLAGS_transaction_db) {
         TransactionDB* ptr;
         TransactionDBOptions txn_db_options;
+        if (options.unordered_write) {
+          options.two_write_queues = true;
+          txn_db_options.skip_concurrency_control = true;
+          txn_db_options.write_policy = WRITE_PREPARED;
+        }
         s = TransactionDB::Open(options, txn_db_options, db_name,
                                 column_families, &db->cfh, &ptr);
         if (s.ok()) {
@@ -3807,6 +3920,11 @@ void VerifyDBFromDB(std::string& truth_db_name) {
     } else if (FLAGS_transaction_db) {
       TransactionDB* ptr = nullptr;
       TransactionDBOptions txn_db_options;
+      if (options.unordered_write) {
+        options.two_write_queues = true;
+        txn_db_options.skip_concurrency_control = true;
+        txn_db_options.write_policy = WRITE_PREPARED;
+      }
       s = CreateLoggerFromOptions(db_name, options, &options.info_log);
       if (s.ok()) {
         s = TransactionDB::Open(options, txn_db_options, db_name, &ptr);
@@ -3827,6 +3945,32 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       s = blob_db::BlobDB::Open(options, blob_db_options, db_name, &ptr);
       if (s.ok()) {
         db->db = ptr;
+      }
+    } else if (FLAGS_use_secondary_db) {
+      if (FLAGS_secondary_path.empty()) {
+        std::string default_secondary_path;
+        FLAGS_env->GetTestDirectory(&default_secondary_path);
+        default_secondary_path += "/dbbench_secondary";
+        FLAGS_secondary_path = default_secondary_path;
+      }
+      s = DB::OpenAsSecondary(options, db_name, FLAGS_secondary_path, &db->db);
+      if (s.ok() && FLAGS_secondary_update_interval > 0) {
+        secondary_update_thread_.reset(new port::Thread(
+            [this](int interval, DBWithColumnFamilies* _db) {
+              while (0 == secondary_update_stopped_.load(
+                              std::memory_order_relaxed)) {
+                Status secondary_update_status =
+                    _db->db->TryCatchUpWithPrimary();
+                if (!secondary_update_status.ok()) {
+                  fprintf(stderr, "Failed to catch up with primary: %s\n",
+                          secondary_update_status.ToString().c_str());
+                  break;
+                }
+                ++secondary_db_updates_;
+                FLAGS_env->SleepForMicroseconds(interval * 1000000);
+              }
+            },
+            FLAGS_secondary_update_interval, db));
       }
 #endif  // ROCKSDB_LITE
     } else {
@@ -4652,7 +4796,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
       if (FLAGS_multiread_stride) {
         int64_t key = GetRandomKey(&thread->rand);
         if ((key + (entries_per_batch_ - 1) * FLAGS_multiread_stride) >=
-            (int64_t)FLAGS_num) {
+            static_cast<int64_t>(FLAGS_num)) {
           key = FLAGS_num - entries_per_batch_ * FLAGS_multiread_stride;
         }
         for (int64_t i = 0; i < entries_per_batch_; ++i) {
@@ -5022,9 +5166,10 @@ void VerifyDBFromDB(std::string& truth_db_name) {
               FLAGS_num, &lower_bound);
           options.iterate_lower_bound = &lower_bound;
         } else {
-          GenerateKeyFromInt(
-              (uint64_t)std::min(FLAGS_num, seek_pos + FLAGS_max_scan_distance),
-              FLAGS_num, &upper_bound);
+          auto min_num =
+              std::min(FLAGS_num, seek_pos + FLAGS_max_scan_distance);
+          GenerateKeyFromInt(static_cast<uint64_t>(min_num), FLAGS_num,
+                             &upper_bound);
           options.iterate_upper_bound = &upper_bound;
         }
       }
@@ -5192,7 +5337,7 @@ void VerifyDBFromDB(std::string& truth_db_name) {
             // Wait for the writes to be finished
             if (!hint_printed) {
               fprintf(stderr, "Reads are finished. Have %d more writes to do\n",
-                      (int)writes_ - written);
+                      static_cast<int>(writes_) - written);
               hint_printed = true;
             }
           } else {
@@ -6118,6 +6263,39 @@ void VerifyDBFromDB(std::string& truth_db_name) {
     }
   }
 
+  void PrintStatsHistory() {
+    if (db_.db != nullptr) {
+      PrintStatsHistoryImpl(db_.db, false);
+    }
+    for (const auto& db_with_cfh : multi_dbs_) {
+      PrintStatsHistoryImpl(db_with_cfh.db, true);
+    }
+  }
+
+  void PrintStatsHistoryImpl(DB* db, bool print_header) {
+    if (print_header) {
+      fprintf(stdout, "\n==== DB: %s ===\n", db->GetName().c_str());
+    }
+
+    std::unique_ptr<StatsHistoryIterator> shi;
+    Status s = db->GetStatsHistory(0, port::kMaxUint64, &shi);
+    if (!s.ok()) {
+      fprintf(stdout, "%s\n", s.ToString().c_str());
+      return;
+    }
+    assert(shi);
+    while (shi->Valid()) {
+      uint64_t stats_time = shi->GetStatsTime();
+      fprintf(stdout, "------ %s ------\n",
+              TimeToHumanString(static_cast<int>(stats_time)).c_str());
+      for (auto& entry : shi->GetStatsMap()) {
+        fprintf(stdout, " %" PRIu64 "   %s  %" PRIu64 "\n", stats_time,
+                entry.first.c_str(), entry.second);
+      }
+      shi->Next();
+    }
+  }
+
   void PrintStats(const char* key) {
     if (db_.db != nullptr) {
       PrintStats(db_.db, key, false);
@@ -6159,6 +6337,8 @@ void VerifyDBFromDB(std::string& truth_db_name) {
     }
     Replayer replayer(db_with_cfh->db, db_with_cfh->cfh,
                       std::move(trace_reader));
+    replayer.SetFastForward(
+        static_cast<uint32_t>(FLAGS_trace_replay_fast_forward));
     s = replayer.Replay();
     if (s.ok()) {
       fprintf(stdout, "Replay started from trace_file: %s\n",
@@ -6187,13 +6367,12 @@ int db_bench_tool(int argc, char** argv) {
     exit(1);
   }
   if (!FLAGS_statistics_string.empty()) {
-    std::unique_ptr<Statistics> custom_stats_guard;
-    dbstats.reset(NewCustomObject<Statistics>(FLAGS_statistics_string,
-                                              &custom_stats_guard));
-    custom_stats_guard.release();
+    Status s = ObjectRegistry::NewInstance()->NewSharedObject<Statistics>(
+        FLAGS_statistics_string, &dbstats);
     if (dbstats == nullptr) {
-      fprintf(stderr, "No Statistics registered matching string: %s\n",
-              FLAGS_statistics_string.c_str());
+      fprintf(stderr,
+              "No Statistics registered matching string: %s status=%s\n",
+              FLAGS_statistics_string.c_str(), s.ToString().c_str());
       exit(1);
     }
   }
@@ -6221,12 +6400,11 @@ int db_bench_tool(int argc, char** argv) {
     StringToCompressionType(FLAGS_compression_type.c_str());
 
 #ifndef ROCKSDB_LITE
-  std::unique_ptr<Env> custom_env_guard;
   if (!FLAGS_hdfs.empty() && !FLAGS_env_uri.empty()) {
     fprintf(stderr, "Cannot provide both --hdfs and --env_uri.\n");
     exit(1);
   } else if (!FLAGS_env_uri.empty()) {
-    FLAGS_env = NewCustomObject<Env>(FLAGS_env_uri, &custom_env_guard);
+    Status s = Env::LoadEnv(FLAGS_env_uri, &FLAGS_env);
     if (FLAGS_env == nullptr) {
       fprintf(stderr, "No Env registered for URI: %s\n", FLAGS_env_uri.c_str());
       exit(1);
