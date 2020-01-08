@@ -366,6 +366,11 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             if (enif_get_uint(env, option[1], &max_subcompactions))
                 opts.max_subcompactions = max_subcompactions;
         }
+        else if (option[0] == erocksdb::ATOM_ATOMIC_FLUSH)
+        {
+            opts.atomic_flush = (option[1] == erocksdb::ATOM_TRUE);
+        }
+
     }
     return erocksdb::ATOM_OK;
 }

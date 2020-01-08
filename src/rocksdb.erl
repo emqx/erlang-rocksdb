@@ -352,7 +352,8 @@
                        {rate_limiter, rate_limiter_handle()} |
                        {sst_file_manager, sst_file_manager()} |
                        {write_buffer_manager, write_buffer_manager()} |
-                       {max_subcompactions, non_neg_integer()}].
+                       {max_subcompactions, non_neg_integer()} |
+                       {atomic_flush, boolean()}].
 
 -type options() :: db_options() | cf_options().
 

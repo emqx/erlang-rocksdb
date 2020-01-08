@@ -294,6 +294,7 @@ ERL_NIF_TERM ATOM_WRITE_BUFFER_MANAGER;
 ERL_NIF_TERM ATOM_MAX_SUBCOMPACTIONS;
 ERL_NIF_TERM ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS;
 ERL_NIF_TERM ATOM_MANUAL_WAL_FLUSH;
+ERL_NIF_TERM ATOM_ATOMIC_FLUSH;
 
 // Related to BlockBasedTable Options
 ERL_NIF_TERM ATOM_NO_BLOCK_CACHE;
@@ -603,6 +604,7 @@ try
   ATOM(erocksdb::ATOM_MAX_SUBCOMPACTIONS, "max_subcompactions");
   ATOM(erocksdb::ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS, "new_table_reader_for_compaction_inputs");
   ATOM(erocksdb::ATOM_MANUAL_WAL_FLUSH, "manual_wal_flush");
+  ATOM(erocksdb::ATOM_ATOMIC_FLUSH, "atomic_flush");
 
   // Related to BlockBasedTable Options
   ATOM(erocksdb::ATOM_NO_BLOCK_CACHE, "no_block_cache");
