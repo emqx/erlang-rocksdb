@@ -40,6 +40,10 @@ class FullFilterBlockBuilder : public FilterBlockBuilder {
   explicit FullFilterBlockBuilder(const SliceTransform* prefix_extractor,
                                   bool whole_key_filtering,
                                   FilterBitsBuilder* filter_bits_builder);
+  // No copying allowed
+  FullFilterBlockBuilder(const FullFilterBlockBuilder&) = delete;
+  void operator=(const FullFilterBlockBuilder&) = delete;
+
   // bits_builder is created in filter_policy, it should be passed in here
   // directly. and be deleted here
   ~FullFilterBlockBuilder() {}
@@ -71,10 +75,6 @@ class FullFilterBlockBuilder : public FilterBlockBuilder {
   std::unique_ptr<const char[]> filter_data_;
 
   void AddPrefix(const Slice& key);
-
-  // No copying allowed
-  FullFilterBlockBuilder(const FullFilterBlockBuilder&);
-  void operator=(const FullFilterBlockBuilder&);
 };
 
 // A FilterBlockReader is used to parse filter from SST table.
@@ -124,6 +124,7 @@ class FullFilterBlockReader : public FilterBlockReaderCommon<BlockContents> {
   bool MayMatch(const Slice& entry, bool no_io, GetContext* get_context,
                 BlockCacheLookupContext* lookup_context) const;
   void MayMatch(MultiGetRange* range, bool no_io,
+                const SliceTransform* prefix_extractor,
                 BlockCacheLookupContext* lookup_context) const;
   bool IsFilterCompatible(const Slice* iterate_upper_bound, const Slice& prefix,
                           const Comparator* comparator) const;

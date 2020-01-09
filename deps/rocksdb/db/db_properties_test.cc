@@ -212,7 +212,8 @@ void VerifySimilar(uint64_t a, uint64_t b, double bias) {
 
 void VerifyTableProperties(const TableProperties& base_tp,
                            const TableProperties& new_tp,
-                           double filter_size_bias = 0.1,
+                           double filter_size_bias =
+                               CACHE_LINE_SIZE >= 256 ? 0.15 : 0.1,
                            double index_size_bias = 0.1,
                            double data_size_bias = 0.1,
                            double num_data_blocks_bias = 0.05) {
@@ -266,7 +267,8 @@ void GetExpectedTableProperties(
        // discount 1 byte as value size is not encoded in value delta encoding
        (value_delta_encoding ? 1 : 0));
   expected_tp->filter_size =
-      kTableCount * (kKeysPerTable * kBloomBitsPerKey / 8);
+      kTableCount * ((kKeysPerTable * kBloomBitsPerKey + 7) / 8 +
+                     /*average-ish overhead*/ CACHE_LINE_SIZE / 2);
 }
 }  // anonymous namespace
 
@@ -615,8 +617,9 @@ TEST_F(DBPropertiesTest, NumImmutableMemTable) {
     writeOpt.disableWAL = true;
     options.max_write_buffer_number = 4;
     options.min_write_buffer_number_to_merge = 3;
-    options.max_write_buffer_number_to_maintain = 4;
     options.write_buffer_size = 1000000;
+    options.max_write_buffer_size_to_maintain =
+        5 * static_cast<int64_t>(options.write_buffer_size);
     CreateAndReopenWithCF({"pikachu"}, options);
 
     std::string big_value(1000000 * 2, 'x');
@@ -747,7 +750,7 @@ TEST_F(DBPropertiesTest, DISABLED_GetProperty) {
   options.max_background_flushes = 1;
   options.max_write_buffer_number = 10;
   options.min_write_buffer_number_to_merge = 1;
-  options.max_write_buffer_number_to_maintain = 0;
+  options.max_write_buffer_size_to_maintain = 0;
   options.write_buffer_size = 1000000;
   Reopen(options);
 
@@ -997,7 +1000,7 @@ TEST_F(DBPropertiesTest, EstimatePendingCompBytes) {
   options.max_background_flushes = 1;
   options.max_write_buffer_number = 10;
   options.min_write_buffer_number_to_merge = 1;
-  options.max_write_buffer_number_to_maintain = 0;
+  options.max_write_buffer_size_to_maintain = 0;
   options.write_buffer_size = 1000000;
   Reopen(options);
 

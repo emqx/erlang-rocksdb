@@ -27,6 +27,10 @@ class InternalIteratorBase : public Cleanable {
  public:
   InternalIteratorBase() {}
 
+  // No copying allowed
+  InternalIteratorBase(const InternalIteratorBase&) = delete;
+  InternalIteratorBase& operator=(const InternalIteratorBase&) = delete;
+
   virtual ~InternalIteratorBase() {}
 
   // An iterator is either positioned at a key/value pair, or
@@ -155,12 +159,8 @@ class InternalIteratorBase : public Cleanable {
       Prev();
     }
   }
-  bool is_mutable_;
 
- private:
-  // No copying allowed
-  InternalIteratorBase(const InternalIteratorBase&) = delete;
-  InternalIteratorBase& operator=(const InternalIteratorBase&) = delete;
+  bool is_mutable_;
 };
 
 using InternalIterator = InternalIteratorBase<Slice>;

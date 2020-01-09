@@ -1,23 +1,35 @@
 # Rocksdb Change Log
-## 6.4.6 (10/16/2019)
-### Bug Fixes
-* Fix a bug when partitioned filters and prefix search are used in conjunction, ::SeekForPrev could return invalid for an existing prefix. ::SeekForPrev might be called by the user, or internally on ::Prev, or within ::Seek if the return value involves Delete or a Merge operand.
+## Unreleased
 
-## 6.4.5 (10/1/2019)
+## 6.5.2 (11/15/2019)
+### Bug Fixes
+* Fix a assertion failure in MultiGe4t() when BlockBasedTableOptions::no_block_cache is true and there is no compressed block cache
+* Fix a buffer overrun problem in BlockBasedTable::MultiGet() when compression is enabled and no compressed block cache is configured.
+* If a call to BackupEngine::PurgeOldBackups or BackupEngine::DeleteBackup suffered a crash, power failure, or I/O error, files could be left over from old backups that could only be purged with a call to GarbageCollect. Any call to PurgeOldBackups, DeleteBackup, or GarbageCollect should now suffice to purge such files.
+
+## 6.5.1 (10/16/2019)
 ### Bug Fixes
 * Revert the feature "Merging iterator to avoid child iterator reseek for some cases (#5286)" since it might cause strange results when reseek happens with a different iterator upper bound.
 * Fix a bug in BlockBasedTableIterator that might return incorrect results when reseek happens with a different iterator upper bound.
+* Fix a bug when partitioned filters and prefix search are used in conjunction, ::SeekForPrev could return invalid for an existing prefix. ::SeekForPrev might be called by the user, or internally on ::Prev, or within ::Seek if the return value involves Delete or a Merge operand.
 
-## 6.4.4 (9/17/2019)
-* Fix a bug introduced 6.3 which could cause wrong results in a corner case when prefix bloom filter is used and the iterator is reseeked.
-
-## 6.4.2 (9/3/2019)
+## 6.5.0 (9/13/2019)
 ### Bug Fixes
-* Fix a bug in file ingestion caused by incorrect file number allocation when the number of column families involved in the ingestion exceeds 2.
-
-## 6.4.1 (8/20/2019)
-### Bug Fixes
+* Fixed a number of data races in BlobDB.
 * Fix a bug where the compaction snapshot refresh feature is not disabled as advertised when `snap_refresh_nanos` is set to 0..
+* Fix bloom filter lookups by the MultiGet batching API when BlockBasedTableOptions::whole_key_filtering is false, by checking that a key is in the perfix_extractor domain and extracting the prefix before looking up.
+* Fix a bug in file ingestion caused by incorrect file number allocation when the number of column families involved in the ingestion exceeds 2.
+### New Features
+* Introduced DBOptions::max_write_batch_group_size_bytes to configure maximum limit on number of bytes that are written in a single batch of WAL or memtable write. It is followed when the leader write size is larger than 1/8 of this limit.
+* VerifyChecksum() by default will issue readahead. Allow ReadOptions to be passed in to those functions to override the readhead size. For checksum verifying before external SST file ingestion, a new option IngestExternalFileOptions.verify_checksums_readahead_size, is added for this readahead setting.
+* When user uses options.force_consistency_check in RocksDb, instead of crashing the process, we now pass the error back to the users without killing the process.
+* Add an option `memtable_insert_hint_per_batch` to WriteOptions. If it is true, each WriteBatch will maintain its own insert hints for each memtable in concurrent write. See include/rocksdb/options.h for more details.
+### Public API Change
+* Added max_write_buffer_size_to_maintain option to better control memory usage of immutable memtables.
+* Added a lightweight API GetCurrentWalFile() to get last live WAL filename and size. Meant to be used as a helper for backup/restore tooling in a larger ecosystem such as MySQL with a MyRocks storage engine.
+* The MemTable Bloom filter, when enabled, now always uses cache locality. Options::bloom_locality now only affects the PlainTable SST format.
+### Performance Improvements
+* Improve the speed of the MemTable Bloom filter, reducing the write overhead of enabling it by 1/3 to 1/2, with similar benefit to read performance.
 
 ## 6.4.0 (7/30/2019)
 ### Default Option Change
@@ -35,11 +47,13 @@
 * ldb sometimes uses a string-append merge operator if no merge operator is passed in. This is to allow users to print keys from a DB with a merge operator.
 * Replaces old Registra with ObjectRegistry to allow user to create custom object from string, also add LoadEnv() to Env.
 * Added new overload of GetApproximateSizes which gets SizeApproximationOptions object and returns a Status. The older overloads are redirecting their calls to this new method and no longer assert if the include_flags doesn't have either of INCLUDE_MEMTABLES or INCLUDE_FILES bits set. It's recommended to use the new method only, as it is more type safe and returns a meaningful status in case of errors.
+* LDBCommandRunner::RunCommand() to return the status code as an integer, rather than call exit() using the code.
 
 ### New Features
 * Add argument `--secondary_path` to ldb to open the database as the secondary instance. This would keep the original DB intact.
 * Compression dictionary blocks are now prefetched and pinned in the cache (based on the customer's settings) the same way as index and filter blocks.
 * Added DBOptions::log_readahead_size which specifies the number of bytes to prefetch when reading the log. This is mostly useful for reading a remotely located log, as it can save the number of round-trips. If 0 (default), then the prefetching is disabled.
+* Added new option in SizeApproximationOptions used with DB::GetApproximateSizes. When approximating the files total size that is used to store a keys range, allow approximation with an error margin of up to total_files_size * files_size_error_margin. This allows to take some shortcuts in files size approximation, resulting in better performance, while guaranteeing the resulting error is within a reasonable margin.
 * Support loading custom objects in unit tests. In the affected unit tests, RocksDB will create custom Env objects based on environment variable TEST_ENV_URI. Users need to make sure custom object types are properly registered. For example, a static library should expose a `RegisterCustomObjects` function. By linking the unit test binary with the static library, the unit test can execute this function.
 
 ### Performance Improvements
@@ -52,6 +66,14 @@
 * Return TryAgain status in place of Corruption when new tail is not visible to TransactionLogIterator.
 * Fixed a regression where the fill_cache read option also affected index blocks.
 * Fixed an issue where using cache_index_and_filter_blocks==false affected partitions of partitioned indexes/filters as well.
+
+## 6.3.2 (8/15/2019)
+### Public API Change
+* The semantics of the per-block-type block read counts in the performance context now match those of the generic block_read_count.
+
+### Bug Fixes
+* Fixed a regression where the fill_cache read option also affected index blocks.
+* Fixed an issue where using cache_index_and_filter_blocks==false affected partitions of partitioned indexes as well.
 
 ## 6.3.1 (7/24/2019)
 ### Bug Fixes
@@ -74,6 +96,7 @@
 * Add an option `unordered_write` which trades snapshot guarantees with higher write throughput. When used with WRITE_PREPARED transactions with two_write_queues=true, it offers higher throughput with however no compromise on guarantees.
 * Allow DBImplSecondary to remove memtables with obsolete data after replaying MANIFEST and WAL.
 * Add an option `failed_move_fall_back_to_copy` (default is true) for external SST ingestion. When `move_files` is true and hard link fails, ingestion falls back to copy if `failed_move_fall_back_to_copy` is true. Otherwise, ingestion reports an error.
+* Add command `list_file_range_deletes` in ldb, which prints out tombstones in SST files.
 
 ### Performance Improvements
 * Reduce binary search when iterator reseek into the same data block.

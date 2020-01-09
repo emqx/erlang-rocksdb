@@ -2797,8 +2797,12 @@ TEST_F(DBTest2, ReadCallbackTest) {
     ReadOptions roptions;
     TestReadCallback callback(seq);
     bool dont_care = true;
-    Status s = dbfull()->GetImpl(roptions, dbfull()->DefaultColumnFamily(), key,
-                                 &pinnable_val, &dont_care, &callback);
+    DBImpl::GetImplOptions get_impl_options;
+    get_impl_options.column_family = dbfull()->DefaultColumnFamily();
+    get_impl_options.value = &pinnable_val;
+    get_impl_options.value_found = &dont_care;
+    get_impl_options.callback = &callback;
+    Status s = dbfull()->GetImpl(roptions, key, get_impl_options);
     ASSERT_TRUE(s.ok());
     // Assuming that after each Put the DB increased seq by one, the value and
     // seq number must be equal since we also inc value by 1 after each Put.
@@ -3770,46 +3774,6 @@ TEST_F(DBTest2, CloseWithUnreleasedSnapshot) {
   ASSERT_OK(db_->Close());
   delete db_;
   db_ = nullptr;
-}
-
-TEST_F(DBTest2, PrefixBloomReseek) {
-  Options options = CurrentOptions();
-  options.create_if_missing = true;
-  options.prefix_extractor.reset(NewCappedPrefixTransform(3));
-  BlockBasedTableOptions bbto;
-  bbto.filter_policy.reset(NewBloomFilterPolicy(10, false));
-  bbto.whole_key_filtering = false;
-  options.table_factory.reset(NewBlockBasedTableFactory(bbto));
-  DestroyAndReopen(options);
-
-  // Construct two L1 files with keys:
-  // f1:[aaa1 ccc1] f2:[ddd0]
-  ASSERT_OK(Put("aaa1", ""));
-  ASSERT_OK(Put("ccc1", ""));
-  ASSERT_OK(Flush());
-  ASSERT_OK(Put("ddd0", ""));
-  ASSERT_OK(Flush());
-  CompactRangeOptions cro;
-  cro.bottommost_level_compaction = BottommostLevelCompaction::kSkip;
-  ASSERT_OK(db_->CompactRange(cro, nullptr, nullptr));
-
-  ASSERT_OK(Put("bbb1", ""));
-
-  Iterator* iter = db_->NewIterator(ReadOptions());
-
-  // Seeking into f1, the iterator will check bloom filter which returns the
-  // file iterator ot be invalidate, and the cursor will put into f2, with
-  // the next key to be "ddd0".
-  iter->Seek("bbb1");
-  ASSERT_TRUE(iter->Valid());
-  ASSERT_EQ("bbb1", iter->key().ToString());
-
-  // Reseek ccc1, the L1 iterator needs to go back to f1 and reseek.
-  iter->Seek("ccc1");
-  ASSERT_TRUE(iter->Valid());
-  ASSERT_EQ("ccc1", iter->key().ToString());
-
-  delete iter;
 }
 
 #ifndef ROCKSDB_LITE
