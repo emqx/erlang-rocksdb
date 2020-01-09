@@ -56,7 +56,8 @@ class WriteUnpreparedTxnReadCallback : public ReadCallback {
   WriteUnpreparedTxnReadCallback(
       WritePreparedTxnDB* db, SequenceNumber snapshot,
       SequenceNumber min_uncommitted,
-      const std::map<SequenceNumber, size_t>& unprep_seqs)
+      const std::map<SequenceNumber, size_t>& unprep_seqs,
+      SnapshotBackup backed_by_snapshot)
       // Pass our last uncommitted seq as the snapshot to the parent class to
       // ensure that the parent will not prematurely filter out own writes. We
       // will do the exact comparison against snapshots in IsVisibleFullCheck
@@ -64,16 +65,28 @@ class WriteUnpreparedTxnReadCallback : public ReadCallback {
       : ReadCallback(CalcMaxVisibleSeq(unprep_seqs, snapshot), min_uncommitted),
         db_(db),
         unprep_seqs_(unprep_seqs),
-        wup_snapshot_(snapshot) {}
+        wup_snapshot_(snapshot),
+        backed_by_snapshot_(backed_by_snapshot) {
+    (void)backed_by_snapshot_;  // to silence unused private field warning
+  }
+
+  virtual ~WriteUnpreparedTxnReadCallback() {
+    // If it is not backed by snapshot, the caller must check validity
+    assert(valid_checked_ || backed_by_snapshot_ == kBackedByDBSnapshot);
+  }
 
   virtual bool IsVisibleFullCheck(SequenceNumber seq) override;
+
+  inline bool valid() {
+    valid_checked_ = true;
+    return snap_released_ == false;
+  }
 
   void Refresh(SequenceNumber seq) override {
     max_visible_seq_ = std::max(max_visible_seq_, seq);
     wup_snapshot_ = seq;
   }
 
- private:
   static SequenceNumber CalcMaxVisibleSeq(
       const std::map<SequenceNumber, size_t>& unprep_seqs,
       SequenceNumber snapshot_seq) {
@@ -84,9 +97,16 @@ class WriteUnpreparedTxnReadCallback : public ReadCallback {
     }
     return std::max(max_unprepared, snapshot_seq);
   }
+
+ private:
   WritePreparedTxnDB* db_;
   const std::map<SequenceNumber, size_t>& unprep_seqs_;
   SequenceNumber wup_snapshot_;
+  // Whether max_visible_seq_ is backed by a snapshot
+  const SnapshotBackup backed_by_snapshot_;
+  bool snap_released_ = false;
+  // Safety check to ensure that the caller has checked invalid statuses
+  bool valid_checked_ = false;
 };
 
 class WriteUnpreparedTxn : public WritePreparedTxn {
@@ -125,7 +145,26 @@ class WriteUnpreparedTxn : public WritePreparedTxn {
                               const SliceParts& key,
                               const bool assume_tracked = false) override;
 
+  // In WriteUnprepared, untracked writes will break snapshot validation logic.
+  // Snapshot validation will only check the largest sequence number of a key to
+  // see if it was committed or not. However, an untracked unprepared write will
+  // hide smaller committed sequence numbers.
+  //
+  // TODO(lth): Investigate whether it is worth having snapshot validation
+  // validate all values larger than snap_seq. Otherwise, we should return
+  // Status::NotSupported for untracked writes.
+
   virtual Status RebuildFromWriteBatch(WriteBatch*) override;
+
+  virtual uint64_t GetLastLogNumber() const override {
+    return last_log_number_;
+  }
+
+  void RemoveActiveIterator(Iterator* iter) {
+    active_iterators_.erase(
+        std::remove(active_iterators_.begin(), active_iterators_.end(), iter),
+        active_iterators_.end());
+  }
 
  protected:
   void Initialize(const TransactionOptions& txn_options) override;
@@ -138,6 +177,10 @@ class WriteUnpreparedTxn : public WritePreparedTxn {
   Status RollbackInternal() override;
 
   void Clear() override;
+
+  void SetSavePoint() override;
+  Status RollbackToSavePoint() override;
+  Status PopSavePoint() override;
 
   // Get and GetIterator needs to be overridden so that a ReadCallback to
   // handle read-your-own-write is used.
@@ -158,6 +201,10 @@ class WriteUnpreparedTxn : public WritePreparedTxn {
   virtual Iterator* GetIterator(const ReadOptions& options,
                                 ColumnFamilyHandle* column_family) override;
 
+  virtual Status ValidateSnapshot(ColumnFamilyHandle* column_family,
+                                  const Slice& key,
+                                  SequenceNumber* tracked_at_seq) override;
+
  private:
   friend class WriteUnpreparedTransactionTest_ReadYourOwnWrite_Test;
   friend class WriteUnpreparedTransactionTest_RecoveryTest_Test;
@@ -168,6 +215,9 @@ class WriteUnpreparedTxn : public WritePreparedTxn {
 
   Status MaybeFlushWriteBatchToDB();
   Status FlushWriteBatchToDB(bool prepared);
+  Status FlushWriteBatchToDBInternal(bool prepared);
+  Status FlushWriteBatchWithSavePointToDB();
+  Status RollbackToSavePointInternal();
   Status HandleWrite(std::function<Status()> do_write);
 
   // For write unprepared, we check on every writebatch append to see if
@@ -188,6 +238,8 @@ class WriteUnpreparedTxn : public WritePreparedTxn {
   // commit callbacks.
   std::map<SequenceNumber, size_t> unprep_seqs_;
 
+  uint64_t last_log_number_;
+
   // Recovered transactions have tracked_keys_ populated, but are not actually
   // locked for efficiency reasons. For recovered transactions, skip unlocking
   // keys when transaction ends.
@@ -195,9 +247,9 @@ class WriteUnpreparedTxn : public WritePreparedTxn {
 
   // Track the largest sequence number at which we performed snapshot
   // validation. If snapshot validation was skipped because no snapshot was set,
-  // then this is set to kMaxSequenceNumber. This value is useful because it
-  // means that for keys that have unprepared seqnos, we can guarantee that no
-  // committed keys by other transactions can exist between
+  // then this is set to GetLastPublishedSequence. This value is useful because
+  // it means that for keys that have unprepared seqnos, we can guarantee that
+  // no committed keys by other transactions can exist between
   // largest_validated_seq_ and max_unprep_seq. See
   // WriteUnpreparedTxnDB::NewIterator for an explanation for why this is
   // necessary for iterator Prev().
@@ -206,6 +258,63 @@ class WriteUnpreparedTxn : public WritePreparedTxn {
   // but in some cases, we should be able to restore the previously largest
   // value when calling RollbackToSavepoint.
   SequenceNumber largest_validated_seq_;
+
+  struct SavePoint {
+    // Record of unprep_seqs_ at this savepoint. The set of unprep_seq is
+    // used during RollbackToSavepoint to determine visibility when restoring
+    // old values.
+    //
+    // TODO(lth): Since all unprep_seqs_ sets further down the stack must be
+    // subsets, this can potentially be deduplicated by just storing set
+    // difference. Investigate if this is worth it.
+    std::map<SequenceNumber, size_t> unprep_seqs_;
+
+    // This snapshot will be used to read keys at this savepoint if we call
+    // RollbackToSavePoint.
+    std::unique_ptr<ManagedSnapshot> snapshot_;
+
+    SavePoint(const std::map<SequenceNumber, size_t>& seqs,
+              ManagedSnapshot* snapshot)
+        : unprep_seqs_(seqs), snapshot_(snapshot){};
+  };
+
+  // We have 3 data structures holding savepoint information:
+  // 1. TransactionBaseImpl::save_points_
+  // 2. WriteUnpreparedTxn::flushed_save_points_
+  // 3. WriteUnpreparecTxn::unflushed_save_points_
+  //
+  // TransactionBaseImpl::save_points_ holds information about all write
+  // batches, including the current in-memory write_batch_, or unprepared
+  // batches that have been written out. Its responsibility is just to track
+  // which keys have been modified in every savepoint.
+  //
+  // WriteUnpreparedTxn::flushed_save_points_ holds information about savepoints
+  // set on unprepared batches that have already flushed. It holds the snapshot
+  // and unprep_seqs at that savepoint, so that the rollback process can
+  // determine which keys were visible at that point in time.
+  //
+  // WriteUnpreparecTxn::unflushed_save_points_ holds information about
+  // savepoints on the current in-memory write_batch_. It simply records the
+  // size of the write batch at every savepoint.
+  //
+  // TODO(lth): Remove the redundancy between save_point_boundaries_ and
+  // write_batch_.save_points_.
+  //
+  // Based on this information, here are some invariants:
+  // size(unflushed_save_points_) = size(write_batch_.save_points_)
+  // size(flushed_save_points_) + size(unflushed_save_points_)
+  //   = size(save_points_)
+  //
+  std::unique_ptr<autovector<WriteUnpreparedTxn::SavePoint>>
+      flushed_save_points_;
+  std::unique_ptr<autovector<size_t>> unflushed_save_points_;
+
+  // It is currently unsafe to flush a write batch if there are active iterators
+  // created from this transaction. This is because we use WriteBatchWithIndex
+  // to do merging reads from the DB and the write batch. If we flush the write
+  // batch, it is possible that the delta iterator on the iterator will point to
+  // invalid memory.
+  std::vector<Iterator*> active_iterators_;
 };
 
 }  // namespace rocksdb

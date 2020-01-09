@@ -39,6 +39,7 @@
 #include <stack>
 #include <stdexcept>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
 
 #include "db/column_family.h"
@@ -48,11 +49,13 @@
 #include "db/memtable.h"
 #include "db/merge_context.h"
 #include "db/snapshot_impl.h"
+#include "db/trim_history_scheduler.h"
 #include "db/write_batch_internal.h"
 #include "monitoring/perf_context_imp.h"
 #include "monitoring/statistics.h"
 #include "rocksdb/merge_operator.h"
 #include "util/autovector.h"
+#include "util/cast_util.h"
 #include "util/coding.h"
 #include "util/duplicate_detector.h"
 #include "util/string_util.h"
@@ -331,7 +334,7 @@ void WriteBatch::Clear() {
   wal_term_point_.clear();
 }
 
-int WriteBatch::Count() const {
+uint32_t WriteBatch::Count() const {
   return WriteBatchInternal::Count(this);
 }
 
@@ -511,19 +514,32 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
 }
 
 Status WriteBatch::Iterate(Handler* handler) const {
-  Slice input(rep_);
-  if (input.size() < WriteBatchInternal::kHeader) {
+  if (rep_.size() < WriteBatchInternal::kHeader) {
     return Status::Corruption("malformed WriteBatch (too small)");
   }
 
-  input.remove_prefix(WriteBatchInternal::kHeader);
+  return WriteBatchInternal::Iterate(this, handler, WriteBatchInternal::kHeader,
+                                     rep_.size());
+}
+
+Status WriteBatchInternal::Iterate(const WriteBatch* wb,
+                                   WriteBatch::Handler* handler, size_t begin,
+                                   size_t end) {
+  if (begin > wb->rep_.size() || end > wb->rep_.size() || end < begin) {
+    return Status::Corruption("Invalid start/end bounds for Iterate");
+  }
+  assert(begin <= end);
+  Slice input(wb->rep_.data() + begin, static_cast<size_t>(end - begin));
+  bool whole_batch =
+      (begin == WriteBatchInternal::kHeader) && (end == wb->rep_.size());
+
   Slice key, value, blob, xid;
   // Sometimes a sub-batch starts with a Noop. We want to exclude such Noops as
   // the batch boundary symbols otherwise we would mis-count the number of
   // batches. We do that by checking whether the accumulated batch is empty
   // before seeing the next Noop.
   bool empty_batch = true;
-  int found = 0;
+  uint32_t found = 0;
   Status s;
   char tag = 0;
   uint32_t column_family = 0;  // default
@@ -547,7 +563,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
       }
     } else {
       assert(s.IsTryAgain());
-      assert(!last_was_try_again); // to detect infinite loop bugs
+      assert(!last_was_try_again);  // to detect infinite loop bugs
       if (UNLIKELY(last_was_try_again)) {
         return Status::Corruption(
             "two consecutive TryAgain in WriteBatch handler; this is either a "
@@ -560,7 +576,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
     switch (tag) {
       case kTypeColumnFamilyValue:
       case kTypeValue:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_PUT));
         s = handler->PutCF(column_family, key, value);
         if (LIKELY(s.ok())) {
@@ -570,7 +586,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         break;
       case kTypeColumnFamilyDeletion:
       case kTypeDeletion:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_DELETE));
         s = handler->DeleteCF(column_family, key);
         if (LIKELY(s.ok())) {
@@ -580,7 +596,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         break;
       case kTypeColumnFamilySingleDeletion:
       case kTypeSingleDeletion:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_SINGLE_DELETE));
         s = handler->SingleDeleteCF(column_family, key);
         if (LIKELY(s.ok())) {
@@ -590,7 +606,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         break;
       case kTypeColumnFamilyRangeDeletion:
       case kTypeRangeDeletion:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_DELETE_RANGE));
         s = handler->DeleteRangeCF(column_family, key, value);
         if (LIKELY(s.ok())) {
@@ -600,7 +616,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         break;
       case kTypeColumnFamilyMerge:
       case kTypeMerge:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_MERGE));
         s = handler->MergeCF(column_family, key, value);
         if (LIKELY(s.ok())) {
@@ -610,7 +626,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         break;
       case kTypeColumnFamilyBlobIndex:
       case kTypeBlobIndex:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_BLOB_INDEX));
         s = handler->PutBlobIndexCF(column_family, key, value);
         if (LIKELY(s.ok())) {
@@ -623,7 +639,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         empty_batch = false;
         break;
       case kTypeBeginPrepareXID:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_BEGIN_PREPARE));
         handler->MarkBeginPrepare();
         empty_batch = false;
@@ -642,7 +658,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         }
         break;
       case kTypeBeginPersistedPrepareXID:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_BEGIN_PREPARE));
         handler->MarkBeginPrepare();
         empty_batch = false;
@@ -655,7 +671,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
         }
         break;
       case kTypeBeginUnprepareXID:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_BEGIN_UNPREPARE));
         handler->MarkBeginPrepare(true /* unprepared */);
         empty_batch = false;
@@ -674,19 +690,19 @@ Status WriteBatch::Iterate(Handler* handler) const {
         }
         break;
       case kTypeEndPrepareXID:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_END_PREPARE));
         handler->MarkEndPrepare(xid);
         empty_batch = true;
         break;
       case kTypeCommitXID:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_COMMIT));
         handler->MarkCommit(xid);
         empty_batch = true;
         break;
       case kTypeRollbackXID:
-        assert(content_flags_.load(std::memory_order_relaxed) &
+        assert(wb->content_flags_.load(std::memory_order_relaxed) &
                (ContentFlags::DEFERRED | ContentFlags::HAS_ROLLBACK));
         handler->MarkRollback(xid);
         empty_batch = true;
@@ -702,7 +718,8 @@ Status WriteBatch::Iterate(Handler* handler) const {
   if (!s.ok()) {
     return s;
   }
-  if (handler_continue && found != WriteBatchInternal::Count(this)) {
+  if (handler_continue && whole_batch &&
+      found != WriteBatchInternal::Count(wb)) {
     return Status::Corruption("WriteBatch has wrong count");
   } else {
     return Status::OK();
@@ -717,11 +734,11 @@ void WriteBatchInternal::SetAsLastestPersistentState(WriteBatch* b) {
   b->is_latest_persistent_state_ = true;
 }
 
-int WriteBatchInternal::Count(const WriteBatch* b) {
+uint32_t WriteBatchInternal::Count(const WriteBatch* b) {
   return DecodeFixed32(b->rep_.data() + 8);
 }
 
-void WriteBatchInternal::SetCount(WriteBatch* b, int n) {
+void WriteBatchInternal::SetCount(WriteBatch* b, uint32_t n) {
   EncodeFixed32(&b->rep_[8], n);
 }
 
@@ -1133,7 +1150,7 @@ Status WriteBatch::RollbackToSavePoint() {
   save_points_->stack.pop();
 
   assert(savepoint.size <= rep_.size());
-  assert(savepoint.count <= Count());
+  assert(static_cast<uint32_t>(savepoint.count) <= Count());
 
   if (savepoint.size == rep_.size()) {
     // No changes to rollback
@@ -1175,6 +1192,7 @@ class MemTableInserter : public WriteBatch::Handler {
   SequenceNumber sequence_;
   ColumnFamilyMemTables* const cf_mems_;
   FlushScheduler* const flush_scheduler_;
+  TrimHistoryScheduler* const trim_history_scheduler_;
   const bool ignore_missing_column_families_;
   const uint64_t recovering_log_number_;
   // log number that all Memtables inserted into should reference
@@ -1208,6 +1226,22 @@ class MemTableInserter : public WriteBatch::Handler {
   DupDetector       duplicate_detector_;
   bool              dup_dectector_on_;
 
+  bool hint_per_batch_;
+  bool hint_created_;
+  // Hints for this batch
+  using HintMap = std::unordered_map<MemTable*, void*>;
+  using HintMapType = std::aligned_storage<sizeof(HintMap)>::type;
+  HintMapType hint_;
+
+  HintMap& GetHintMap() {
+    assert(hint_per_batch_);
+    if (!hint_created_) {
+      new (&hint_) HintMap();
+      hint_created_ = true;
+    }
+    return *reinterpret_cast<HintMap*>(&hint_);
+  }
+
   MemPostInfoMap& GetPostMap() {
     assert(concurrent_memtable_writes_);
     if(!post_info_created_) {
@@ -1236,18 +1270,20 @@ class MemTableInserter : public WriteBatch::Handler {
   // cf_mems should not be shared with concurrent inserters
   MemTableInserter(SequenceNumber _sequence, ColumnFamilyMemTables* cf_mems,
                    FlushScheduler* flush_scheduler,
+                   TrimHistoryScheduler* trim_history_scheduler,
                    bool ignore_missing_column_families,
                    uint64_t recovering_log_number, DB* db,
                    bool concurrent_memtable_writes,
                    bool* has_valid_writes = nullptr, bool seq_per_batch = false,
-                   bool batch_per_txn = true)
+                   bool batch_per_txn = true, bool hint_per_batch = false)
       : sequence_(_sequence),
         cf_mems_(cf_mems),
         flush_scheduler_(flush_scheduler),
+        trim_history_scheduler_(trim_history_scheduler),
         ignore_missing_column_families_(ignore_missing_column_families),
         recovering_log_number_(recovering_log_number),
         log_number_ref_(0),
-        db_(reinterpret_cast<DBImpl*>(db)),
+        db_(static_cast_with_check<DBImpl, DB>(db)),
         concurrent_memtable_writes_(concurrent_memtable_writes),
         post_info_created_(false),
         has_valid_writes_(has_valid_writes),
@@ -1263,7 +1299,9 @@ class MemTableInserter : public WriteBatch::Handler {
         write_before_prepare_(!batch_per_txn),
         unprepared_batch_(false),
         duplicate_detector_(),
-        dup_dectector_on_(false) {
+        dup_dectector_on_(false),
+        hint_per_batch_(hint_per_batch),
+        hint_created_(false) {
     assert(cf_mems_);
   }
 
@@ -1275,6 +1313,12 @@ class MemTableInserter : public WriteBatch::Handler {
     if (post_info_created_) {
       reinterpret_cast<MemPostInfoMap*>
         (&mem_post_info_map_)->~MemPostInfoMap();
+    }
+    if (hint_created_) {
+      for (auto iter : GetHintMap()) {
+        delete[] reinterpret_cast<char*>(iter.second);
+      }
+      reinterpret_cast<HintMap*>(&hint_)->~HintMap();
     }
     delete rebuilding_trx_;
   }
@@ -1385,7 +1429,8 @@ class MemTableInserter : public WriteBatch::Handler {
     if (!moptions->inplace_update_support) {
       bool mem_res =
           mem->Add(sequence_, value_type, key, value,
-                   concurrent_memtable_writes_, get_post_process_info(mem));
+                   concurrent_memtable_writes_, get_post_process_info(mem),
+                   hint_per_batch_ ? &GetHintMap()[mem] : nullptr);
       if (UNLIKELY(!mem_res)) {
         assert(seq_per_batch_);
         ret_status = Status::TryAgain("key+seq exists");
@@ -1468,7 +1513,8 @@ class MemTableInserter : public WriteBatch::Handler {
     MemTable* mem = cf_mems_->GetMemTable();
     bool mem_res =
         mem->Add(sequence_, delete_type, key, value,
-                 concurrent_memtable_writes_, get_post_process_info(mem));
+                 concurrent_memtable_writes_, get_post_process_info(mem),
+                 hint_per_batch_ ? &GetHintMap()[mem] : nullptr);
     if (UNLIKELY(!mem_res)) {
       assert(seq_per_batch_);
       ret_status = Status::TryAgain("key+seq exists");
@@ -1734,7 +1780,20 @@ class MemTableInserter : public WriteBatch::Handler {
           cfd->mem()->MarkFlushScheduled()) {
         // MarkFlushScheduled only returns true if we are the one that
         // should take action, so no need to dedup further
-        flush_scheduler_->ScheduleFlush(cfd);
+        flush_scheduler_->ScheduleWork(cfd);
+      }
+    }
+    // check if memtable_list size exceeds max_write_buffer_size_to_maintain
+    if (trim_history_scheduler_ != nullptr) {
+      auto* cfd = cf_mems_->current();
+      assert(cfd != nullptr);
+      if (cfd->ioptions()->max_write_buffer_size_to_maintain > 0 &&
+          cfd->mem()->ApproximateMemoryUsageFast() +
+                  cfd->imm()->ApproximateMemoryUsageExcludingLast() >=
+              static_cast<size_t>(
+                  cfd->ioptions()->max_write_buffer_size_to_maintain) &&
+          cfd->imm()->MarkTrimHistoryNeeded()) {
+        trim_history_scheduler_->ScheduleWork(cfd);
       }
     }
   }
@@ -1894,12 +1953,14 @@ class MemTableInserter : public WriteBatch::Handler {
 Status WriteBatchInternal::InsertInto(
     WriteThread::WriteGroup& write_group, SequenceNumber sequence,
     ColumnFamilyMemTables* memtables, FlushScheduler* flush_scheduler,
+    TrimHistoryScheduler* trim_history_scheduler,
     bool ignore_missing_column_families, uint64_t recovery_log_number, DB* db,
     bool concurrent_memtable_writes, bool seq_per_batch, bool batch_per_txn) {
   MemTableInserter inserter(
-      sequence, memtables, flush_scheduler, ignore_missing_column_families,
-      recovery_log_number, db, concurrent_memtable_writes,
-      nullptr /*has_valid_writes*/, seq_per_batch, batch_per_txn);
+      sequence, memtables, flush_scheduler, trim_history_scheduler,
+      ignore_missing_column_families, recovery_log_number, db,
+      concurrent_memtable_writes, nullptr /*has_valid_writes*/, seq_per_batch,
+      batch_per_txn);
   for (auto w : write_group) {
     if (w->CallbackFailed()) {
       continue;
@@ -1925,17 +1986,19 @@ Status WriteBatchInternal::InsertInto(
 Status WriteBatchInternal::InsertInto(
     WriteThread::Writer* writer, SequenceNumber sequence,
     ColumnFamilyMemTables* memtables, FlushScheduler* flush_scheduler,
+    TrimHistoryScheduler* trim_history_scheduler,
     bool ignore_missing_column_families, uint64_t log_number, DB* db,
     bool concurrent_memtable_writes, bool seq_per_batch, size_t batch_cnt,
-    bool batch_per_txn) {
+    bool batch_per_txn, bool hint_per_batch) {
 #ifdef NDEBUG
   (void)batch_cnt;
 #endif
   assert(writer->ShouldWriteToMemtable());
   MemTableInserter inserter(
-      sequence, memtables, flush_scheduler, ignore_missing_column_families,
-      log_number, db, concurrent_memtable_writes, nullptr /*has_valid_writes*/,
-      seq_per_batch, batch_per_txn);
+      sequence, memtables, flush_scheduler, trim_history_scheduler,
+      ignore_missing_column_families, log_number, db,
+      concurrent_memtable_writes, nullptr /*has_valid_writes*/, seq_per_batch,
+      batch_per_txn, hint_per_batch);
   SetSequence(writer->batch, sequence);
   inserter.set_log_number_ref(writer->log_ref);
   Status s = writer->batch->Iterate(&inserter);
@@ -1949,11 +2012,13 @@ Status WriteBatchInternal::InsertInto(
 
 Status WriteBatchInternal::InsertInto(
     const WriteBatch* batch, ColumnFamilyMemTables* memtables,
-    FlushScheduler* flush_scheduler, bool ignore_missing_column_families,
-    uint64_t log_number, DB* db, bool concurrent_memtable_writes,
-    SequenceNumber* next_seq, bool* has_valid_writes, bool seq_per_batch,
-    bool batch_per_txn) {
+    FlushScheduler* flush_scheduler,
+    TrimHistoryScheduler* trim_history_scheduler,
+    bool ignore_missing_column_families, uint64_t log_number, DB* db,
+    bool concurrent_memtable_writes, SequenceNumber* next_seq,
+    bool* has_valid_writes, bool seq_per_batch, bool batch_per_txn) {
   MemTableInserter inserter(Sequence(batch), memtables, flush_scheduler,
+                            trim_history_scheduler,
                             ignore_missing_column_families, log_number, db,
                             concurrent_memtable_writes, has_valid_writes,
                             seq_per_batch, batch_per_txn);
