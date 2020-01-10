@@ -35,11 +35,11 @@ if(MSVC)
 endif()
 
 if(WITH_BUNDLE_SNAPPY)
-    list(APPEND rocksdb_CMAKE_ARGS -DSNAPPY_ROOT_DIR=${SNAPPY_ROOT_DIR})
+    list(APPEND rocksdb_CMAKE_ARGS -Dsnappy_ROOT_DIR=${SNAPPY_ROOT_DIR})
 endif()
 
 if(WITH_BUNDLE_LZ4)
-    list(APPEND rocksdb_CMAKE_ARGS -DLZ4_ROOT_DIR=${LZ4_ROOT_DIR})
+    list(APPEND rocksdb_CMAKE_ARGS -Dlz4_ROOT_DIR=${LZ4_ROOT_DIR})
 endif()
 
 message(STATUS "cmake args ${rocksdb_CMAKE_ARGS}")

@@ -67,7 +67,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux" OR CMAKE_SYSTEM_NAME MATCHES "Windows")
 else()
   option(WITH_FOLLY_DISTRIBUTED_MUTEX "build with folly::DistributedMutex" OFF)
 endif()
-if(MSVC)
+if(MSVC AND NOT WITHOUT_THIRDPARTY_INC)
   # Defaults currently different for GFLAGS.
   #  We will address find_package work a little later
   option(WITH_GFLAGS "build with GFlags" OFF)
