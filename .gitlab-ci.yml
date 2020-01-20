@@ -23,7 +23,7 @@ test-shared_rocksdb:
         - echo 'deb http://deb.debian.org/debian experimental main contrib non-free' >/etc/apt/sources.list.d/backports.list
         - apt-get update -qq
         - apt-get -y -qq install cmake liblz4-dev libsnappy-dev
-        - apt-get -y -t stretch-backports -qq install librocksdb-dev
+        - apt-get -y -t experimental -qq install librocksdb-dev
     variables:
         ERLANG_ROCKSDB_OPTS: "-DWITH_SYSTEM_ROCKSDB=ON"
     script:
