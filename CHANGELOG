@@ -1,6 +1,8 @@
-erlang-rocksdb WIP
-=========================
+erlang-rocksdb 1.5.0, released on 2020/01/21
+============================================
 
+- Fix lz4 and snappy lib install dir to work on systems using lib64
+- Add `atomic_flush` db option
 - bump rocksdb tp version [6.5.2](https://github.com/facebook/rocksdb/releases/tag/v6.5.2)
 
 erlang-rocksdb 1.4.0, released on 2019/11/04

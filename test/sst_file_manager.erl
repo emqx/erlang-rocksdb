@@ -1,6 +1,6 @@
 %%% -*- erlang -*-
 %%
-%% Copyright (c) 2018 Benoit Chesneau
+%% Copyright (c) 2018-2020 Benoit Chesneau
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
