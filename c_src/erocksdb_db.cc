@@ -1371,9 +1371,9 @@ Repair(
     rocksdb::ColumnFamilyOptions cf_opts;
     fold(env, argv[1], parse_db_option, db_opts);
     fold(env, argv[1], parse_cf_option, cf_opts);
-    rocksdb::Options *opts = new rocksdb::Options(db_opts, cf_opts);
+    rocksdb::Options opts(db_opts, cf_opts);
 
-    rocksdb::Status status = rocksdb::RepairDB(name, *opts);
+    rocksdb::Status status = rocksdb::RepairDB(name, opts);
     if (!status.ok())
     {
         return error_tuple(env, erocksdb::ATOM_ERROR_DB_REPAIR, status);
