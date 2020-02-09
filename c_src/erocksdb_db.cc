@@ -1371,9 +1371,9 @@ Repair(
     rocksdb::ColumnFamilyOptions cf_opts;
     fold(env, argv[1], parse_db_option, db_opts);
     fold(env, argv[1], parse_cf_option, cf_opts);
-    rocksdb::Options *opts = new rocksdb::Options(db_opts, cf_opts);
+    rocksdb::Options opts(db_opts, cf_opts);
 
-    rocksdb::Status status = rocksdb::RepairDB(name, *opts);
+    rocksdb::Status status = rocksdb::RepairDB(name, opts);
     if (!status.ok())
     {
         return error_tuple(env, erocksdb::ATOM_ERROR_DB_REPAIR, status);
@@ -1634,10 +1634,10 @@ CompactRange(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     }
 
     // parse read_options
-    rocksdb::CompactRangeOptions *opts = new rocksdb::CompactRangeOptions;
-    fold(env, argv[i + 2], parse_compact_range_option, *opts);
+    rocksdb::CompactRangeOptions opts;
+    fold(env, argv[i + 2], parse_compact_range_option, opts);
 
-    status = db_ptr->m_Db->CompactRange(*opts, column_family, &begin, &end);
+    status = db_ptr->m_Db->CompactRange(opts, column_family, &begin, &end);
     if (!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
 
