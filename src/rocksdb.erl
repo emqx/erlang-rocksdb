@@ -815,8 +815,8 @@ delete_range(_DbHandle, _CFHandle, _Start, _End, _WriteOpts) ->
 %% or a given level (specified by non-negative target_level).
 -spec compact_range(DBHandle, BeginKey, EndKey, CompactRangeOpts) -> Res when
   DBHandle::db_handle(),
-  BeginKey::binary(),
-  EndKey::binary(),
+  BeginKey::binary() | undefined,
+  EndKey::binary() | undefined,
   CompactRangeOpts::compact_range_options(),
   Res :: ok | {error, any()}.
 compact_range(_DbHandle, _Start, _End, _CompactRangeOpts) ->
@@ -827,8 +827,8 @@ compact_range(_DbHandle, _Start, _End, _CompactRangeOpts) ->
 -spec compact_range(DBHandle, CFHandle, BeginKey, EndKey, CompactRangeOpts) -> Res when
   DBHandle::db_handle(),
   CFHandle::cf_handle(),
-  BeginKey::binary(),
-  EndKey::binary(),
+  BeginKey::binary() | undefined,
+  EndKey::binary() | undefined,
   CompactRangeOpts::compact_range_options(),
   Res :: ok | {error, any()}.
 compact_range(_DbHandle, _CFHandle, _Start, _End, _CompactRangeOpts) ->
