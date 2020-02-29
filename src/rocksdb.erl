@@ -223,9 +223,7 @@
 -record(db_path, {path        :: file:filename_all(),
           target_size :: non_neg_integer()}).
 
--record(cf_descriptor, {name    :: string(),
-                        options :: cf_options()}).
-
+-type cf_descriptor() :: {string(), cf_options()}.
 -type cache_type() :: lru | clock.
 -type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | zstd | none.
 -type compaction_style() :: level | universal | fifo | none.
@@ -448,7 +446,7 @@ open(_Name, _DBOpts) ->
        {ok, db_handle(), list(cf_handle())} | {error, any()}
          when Name::file:filename_all(),
           DBOpts :: db_options(),
-          CFDescriptors :: list(#cf_descriptor{})).
+          CFDescriptors :: list(cf_descriptor())).
 open(_Name, _DBOpts, _CFDescriptors) ->
   ?nif_stub.
 
