@@ -80,14 +80,18 @@ namespace erocksdb {
         try {
             pos = std::stoi(s.substr(1));
         } catch(...) {
-            delete[] data;
+            if (!merge_in.existing_value) {
+                delete[] data;
+            }
             return false;
         }
 
         size_t ofs = pos >> 3;
 
         if (ofs > size) {
-            delete[] data;
+            if (!merge_in.existing_value) {
+                delete[] data;
+            }
             return false;
         }
 
@@ -99,7 +103,9 @@ namespace erocksdb {
             //data[(pos >> 3)] &= ~bytemask;
             data[ofs] &= ~bit_mask[pos % bits_per_char];
         } else {
-            delete[] data;
+            if (!merge_in.existing_value) {
+                delete[] data;
+            }
             return false;
         }
 
@@ -109,6 +115,9 @@ namespace erocksdb {
     //clear the new value for writing
     merge_out->new_value.clear();
     merge_out->new_value.append(reinterpret_cast<char*>(data), size);
+    if (!merge_in.existing_value) {
+        delete[] data;
+    }
     return true;
 
    }
