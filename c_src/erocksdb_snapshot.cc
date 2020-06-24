@@ -72,7 +72,6 @@ ReleaseSnapshot(
 
     // release snapshot object
     SnapshotObject* snapshot = snapshot_ptr.get();
-    snapshot->m_DbPtr->m_Db->ReleaseSnapshot(snapshot->m_Snapshot);
 
     // set closing flag
     ErlRefObject::InitiateCloseRequest(snapshot);
