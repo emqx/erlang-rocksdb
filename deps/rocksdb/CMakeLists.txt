@@ -91,7 +91,7 @@ include(CMakeDependentOption)
 CMAKE_DEPENDENT_OPTION(WITH_GFLAGS "build with GFlags" ON
   "NOT MSVC;NOT MINGW" OFF)
 
-if(MSVC)
+if(MSVC AND NOT WITHOUT_THIRDPARTY_INC)
   option(WITH_XPRESS "build with windows built in compression" OFF)
   include(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty.inc)
 else()
