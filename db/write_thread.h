@@ -24,7 +24,7 @@
 #include "rocksdb/write_batch.h"
 #include "util/autovector.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 class WriteThread {
  public:
@@ -179,6 +179,8 @@ class WriteThread {
         StateMutex().~mutex();
         StateCV().~condition_variable();
       }
+      status.PermitUncheckedError();
+      callback_status.PermitUncheckedError();
     }
 
     bool CheckCallback(DB* db) {
@@ -428,4 +430,4 @@ class WriteThread {
   void CompleteFollower(Writer* w, WriteGroup& write_group);
 };
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE

@@ -12,11 +12,12 @@
 #include <iostream>
 #include <string>
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 class DBEncryptionTest : public DBTestBase {
  public:
-  DBEncryptionTest() : DBTestBase("/db_encryption_test") {}
+  DBEncryptionTest()
+      : DBTestBase("/db_encryption_test", /*env_do_fsync=*/true) {}
 };
 
 #ifndef ROCKSDB_LITE
@@ -113,10 +114,10 @@ TEST_F(DBEncryptionTest, ReadEmptyFile) {
 
 #endif // ROCKSDB_LITE
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
-  rocksdb::port::InstallStackTraceHandler();
+  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

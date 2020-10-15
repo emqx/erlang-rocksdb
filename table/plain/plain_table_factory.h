@@ -14,7 +14,7 @@
 #include "rocksdb/options.h"
 #include "rocksdb/table.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 struct EnvOptions;
 
@@ -35,7 +35,7 @@ class TableBuilder;
 // 1. Data compression is not supported.
 // 2. Data is not checksumed.
 // it is not recommended to use this format on other type of file systems.
-// 
+//
 // PlainTable requires fixed length key, configured as a constructor
 // parameter of the factory class. Output file format:
 // +-------------+-----------------+
@@ -159,8 +159,10 @@ class PlainTableFactory : public TableFactory {
       const PlainTableOptions& _table_options = PlainTableOptions())
       : table_options_(_table_options) {}
 
-  const char* Name() const override { return "PlainTable"; }
-  Status NewTableReader(const TableReaderOptions& table_reader_options,
+  const char* Name() const override { return kName.c_str(); }
+  using TableFactory::NewTableReader;
+  Status NewTableReader(const ReadOptions& ro,
+                        const TableReaderOptions& table_reader_options,
                         std::unique_ptr<RandomAccessFileReader>&& file,
                         uint64_t file_size, std::unique_ptr<TableReader>* table,
                         bool prefetch_index_and_filter_in_cache) const override;
@@ -184,40 +186,17 @@ class PlainTableFactory : public TableFactory {
 
   void* GetOptions() override { return &table_options_; }
 
-  Status GetOptionString(std::string* /*opt_string*/,
-                         const std::string& /*delimiter*/) const override {
+  Status GetOptionString(const ConfigOptions& /*config_options*/,
+                         std::string* /*opt_string*/) const override {
     return Status::OK();
   }
+
+  static const std::string kName;
 
  private:
   PlainTableOptions table_options_;
 };
 
-static std::unordered_map<std::string, OptionTypeInfo> plain_table_type_info = {
-    {"user_key_len",
-     {offsetof(struct PlainTableOptions, user_key_len), OptionType::kUInt32T,
-      OptionVerificationType::kNormal, false, 0}},
-    {"bloom_bits_per_key",
-     {offsetof(struct PlainTableOptions, bloom_bits_per_key), OptionType::kInt,
-      OptionVerificationType::kNormal, false, 0}},
-    {"hash_table_ratio",
-     {offsetof(struct PlainTableOptions, hash_table_ratio), OptionType::kDouble,
-      OptionVerificationType::kNormal, false, 0}},
-    {"index_sparseness",
-     {offsetof(struct PlainTableOptions, index_sparseness), OptionType::kSizeT,
-      OptionVerificationType::kNormal, false, 0}},
-    {"huge_page_tlb_size",
-     {offsetof(struct PlainTableOptions, huge_page_tlb_size),
-      OptionType::kSizeT, OptionVerificationType::kNormal, false, 0}},
-    {"encoding_type",
-     {offsetof(struct PlainTableOptions, encoding_type),
-      OptionType::kEncodingType, OptionVerificationType::kByName, false, 0}},
-    {"full_scan_mode",
-     {offsetof(struct PlainTableOptions, full_scan_mode), OptionType::kBoolean,
-      OptionVerificationType::kNormal, false, 0}},
-    {"store_index_in_file",
-     {offsetof(struct PlainTableOptions, store_index_in_file),
-      OptionType::kBoolean, OptionVerificationType::kNormal, false, 0}}};
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 #endif  // ROCKSDB_LITE

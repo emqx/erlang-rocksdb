@@ -12,7 +12,7 @@
 #include "test_util/sync_point.h"
 #include "util/random.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 WriteThread::WriteThread(const ImmutableDBOptions& db_options)
     : max_yield_usec_(db_options.enable_write_thread_adaptive_yield
@@ -61,7 +61,7 @@ uint8_t WriteThread::BlockingAwaitState(Writer* w, uint8_t goal_mask) {
 
 uint8_t WriteThread::AwaitState(Writer* w, uint8_t goal_mask,
                                 AdaptationContext* ctx) {
-  uint8_t state;
+  uint8_t state = 0;
 
   // 1. Busy loop using "pause" for 1 micro sec
   // 2. Else SOMETIMES busy loop using "yield" for 100 micro sec (default)
@@ -344,6 +344,15 @@ void WriteThread::BeginWriteStall() {
       prev->link_older = w->link_older;
       w->status = Status::Incomplete("Write stall");
       SetState(w, STATE_COMPLETED);
+      // Only update `link_newer` if it's already set.
+      // `CreateMissingNewerLinks()` will update the nullptr `link_newer` later,
+      // which assumes the the first non-nullptr `link_newer` is the last
+      // nullptr link in the writer list.
+      // If `link_newer` is set here, `CreateMissingNewerLinks()` may stop
+      // updating the whole list when it sees the first non nullptr link.
+      if (prev->link_older && prev->link_older->link_newer) {
+        prev->link_older->link_newer = prev;
+      }
       w = prev->link_older;
     } else {
       prev = w;
@@ -355,7 +364,11 @@ void WriteThread::BeginWriteStall() {
 void WriteThread::EndWriteStall() {
   MutexLock lock(&stall_mu_);
 
+  // Unlink write_stall_dummy_ from the write queue. This will unblock
+  // pending write threads to enqueue themselves
   assert(newest_writer_.load(std::memory_order_relaxed) == &write_stall_dummy_);
+  assert(write_stall_dummy_.link_older != nullptr);
+  write_stall_dummy_.link_older->link_newer = write_stall_dummy_.link_newer;
   newest_writer_.exchange(write_stall_dummy_.link_older);
 
   // Wake up writers
@@ -431,6 +444,7 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
   // (newest_writer) is inclusive. Iteration goes from old to new.
   Writer* w = leader;
   while (w != newest_writer) {
+    assert(w->link_newer);
     w = w->link_newer;
 
     if (w->sync && !leader->sync) {
@@ -444,8 +458,8 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
       break;
     }
 
-    if (!w->disable_wal && leader->disable_wal) {
-      // Do not include a write that needs WAL into a batch that has
+    if (w->disable_wal != leader->disable_wal) {
+      // Do not mix writes that enable WAL with the ones whose
       // WAL disabled.
       break;
     }
@@ -457,7 +471,7 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
     }
 
     if (w->callback != nullptr && !w->callback->AllowWriteBatching()) {
-      // dont batch writes that don't want to be batched
+      // don't batch writes that don't want to be batched
       break;
     }
 
@@ -505,6 +519,7 @@ void WriteThread::EnterAsMemTableWriter(Writer* leader,
 
     Writer* w = leader;
     while (w != newest_writer) {
+      assert(w->link_newer);
       w = w->link_newer;
 
       if (w->batch == nullptr) {
@@ -561,6 +576,7 @@ void WriteThread::ExitAsMemTableWriter(Writer* /*self*/,
     if (w == last_writer) {
       break;
     }
+    assert(next);
     w = next;
   }
   // Note that leader has to exit last, since it owns the write group.
@@ -714,6 +730,7 @@ void WriteThread::ExitAsBatchGroupLeader(WriteGroup& write_group,
     // leader now
 
     while (last_writer != leader) {
+      assert(last_writer);
       last_writer->status = status;
       // we need to read link_older before calling SetState, because as soon
       // as it is marked committed the other thread's Await may return and
@@ -767,4 +784,4 @@ void WriteThread::WaitForMemTableWriters() {
   newest_memtable_writer_.store(nullptr);
 }
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE

@@ -6,7 +6,6 @@
 #pragma once
 #ifndef ROCKSDB_LITE
 
-#include <chrono>
 #include <string>
 #include <unordered_map>
 #include <memory>
@@ -20,7 +19,7 @@
 #include "util/thread_local.h"
 #include "utilities/transactions/pessimistic_transaction.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 class ColumnFamilyHandle;
 struct LockInfo;
@@ -78,7 +77,7 @@ class TransactionLockMgr {
 
   // Unlock a key locked by TryLock().  txn must be the same Transaction that
   // locked this key.
-  void UnLock(const PessimisticTransaction* txn, const TransactionKeyMap* keys,
+  void UnLock(const PessimisticTransaction* txn, const LockTracker& tracker,
               Env* env);
   void UnLock(PessimisticTransaction* txn, uint32_t column_family_id,
               const std::string& key, Env* env);
@@ -154,5 +153,5 @@ class TransactionLockMgr {
                             const autovector<TransactionID>& wait_ids);
 };
 
-}  //  namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 #endif  // ROCKSDB_LITE

@@ -14,7 +14,7 @@
 #include "util/string_util.h"
 #include "utilities/merge_operators.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 // Expects no merging attempts.
 class NoMergingMergeOp : public MergeOperator {
@@ -169,13 +169,15 @@ class FakeCompaction : public CompactionIterator::CompactionProxy {
   Slice GetLargestUserKey() const override {
     return "\xff\xff\xff\xff\xff\xff\xff\xff\xff";
   }
-  bool allow_ingest_behind() const override { return false; }
+  bool allow_ingest_behind() const override { return is_allow_ingest_behind; }
 
   bool preserve_deletes() const override { return false; }
 
   bool key_not_exists_beyond_output_level = false;
 
   bool is_bottommost_level = false;
+
+  bool is_allow_ingest_behind = false;
 };
 
 // A simplifed snapshot checker which assumes each snapshot has a global
@@ -184,7 +186,7 @@ class TestSnapshotChecker : public SnapshotChecker {
  public:
   explicit TestSnapshotChecker(
       SequenceNumber last_committed_sequence,
-      const std::unordered_map<SequenceNumber, SequenceNumber>& snapshots = {})
+      const std::unordered_map<SequenceNumber, SequenceNumber>& snapshots = {{}})
       : last_committed_sequence_(last_committed_sequence),
         snapshots_(snapshots) {}
 
@@ -237,6 +239,7 @@ class CompactionIteratorTest : public testing::TestWithParam<bool> {
     if (filter || bottommost_level) {
       compaction_proxy_ = new FakeCompaction();
       compaction_proxy_->is_bottommost_level = bottommost_level;
+      compaction_proxy_->is_allow_ingest_behind = AllowIngestBehind();
       compaction.reset(compaction_proxy_);
     }
     bool use_snapshot_checker = UseSnapshotChecker() || GetParam();
@@ -265,6 +268,8 @@ class CompactionIteratorTest : public testing::TestWithParam<bool> {
   }
 
   virtual bool UseSnapshotChecker() const { return false; }
+
+  virtual bool AllowIngestBehind() const { return false; }
 
   void RunTest(
       const std::vector<std::string>& input_keys,
@@ -494,7 +499,7 @@ TEST_P(CompactionIteratorTest, ShuttingDownInFilter) {
   compaction_proxy_->key_not_exists_beyond_output_level = true;
 
   std::atomic<bool> seek_done{false};
-  rocksdb::port::Thread compaction_thread([&] {
+  ROCKSDB_NAMESPACE::port::Thread compaction_thread([&] {
     c_iter_->SeekToFirst();
     EXPECT_FALSE(c_iter_->Valid());
     EXPECT_TRUE(c_iter_->status().IsShutdownInProgress());
@@ -531,7 +536,7 @@ TEST_P(CompactionIteratorTest, ShuttingDownInMerge) {
   compaction_proxy_->key_not_exists_beyond_output_level = true;
 
   std::atomic<bool> seek_done{false};
-  rocksdb::port::Thread compaction_thread([&] {
+  ROCKSDB_NAMESPACE::port::Thread compaction_thread([&] {
     c_iter_->SeekToFirst();
     ASSERT_FALSE(c_iter_->Valid());
     ASSERT_TRUE(c_iter_->status().IsShutdownInProgress());
@@ -695,6 +700,18 @@ TEST_P(CompactionIteratorTest, RemoveSingleDeletionAtBottomLevel) {
           {"", ""}, {test::KeyStr("b", 2, kTypeSingleDeletion)}, {""},
           kMaxSequenceNumber /*last_commited_seq*/, nullptr /*merge_operator*/,
           nullptr /*compaction_filter*/, true /*bottommost_level*/);
+}
+
+TEST_P(CompactionIteratorTest, ConvertToPutAtBottom) {
+  std::shared_ptr<MergeOperator> merge_op =
+      MergeOperators::CreateStringAppendOperator();
+  RunTest({test::KeyStr("a", 4, kTypeMerge), test::KeyStr("a", 3, kTypeMerge),
+           test::KeyStr("a", 2, kTypeMerge), test::KeyStr("b", 1, kTypeValue)},
+          {"a4", "a3", "a2", "b1"},
+          {test::KeyStr("a", 0, kTypeValue), test::KeyStr("b", 0, kTypeValue)},
+          {"a2,a3,a4", "b1"}, kMaxSequenceNumber /*last_committed_seq*/,
+          merge_op.get(), nullptr /*compaction_filter*/,
+          true /*bottomost_level*/);
 }
 
 INSTANTIATE_TEST_CASE_P(CompactionIteratorTestInstance, CompactionIteratorTest,
@@ -968,7 +985,46 @@ TEST_F(CompactionIteratorWithSnapshotCheckerTest, CompactionFilter_FullMerge) {
       compaction_filter.get());
 }
 
-}  // namespace rocksdb
+// Tests how CompactionIterator work together with AllowIngestBehind.
+class CompactionIteratorWithAllowIngestBehindTest
+    : public CompactionIteratorTest {
+ public:
+  bool AllowIngestBehind() const override { return true; }
+};
+
+// When allow_ingest_behind is set, compaction iterator is not targeting
+// the bottommost level since there is no guarantee there won't be further
+// data ingested under the compaction output in future.
+TEST_P(CompactionIteratorWithAllowIngestBehindTest, NoConvertToPutAtBottom) {
+  std::shared_ptr<MergeOperator> merge_op =
+      MergeOperators::CreateStringAppendOperator();
+  RunTest({test::KeyStr("a", 4, kTypeMerge), test::KeyStr("a", 3, kTypeMerge),
+           test::KeyStr("a", 2, kTypeMerge), test::KeyStr("b", 1, kTypeValue)},
+          {"a4", "a3", "a2", "b1"},
+          {test::KeyStr("a", 4, kTypeMerge), test::KeyStr("b", 1, kTypeValue)},
+          {"a2,a3,a4", "b1"}, kMaxSequenceNumber /*last_committed_seq*/,
+          merge_op.get(), nullptr /*compaction_filter*/,
+          true /*bottomost_level*/);
+}
+
+TEST_P(CompactionIteratorWithAllowIngestBehindTest,
+       MergeToPutIfEncounteredPutAtBottom) {
+  std::shared_ptr<MergeOperator> merge_op =
+      MergeOperators::CreateStringAppendOperator();
+  RunTest({test::KeyStr("a", 4, kTypeMerge), test::KeyStr("a", 3, kTypeMerge),
+           test::KeyStr("a", 2, kTypeValue), test::KeyStr("b", 1, kTypeValue)},
+          {"a4", "a3", "a2", "b1"},
+          {test::KeyStr("a", 4, kTypeValue), test::KeyStr("b", 1, kTypeValue)},
+          {"a2,a3,a4", "b1"}, kMaxSequenceNumber /*last_committed_seq*/,
+          merge_op.get(), nullptr /*compaction_filter*/,
+          true /*bottomost_level*/);
+}
+
+INSTANTIATE_TEST_CASE_P(CompactionIteratorWithAllowIngestBehindTestInstance,
+                        CompactionIteratorWithAllowIngestBehindTest,
+                        testing::Values(true, false));
+
+}  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
