@@ -23,6 +23,7 @@
 #include "memory/memory_allocator.h"
 #include "rocksdb/options.h"
 #include "rocksdb/table.h"
+#include "test_util/sync_point.h"
 #include "util/coding.h"
 #include "util/compression_context_cache.h"
 #include "util/string_util.h"
@@ -49,7 +50,7 @@
 #if ZSTD_VERSION_NUMBER >= 10103  // v1.1.3+
 #include <zdict.h>
 #endif  // ZSTD_VERSION_NUMBER >= 10103
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 // Need this for the context allocation override
 // On windows we need to do this explicitly
 #if (ZSTD_VERSION_NUMBER >= 500)
@@ -121,11 +122,11 @@ class ZSTDUncompressCachedData {
   int64_t cache_idx_ = -1;  // -1 means this instance owns the context
 };
 #endif  // (ZSTD_VERSION_NUMBER >= 500)
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 #endif  // ZSTD
 
 #if !(defined ZSTD) || !(ZSTD_VERSION_NUMBER >= 500)
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 class ZSTDUncompressCachedData {
   void* padding;  // unused
  public:
@@ -144,14 +145,14 @@ class ZSTDUncompressCachedData {
  private:
   void ignore_padding__() { padding = nullptr; }
 };
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 #endif
 
 #if defined(XPRESS)
 #include "port/xpress.h"
 #endif
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 // Holds dictionary and related data, like ZSTD's digested compression
 // dictionary.
@@ -420,10 +421,6 @@ class UncompressionContext {
   ZSTDUncompressCachedData uncomp_cached_data_;
 
  public:
-  struct NoCache {};
-  // Do not use context cache, used by TableBuilder
-  UncompressionContext(NoCache, CompressionType /* type */) {}
-
   explicit UncompressionContext(CompressionType type) {
     if (type == kZSTD || type == kZSTDNotFinalCompression) {
       ctx_cache_ = CompressionContextCache::Instance();
@@ -563,6 +560,8 @@ inline std::string CompressionTypeToString(CompressionType compression_type) {
       return "ZSTD";
     case kZSTDNotFinalCompression:
       return "ZSTDNotFinal";
+    case kDisableCompressionOption:
+      return "DisableOption";
     default:
       assert(false);
       return "";
@@ -1048,7 +1047,6 @@ inline bool LZ4_Compress(const CompressionInfo& info,
 #else   // up to r123
   outlen = LZ4_compress_limitedOutput(input, &(*output)[output_header_len],
                                       static_cast<int>(length), compress_bound);
-  (void)ctx;
 #endif  // LZ4_VERSION_NUMBER >= 10400
 
   if (outlen == 0) {
@@ -1113,7 +1111,6 @@ inline CacheAllocationPtr LZ4_Uncompress(const UncompressionInfo& info,
   *decompress_size = LZ4_decompress_safe(input_data, output.get(),
                                          static_cast<int>(input_length),
                                          static_cast<int>(output_len));
-  (void)ctx;
 #endif  // LZ4_VERSION_NUMBER >= 10400
 
   if (*decompress_size < 0) {
@@ -1404,4 +1401,52 @@ inline std::string ZSTD_TrainDictionary(const std::string& samples,
 #endif  // ZSTD_VERSION_NUMBER >= 10103
 }
 
-}  // namespace rocksdb
+inline bool CompressData(const Slice& raw,
+                         const CompressionInfo& compression_info,
+                         uint32_t compress_format_version,
+                         std::string* compressed_output) {
+  bool ret = false;
+
+  // Will return compressed block contents if (1) the compression method is
+  // supported in this platform and (2) the compression rate is "good enough".
+  switch (compression_info.type()) {
+    case kSnappyCompression:
+      ret = Snappy_Compress(compression_info, raw.data(), raw.size(),
+                            compressed_output);
+      break;
+    case kZlibCompression:
+      ret = Zlib_Compress(compression_info, compress_format_version, raw.data(),
+                          raw.size(), compressed_output);
+      break;
+    case kBZip2Compression:
+      ret = BZip2_Compress(compression_info, compress_format_version,
+                           raw.data(), raw.size(), compressed_output);
+      break;
+    case kLZ4Compression:
+      ret = LZ4_Compress(compression_info, compress_format_version, raw.data(),
+                         raw.size(), compressed_output);
+      break;
+    case kLZ4HCCompression:
+      ret = LZ4HC_Compress(compression_info, compress_format_version,
+                           raw.data(), raw.size(), compressed_output);
+      break;
+    case kXpressCompression:
+      ret = XPRESS_Compress(raw.data(), raw.size(), compressed_output);
+      break;
+    case kZSTD:
+    case kZSTDNotFinalCompression:
+      ret = ZSTD_Compress(compression_info, raw.data(), raw.size(),
+                          compressed_output);
+      break;
+    default:
+      // Do not recognize this compression type
+      break;
+  }
+
+  TEST_SYNC_POINT_CALLBACK("CompressData:TamperWithReturnValue",
+                           static_cast<void*>(&ret));
+
+  return ret;
+}
+
+}  // namespace ROCKSDB_NAMESPACE

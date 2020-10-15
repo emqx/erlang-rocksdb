@@ -7,23 +7,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include "db/compaction/compaction.h"
+
 #include <cinttypes>
 #include <vector>
 
 #include "db/column_family.h"
-#include "db/compaction/compaction.h"
 #include "rocksdb/compaction_filter.h"
+#include "rocksdb/sst_partitioner.h"
 #include "test_util/sync_point.h"
 #include "util/string_util.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 const uint64_t kRangeTombstoneSentinel =
     PackSequenceAndType(kMaxSequenceNumber, kTypeRangeDeletion);
 
 int sstableKeyCompare(const Comparator* user_cmp, const InternalKey& a,
                       const InternalKey& b) {
-  auto c = user_cmp->Compare(a.user_key(), b.user_key());
+  auto c = user_cmp->CompareWithoutTimestamp(a.user_key(), b.user_key());
   if (c != 0) {
     return c;
   }
@@ -205,6 +207,7 @@ bool Compaction::IsFullCompaction(
 Compaction::Compaction(VersionStorageInfo* vstorage,
                        const ImmutableCFOptions& _immutable_cf_options,
                        const MutableCFOptions& _mutable_cf_options,
+                       const MutableDBOptions& _mutable_db_options,
                        std::vector<CompactionInputFiles> _inputs,
                        int _output_level, uint64_t _target_file_size,
                        uint64_t _max_compaction_bytes, uint32_t _output_path_id,
@@ -243,7 +246,7 @@ Compaction::Compaction(VersionStorageInfo* vstorage,
     compaction_reason_ = CompactionReason::kManualCompaction;
   }
   if (max_subcompactions_ == 0) {
-    max_subcompactions_ = immutable_cf_options_.max_subcompactions;
+    max_subcompactions_ = _mutable_db_options.max_subcompactions;
   }
   if (!bottommost_level_) {
     // Currently we only enable dictionary compression during compaction to the
@@ -275,9 +278,7 @@ Compaction::~Compaction() {
     input_version_->Unref();
   }
   if (cfd_ != nullptr) {
-    if (cfd_->Unref()) {
-      delete cfd_;
-    }
+    cfd_->UnrefAndTryDelete();
   }
 }
 
@@ -330,6 +331,8 @@ bool Compaction::IsTrivialMove() const {
 
   // assert inputs_.size() == 1
 
+  std::unique_ptr<SstPartitioner> partitioner = CreateSstPartitioner();
+
   for (const auto& file : inputs_.front().files) {
     std::vector<FileMetaData*> file_grand_parents;
     if (output_level_ + 1 >= number_levels_) {
@@ -341,6 +344,13 @@ bool Compaction::IsTrivialMove() const {
         file->fd.GetFileSize() + TotalFileSize(file_grand_parents);
     if (compaction_size > max_compaction_bytes_) {
       return false;
+    }
+
+    if (partitioner.get() != nullptr) {
+      if (!partitioner->CanDoTrivialMove(file->smallest.user_key(),
+                                         file->largest.user_key())) {
+        return false;
+      }
     }
   }
 
@@ -527,6 +537,21 @@ std::unique_ptr<CompactionFilter> Compaction::CreateCompactionFilter() const {
       context);
 }
 
+std::unique_ptr<SstPartitioner> Compaction::CreateSstPartitioner() const {
+  if (!immutable_cf_options_.sst_partitioner_factory) {
+    return nullptr;
+  }
+
+  SstPartitioner::Context context;
+  context.is_full_compaction = is_full_compaction_;
+  context.is_manual_compaction = is_manual_compaction_;
+  context.output_level = output_level_;
+  context.smallest_user_key = smallest_user_key_;
+  context.largest_user_key = largest_user_key_;
+  return immutable_cf_options_.sst_partitioner_factory->CreatePartitioner(
+      context);
+}
+
 bool Compaction::IsOutputLevelEmpty() const {
   return inputs_.back().level != output_level_ || inputs_.back().empty();
 }
@@ -545,21 +570,22 @@ bool Compaction::ShouldFormSubcompactions() const {
   }
 }
 
-uint64_t Compaction::MaxInputFileCreationTime() const {
-  uint64_t max_creation_time = 0;
-  for (const auto& file : inputs_[0].files) {
-    if (file->fd.table_reader != nullptr &&
-        file->fd.table_reader->GetTableProperties() != nullptr) {
-      uint64_t creation_time =
-          file->fd.table_reader->GetTableProperties()->creation_time;
-      max_creation_time = std::max(max_creation_time, creation_time);
+uint64_t Compaction::MinInputFileOldestAncesterTime() const {
+  uint64_t min_oldest_ancester_time = port::kMaxUint64;
+  for (const auto& level_files : inputs_) {
+    for (const auto& file : level_files.files) {
+      uint64_t oldest_ancester_time = file->TryGetOldestAncesterTime();
+      if (oldest_ancester_time != 0) {
+        min_oldest_ancester_time =
+            std::min(min_oldest_ancester_time, oldest_ancester_time);
+      }
     }
   }
-  return max_creation_time;
+  return min_oldest_ancester_time;
 }
 
 int Compaction::GetInputBaseLevel() const {
   return input_vstorage_->base_level();
 }
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE

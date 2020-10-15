@@ -17,12 +17,12 @@
 #include "rocksdb/transaction_log.h"
 #include "util/string_util.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 #ifndef ROCKSDB_LITE
 class RepairTest : public DBTestBase {
  public:
-  RepairTest() : DBTestBase("/repair_test") {}
+  RepairTest() : DBTestBase("/repair_test", /*env_do_fsync=*/true) {}
 
   std::string GetFirstSstPath() {
     uint64_t manifest_size;
@@ -74,7 +74,9 @@ TEST_F(RepairTest, CorruptManifest) {
 
   Close();
   ASSERT_OK(env_->FileExists(manifest_path));
-  CreateFile(env_, manifest_path, "blah", false /* use_fsync */);
+
+  LegacyFileSystemWrapper fs(env_);
+  CreateFile(&fs, manifest_path, "blah", false /* use_fsync */);
   ASSERT_OK(RepairDB(dbname_, CurrentOptions()));
   Reopen(CurrentOptions());
 
@@ -153,7 +155,9 @@ TEST_F(RepairTest, CorruptSst) {
   Flush();
   auto sst_path = GetFirstSstPath();
   ASSERT_FALSE(sst_path.empty());
-  CreateFile(env_, sst_path, "blah", false /* use_fsync */);
+
+  LegacyFileSystemWrapper fs(env_);
+  CreateFile(&fs, sst_path, "blah", false /* use_fsync */);
 
   Close();
   ASSERT_OK(RepairDB(dbname_, CurrentOptions()));
@@ -347,7 +351,7 @@ TEST_F(RepairTest, DbNameContainsTrailingSlash) {
   ASSERT_EQ(Get("key"), "val");
 }
 #endif  // ROCKSDB_LITE
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

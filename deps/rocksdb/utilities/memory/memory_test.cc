@@ -13,9 +13,10 @@
 #include "table/block_based/block_based_table_factory.h"
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
+#include "util/random.h"
 #include "util/string_util.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 class MemoryTest : public testing::Test {
  public:
@@ -24,12 +25,6 @@ class MemoryTest : public testing::Test {
   }
 
   std::string GetDBName(int id) { return kDbDir + "db_" + ToString(id); }
-
-  std::string RandomString(int len) {
-    std::string r;
-    test::RandomString(&rnd_, len, &r);
-    return r;
-  }
 
   void UpdateUsagesHistory(const std::vector<DB*>& dbs) {
     std::map<MemoryUtil::UsageType, uint64_t> usage_by_type;
@@ -57,6 +52,8 @@ class MemoryTest : public testing::Test {
     cache_set->clear();
 
     for (auto* db : dbs) {
+      assert(db);
+
       // Cache from DBImpl
       StackableDB* sdb = dynamic_cast<StackableDB*>(db);
       DBImpl* db_impl = dynamic_cast<DBImpl*>(sdb ? sdb->GetBaseDB() : db);
@@ -120,9 +117,9 @@ TEST_F(MemoryTest, SharedBlockCacheTotal) {
   for (int p = 0; p < opt.min_write_buffer_number_to_merge / 2; ++p) {
     for (int i = 0; i < kNumDBs; ++i) {
       for (int j = 0; j < 100; ++j) {
-        keys_by_db[i].emplace_back(RandomString(kKeySize));
+        keys_by_db[i].emplace_back(rnd_.RandomString(kKeySize));
         dbs[i]->Put(WriteOptions(), keys_by_db[i].back(),
-                    RandomString(kValueSize));
+                    rnd_.RandomString(kValueSize));
       }
       dbs[i]->Flush(FlushOptions());
     }
@@ -179,8 +176,8 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
   for (int p = 0; p < opt.min_write_buffer_number_to_merge / 2; ++p) {
     for (int i = 0; i < kNumDBs; ++i) {
       for (auto* handle : vec_handles[i]) {
-        dbs[i]->Put(WriteOptions(), handle, RandomString(kKeySize),
-                    RandomString(kValueSize));
+        dbs[i]->Put(WriteOptions(), handle, rnd_.RandomString(kKeySize),
+                    rnd_.RandomString(kValueSize));
         UpdateUsagesHistory(dbs);
       }
     }
@@ -206,7 +203,7 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
 
     for (int j = 0; j < 100; ++j) {
       std::string value;
-      dbs[i]->Get(ReadOptions(), RandomString(kKeySize), &value);
+      dbs[i]->Get(ReadOptions(), rnd_.RandomString(kKeySize), &value);
     }
 
     UpdateUsagesHistory(dbs);
@@ -255,7 +252,7 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
     delete dbs[i];
   }
 }
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
 #if !(defined NDEBUG) || !defined(OS_WIN)

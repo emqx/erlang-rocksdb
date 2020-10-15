@@ -21,7 +21,7 @@
 #include "test_util/testharness.h"
 #include "util/string_util.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 static std::string PrintContents(WriteBatch* b) {
   InternalKeyComparator cmp(BytewiseComparator());
@@ -419,7 +419,7 @@ TEST_F(WriteBatchTest, PrepareCommit) {
 TEST_F(WriteBatchTest, DISABLED_ManyUpdates) {
   // Insert key and value of 3GB and push total batch size to 12GB.
   static const size_t kKeyValueSize = 4u;
-  static const uint32_t kNumUpdates = uint32_t(3 << 30);
+  static const uint32_t kNumUpdates = uint32_t{3} << 30;
   std::string raw(kKeyValueSize, 'A');
   WriteBatch batch(kNumUpdates * (4 + kKeyValueSize * 2) + 1024u);
   char c = 'A';
@@ -655,7 +655,6 @@ TEST_F(WriteBatchTest, ColumnFamiliesBatchWithIndexTest) {
   batch.Put(&eight, Slice("eightfoo"), Slice("bar8"));
   batch.Delete(&eight, Slice("eightfoo"));
   batch.SingleDelete(&two, Slice("twofoo"));
-  batch.DeleteRange(&two, Slice("twofoo"), Slice("threefoo"));
   batch.Merge(&three, Slice("threethree"), Slice("3three"));
   batch.Put(&zero, Slice("foo"), Slice("bar"));
   batch.Merge(Slice("omom"), Slice("nom"));
@@ -693,13 +692,6 @@ TEST_F(WriteBatchTest, ColumnFamiliesBatchWithIndexTest) {
   ASSERT_TRUE(iter->Valid());
   ASSERT_EQ(WriteType::kSingleDeleteRecord, iter->Entry().type);
   ASSERT_EQ("twofoo", iter->Entry().key.ToString());
-
-  iter->Next();
-  ASSERT_OK(iter->status());
-  ASSERT_TRUE(iter->Valid());
-  ASSERT_EQ(WriteType::kDeleteRangeRecord, iter->Entry().type);
-  ASSERT_EQ("twofoo", iter->Entry().key.ToString());
-  ASSERT_EQ("threefoo", iter->Entry().value.ToString());
 
   iter->Next();
   ASSERT_OK(iter->status());
@@ -751,7 +743,6 @@ TEST_F(WriteBatchTest, ColumnFamiliesBatchWithIndexTest) {
       "PutCF(8, eightfoo, bar8)"
       "DeleteCF(8, eightfoo)"
       "SingleDeleteCF(2, twofoo)"
-      "DeleteRangeCF(2, twofoo, threefoo)"
       "MergeCF(3, threethree, 3three)"
       "Put(foo, bar)"
       "Merge(omom, nom)",
@@ -889,7 +880,7 @@ TEST_F(WriteBatchTest, MemoryLimitTest) {
   ASSERT_TRUE(s.IsMemoryLimit());
 }
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

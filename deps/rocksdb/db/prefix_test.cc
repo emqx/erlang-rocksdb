@@ -27,6 +27,7 @@ int main() {
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/table.h"
 #include "test_util/testharness.h"
+#include "util/cast_util.h"
 #include "util/coding.h"
 #include "util/gflags_compat.h"
 #include "util/random.h"
@@ -53,9 +54,10 @@ DEFINE_int32(value_size, 40, "");
 DEFINE_bool(enable_print, false, "Print options generated to console.");
 
 // Path to the database on file system
-const std::string kDbName = rocksdb::test::PerThreadDBPath("prefix_test");
+const std::string kDbName =
+    ROCKSDB_NAMESPACE::test::PerThreadDBPath("prefix_test");
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 struct TestKey {
   uint64_t prefix;
@@ -585,7 +587,7 @@ TEST_F(PrefixTest, DynamicPrefixIterator) {
     }
 
     if (FLAGS_random_prefix) {
-      std::random_shuffle(prefixes.begin(), prefixes.end());
+      RandomShuffle(prefixes.begin(), prefixes.end());
     }
 
     HistogramImpl hist_put_time;
@@ -806,13 +808,13 @@ TEST_F(PrefixTest, PrefixSeekModePrev2) {
   PutKey(db.get(), write_options, TestKey(3, 3), "v33");
   PutKey(db.get(), write_options, TestKey(3, 4), "v34");
   db->Flush(FlushOptions());
-  reinterpret_cast<DBImpl*>(db.get())->TEST_WaitForFlushMemTable();
+  static_cast_with_check<DBImpl>(db.get())->TEST_WaitForFlushMemTable();
   PutKey(db.get(), write_options, TestKey(1, 1), "v11");
   PutKey(db.get(), write_options, TestKey(1, 3), "v13");
   PutKey(db.get(), write_options, TestKey(2, 1), "v21");
   PutKey(db.get(), write_options, TestKey(2, 2), "v22");
   db->Flush(FlushOptions());
-  reinterpret_cast<DBImpl*>(db.get())->TEST_WaitForFlushMemTable();
+  static_cast_with_check<DBImpl>(db.get())->TEST_WaitForFlushMemTable();
   std::unique_ptr<Iterator> iter(db->NewIterator(read_options));
   SeekIterator(iter.get(), 1, 5);
   iter->Prev();
@@ -838,13 +840,13 @@ TEST_F(PrefixTest, PrefixSeekModePrev3) {
     PutKey(db.get(), write_options, TestKey(1, 2), "v12");
     PutKey(db.get(), write_options, TestKey(1, 4), "v14");
     db->Flush(FlushOptions());
-    reinterpret_cast<DBImpl*>(db.get())->TEST_WaitForFlushMemTable();
+    static_cast_with_check<DBImpl>(db.get())->TEST_WaitForFlushMemTable();
     PutKey(db.get(), write_options, TestKey(1, 1), "v11");
     PutKey(db.get(), write_options, TestKey(1, 3), "v13");
     PutKey(db.get(), write_options, TestKey(2, 1), "v21");
     PutKey(db.get(), write_options, TestKey(2, 2), "v22");
     db->Flush(FlushOptions());
-    reinterpret_cast<DBImpl*>(db.get())->TEST_WaitForFlushMemTable();
+    static_cast_with_check<DBImpl>(db.get())->TEST_WaitForFlushMemTable();
     std::unique_ptr<Iterator> iter(db->NewIterator(read_options));
     iter->SeekToLast();
     ASSERT_EQ(iter->value(), v14);
@@ -860,18 +862,18 @@ TEST_F(PrefixTest, PrefixSeekModePrev3) {
     PutKey(db.get(), write_options, TestKey(3, 3), "v33");
     PutKey(db.get(), write_options, TestKey(3, 4), "v34");
     db->Flush(FlushOptions());
-    reinterpret_cast<DBImpl*>(db.get())->TEST_WaitForFlushMemTable();
+    static_cast_with_check<DBImpl>(db.get())->TEST_WaitForFlushMemTable();
     PutKey(db.get(), write_options, TestKey(1, 1), "v11");
     PutKey(db.get(), write_options, TestKey(1, 3), "v13");
     db->Flush(FlushOptions());
-    reinterpret_cast<DBImpl*>(db.get())->TEST_WaitForFlushMemTable();
+    static_cast_with_check<DBImpl>(db.get())->TEST_WaitForFlushMemTable();
     std::unique_ptr<Iterator> iter(db->NewIterator(read_options));
     iter->SeekToLast();
     ASSERT_EQ(iter->value(), v14);
   }
 }
 
-}  // end namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

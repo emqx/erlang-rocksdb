@@ -53,15 +53,15 @@
 #include "db/write_batch_internal.h"
 #include "monitoring/perf_context_imp.h"
 #include "monitoring/statistics.h"
+#include "port/lang.h"
 #include "rocksdb/merge_operator.h"
 #include "util/autovector.h"
 #include "util/cast_util.h"
 #include "util/coding.h"
 #include "util/duplicate_detector.h"
 #include "util/string_util.h"
-#include "util/util.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 // anon namespace for file-local types
 namespace {
@@ -334,9 +334,7 @@ void WriteBatch::Clear() {
   wal_term_point_.clear();
 }
 
-uint32_t WriteBatch::Count() const {
-  return WriteBatchInternal::Count(this);
-}
+uint32_t WriteBatch::Count() const { return WriteBatchInternal::Count(this); }
 
 uint32_t WriteBatch::ComputeContentFlags() const {
   auto rv = content_flags_.load(std::memory_order_relaxed);
@@ -910,7 +908,14 @@ Status WriteBatchInternal::Delete(WriteBatch* b, uint32_t column_family_id,
     b->rep_.push_back(static_cast<char>(kTypeColumnFamilyDeletion));
     PutVarint32(&b->rep_, column_family_id);
   }
-  PutLengthPrefixedSlice(&b->rep_, key);
+  if (0 == b->timestamp_size_) {
+    PutLengthPrefixedSlice(&b->rep_, key);
+  } else {
+    PutVarint32(&b->rep_,
+                static_cast<uint32_t>(key.size() + b->timestamp_size_));
+    b->rep_.append(key.data(), key.size());
+    b->rep_.append(b->timestamp_size_, '\0');
+  }
   b->content_flags_.store(b->content_flags_.load(std::memory_order_relaxed) |
                               ContentFlags::HAS_DELETE,
                           std::memory_order_relaxed);
@@ -932,7 +937,11 @@ Status WriteBatchInternal::Delete(WriteBatch* b, uint32_t column_family_id,
     b->rep_.push_back(static_cast<char>(kTypeColumnFamilyDeletion));
     PutVarint32(&b->rep_, column_family_id);
   }
-  PutLengthPrefixedSliceParts(&b->rep_, key);
+  if (0 == b->timestamp_size_) {
+    PutLengthPrefixedSliceParts(&b->rep_, key);
+  } else {
+    PutLengthPrefixedSlicePartsWithPadding(&b->rep_, key, b->timestamp_size_);
+  }
   b->content_flags_.store(b->content_flags_.load(std::memory_order_relaxed) |
                               ContentFlags::HAS_DELETE,
                           std::memory_order_relaxed);
@@ -1283,7 +1292,7 @@ class MemTableInserter : public WriteBatch::Handler {
         ignore_missing_column_families_(ignore_missing_column_families),
         recovering_log_number_(recovering_log_number),
         log_number_ref_(0),
-        db_(static_cast_with_check<DBImpl, DB>(db)),
+        db_(static_cast_with_check<DBImpl>(db)),
         concurrent_memtable_writes_(concurrent_memtable_writes),
         post_info_created_(false),
         has_valid_writes_(has_valid_writes),
@@ -1406,8 +1415,8 @@ class MemTableInserter : public WriteBatch::Handler {
       // else insert the values to the memtable right away
     }
 
-    Status seek_status;
-    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &seek_status))) {
+    Status ret_status;
+    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &ret_status))) {
       bool batch_boundry = false;
       if (rebuilding_trx_ != nullptr) {
         assert(!write_after_commit_);
@@ -1417,9 +1426,8 @@ class MemTableInserter : public WriteBatch::Handler {
         batch_boundry = IsDuplicateKeySeq(column_family_id, key);
       }
       MaybeAdvanceSeq(batch_boundry);
-      return seek_status;
+      return ret_status;
     }
-    Status ret_status;
 
     MemTable* mem = cf_mems_->GetMemTable();
     auto* moptions = mem->GetImmutableMemTableOptions();
@@ -1534,8 +1542,8 @@ class MemTableInserter : public WriteBatch::Handler {
       // else insert the values to the memtable right away
     }
 
-    Status seek_status;
-    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &seek_status))) {
+    Status ret_status;
+    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &ret_status))) {
       bool batch_boundry = false;
       if (rebuilding_trx_ != nullptr) {
         assert(!write_after_commit_);
@@ -1545,10 +1553,17 @@ class MemTableInserter : public WriteBatch::Handler {
         batch_boundry = IsDuplicateKeySeq(column_family_id, key);
       }
       MaybeAdvanceSeq(batch_boundry);
-      return seek_status;
+      return ret_status;
     }
 
-    auto ret_status = DeleteImpl(column_family_id, key, Slice(), kTypeDeletion);
+    ColumnFamilyData* cfd = cf_mems_->current();
+    assert(!cfd || cfd->user_comparator());
+    const size_t ts_sz = (cfd && cfd->user_comparator())
+                             ? cfd->user_comparator()->timestamp_size()
+                             : 0;
+    const ValueType delete_type =
+        (0 == ts_sz) ? kTypeDeletion : kTypeDeletionWithTimestamp;
+    ret_status = DeleteImpl(column_family_id, key, Slice(), delete_type);
     // optimize for non-recovery mode
     if (UNLIKELY(!ret_status.IsTryAgain() && rebuilding_trx_ != nullptr)) {
       assert(!write_after_commit_);
@@ -1567,8 +1582,8 @@ class MemTableInserter : public WriteBatch::Handler {
       // else insert the values to the memtable right away
     }
 
-    Status seek_status;
-    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &seek_status))) {
+    Status ret_status;
+    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &ret_status))) {
       bool batch_boundry = false;
       if (rebuilding_trx_ != nullptr) {
         assert(!write_after_commit_);
@@ -1579,10 +1594,10 @@ class MemTableInserter : public WriteBatch::Handler {
         batch_boundry = IsDuplicateKeySeq(column_family_id, key);
       }
       MaybeAdvanceSeq(batch_boundry);
-      return seek_status;
+      return ret_status;
     }
 
-    auto ret_status =
+    ret_status =
         DeleteImpl(column_family_id, key, Slice(), kTypeSingleDeletion);
     // optimize for non-recovery mode
     if (UNLIKELY(!ret_status.IsTryAgain() && rebuilding_trx_ != nullptr)) {
@@ -1604,8 +1619,8 @@ class MemTableInserter : public WriteBatch::Handler {
       // else insert the values to the memtable right away
     }
 
-    Status seek_status;
-    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &seek_status))) {
+    Status ret_status;
+    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &ret_status))) {
       bool batch_boundry = false;
       if (rebuilding_trx_ != nullptr) {
         assert(!write_after_commit_);
@@ -1618,23 +1633,33 @@ class MemTableInserter : public WriteBatch::Handler {
         batch_boundry = IsDuplicateKeySeq(column_family_id, begin_key);
       }
       MaybeAdvanceSeq(batch_boundry);
-      return seek_status;
+      return ret_status;
     }
     if (db_ != nullptr) {
       auto cf_handle = cf_mems_->GetColumnFamilyHandle();
       if (cf_handle == nullptr) {
         cf_handle = db_->DefaultColumnFamily();
       }
-      auto* cfd = reinterpret_cast<ColumnFamilyHandleImpl*>(cf_handle)->cfd();
+      auto* cfd =
+          static_cast_with_check<ColumnFamilyHandleImpl>(cf_handle)->cfd();
       if (!cfd->is_delete_range_supported()) {
         return Status::NotSupported(
             std::string("DeleteRange not supported for table type ") +
             cfd->ioptions()->table_factory->Name() + " in CF " +
             cfd->GetName());
       }
+      int cmp = cfd->user_comparator()->Compare(begin_key, end_key);
+      if (cmp > 0) {
+        // It's an empty range where endpoints appear mistaken. Don't bother
+        // applying it to the DB, and return an error to the user.
+        return Status::InvalidArgument("end key comes before start key");
+      } else if (cmp == 0) {
+        // It's an empty range. Don't bother applying it to the DB.
+        return Status::OK();
+      }
     }
 
-    auto ret_status =
+    ret_status =
         DeleteImpl(column_family_id, begin_key, end_key, kTypeRangeDeletion);
     // optimize for non-recovery mode
     if (UNLIKELY(!ret_status.IsTryAgain() && rebuilding_trx_ != nullptr)) {
@@ -1656,8 +1681,8 @@ class MemTableInserter : public WriteBatch::Handler {
       // else insert the values to the memtable right away
     }
 
-    Status seek_status;
-    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &seek_status))) {
+    Status ret_status;
+    if (UNLIKELY(!SeekToColumnFamily(column_family_id, &ret_status))) {
       bool batch_boundry = false;
       if (rebuilding_trx_ != nullptr) {
         assert(!write_after_commit_);
@@ -1668,10 +1693,9 @@ class MemTableInserter : public WriteBatch::Handler {
         batch_boundry = IsDuplicateKeySeq(column_family_id, key);
       }
       MaybeAdvanceSeq(batch_boundry);
-      return seek_status;
+      return ret_status;
     }
 
-    Status ret_status;
     MemTable* mem = cf_mems_->GetMemTable();
     auto* moptions = mem->GetImmutableMemTableOptions();
     bool perform_merge = false;
@@ -1786,14 +1810,28 @@ class MemTableInserter : public WriteBatch::Handler {
     // check if memtable_list size exceeds max_write_buffer_size_to_maintain
     if (trim_history_scheduler_ != nullptr) {
       auto* cfd = cf_mems_->current();
-      assert(cfd != nullptr);
-      if (cfd->ioptions()->max_write_buffer_size_to_maintain > 0 &&
-          cfd->mem()->ApproximateMemoryUsageFast() +
-                  cfd->imm()->ApproximateMemoryUsageExcludingLast() >=
-              static_cast<size_t>(
-                  cfd->ioptions()->max_write_buffer_size_to_maintain) &&
-          cfd->imm()->MarkTrimHistoryNeeded()) {
-        trim_history_scheduler_->ScheduleWork(cfd);
+
+      assert(cfd);
+      assert(cfd->ioptions());
+
+      const size_t size_to_maintain = static_cast<size_t>(
+          cfd->ioptions()->max_write_buffer_size_to_maintain);
+
+      if (size_to_maintain > 0) {
+        MemTableList* const imm = cfd->imm();
+        assert(imm);
+
+        if (imm->HasHistory()) {
+          const MemTable* const mem = cfd->mem();
+          assert(mem);
+
+          if (mem->ApproximateMemoryUsageFast() +
+                      imm->ApproximateMemoryUsageExcludingLast() >=
+                  size_to_maintain &&
+              imm->MarkTrimHistoryNeeded()) {
+            trim_history_scheduler_->ScheduleWork(cfd);
+          }
+        }
       }
     }
   }
@@ -1816,8 +1854,9 @@ class MemTableInserter : public WriteBatch::Handler {
       // we are now iterating through a prepared section
       rebuilding_trx_ = new WriteBatch();
       rebuilding_trx_seq_ = sequence_;
-      // We only call MarkBeginPrepare once per batch, and unprepared_batch_
-      // is initialized to false by default.
+      // Verify that we have matching MarkBeginPrepare/MarkEndPrepare markers.
+      // unprepared_batch_ should be false because it is false by default, and
+      // gets reset to false in MarkEndPrepare.
       assert(!unprepared_batch_);
       unprepared_batch_ = unprepare;
 
@@ -1842,6 +1881,7 @@ class MemTableInserter : public WriteBatch::Handler {
       db_->InsertRecoveredTransaction(recovering_log_number_, name.ToString(),
                                       rebuilding_trx_, rebuilding_trx_seq_,
                                       batch_cnt, unprepared_batch_);
+      unprepared_batch_ = false;
       rebuilding_trx_ = nullptr;
     } else {
       assert(rebuilding_trx_ == nullptr);
@@ -2075,4 +2115,4 @@ size_t WriteBatchInternal::AppendedByteSize(size_t leftByteSize,
   }
 }
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE

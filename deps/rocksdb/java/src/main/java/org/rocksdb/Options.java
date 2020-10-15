@@ -6,10 +6,7 @@
 package org.rocksdb;
 
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * Options to control the behavior of a database.  It will be used
@@ -25,6 +22,25 @@ public class Options extends RocksObject
     MutableColumnFamilyOptionsInterface<Options> {
   static {
     RocksDB.loadLibrary();
+  }
+
+  /**
+   * Converts the input properties into a Options-style formatted string
+   * @param properties   The set of properties to convert
+   * @return The Options-style representation of those properties.
+   */
+  public static String getOptionStringFromProps(final Properties properties) {
+    if (properties == null || properties.size() == 0) {
+      throw new IllegalArgumentException("Properties value must contain at least one value.");
+    }
+    StringBuilder stringBuilder = new StringBuilder();
+    for (final String name : properties.stringPropertyNames()) {
+      stringBuilder.append(name);
+      stringBuilder.append("=");
+      stringBuilder.append(properties.getProperty(name));
+      stringBuilder.append(";");
+    }
+    return stringBuilder.toString();
   }
 
   /**
@@ -75,6 +91,7 @@ public class Options extends RocksObject
     this.compressionOptions_ = other.compressionOptions_;
     this.rowCache_ = other.rowCache_;
     this.writeBufferManager_ = other.writeBufferManager_;
+    this.compactionThreadLimiter_ = other.compactionThreadLimiter_;
   }
 
   @Override
@@ -193,7 +210,7 @@ public class Options extends RocksObject
 
   @Override
   public Options setComparator(
-      final AbstractComparator<? extends AbstractSlice<?>> comparator) {
+      final AbstractComparator comparator) {
     assert(isOwningHandle());
     setComparatorHandle(nativeHandle_, comparator.nativeHandle_,
             comparator.getComparatorType().getValue());
@@ -429,6 +446,7 @@ public class Options extends RocksObject
   }
 
   @Override
+  @Deprecated
   public int maxBackgroundCompactions() {
     assert(isOwningHandle());
     return maxBackgroundCompactions(nativeHandle_);
@@ -453,6 +471,7 @@ public class Options extends RocksObject
   }
 
   @Override
+  @Deprecated
   public void setBaseBackgroundCompactions(
       final int baseBackgroundCompactions) {
     assert(isOwningHandle());
@@ -466,6 +485,7 @@ public class Options extends RocksObject
   }
 
   @Override
+  @Deprecated
   public Options setMaxBackgroundCompactions(
       final int maxBackgroundCompactions) {
     assert(isOwningHandle());
@@ -487,12 +507,14 @@ public class Options extends RocksObject
   }
 
   @Override
+  @Deprecated
   public int maxBackgroundFlushes() {
     assert(isOwningHandle());
     return maxBackgroundFlushes(nativeHandle_);
   }
 
   @Override
+  @Deprecated
   public Options setMaxBackgroundFlushes(
       final int maxBackgroundFlushes) {
     assert(isOwningHandle());
@@ -740,6 +762,34 @@ public class Options extends RocksObject
   }
 
   @Override
+  public Options setStatsPersistPeriodSec(
+      final int statsPersistPeriodSec) {
+    assert(isOwningHandle());
+    setStatsPersistPeriodSec(nativeHandle_, statsPersistPeriodSec);
+    return this;
+  }
+
+  @Override
+  public int statsPersistPeriodSec() {
+    assert(isOwningHandle());
+    return statsPersistPeriodSec(nativeHandle_);
+  }
+
+  @Override
+  public Options setStatsHistoryBufferSize(
+      final long statsHistoryBufferSize) {
+    assert(isOwningHandle());
+    setStatsHistoryBufferSize(nativeHandle_, statsHistoryBufferSize);
+    return this;
+  }
+
+  @Override
+  public long statsHistoryBufferSize() {
+    assert(isOwningHandle());
+    return statsHistoryBufferSize(nativeHandle_);
+  }
+
+  @Override
   public boolean adviseRandomOnOpen() {
     return adviseRandomOnOpen(nativeHandle_);
   }
@@ -884,6 +934,19 @@ public class Options extends RocksObject
   }
 
   @Override
+  public Options setStrictBytesPerSync(final boolean strictBytesPerSync) {
+    assert(isOwningHandle());
+    setStrictBytesPerSync(nativeHandle_, strictBytesPerSync);
+    return this;
+  }
+
+  @Override
+  public boolean strictBytesPerSync() {
+    assert(isOwningHandle());
+    return strictBytesPerSync(nativeHandle_);
+  }
+
+  @Override
   public Options setEnableThreadTracking(final boolean enableThreadTracking) {
     assert(isOwningHandle());
     setEnableThreadTracking(nativeHandle_, enableThreadTracking);
@@ -917,6 +980,17 @@ public class Options extends RocksObject
   @Override
   public boolean enablePipelinedWrite() {
     return enablePipelinedWrite(nativeHandle_);
+  }
+
+  @Override
+  public Options setUnorderedWrite(final boolean unorderedWrite) {
+    setUnorderedWrite(nativeHandle_, unorderedWrite);
+    return this;
+  }
+
+  @Override
+  public boolean unorderedWrite() {
+    return unorderedWrite(nativeHandle_);
   }
 
   @Override
@@ -1735,6 +1809,31 @@ public class Options extends RocksObject
     return atomicFlush(nativeHandle_);
   }
 
+  @Override
+  public Options setSstPartitionerFactory(SstPartitionerFactory sstPartitionerFactory) {
+    setSstPartitionerFactory(nativeHandle_, sstPartitionerFactory.nativeHandle_);
+    this.sstPartitionerFactory_ = sstPartitionerFactory;
+    return this;
+  }
+
+  @Override
+  public SstPartitionerFactory sstPartitionerFactory() {
+    return sstPartitionerFactory_;
+  }
+
+  @Override
+  public Options setCompactionThreadLimiter(final ConcurrentTaskLimiter compactionThreadLimiter) {
+    setCompactionThreadLimiter(nativeHandle_, compactionThreadLimiter.nativeHandle_);
+    this.compactionThreadLimiter_ = compactionThreadLimiter;
+    return this;
+  }
+
+  @Override
+  public ConcurrentTaskLimiter compactionThreadLimiter() {
+    assert (isOwningHandle());
+    return this.compactionThreadLimiter_;
+  }
+
   private native static long newOptions();
   private native static long newOptions(long dbOptHandle,
       long cfOptHandle);
@@ -1847,6 +1946,14 @@ public class Options extends RocksObject
   private native void setStatsDumpPeriodSec(
       long handle, int statsDumpPeriodSec);
   private native int statsDumpPeriodSec(long handle);
+  private native void setStatsPersistPeriodSec(
+      final long handle, final int statsPersistPeriodSec);
+  private native int statsPersistPeriodSec(
+      final long handle);
+  private native void setStatsHistoryBufferSize(
+      final long handle, final long statsHistoryBufferSize);
+  private native long statsHistoryBufferSize(
+      final long handle);
   private native void setAdviseRandomOnOpen(
       long handle, boolean adviseRandomOnOpen);
   private native boolean adviseRandomOnOpen(long handle);
@@ -1878,6 +1985,10 @@ public class Options extends RocksObject
   private native long bytesPerSync(long handle);
   private native void setWalBytesPerSync(long handle, long walBytesPerSync);
   private native long walBytesPerSync(long handle);
+  private native void setStrictBytesPerSync(
+      final long handle, final boolean strictBytesPerSync);
+  private native boolean strictBytesPerSync(
+      final long handle);
   private native void setEnableThreadTracking(long handle,
       boolean enableThreadTracking);
   private native boolean enableThreadTracking(long handle);
@@ -1886,6 +1997,9 @@ public class Options extends RocksObject
   private native void setEnablePipelinedWrite(final long handle,
       final boolean pipelinedWrite);
   private native boolean enablePipelinedWrite(final long handle);
+  private native void setUnorderedWrite(final long handle,
+      final boolean unorderedWrite);
+  private native boolean unorderedWrite(final long handle);
   private native void setAllowConcurrentMemtableWrite(long handle,
       boolean allowConcurrentMemtableWrite);
   private native boolean allowConcurrentMemtableWrite(long handle);
@@ -2090,6 +2204,9 @@ public class Options extends RocksObject
   private native void setAtomicFlush(final long handle,
       final boolean atomicFlush);
   private native boolean atomicFlush(final long handle);
+  private native void setSstPartitionerFactory(long nativeHandle_, long newFactoryHandle);
+  private static native void setCompactionThreadLimiter(
+      final long nativeHandle_, final long newLimiterHandle);
 
   // instance variables
   // NOTE: If you add new member variables, please update the copy constructor above!
@@ -2097,7 +2214,7 @@ public class Options extends RocksObject
   private MemTableConfig memTableConfig_;
   private TableFormatConfig tableFormatConfig_;
   private RateLimiter rateLimiter_;
-  private AbstractComparator<? extends AbstractSlice<?>> comparator_;
+  private AbstractComparator comparator_;
   private AbstractCompactionFilter<? extends AbstractSlice<?>> compactionFilter_;
   private AbstractCompactionFilterFactory<? extends AbstractCompactionFilter<?>>
           compactionFilterFactory_;
@@ -2108,4 +2225,6 @@ public class Options extends RocksObject
   private Cache rowCache_;
   private WalFilter walFilter_;
   private WriteBufferManager writeBufferManager_;
+  private SstPartitionerFactory sstPartitionerFactory_;
+  private ConcurrentTaskLimiter compactionThreadLimiter_;
 }
