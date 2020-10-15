@@ -189,12 +189,11 @@ Iterators(
     if(!enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]))
        return enif_make_badarg(env);
 
-    rocksdb::ReadOptions *opts = new rocksdb::ReadOptions();
+    rocksdb::ReadOptions opts;
     ItrBounds bounds;
     auto itr_env = std::make_shared<ErlEnvCtr>();
-    if (!parse_iterator_options(env, itr_env->env, argv[2], *opts, bounds))
+    if (!parse_iterator_options(env, itr_env->env, argv[2], opts, bounds))
     {
-        delete opts;
         return enif_make_badarg(env);
     }
 
@@ -209,7 +208,7 @@ Iterators(
     }
 
     std::vector<rocksdb::Iterator*> iterators;
-    db_ptr->m_Db->NewIterators(*opts, column_families, &iterators);
+    db_ptr->m_Db->NewIterators(opts, column_families, &iterators);
 
 
     ERL_NIF_TERM result = enif_make_list(env, 0);
@@ -234,7 +233,6 @@ Iterators(
     } catch (const std::exception&) {
         // pass through and return nullptr
     }
-    opts=NULL;
     ERL_NIF_TERM result_out;
     enif_make_reverse_list(env, result, &result_out);
 

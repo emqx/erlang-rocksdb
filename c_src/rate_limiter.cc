@@ -117,15 +117,10 @@ NewRateLimiter(
 ERL_NIF_TERM
 ReleaseRateLimiter(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
-    RateLimiter* rate_limiter_ptr;
-    std::shared_ptr<rocksdb::RateLimiter> rate_limiter;
-
-    rate_limiter_ptr = erocksdb::RateLimiter::RetrieveRateLimiterResource(env, argv[0]);
+    RateLimiter* rate_limiter_ptr = erocksdb::RateLimiter::RetrieveRateLimiterResource(env, argv[0]);
     if(NULL==rate_limiter_ptr)
         return ATOM_OK;
-    rate_limiter = rate_limiter_ptr->rate_limiter();
-    rate_limiter = NULL;
-    rate_limiter = NULL;
+    rate_limiter_ptr->~RateLimiter();
     return ATOM_OK;
 }
 

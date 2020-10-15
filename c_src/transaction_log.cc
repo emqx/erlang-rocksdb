@@ -187,14 +187,12 @@ WriteBinaryUpdate(
     if(!enif_inspect_binary(env, argv[1], &bin))
         return enif_make_badarg(env);
 
-    const std::string batch_str = std::string((const char*)bin.data, bin.size);
+    rocksdb::WriteBatch batch(std::string((const char*)bin.data, bin.size));
 
     rocksdb::WriteOptions opts;
     fold(env, argv[2], parse_write_option, opts);
 
-    rocksdb::WriteBatch* batch = new rocksdb::WriteBatch(batch_str);
-
-    rocksdb::Status status = db_ptr->m_Db->Write(opts, batch);
+    rocksdb::Status status = db_ptr->m_Db->Write(opts, &batch);
 
     if (status.ok())
     {

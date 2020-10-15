@@ -658,9 +658,6 @@ SnapshotObject::SnapshotObjectResourceCleanup(
 
     snapshot_ptr=(SnapshotObject *)arg;
 
-    if(NULL!=snapshot_ptr->m_Snapshot)
-        snapshot_ptr->m_DbPtr->m_Db->ReleaseSnapshot(snapshot_ptr->m_Snapshot);
-
     // vtable for snapshot_ptr could be invalid if close already
     //  occurred
     InitiateCloseRequest(snapshot_ptr);
@@ -689,6 +686,10 @@ SnapshotObject::~SnapshotObject()
 
     if (NULL!=m_DbPtr.get())
     {
+        if (m_Snapshot) {
+            m_DbPtr->m_Db->ReleaseSnapshot(m_Snapshot);
+            m_Snapshot = nullptr;
+        }
         m_DbPtr->RemoveSnapshotReference(this);
     }
 
