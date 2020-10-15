@@ -78,7 +78,7 @@ cf_iterators_test() ->
     %% ok = rocksdb:transaction_put(Txn, TestH, <<"e">>, <<"v2">>),
 
     {ok, DefaultIt} = rocksdb:transaction_iterator(Db, Txn, []),
-    {ok, TestIt} = rocksdb:transaction_iterator(Db, Txn, TestH, [{iterate_upper_bound, <<"d">>}]),
+    {ok, TestIt} = rocksdb:transaction_iterator(Db, Txn, TestH, []),
 
     {ok, PlainIt} = rocksdb:iterator(Db, TestH, []),
 
@@ -91,8 +91,7 @@ cf_iterators_test() ->
 
     ?assertEqual({ok, <<"b">>, <<"y1">>}, rocksdb:iterator_move(TestIt, next)),
     ?assertEqual({ok, <<"d">>, <<"v2">>}, rocksdb:iterator_move(TestIt, next)),
-    %% TODO: re-add this part of the test when iterator bounds are fixed
-    %%?assertEqual({ok, <<"e">>, <<"v2">>}, rocksdb:iterator_move(TestIt, next))a,
+
 
     ?assertEqual({ok, <<"b">>, <<"y1">>}, rocksdb:iterator_move(PlainIt, next)),
     ?assertEqual({error, invalid_iterator}, rocksdb:iterator_move(PlainIt, next)),
