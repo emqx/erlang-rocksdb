@@ -138,10 +138,10 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         }
         else if (option[0] == erocksdb::ATOM_DB_PATHS)
         {
-            ERL_NIF_TERM head;
-            ERL_NIF_TERM tail;
+            ERL_NIF_TERM head, tail;
+            tail = option[1];
             char db_name[4096];
-            while(enif_get_list_cell(env, option[1], &head, &tail)) {
+            while(enif_get_list_cell(env, tail, &head, &tail)) {
                 if (enif_get_string(env, head, db_name, sizeof(db_name), ERL_NIF_LATIN1))
                 {
                     std::string str_db_name(db_name);
@@ -408,30 +408,90 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             if (enif_get_int(env, option[1], &min_write_buffer_number_to_merge))
                 opts.min_write_buffer_number_to_merge = min_write_buffer_number_to_merge;
         }
-        else if (option[0] == erocksdb::ATOM_COMPRESSION)
+        else if (option[0] == erocksdb::ATOM_COMPRESSION ||
+                 option[0] == erocksdb::ATOM_BOTTOMMOST_COMPRESSION)
         {
+            rocksdb::CompressionType compression;
             if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_SNAPPY) {
-                opts.compression = rocksdb::CompressionType::kSnappyCompression;
+                compression = rocksdb::CompressionType::kSnappyCompression;
             }
             else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_ZLIB) {
-                opts.compression = rocksdb::CompressionType::kZlibCompression;
+                compression = rocksdb::CompressionType::kZlibCompression;
             }
             else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_BZIP2) {
-                opts.compression = rocksdb::CompressionType::kBZip2Compression;
+                compression = rocksdb::CompressionType::kBZip2Compression;
             }
             else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4) {
-                opts.compression = rocksdb::CompressionType::kLZ4Compression;
+                compression = rocksdb::CompressionType::kLZ4Compression;
             }
             else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4H) {
-                opts.compression = rocksdb::CompressionType::kLZ4HCCompression;
+                compression = rocksdb::CompressionType::kLZ4HCCompression;
             }
             else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_ZSTD)
             {
-                opts.compression = rocksdb::CompressionType::kZSTD;
+                compression = rocksdb::CompressionType::kZSTD;
             }
             else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_NONE) {
-                opts.compression = rocksdb::CompressionType::kNoCompression;
+                compression = rocksdb::CompressionType::kNoCompression;
             }
+
+            if (option[0] == erocksdb::ATOM_COMPRESSION)
+                opts.compression = compression;
+            else
+                opts.bottommost_compression = compression;
+        }
+        else if (option[0] == erocksdb::ATOM_COMPRESSION_OPTS ||
+                 option[0] == erocksdb::ATOM_BOTTOMMOST_COMPRESSION_OPTS)
+        {
+            ERL_NIF_TERM head, tail;
+            tail = option[1];
+            rocksdb::CompressionOptions compression_opts = rocksdb::CompressionOptions();
+            while(enif_get_list_cell(env, tail, &head, &tail)) {
+                int arity2;
+                const ERL_NIF_TERM* compression_opt;
+                if (enif_get_tuple(env, head, &arity2, &compression_opt) && arity2 == 2)
+                {
+                    if (compression_opt[0] == erocksdb::ATOM_ENABLED)
+                    {
+                        compression_opts.enabled = enif_compare(enif_make_atom(env, "true"),
+                                                                compression_opt[1]) == 0;
+                    }
+                    else if (compression_opt[0] == erocksdb::ATOM_WINDOW_BITS)
+                    {
+                        int window_bits;
+                        if (enif_get_int(env, compression_opt[1], &window_bits))
+                            compression_opts.window_bits = window_bits;
+                    }
+                    else if (compression_opt[0] == erocksdb::ATOM_LEVEL)
+                    {
+                        int compression_level;
+                        if (enif_get_int(env, compression_opt[1], &compression_level))
+                            compression_opts.level = compression_level;
+                    }
+                    else if (compression_opt[0] == erocksdb::ATOM_STRATEGY)
+                    {
+                        int strategy;
+                        if (enif_get_int(env, compression_opt[1], &strategy))
+                            compression_opts.strategy = strategy;
+                    }
+                    else if (compression_opt[0] == erocksdb::ATOM_MAX_DICT_BYTES)
+                    {
+                        uint32_t max_dict_bytes;
+                        if (enif_get_uint(env, compression_opt[1], &max_dict_bytes))
+                            compression_opts.max_dict_bytes = max_dict_bytes;
+                    }
+                    else if (compression_opt[0] == erocksdb::ATOM_ZSTD_MAX_TRAIN_BYTES)
+                    {
+                        uint32_t zstd_max_train_bytes;
+                        if (enif_get_uint(env, compression_opt[1], &zstd_max_train_bytes))
+                            compression_opts.zstd_max_train_bytes = zstd_max_train_bytes;
+                    }
+                }
+            }
+            if (option[0] == erocksdb::ATOM_COMPRESSION_OPTS)
+                opts.compression_opts = compression_opts;
+            else
+                opts.bottommost_compression_opts = compression_opts;
         }
         else if (option[0] == erocksdb::ATOM_NUM_LEVELS)
         {
@@ -1742,4 +1802,3 @@ SetDBBackgroundThreads(
 
 
 }
-
