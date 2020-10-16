@@ -274,6 +274,9 @@
                        {max_write_buffer_number,  pos_integer()} |
                        {min_write_buffer_number_to_merge,  pos_integer()} |
                        {compression,  compression_type()} |
+                       {bottommost_compression,  compression_type()} |
+                       {compression_opts, compression_opts()} |
+                       {bottommost_compression_opts, compression_opts()} |
                        {num_levels,  pos_integer()} |
                        {level0_file_num_compaction_trigger,  integer()} |
                        {level0_slowdown_writes_trigger,  integer()} |
@@ -386,6 +389,13 @@
 
 -type flush_options() :: [{wait, boolean()} |
                           {allow_write_stall, boolean()}].
+
+-type compression_opts() :: [{enabled, boolean()} |
+                             {window_bits, pos_integer()} |
+                             {level, non_neg_integer()} |
+                             {strategy, integer()} |
+                             {max_dict_bytes, non_neg_integer()} |
+                             {zstd_max_train_bytes, non_neg_integer()}].
 
 -type iterator_action() :: first | last | next | prev | binary() | {seek, binary()} | {seek_for_prev, binary()}.
 
