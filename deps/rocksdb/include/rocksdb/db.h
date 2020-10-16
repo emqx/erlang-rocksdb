@@ -37,7 +37,7 @@
 #define ROCKSDB_DEPRECATED_FUNC __declspec(deprecated)
 #endif
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 struct Options;
 struct DBOptions;
@@ -57,6 +57,7 @@ class TraceWriter;
 #ifdef ROCKSDB_LITE
 class CompactionJobInfo;
 #endif
+class FileSystem;
 
 extern const std::string kDefaultColumnFamilyName;
 extern const std::string kPersistentStatsColumnFamilyName;
@@ -110,10 +111,16 @@ struct RangePtr {
   RangePtr(const Slice* s, const Slice* l) : start(s), limit(l) {}
 };
 
+// It is valid that files_checksums and files_checksum_func_names are both
+// empty (no checksum informaiton is provided for ingestion). Otherwise,
+// their sizes should be the same as external_files. The file order should
+// be the same in three vectors and guaranteed by the caller.
 struct IngestExternalFileArg {
   ColumnFamilyHandle* column_family = nullptr;
   std::vector<std::string> external_files;
   IngestExternalFileOptions options;
+  std::vector<std::string> files_checksums;
+  std::vector<std::string> files_checksum_func_names;
 };
 
 struct GetMergeOperandsOptions {
@@ -126,9 +133,11 @@ struct GetMergeOperandsOptions {
 typedef std::unordered_map<std::string, std::shared_ptr<const TableProperties>>
     TablePropertiesCollection;
 
-// A DB is a persistent ordered map from keys to values.
+// A DB is a persistent, versioned ordered map from keys to values.
 // A DB is safe for concurrent access from multiple threads without
 // any external synchronization.
+// DB is an abstract base class with one primary implementation (DBImpl)
+// and a number of wrapper implementations.
 class DB {
  public:
   // Open the database with the specified "name".
@@ -154,7 +163,7 @@ class DB {
   // read only, you can specify only a subset of column families in the
   // database that should be opened. However, you always need to specify default
   // column family. The default column family name is 'default' and it's stored
-  // in rocksdb::kDefaultColumnFamilyName
+  // in ROCKSDB_NAMESPACE::kDefaultColumnFamilyName
   //
   // Not supported in ROCKSDB_LITE, in which case the function will
   // return Status::NotSupported.
@@ -220,7 +229,7 @@ class DB {
   // ListColumnFamilies(). Also, you can open only a subset of column families
   // for read-only access.
   // The default column family name is 'default' and it's stored
-  // in rocksdb::kDefaultColumnFamilyName.
+  // in ROCKSDB_NAMESPACE::kDefaultColumnFamilyName.
   // If everything is OK, handles will on return be the same size
   // as column_families --- handles[i] will be a handle that you
   // will use to operate on column family column_family[i].
@@ -254,6 +263,7 @@ class DB {
                                    const std::string& name,
                                    std::vector<std::string>* column_families);
 
+  // Abstract class ctor
   DB() {}
   // No copying allowed
   DB(const DB&) = delete;
@@ -352,8 +362,11 @@ class DB {
 
   // Removes the database entries in the range ["begin_key", "end_key"), i.e.,
   // including "begin_key" and excluding "end_key". Returns OK on success, and
-  // a non-OK status on error. It is not an error if no keys exist in the range
-  // ["begin_key", "end_key").
+  // a non-OK status on error. It is not an error if the database does not
+  // contain any existing data in the range ["begin_key", "end_key").
+  //
+  // If "end_key" comes before "start_key" according to the user's comparator,
+  // a `Status::InvalidArgument` is returned.
   //
   // This feature is now usable in production, with the following caveats:
   // 1) Accumulating many range tombstones in the memtable will degrade read
@@ -387,6 +400,9 @@ class DB {
   // If the database contains an entry for "key" store the
   // corresponding value in *value and return OK.
   //
+  // If timestamp is enabled and a non-null timestamp pointer is passed in,
+  // timestamp is returned.
+  //
   // If there is no entry for "key" leave *value unchanged and return
   // a status for which Status::IsNotFound() returns true.
   //
@@ -411,6 +427,32 @@ class DB {
     return Get(options, DefaultColumnFamily(), key, value);
   }
 
+  // Get() methods that return timestamp. Derived DB classes don't need to worry
+  // about this group of methods if they don't care about timestamp feature.
+  virtual inline Status Get(const ReadOptions& options,
+                            ColumnFamilyHandle* column_family, const Slice& key,
+                            std::string* value, std::string* timestamp) {
+    assert(value != nullptr);
+    PinnableSlice pinnable_val(value);
+    assert(!pinnable_val.IsPinned());
+    auto s = Get(options, column_family, key, &pinnable_val, timestamp);
+    if (s.ok() && pinnable_val.IsPinned()) {
+      value->assign(pinnable_val.data(), pinnable_val.size());
+    }  // else value is already assigned
+    return s;
+  }
+  virtual Status Get(const ReadOptions& /*options*/,
+                     ColumnFamilyHandle* /*column_family*/,
+                     const Slice& /*key*/, PinnableSlice* /*value*/,
+                     std::string* /*timestamp*/) {
+    return Status::NotSupported(
+        "Get() that returns timestamp is not implemented.");
+  }
+  virtual Status Get(const ReadOptions& options, const Slice& key,
+                     std::string* value, std::string* timestamp) {
+    return Get(options, DefaultColumnFamily(), key, value, timestamp);
+  }
+
   // Returns all the merge operands corresponding to the key. If the
   // number of merge operands in DB is greater than
   // merge_operands_options.expected_max_number_of_operands
@@ -427,6 +469,11 @@ class DB {
       GetMergeOperandsOptions* get_merge_operands_options,
       int* number_of_operands) = 0;
 
+  // Consistent Get of many keys across column families without the need
+  // for an explicit snapshot. NOTE: the implementation of this MultiGet API
+  // does not have the performance benefits of the void-returning MultiGet
+  // functions.
+  //
   // If keys[i] does not exist in the database, then the i'th returned
   // status will be one for which Status::IsNotFound() is true, and
   // (*values)[i] will be set to some arbitrary value (often ""). Otherwise,
@@ -448,6 +495,25 @@ class DB {
         options,
         std::vector<ColumnFamilyHandle*>(keys.size(), DefaultColumnFamily()),
         keys, values);
+  }
+
+  virtual std::vector<Status> MultiGet(
+      const ReadOptions& /*options*/,
+      const std::vector<ColumnFamilyHandle*>& /*column_family*/,
+      const std::vector<Slice>& keys, std::vector<std::string>* /*values*/,
+      std::vector<std::string>* /*timestamps*/) {
+    return std::vector<Status>(
+        keys.size(), Status::NotSupported(
+                         "MultiGet() returning timestamps not implemented."));
+  }
+  virtual std::vector<Status> MultiGet(const ReadOptions& options,
+                                       const std::vector<Slice>& keys,
+                                       std::vector<std::string>* values,
+                                       std::vector<std::string>* timestamps) {
+    return MultiGet(
+        options,
+        std::vector<ColumnFamilyHandle*>(keys.size(), DefaultColumnFamily()),
+        keys, values, timestamps);
   }
 
   // Overloaded MultiGet API that improves performance by batching operations
@@ -490,6 +556,93 @@ class DB {
       values++;
     }
   }
+
+  virtual void MultiGet(const ReadOptions& options,
+                        ColumnFamilyHandle* column_family,
+                        const size_t num_keys, const Slice* keys,
+                        PinnableSlice* values, std::string* timestamps,
+                        Status* statuses, const bool /*sorted_input*/ = false) {
+    std::vector<ColumnFamilyHandle*> cf;
+    std::vector<Slice> user_keys;
+    std::vector<Status> status;
+    std::vector<std::string> vals;
+    std::vector<std::string> tss;
+
+    for (size_t i = 0; i < num_keys; ++i) {
+      cf.emplace_back(column_family);
+      user_keys.emplace_back(keys[i]);
+    }
+    status = MultiGet(options, cf, user_keys, &vals, &tss);
+    std::copy(status.begin(), status.end(), statuses);
+    std::copy(tss.begin(), tss.end(), timestamps);
+    for (auto& value : vals) {
+      values->PinSelf(value);
+      values++;
+    }
+  }
+
+  // Overloaded MultiGet API that improves performance by batching operations
+  // in the read path for greater efficiency. Currently, only the block based
+  // table format with full filters are supported. Other table formats such
+  // as plain table, block based table with block based filters and
+  // partitioned indexes will still work, but will not get any performance
+  // benefits.
+  // Parameters -
+  // options - ReadOptions
+  // column_family - ColumnFamilyHandle* that the keys belong to. All the keys
+  //                 passed to the API are restricted to a single column family
+  // num_keys - Number of keys to lookup
+  // keys - Pointer to C style array of key Slices with num_keys elements
+  // values - Pointer to C style array of PinnableSlices with num_keys elements
+  // statuses - Pointer to C style array of Status with num_keys elements
+  // sorted_input - If true, it means the input keys are already sorted by key
+  //                order, so the MultiGet() API doesn't have to sort them
+  //                again. If false, the keys will be copied and sorted
+  //                internally by the API - the input array will not be
+  //                modified
+  virtual void MultiGet(const ReadOptions& options, const size_t num_keys,
+                        ColumnFamilyHandle** column_families, const Slice* keys,
+                        PinnableSlice* values, Status* statuses,
+                        const bool /*sorted_input*/ = false) {
+    std::vector<ColumnFamilyHandle*> cf;
+    std::vector<Slice> user_keys;
+    std::vector<Status> status;
+    std::vector<std::string> vals;
+
+    for (size_t i = 0; i < num_keys; ++i) {
+      cf.emplace_back(column_families[i]);
+      user_keys.emplace_back(keys[i]);
+    }
+    status = MultiGet(options, cf, user_keys, &vals);
+    std::copy(status.begin(), status.end(), statuses);
+    for (auto& value : vals) {
+      values->PinSelf(value);
+      values++;
+    }
+  }
+  virtual void MultiGet(const ReadOptions& options, const size_t num_keys,
+                        ColumnFamilyHandle** column_families, const Slice* keys,
+                        PinnableSlice* values, std::string* timestamps,
+                        Status* statuses, const bool /*sorted_input*/ = false) {
+    std::vector<ColumnFamilyHandle*> cf;
+    std::vector<Slice> user_keys;
+    std::vector<Status> status;
+    std::vector<std::string> vals;
+    std::vector<std::string> tss;
+
+    for (size_t i = 0; i < num_keys; ++i) {
+      cf.emplace_back(column_families[i]);
+      user_keys.emplace_back(keys[i]);
+    }
+    status = MultiGet(options, cf, user_keys, &vals, &tss);
+    std::copy(status.begin(), status.end(), statuses);
+    std::copy(tss.begin(), tss.end(), timestamps);
+    for (auto& value : vals) {
+      values->PinSelf(value);
+      values++;
+    }
+  }
+
   // If the key definitely does not exist in the database, then this method
   // returns false, else true. If the caller wants to obtain value when the key
   // is found in memory, a bool for 'value_found' must be passed. 'value_found'
@@ -500,15 +653,31 @@ class DB {
   virtual bool KeyMayExist(const ReadOptions& /*options*/,
                            ColumnFamilyHandle* /*column_family*/,
                            const Slice& /*key*/, std::string* /*value*/,
+                           std::string* /*timestamp*/,
                            bool* value_found = nullptr) {
     if (value_found != nullptr) {
       *value_found = false;
     }
     return true;
   }
+
+  virtual bool KeyMayExist(const ReadOptions& options,
+                           ColumnFamilyHandle* column_family, const Slice& key,
+                           std::string* value, bool* value_found = nullptr) {
+    return KeyMayExist(options, column_family, key, value,
+                       /*timestamp=*/nullptr, value_found);
+  }
+
   virtual bool KeyMayExist(const ReadOptions& options, const Slice& key,
                            std::string* value, bool* value_found = nullptr) {
     return KeyMayExist(options, DefaultColumnFamily(), key, value, value_found);
+  }
+
+  virtual bool KeyMayExist(const ReadOptions& options, const Slice& key,
+                           std::string* value, std::string* timestamp,
+                           bool* value_found = nullptr) {
+    return KeyMayExist(options, DefaultColumnFamily(), key, value, timestamp,
+                       value_found);
   }
 
   // Return a heap-allocated iterator over the contents of the database.
@@ -674,6 +843,10 @@ class DB {
     //      timestamp of oldest unreleased snapshot.
     static const std::string kOldestSnapshotTime;
 
+    //  "rocksdb.oldest-snapshot-sequence" - returns number representing
+    //      sequence number of oldest unreleased snapshot.
+    static const std::string kOldestSnapshotSequence;
+
     //  "rocksdb.num-live-versions" - returns number of live versions. `Version`
     //      is an internal data structure. See version_set.h for details. More
     //      live versions often mean more SST files are held from being deleted,
@@ -837,32 +1010,33 @@ class DB {
   };
 
   // For each i in [0,n-1], store in "sizes[i]", the approximate
-  // file system space used by keys in "[range[i].start .. range[i].limit)".
+  // file system space used by keys in "[range[i].start .. range[i].limit)"
+  // in a single column family.
   //
   // Note that the returned sizes measure file system space usage, so
   // if the user data compresses by a factor of ten, the returned
   // sizes will be one-tenth the size of the corresponding user data size.
   virtual Status GetApproximateSizes(const SizeApproximationOptions& options,
                                      ColumnFamilyHandle* column_family,
-                                     const Range* range, int n,
+                                     const Range* ranges, int n,
                                      uint64_t* sizes) = 0;
 
   // Simpler versions of the GetApproximateSizes() method above.
   // The include_flags argumenbt must of type DB::SizeApproximationFlags
   // and can not be NONE.
   virtual void GetApproximateSizes(ColumnFamilyHandle* column_family,
-                                   const Range* range, int n, uint64_t* sizes,
+                                   const Range* ranges, int n, uint64_t* sizes,
                                    uint8_t include_flags = INCLUDE_FILES) {
     SizeApproximationOptions options;
     options.include_memtabtles =
         (include_flags & SizeApproximationFlags::INCLUDE_MEMTABLES) != 0;
     options.include_files =
         (include_flags & SizeApproximationFlags::INCLUDE_FILES) != 0;
-    GetApproximateSizes(options, column_family, range, n, sizes);
+    GetApproximateSizes(options, column_family, ranges, n, sizes);
   }
-  virtual void GetApproximateSizes(const Range* range, int n, uint64_t* sizes,
+  virtual void GetApproximateSizes(const Range* ranges, int n, uint64_t* sizes,
                                    uint8_t include_flags = INCLUDE_FILES) {
-    GetApproximateSizes(DefaultColumnFamily(), range, n, sizes, include_flags);
+    GetApproximateSizes(DefaultColumnFamily(), ranges, n, sizes, include_flags);
   }
 
   // The method is similar to GetApproximateSizes, except it
@@ -983,7 +1157,8 @@ class DB {
 
   // This function will wait until all currently running background processes
   // finish. After it returns, no background process will be run until
-  // ContinueBackgroundWork is called
+  // ContinueBackgroundWork is called, once for each preceding OK-returning
+  // call to PauseBackgroundWork.
   virtual Status PauseBackgroundWork() = 0;
   virtual Status ContinueBackgroundWork() = 0;
 
@@ -998,6 +1173,9 @@ class DB {
   //
   virtual Status EnableAutoCompaction(
       const std::vector<ColumnFamilyHandle*>& column_family_handles) = 0;
+
+  virtual void DisableManualCompaction() = 0;
+  virtual void EnableManualCompaction() = 0;
 
   // Number of levels used for this DB.
   virtual int NumberLevels(ColumnFamilyHandle* column_family) = 0;
@@ -1022,6 +1200,8 @@ class DB {
 
   // Get Env object from the DB
   virtual Env* GetEnv() const = 0;
+
+  virtual FileSystem* GetFileSystem() const;
 
   // Get DB Options that we use.  During the process of opening the
   // column family, the options provided when calling DB::Open() or
@@ -1086,8 +1266,6 @@ class DB {
   // updated, false if user attempted to call if with seqnum <= current value.
   virtual bool SetPreserveDeletesSequenceNumber(SequenceNumber seqnum) = 0;
 
-#ifndef ROCKSDB_LITE
-
   // Prevent file deletions. Compactions will continue to occur,
   // but no obsolete files will be deleted. Calling this multiple
   // times have the same effect as calling it once.
@@ -1104,6 +1282,7 @@ class DB {
   // threads call EnableFileDeletions()
   virtual Status EnableFileDeletions(bool force = true) = 0;
 
+#ifndef ROCKSDB_LITE
   // GetLiveFiles followed by GetSortedWalFiles can generate a lossless backup
 
   // Retrieve the list of all files in the database. The files are
@@ -1134,7 +1313,20 @@ class DB {
   //
   // Additionally, for the sake of optimization current_log_file->StartSequence
   // would always be set to 0
-  virtual Status GetCurrentWalFile(std::unique_ptr<LogFile>* current_log_file) = 0;
+  virtual Status GetCurrentWalFile(
+      std::unique_ptr<LogFile>* current_log_file) = 0;
+
+  // Retrieves the creation time of the oldest file in the DB.
+  // This API only works if max_open_files = -1, if it is not then
+  // Status returned is Status::NotSupported()
+  // The file creation time is set using the env provided to the DB.
+  // If the DB was created from a very old release then its possible that
+  // the SST files might not have file_creation_time property and even after
+  // moving to a newer release its possible that some files never got compacted
+  // and may not have file_creation_time property. In both the cases
+  // file_creation_time is considered 0 which means this API will return
+  // creation_time = 0 as there wouldn't be a timestamp lower than 0.
+  virtual Status GetCreationTimeOfOldestFile(uint64_t* creation_time) = 0;
 
   // Note: this API is not yet consistent with WritePrepared transactions.
   // Sets iter to an iterator that is positioned at a write-batch containing
@@ -1152,6 +1344,14 @@ class DB {
 
 // Windows API macro interference
 #undef DeleteFile
+  // WARNING: This API is planned for removal in RocksDB 7.0 since it does not
+  // operate at the proper level of abstraction for a key-value store, and its
+  // contract/restrictions are poorly documented. For example, it returns non-OK
+  // `Status` for non-bottommost files and files undergoing compaction. Since we
+  // do not plan to maintain it, the contract will likely remain underspecified
+  // until its removal. Any user is encouraged to read the implementation
+  // carefully and migrate away from it when possible.
+  //
   // Delete the file name from the db directory and update the internal state to
   // reflect that. Supports deletion of sst and log files only. 'name' must be
   // path relative to the db directory. eg. 000001.sst, /archive/000003.log
@@ -1161,6 +1361,11 @@ class DB {
   // and end key
   virtual void GetLiveFilesMetaData(
       std::vector<LiveFileMetaData>* /*metadata*/) {}
+
+  // Return a list of all table file checksum info.
+  // Note: This function might be of limited use because it cannot be
+  // synchronized with GetLiveFiles.
+  virtual Status GetLiveFilesChecksumInfo(FileChecksumList* checksum_list) = 0;
 
   // Obtains the meta data of the specified column family of the DB.
   virtual void GetColumnFamilyMetaData(ColumnFamilyHandle* /*column_family*/,
@@ -1346,10 +1551,17 @@ class DB {
 
 #endif  // ROCKSDB_LITE
 
-  // Sets the globally unique ID created at database creation time by invoking
-  // Env::GenerateUniqueId(), in identity. Returns Status::OK if identity could
-  // be set properly
+  // Returns the unique ID which is read from IDENTITY file during the opening
+  // of database by setting in the identity variable
+  // Returns Status::OK if identity could be set properly
   virtual Status GetDbIdentity(std::string& identity) const = 0;
+
+  // Return a unique identifier for each DB object that is opened
+  // This DB session ID should be unique among all open DB instances on all
+  // hosts, and should be unique among re-openings of the same or other DBs.
+  // (Two open DBs have the same identity from other function GetDbIdentity when
+  // one is physically copied from the other.)
+  virtual Status GetDbSessionId(std::string& session_id) const = 0;
 
   // Returns default column family handle
   virtual ColumnFamilyHandle* DefaultColumnFamily() const = 0;
@@ -1383,6 +1595,16 @@ class DB {
 
   virtual Status EndTrace() {
     return Status::NotSupported("EndTrace() is not implemented.");
+  }
+
+  // StartIOTrace and EndIOTrace are experimental. They are not enabled yet.
+  virtual Status StartIOTrace(Env* /*env*/, const TraceOptions& /*options*/,
+                              std::unique_ptr<TraceWriter>&& /*trace_writer*/) {
+    return Status::NotSupported("StartTrace() is not implemented.");
+  }
+
+  virtual Status EndIOTrace() {
+    return Status::NotSupported("StartTrace() is not implemented.");
   }
 
   // Trace block cache accesses. Use EndBlockCacheTrace() to stop tracing.
@@ -1458,4 +1680,4 @@ Status RepairDB(const std::string& dbname, const Options& options);
 
 #endif
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE

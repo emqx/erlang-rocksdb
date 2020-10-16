@@ -22,11 +22,12 @@
 #include "util/random.h"
 #include "util/string_util.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 class DBPropertiesTest : public DBTestBase {
  public:
-  DBPropertiesTest() : DBTestBase("/db_properties_test") {}
+  DBPropertiesTest()
+      : DBTestBase("/db_properties_test", /*env_do_fsync=*/true) {}
 };
 
 #ifndef ROCKSDB_LITE
@@ -126,8 +127,8 @@ TEST_F(DBPropertiesTest, GetAggregatedIntPropertyTest) {
   Random rnd(301);
   for (auto* handle : handles_) {
     for (int i = 0; i < kKeyNum; ++i) {
-      db_->Put(WriteOptions(), handle, RandomString(&rnd, kKeySize),
-               RandomString(&rnd, kValueSize));
+      db_->Put(WriteOptions(), handle, rnd.RandomString(kKeySize),
+               rnd.RandomString(kValueSize));
     }
   }
 
@@ -210,13 +211,11 @@ void VerifySimilar(uint64_t a, uint64_t b, double bias) {
   }
 }
 
-void VerifyTableProperties(const TableProperties& base_tp,
-                           const TableProperties& new_tp,
-                           double filter_size_bias =
-                               CACHE_LINE_SIZE >= 256 ? 0.15 : 0.1,
-                           double index_size_bias = 0.1,
-                           double data_size_bias = 0.1,
-                           double num_data_blocks_bias = 0.05) {
+void VerifyTableProperties(
+    const TableProperties& base_tp, const TableProperties& new_tp,
+    double filter_size_bias = CACHE_LINE_SIZE >= 256 ? 0.15 : 0.1,
+    double index_size_bias = 0.1, double data_size_bias = 0.1,
+    double num_data_blocks_bias = 0.05) {
   VerifySimilar(base_tp.data_size, new_tp.data_size, data_size_bias);
   VerifySimilar(base_tp.index_size, new_tp.index_size, index_size_bias);
   VerifySimilar(base_tp.filter_size, new_tp.filter_size, filter_size_bias);
@@ -348,18 +347,18 @@ TEST_F(DBPropertiesTest, AggregatedTableProperties) {
     Random rnd(5632);
     for (int table = 1; table <= kTableCount; ++table) {
       for (int i = 0; i < kPutsPerTable; ++i) {
-        db_->Put(WriteOptions(), RandomString(&rnd, kKeySize),
-                 RandomString(&rnd, kValueSize));
+        db_->Put(WriteOptions(), rnd.RandomString(kKeySize),
+                 rnd.RandomString(kValueSize));
       }
       for (int i = 0; i < kDeletionsPerTable; i++) {
-        db_->Delete(WriteOptions(), RandomString(&rnd, kKeySize));
+        db_->Delete(WriteOptions(), rnd.RandomString(kKeySize));
       }
       for (int i = 0; i < kMergeOperandsPerTable; i++) {
-        db_->Merge(WriteOptions(), RandomString(&rnd, kKeySize),
-                   RandomString(&rnd, kValueSize));
+        db_->Merge(WriteOptions(), rnd.RandomString(kKeySize),
+                   rnd.RandomString(kValueSize));
       }
       for (int i = 0; i < kRangeDeletionsPerTable; i++) {
-        std::string start = RandomString(&rnd, kKeySize);
+        std::string start = rnd.RandomString(kKeySize);
         std::string end = start;
         end.resize(kValueSize);
         db_->DeleteRange(WriteOptions(), db_->DefaultColumnFamily(), start, end);
@@ -393,16 +392,16 @@ TEST_F(DBPropertiesTest, ReadLatencyHistogramByLevel) {
   options.max_bytes_for_level_base = 4500 << 10;
   options.target_file_size_base = 98 << 10;
   options.max_write_buffer_number = 2;
-  options.statistics = rocksdb::CreateDBStatistics();
+  options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
   options.max_open_files = 11;  // Make sure no proloading of table readers
 
   // RocksDB sanitize max open files to at least 20. Modify it back.
-  rocksdb::SyncPoint::GetInstance()->SetCallBack(
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
       "SanitizeOptions::AfterChangeMaxOpenFiles", [&](void* arg) {
         int* max_open_files = static_cast<int*>(arg);
         *max_open_files = 11;
       });
-  rocksdb::SyncPoint::GetInstance()->EnableProcessing();
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
 
   BlockBasedTableOptions table_options;
   table_options.no_block_cache = true;
@@ -450,7 +449,7 @@ TEST_F(DBPropertiesTest, ReadLatencyHistogramByLevel) {
 
   // Reopen and issue iterating. See thee latency tracked
   ReopenWithColumnFamilies({"default", "pikachu"}, options);
-  rocksdb::SyncPoint::GetInstance()->DisableProcessing();
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
   ASSERT_TRUE(dbfull()->GetProperty("rocksdb.cf-file-histogram", &prop));
   ASSERT_EQ(std::string::npos, prop.find("** Level 0 read latency histogram"));
   ASSERT_EQ(std::string::npos, prop.find("** Level 1 read latency histogram"));
@@ -548,18 +547,18 @@ TEST_F(DBPropertiesTest, AggregatedTablePropertiesAtLevel) {
   TableProperties tp, sum_tp, expected_tp;
   for (int table = 1; table <= kTableCount; ++table) {
     for (int i = 0; i < kPutsPerTable; ++i) {
-      db_->Put(WriteOptions(), RandomString(&rnd, kKeySize),
-               RandomString(&rnd, kValueSize));
+      db_->Put(WriteOptions(), rnd.RandomString(kKeySize),
+               rnd.RandomString(kValueSize));
     }
     for (int i = 0; i < kDeletionsPerTable; i++) {
-      db_->Delete(WriteOptions(), RandomString(&rnd, kKeySize));
+      db_->Delete(WriteOptions(), rnd.RandomString(kKeySize));
     }
     for (int i = 0; i < kMergeOperandsPerTable; i++) {
-      db_->Merge(WriteOptions(), RandomString(&rnd, kKeySize),
-                 RandomString(&rnd, kValueSize));
+      db_->Merge(WriteOptions(), rnd.RandomString(kKeySize),
+                 rnd.RandomString(kValueSize));
     }
     for (int i = 0; i < kRangeDeletionsPerTable; i++) {
-      std::string start = RandomString(&rnd, kKeySize);
+      std::string start = rnd.RandomString(kKeySize);
       std::string end = start;
       end.resize(kValueSize);
       db_->DeleteRange(WriteOptions(), db_->DefaultColumnFamily(), start, end);
@@ -922,7 +921,7 @@ TEST_F(DBPropertiesTest, ApproximateMemoryUsage) {
   for (int r = 0; r < kNumRounds; ++r) {
     for (int f = 0; f < kFlushesPerRound; ++f) {
       for (int w = 0; w < kWritesPerFlush; ++w) {
-        Put(RandomString(&rnd, kKeySize), RandomString(&rnd, kValueSize));
+        Put(rnd.RandomString(kKeySize), rnd.RandomString(kValueSize));
       }
     }
     // Make sure that there is no flush between getting the two properties.
@@ -940,7 +939,7 @@ TEST_F(DBPropertiesTest, ApproximateMemoryUsage) {
     iters.push_back(db_->NewIterator(ReadOptions()));
     for (int f = 0; f < kFlushesPerRound; ++f) {
       for (int w = 0; w < kWritesPerFlush; ++w) {
-        Put(RandomString(&rnd, kKeySize), RandomString(&rnd, kValueSize));
+        Put(rnd.RandomString(kKeySize), rnd.RandomString(kValueSize));
       }
     }
     // Force flush to prevent flush from happening between getting the
@@ -1298,8 +1297,8 @@ TEST_F(DBPropertiesTest, TablePropertiesNeedCompactTest) {
 
   const int kMaxKey = 1000;
   for (int i = 0; i < kMaxKey; i++) {
-    ASSERT_OK(Put(Key(i), RandomString(&rnd, 102)));
-    ASSERT_OK(Put(Key(kMaxKey + i), RandomString(&rnd, 102)));
+    ASSERT_OK(Put(Key(i), rnd.RandomString(102)));
+    ASSERT_OK(Put(Key(kMaxKey + i), rnd.RandomString(102)));
   }
   Flush();
   dbfull()->TEST_WaitForCompact();
@@ -1417,13 +1416,11 @@ TEST_F(DBPropertiesTest, EstimateNumKeysUnderflow) {
 }
 
 TEST_F(DBPropertiesTest, EstimateOldestKeyTime) {
-  std::unique_ptr<MockTimeEnv> mock_env(new MockTimeEnv(Env::Default()));
   uint64_t oldest_key_time = 0;
-  Options options;
-  options.env = mock_env.get();
+  Options options = CurrentOptions();
+  SetTimeElapseOnlySleepOnReopen(&options);
 
   // "rocksdb.estimate-oldest-key-time" only available to fifo compaction.
-  mock_env->set_current_time(100);
   for (auto compaction : {kCompactionStyleLevel, kCompactionStyleUniversal,
                           kCompactionStyleNone}) {
     options.compaction_style = compaction;
@@ -1434,60 +1431,60 @@ TEST_F(DBPropertiesTest, EstimateOldestKeyTime) {
         DB::Properties::kEstimateOldestKeyTime, &oldest_key_time));
   }
 
+  int64_t mock_start_time;
+  ASSERT_OK(env_->GetCurrentTime(&mock_start_time));
+
   options.compaction_style = kCompactionStyleFIFO;
   options.ttl = 300;
   options.compaction_options_fifo.allow_compaction = false;
   DestroyAndReopen(options);
 
-  mock_env->set_current_time(100);
+  env_->MockSleepForSeconds(100);
   ASSERT_OK(Put("k1", "v1"));
   ASSERT_TRUE(dbfull()->GetIntProperty(DB::Properties::kEstimateOldestKeyTime,
                                        &oldest_key_time));
-  ASSERT_EQ(100, oldest_key_time);
+  ASSERT_EQ(100, oldest_key_time - mock_start_time);
   ASSERT_OK(Flush());
   ASSERT_EQ("1", FilesPerLevel());
   ASSERT_TRUE(dbfull()->GetIntProperty(DB::Properties::kEstimateOldestKeyTime,
                                        &oldest_key_time));
-  ASSERT_EQ(100, oldest_key_time);
+  ASSERT_EQ(100, oldest_key_time - mock_start_time);
 
-  mock_env->set_current_time(200);
+  env_->MockSleepForSeconds(100);  // -> 200
   ASSERT_OK(Put("k2", "v2"));
   ASSERT_OK(Flush());
   ASSERT_EQ("2", FilesPerLevel());
   ASSERT_TRUE(dbfull()->GetIntProperty(DB::Properties::kEstimateOldestKeyTime,
                                        &oldest_key_time));
-  ASSERT_EQ(100, oldest_key_time);
+  ASSERT_EQ(100, oldest_key_time - mock_start_time);
 
-  mock_env->set_current_time(300);
+  env_->MockSleepForSeconds(100);  // -> 300
   ASSERT_OK(Put("k3", "v3"));
   ASSERT_OK(Flush());
   ASSERT_EQ("3", FilesPerLevel());
   ASSERT_TRUE(dbfull()->GetIntProperty(DB::Properties::kEstimateOldestKeyTime,
                                        &oldest_key_time));
-  ASSERT_EQ(100, oldest_key_time);
+  ASSERT_EQ(100, oldest_key_time - mock_start_time);
 
-  mock_env->set_current_time(450);
+  env_->MockSleepForSeconds(150);  // -> 450
   ASSERT_OK(dbfull()->CompactRange(CompactRangeOptions(), nullptr, nullptr));
   ASSERT_EQ("2", FilesPerLevel());
   ASSERT_TRUE(dbfull()->GetIntProperty(DB::Properties::kEstimateOldestKeyTime,
                                        &oldest_key_time));
-  ASSERT_EQ(200, oldest_key_time);
+  ASSERT_EQ(200, oldest_key_time - mock_start_time);
 
-  mock_env->set_current_time(550);
+  env_->MockSleepForSeconds(100);  // -> 550
   ASSERT_OK(dbfull()->CompactRange(CompactRangeOptions(), nullptr, nullptr));
   ASSERT_EQ("1", FilesPerLevel());
   ASSERT_TRUE(dbfull()->GetIntProperty(DB::Properties::kEstimateOldestKeyTime,
                                        &oldest_key_time));
-  ASSERT_EQ(300, oldest_key_time);
+  ASSERT_EQ(300, oldest_key_time - mock_start_time);
 
-  mock_env->set_current_time(650);
+  env_->MockSleepForSeconds(100);  // -> 650
   ASSERT_OK(dbfull()->CompactRange(CompactRangeOptions(), nullptr, nullptr));
   ASSERT_EQ("", FilesPerLevel());
   ASSERT_FALSE(dbfull()->GetIntProperty(DB::Properties::kEstimateOldestKeyTime,
                                         &oldest_key_time));
-
-  // Close before mock_env destructs.
-  Close();
 }
 
 TEST_F(DBPropertiesTest, SstFilesSize) {
@@ -1633,7 +1630,11 @@ TEST_F(DBPropertiesTest, BlockCacheProperties) {
 
   // Test with empty block cache.
   constexpr size_t kCapacity = 100;
-  auto block_cache = NewLRUCache(kCapacity, 0 /*num_shard_bits*/);
+  LRUCacheOptions co;
+  co.capacity = kCapacity;
+  co.num_shard_bits = 0;
+  co.metadata_charge_policy = kDontChargeCacheMetadata;
+  auto block_cache = NewLRUCache(co);
   table_options.block_cache = block_cache;
   table_options.no_block_cache = false;
   options.table_factory.reset(NewBlockBasedTableFactory(table_options));
@@ -1700,10 +1701,10 @@ TEST_F(DBPropertiesTest, BlockCacheProperties) {
 }
 
 #endif  // ROCKSDB_LITE
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
-  rocksdb::port::InstallStackTraceHandler();
+  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

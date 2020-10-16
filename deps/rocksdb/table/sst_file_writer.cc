@@ -8,13 +8,14 @@
 #include <vector>
 
 #include "db/dbformat.h"
+#include "env/composite_env_wrapper.h"
+#include "file/writable_file_writer.h"
 #include "rocksdb/table.h"
 #include "table/block_based/block_based_table_builder.h"
 #include "table/sst_file_writer_collectors.h"
 #include "test_util/sync_point.h"
-#include "util/file_reader_writer.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 const std::string ExternalSstFilePropertyNames::kVersion =
     "rocksdb.external_sst_file.version";
@@ -69,7 +70,8 @@ struct SstFileWriter::Rep {
       if (internal_comparator.user_comparator()->Compare(
               user_key, file_info.largest_key) <= 0) {
         // Make sure that keys are added in order
-        return Status::InvalidArgument("Keys must be added in order");
+        return Status::InvalidArgument(
+            "Keys must be added in strict ascending order.");
       }
     }
 
@@ -148,7 +150,7 @@ struct SstFileWriter::Rep {
     if (bytes_since_last_fadvise > kFadviseTrigger || closing) {
       TEST_SYNC_POINT_CALLBACK("SstFileWriter::Rep::InvalidatePageCache",
                                &(bytes_since_last_fadvise));
-      // Tell the OS that we dont need this file in page cache
+      // Tell the OS that we don't need this file in page cache
       file_writer->InvalidateCache(0, 0);
       last_fadvise_size = builder->FileSize();
     }
@@ -188,20 +190,21 @@ Status SstFileWriter::Open(const std::string& file_path) {
 
   CompressionType compression_type;
   CompressionOptions compression_opts;
-  if (r->ioptions.bottommost_compression != kDisableCompressionOption) {
-    compression_type = r->ioptions.bottommost_compression;
-    if (r->ioptions.bottommost_compression_opts.enabled) {
-      compression_opts = r->ioptions.bottommost_compression_opts;
+  if (r->mutable_cf_options.bottommost_compression !=
+      kDisableCompressionOption) {
+    compression_type = r->mutable_cf_options.bottommost_compression;
+    if (r->mutable_cf_options.bottommost_compression_opts.enabled) {
+      compression_opts = r->mutable_cf_options.bottommost_compression_opts;
     } else {
-      compression_opts = r->ioptions.compression_opts;
+      compression_opts = r->mutable_cf_options.compression_opts;
     }
   } else if (!r->ioptions.compression_per_level.empty()) {
     // Use the compression of the last level if we have per level compression
     compression_type = *(r->ioptions.compression_per_level.rbegin());
-    compression_opts = r->ioptions.compression_opts;
+    compression_opts = r->mutable_cf_options.compression_opts;
   } else {
     compression_type = r->mutable_cf_options.compression;
-    compression_opts = r->ioptions.compression_opts;
+    compression_opts = r->mutable_cf_options.compression_opts;
   }
   uint64_t sample_for_compression =
       r->mutable_cf_options.sample_for_compression;
@@ -234,15 +237,27 @@ Status SstFileWriter::Open(const std::string& file_path) {
     r->column_family_name = "";
     cf_id = TablePropertiesCollectorFactory::Context::kUnknownColumnFamily;
   }
-
+  // SstFileWriter is used to create sst files that can be added to database
+  // later. Therefore, no real db_id and db_session_id are associated with it.
+  // Here we mimic the way db_session_id behaves by resetting the db_session_id
+  // every time SstFileWriter is used, and in this case db_id is set to be "SST
+  // Writer".
+  std::string db_session_id = r->ioptions.env->GenerateUniqueId();
+  if (!db_session_id.empty() && db_session_id.back() == '\n') {
+    db_session_id.pop_back();
+  }
   TableBuilderOptions table_builder_options(
       r->ioptions, r->mutable_cf_options, r->internal_comparator,
       &int_tbl_prop_collector_factories, compression_type,
       sample_for_compression, compression_opts, r->skip_filters,
-      r->column_family_name, unknown_level);
+      r->column_family_name, unknown_level, 0 /* creation_time */,
+      0 /* oldest_key_time */, 0 /* target_file_size */,
+      0 /* file_creation_time */, "SST Writer" /* db_id */, db_session_id);
   r->file_writer.reset(new WritableFileWriter(
-      std::move(sst_file), file_path, r->env_options, r->ioptions.env,
-      nullptr /* stats */, r->ioptions.listeners));
+      NewLegacyWritableFileWrapper(std::move(sst_file)), file_path,
+      r->env_options, r->ioptions.env, nullptr /* io_tracer */,
+      nullptr /* stats */, r->ioptions.listeners,
+      r->ioptions.file_checksum_gen_factory));
 
   // TODO(tec) : If table_factory is using compressed block cache, we will
   // be adding the external sst file blocks into it, which is wasteful.
@@ -296,6 +311,11 @@ Status SstFileWriter::Finish(ExternalSstFileInfo* file_info) {
       s = r->file_writer->Close();
     }
   }
+  if (s.ok()) {
+    r->file_info.file_checksum = r->file_writer->GetFileChecksum();
+    r->file_info.file_checksum_func_name =
+        r->file_writer->GetFileChecksumFuncName();
+  }
   if (!s.ok()) {
     r->ioptions.env->DeleteFile(r->file_info.file_path);
   }
@@ -313,4 +333,4 @@ uint64_t SstFileWriter::FileSize() {
 }
 #endif  // !ROCKSDB_LITE
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE

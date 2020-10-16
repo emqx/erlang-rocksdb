@@ -11,7 +11,7 @@
 #include "util/murmurhash.h"
 #include "rocksdb/options.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 const uint32_t kCuckooMurmurSeedMultiplier = 816922183;
 static inline uint64_t CuckooHash(
@@ -58,8 +58,9 @@ class CuckooTableFactory : public TableFactory {
 
   const char* Name() const override { return "CuckooTable"; }
 
+  using TableFactory::NewTableReader;
   Status NewTableReader(
-      const TableReaderOptions& table_reader_options,
+      const ReadOptions& ro, const TableReaderOptions& table_reader_options,
       std::unique_ptr<RandomAccessFileReader>&& file, uint64_t file_size,
       std::unique_ptr<TableReader>* table,
       bool prefetch_index_and_filter_in_cache = true) const override;
@@ -79,8 +80,8 @@ class CuckooTableFactory : public TableFactory {
 
   void* GetOptions() override { return &table_options_; }
 
-  Status GetOptionString(std::string* /*opt_string*/,
-                         const std::string& /*delimiter*/) const override {
+  Status GetOptionString(const ConfigOptions& /*config_options*/,
+                         std::string* /*opt_string*/) const override {
     return Status::OK();
   }
 
@@ -88,5 +89,5 @@ class CuckooTableFactory : public TableFactory {
   CuckooTableOptions table_options_;
 };
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
 #endif  // ROCKSDB_LITE

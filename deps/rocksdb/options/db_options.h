@@ -10,7 +10,7 @@
 
 #include "rocksdb/options.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 struct ImmutableDBOptions {
   ImmutableDBOptions();
@@ -23,6 +23,7 @@ struct ImmutableDBOptions {
   bool error_if_exists;
   bool paranoid_checks;
   Env* env;
+  std::shared_ptr<FileSystem> fs;
   std::shared_ptr<RateLimiter> rate_limiter;
   std::shared_ptr<SstFileManager> sst_file_manager;
   std::shared_ptr<Logger> info_log;
@@ -33,8 +34,6 @@ struct ImmutableDBOptions {
   std::vector<DbPath> db_paths;
   std::string db_log_dir;
   std::string wal_dir;
-  uint32_t max_subcompactions;
-  int max_background_flushes;
   size_t max_log_file_size;
   size_t log_file_time_to_roll;
   size_t keep_log_file_num;
@@ -67,6 +66,7 @@ struct ImmutableDBOptions {
   uint64_t write_thread_max_yield_usec;
   uint64_t write_thread_slow_yield_usec;
   bool skip_stats_update_on_db_open;
+  bool skip_checking_sst_file_sizes_on_db_open;
   WALRecoveryMode wal_recovery_mode;
   bool allow_2pc;
   std::shared_ptr<Cache> row_cache;
@@ -85,6 +85,10 @@ struct ImmutableDBOptions {
   bool persist_stats_to_disk;
   bool write_dbid_to_manifest;
   size_t log_readahead_size;
+  std::shared_ptr<FileChecksumGenFactory> file_checksum_gen_factory;
+  bool best_efforts_recovery;
+  int max_bgerror_resume_count;
+  uint64_t bgerror_resume_retry_interval;
 };
 
 struct MutableDBOptions {
@@ -97,6 +101,7 @@ struct MutableDBOptions {
   int max_background_jobs;
   int base_background_compactions;
   int max_background_compactions;
+  uint32_t max_subcompactions;
   bool avoid_flush_during_shutdown;
   size_t writable_file_max_buffer_size;
   uint64_t delayed_write_rate;
@@ -110,6 +115,7 @@ struct MutableDBOptions {
   uint64_t wal_bytes_per_sync;
   bool strict_bytes_per_sync;
   size_t compaction_readahead_size;
+  int max_background_flushes;
 };
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE

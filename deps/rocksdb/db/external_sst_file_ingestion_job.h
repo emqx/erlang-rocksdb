@@ -12,13 +12,15 @@
 #include "db/dbformat.h"
 #include "db/internal_stats.h"
 #include "db/snapshot_impl.h"
+#include "env/file_system_tracer.h"
+#include "logging/event_logger.h"
 #include "options/db_options.h"
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
 #include "rocksdb/sst_file_writer.h"
 #include "util/autovector.h"
 
-namespace rocksdb {
+namespace ROCKSDB_NAMESPACE {
 
 class Directories;
 
@@ -62,6 +64,10 @@ struct IngestedFileInfo {
   // ingestion_options.move_files is false by default, thus copy_file is true
   // by default.
   bool copy_file = true;
+  // The checksum of ingested file
+  std::string file_checksum;
+  // The name of checksum function that generate the checksum
+  std::string file_checksum_func_name;
 };
 
 class ExternalSstFileIngestionJob {
@@ -71,8 +77,10 @@ class ExternalSstFileIngestionJob {
       const ImmutableDBOptions& db_options, const EnvOptions& env_options,
       SnapshotList* db_snapshots,
       const IngestExternalFileOptions& ingestion_options,
-      Directories* directories)
+      Directories* directories, EventLogger* event_logger,
+      const std::shared_ptr<IOTracer>& io_tracer)
       : env_(env),
+        fs_(db_options.fs, io_tracer),
         versions_(versions),
         cfd_(cfd),
         db_options_(db_options),
@@ -80,13 +88,17 @@ class ExternalSstFileIngestionJob {
         db_snapshots_(db_snapshots),
         ingestion_options_(ingestion_options),
         directories_(directories),
+        event_logger_(event_logger),
         job_start_time_(env_->NowMicros()),
-        consumed_seqno_(false) {
+        consumed_seqno_count_(0),
+        io_tracer_(io_tracer) {
     assert(directories != nullptr);
   }
 
   // Prepare the job by copying external files into the DB.
   Status Prepare(const std::vector<std::string>& external_files_paths,
+                 const std::vector<std::string>& files_checksums,
+                 const std::vector<std::string>& files_checksum_func_names,
                  uint64_t next_file_number, SuperVersion* sv);
 
   // Check if we need to flush the memtable before running the ingestion job
@@ -116,8 +128,8 @@ class ExternalSstFileIngestionJob {
     return files_to_ingest_;
   }
 
-  // Whether to increment VersionSet's seqno after this job runs
-  bool ShouldIncrementLastSequence() const { return consumed_seqno_; }
+  // How many sequence numbers did we consume as part of the ingest job?
+  int ConsumedSequenceNumbersCount() const { return consumed_seqno_count_; }
 
  private:
   // Open the external file and populate `file_to_ingest` with all the
@@ -132,6 +144,7 @@ class ExternalSstFileIngestionJob {
   Status AssignLevelAndSeqnoForIngestedFile(SuperVersion* sv,
                                             bool force_global_seqno,
                                             CompactionStyle compaction_style,
+                                            SequenceNumber last_seqno,
                                             IngestedFileInfo* file_to_ingest,
                                             SequenceNumber* assigned_seqno);
 
@@ -144,6 +157,8 @@ class ExternalSstFileIngestionJob {
   // Set the file global sequence number to `seqno`
   Status AssignGlobalSeqnoForIngestedFile(IngestedFileInfo* file_to_ingest,
                                           SequenceNumber seqno);
+  // Generate the file checksum and store in the IngestedFileInfo
+  IOStatus GenerateChecksumForIngestedFile(IngestedFileInfo* file_to_ingest);
 
   // Check if `file_to_ingest` can fit in level `level`
   // REQUIRES: Mutex held
@@ -155,6 +170,7 @@ class ExternalSstFileIngestionJob {
   Status SyncIngestedFile(TWritableFile* file);
 
   Env* env_;
+  FileSystemPtr fs_;
   VersionSet* versions_;
   ColumnFamilyData* cfd_;
   const ImmutableDBOptions& db_options_;
@@ -163,9 +179,17 @@ class ExternalSstFileIngestionJob {
   autovector<IngestedFileInfo> files_to_ingest_;
   const IngestExternalFileOptions& ingestion_options_;
   Directories* directories_;
+  EventLogger* event_logger_;
   VersionEdit edit_;
   uint64_t job_start_time_;
-  bool consumed_seqno_;
+  int consumed_seqno_count_;
+  // Set in ExternalSstFileIngestionJob::Prepare(), if true all files are
+  // ingested in L0
+  bool files_overlap_{false};
+  // Set in ExternalSstFileIngestionJob::Prepare(), if true and DB
+  // file_checksum_gen_factory is set, DB will generate checksum each file.
+  bool need_generate_file_checksum_{true};
+  std::shared_ptr<IOTracer> io_tracer_;
 };
 
-}  // namespace rocksdb
+}  // namespace ROCKSDB_NAMESPACE
