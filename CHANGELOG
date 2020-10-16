@@ -2,6 +2,7 @@ erlang-rocksdb 1.6.0, released on 2020/10/16
 ============================================
 
 - bump to rocksdb version [6.13.3](https://github.com/facebook/rocksdb/releases/tag/v6.13.3)
+- improve compression support: add comprssion_opts and bottomost_compression support
 - fix memory leaks: RateLimiter, Snapshots, BitsetMergeOperator, Iterators, WriteBinaryUpdayte
 - fix build for OTP 23
 
