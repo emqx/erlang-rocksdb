@@ -37,6 +37,7 @@
            "deps",
            "c_src",
            "doc",
-           "test"]}
+           "test"]},
+  {exclude_files, ["deps/rebar3"]}
 
  ]}.
