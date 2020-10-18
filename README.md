@@ -10,8 +10,8 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 
 ## Features
 
-- rocksdb 6.5.2 with snappy 1.1.7, lz4 1.8.3
-- Erlang 19.3 and sup with dirty-nifs enabled
+- rocksdb 6.13.3 with snappy 1.1.7, lz4 1.8.3
+- Erlang 20 and sup with dirty-nifs enabled
 - all basics db operations
 - batchs support
 - snapshots support
@@ -22,6 +22,8 @@ Feedback and pull requests welcome! If a particular feature of RocksDB is import
 - erlang merge operator
 - customized build support
 - Tested on macosx, freebsd, solaris and linux
+
+> Note: Erlang version 19.3 works but is actually unsupported. 
 
 ## Usage
 
