@@ -354,7 +354,9 @@
                        {sst_file_manager, sst_file_manager()} |
                        {write_buffer_manager, write_buffer_manager()} |
                        {max_subcompactions, non_neg_integer()} |
-                       {atomic_flush, boolean()}].
+                       {atomic_flush, boolean()} |
+                       {use_direct_reads, boolean()} |
+                       {use_direct_io_for_flush_and_compaction, boolean()}].
 
 -type options() :: db_options() | cf_options().
 

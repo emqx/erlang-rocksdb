@@ -370,7 +370,14 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         {
             opts.atomic_flush = (option[1] == erocksdb::ATOM_TRUE);
         }
-
+        else if (option[0] == erocksdb::ATOM_USE_DIRECT_READS)
+        {
+            opts.use_direct_reads = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_USE_DIRECT_IO_FOR_FLUSH_AND_COMPACTION)
+        {
+            opts.use_direct_io_for_flush_and_compaction = (option[1] == erocksdb::ATOM_TRUE);
+        }
     }
     return erocksdb::ATOM_OK;
 }

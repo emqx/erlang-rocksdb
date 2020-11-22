@@ -306,6 +306,8 @@ ERL_NIF_TERM ATOM_MAX_SUBCOMPACTIONS;
 ERL_NIF_TERM ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS;
 ERL_NIF_TERM ATOM_MANUAL_WAL_FLUSH;
 ERL_NIF_TERM ATOM_ATOMIC_FLUSH;
+ERL_NIF_TERM ATOM_USE_DIRECT_READS;
+ERL_NIF_TERM ATOM_USE_DIRECT_IO_FOR_FLUSH_AND_COMPACTION;
 
 // Related to BlockBasedTable Options
 ERL_NIF_TERM ATOM_NO_BLOCK_CACHE;
@@ -626,6 +628,8 @@ try
   ATOM(erocksdb::ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS, "new_table_reader_for_compaction_inputs");
   ATOM(erocksdb::ATOM_MANUAL_WAL_FLUSH, "manual_wal_flush");
   ATOM(erocksdb::ATOM_ATOMIC_FLUSH, "atomic_flush");
+  ATOM(erocksdb::ATOM_USE_DIRECT_READS, "use_direct_reads");
+  ATOM(erocksdb::ATOM_USE_DIRECT_IO_FOR_FLUSH_AND_COMPACTION, "use_direct_io_for_flush_and_compaction");
 
   // Related to BlockBasedTable Options
   ATOM(erocksdb::ATOM_NO_BLOCK_CACHE, "no_block_cache");
