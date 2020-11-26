@@ -268,6 +268,11 @@
                           {bitset_merge_operator, non_neg_integer()} |
                           counter_merge_operator.
 
+-type read_tier() :: read_all_tier |
+                     block_cache_tier |
+                     persisted_tier |
+                     memtable_tier.
+
 -type cf_options() :: [{block_cache_size_mb_for_point_lookup, non_neg_integer()} |
                        {memtable_memory_budget, pos_integer()} |
                        {write_buffer_size,  pos_integer()} |
@@ -358,7 +363,8 @@
 
 -type options() :: db_options() | cf_options().
 
--type read_options() :: [{verify_checksums, boolean()} |
+-type read_options() :: [{read_tier, read_tier()} | 
+                         {verify_checksums, boolean()} |
                          {fill_cache, boolean()} |
                          {iterate_upper_bound, binary()} |
                          {iterate_lower_bound, binary()} |

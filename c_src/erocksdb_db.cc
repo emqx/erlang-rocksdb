@@ -722,7 +722,23 @@ ERL_NIF_TERM parse_read_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ReadO
     const ERL_NIF_TERM* option;
     if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
     {
-        if (option[0] == erocksdb::ATOM_VERIFY_CHECKSUMS)
+        if (option[0] == erocksdb::ATOM_READ_TIER)
+        {
+            if (option[1] == erocksdb::ATOM_READ_ALL_TIER)
+            {
+                opts.read_tier = rocksdb::kReadAllTier;
+            }
+            else if (option[1] == erocksdb::ATOM_BLOCK_CACHE_TIER) {
+                opts.read_tier = rocksdb::kBlockCacheTier;
+            }
+            else if (option[1] == erocksdb::ATOM_PERSISTED_TIER) {
+                opts.read_tier = rocksdb::kPersistedTier;
+            }
+            else if (option[1] == erocksdb::ATOM_MEMTABLE_TIER) {
+                opts.read_tier = rocksdb::kMemtableTier;
+            }
+        }
+        else if (option[0] == erocksdb::ATOM_VERIFY_CHECKSUMS)
             opts.verify_checksums = (option[1] == erocksdb::ATOM_TRUE);
         else if (option[0] == erocksdb::ATOM_FILL_CACHE)
             opts.fill_cache = (option[1] == erocksdb::ATOM_TRUE);
