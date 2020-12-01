@@ -303,7 +303,7 @@
                        {block_based_table_options, block_based_table_options()} |
                        {level_compaction_dynamic_level_bytes, boolean()} |
                        {optimize_filters_for_hits, boolean()} |
-                       {prefix_transform, {fixed_prefix_transform, integer()} | 
+                       {prefix_extractor, {fixed_prefix_transform, integer()} | 
                                            {capped_prefix_transform, integer()}} |
                        {merge_operator, merge_operator()}
                       ].
