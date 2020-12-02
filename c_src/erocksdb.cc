@@ -318,6 +318,13 @@ ERL_NIF_TERM ATOM_BLOOM_FILTER_POLICY;
 ERL_NIF_TERM ATOM_FORMAT_VERSION;
 ERL_NIF_TERM ATOM_CACHE_INDEX_AND_FILTER_BLOCKS;
 
+// Related to ReadTier
+ERL_NIF_TERM ATOM_READ_TIER;
+ERL_NIF_TERM ATOM_READ_ALL_TIER;
+ERL_NIF_TERM ATOM_BLOCK_CACHE_TIER;
+ERL_NIF_TERM ATOM_PERSISTED_TIER;
+ERL_NIF_TERM ATOM_MEMTABLE_TIER;
+
 // Related to Read Options
 ERL_NIF_TERM ATOM_VERIFY_CHECKSUMS;
 ERL_NIF_TERM ATOM_FILL_CACHE;
@@ -640,6 +647,13 @@ try
   ATOM(erocksdb::ATOM_BLOOM_FILTER_POLICY, "bloom_filter_policy");
   ATOM(erocksdb::ATOM_FORMAT_VERSION, "format_version");
   ATOM(erocksdb::ATOM_CACHE_INDEX_AND_FILTER_BLOCKS, "cache_index_and_filter_blocks");
+
+  // Related to ReadTier
+  ATOM(erocksdb::ATOM_READ_TIER, "read_tier");
+  ATOM(erocksdb::ATOM_READ_ALL_TIER, "read_all_tier");
+  ATOM(erocksdb::ATOM_BLOCK_CACHE_TIER, "block_cache_tier");
+  ATOM(erocksdb::ATOM_PERSISTED_TIER, "persisted_tier");
+  ATOM(erocksdb::ATOM_MEMTABLE_TIER, "memtable_tier");
 
   // Related to Read Options
   ATOM(erocksdb::ATOM_VERIFY_CHECKSUMS, "verify_checksums");

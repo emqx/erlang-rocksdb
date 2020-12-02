@@ -260,13 +260,18 @@
                                       {block_cache, cache_handle()} |
                                       {block_cache_size, pos_integer()} |
                                       {bloom_filter_policy, BitsPerKey :: pos_integer()} |
-                                      {format_version, 0 | 1 | 2} |
+                                      {format_version, 0 | 1 | 2 | 3 | 4 | 5} |
                                       {cache_index_and_filter_blocks, boolean()}].
 
 -type merge_operator() :: erlang_merge_operator |
                           bitset_merge_operator |
                           {bitset_merge_operator, non_neg_integer()} |
                           counter_merge_operator.
+
+-type read_tier() :: read_all_tier |
+                     block_cache_tier |
+                     persisted_tier |
+                     memtable_tier.
 
 -type cf_options() :: [{block_cache_size_mb_for_point_lookup, non_neg_integer()} |
                        {memtable_memory_budget, pos_integer()} |
@@ -303,7 +308,7 @@
                        {block_based_table_options, block_based_table_options()} |
                        {level_compaction_dynamic_level_bytes, boolean()} |
                        {optimize_filters_for_hits, boolean()} |
-                       {prefix_transform, {fixed_prefix_transform, integer()} | 
+                       {prefix_extractor, {fixed_prefix_transform, integer()} | 
                                            {capped_prefix_transform, integer()}} |
                        {merge_operator, merge_operator()}
                       ].
@@ -360,7 +365,8 @@
 
 -type options() :: db_options() | cf_options().
 
--type read_options() :: [{verify_checksums, boolean()} |
+-type read_options() :: [{read_tier, read_tier()} | 
+                         {verify_checksums, boolean()} |
                          {fill_cache, boolean()} |
                          {iterate_upper_bound, binary()} |
                          {iterate_lower_bound, binary()} |
