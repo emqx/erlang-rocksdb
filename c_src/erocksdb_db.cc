@@ -36,6 +36,7 @@
 #include "util.h"
 #include "erocksdb_db.h"
 #include "cache.h"
+#include "statistics.h"
 #include "rate_limiter.h"
 #include "sst_file_manager.h"
 #include "write_buffer_manager.h"
@@ -101,10 +102,16 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
                     opts.create_if_missing = true;
                 }
             } else {
-                erocksdb::ManagedEnv* env_ptr = erocksdb::ManagedEnv::RetrieveEnvResource(env,option[1]);
+                erocksdb::ManagedEnv* env_ptr = erocksdb::ManagedEnv::RetrieveEnvResource(env, option[1]);
                 if(NULL!=env_ptr)
                     opts.env = (rocksdb::Env*)env_ptr->env();
             }
+        }
+        else if (option[0] == erocksdb::ATOM_STATISTICS)
+        {
+            erocksdb::Statistics* statistics_ptr = erocksdb::Statistics::RetrieveStatisticsResource(env, option[1]);
+            if (statistics_ptr != nullptr)
+                opts.statistics = statistics_ptr->statistics();
         }
         else if (option[0] == erocksdb::ATOM_TOTAL_THREADS)
         {

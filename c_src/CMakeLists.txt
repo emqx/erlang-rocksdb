@@ -207,6 +207,7 @@ target_sources(${ErlangRocksDBNIF_TARGET}
     ${CMAKE_CURRENT_SOURCE_DIR}/transaction.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/bitset_merge_operator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/cache.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/statistics.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/counter_merge_operator.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/env.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/erlang_merge.cc
