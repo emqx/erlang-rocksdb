@@ -105,6 +105,9 @@ namespace erocksdb {
             } else if ((op[0] == ATOM_MERGE_LIST_APPEND)  && enif_is_list(env, op[1])) {
                 std::list<ERL_NIF_TERM> l;
                 return mergeErlangList(env, l, false, merge_in, merge_out);
+            } else if ((op[0] == ATOM_MERGE_LIST_SUBSTRACT)  && enif_is_list(env, op[1])) {
+                std::list<ERL_NIF_TERM> l;
+                return mergeErlangList(env, l, true, merge_in, merge_out);
             } else if ((op[0] == ATOM_MERGE_BINARY_APPEND) && enif_is_binary(env, op[1])) {
                 ErlNifBinary bin;
                 if(!enif_inspect_binary(env, op[1], &bin))
