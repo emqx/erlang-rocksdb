@@ -19,6 +19,7 @@
 #include "erocksdb.h"
 #include "refobjects.h"
 #include "cache.h"
+#include "statistics.h"
 #include "rate_limiter.h"
 #include "env.h"
 #include "sst_file_manager.h"
@@ -179,7 +180,13 @@ static ErlNifFunc nif_funcs[] =
         {"new_write_buffer_manager", 2, erocksdb::NewWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"release_write_buffer_manager", 1, erocksdb::ReleaseWriteBufferManager, ERL_NIF_REGULAR_BOUND},
         {"write_buffer_manager_info", 1, erocksdb::WriteBufferManagerInfo, ERL_NIF_REGULAR_BOUND},
-        {"write_buffer_manager_info", 2, erocksdb::WriteBufferManagerInfo, ERL_NIF_REGULAR_BOUND}};
+        {"write_buffer_manager_info", 2, erocksdb::WriteBufferManagerInfo, ERL_NIF_REGULAR_BOUND},
+
+        // Statistics
+        {"new_statistics", 0, erocksdb::NewStatistics, ERL_NIF_REGULAR_BOUND},
+        {"set_stats_level", 2, erocksdb::SetStatsLevel, ERL_NIF_REGULAR_BOUND},
+        {"statistics_info", 1, erocksdb::StatisticsInfo, ERL_NIF_REGULAR_BOUND}
+        };
 
 namespace erocksdb {
 
@@ -479,6 +486,17 @@ ERL_NIF_TERM ATOM_MAX_ALLOWED_SPACE_REACHED_INCLUDING_COMPACTIONS;
 ERL_NIF_TERM ATOM_TOTAL_SIZE;
 ERL_NIF_TERM ATOM_TOTAL_TRASH_SIZE;
 
+// statistics
+ERL_NIF_TERM ATOM_STATISTICS;
+ERL_NIF_TERM ATOM_STATS_DISABLE_ALL;
+ERL_NIF_TERM ATOM_STATS_EXCEPT_TICKERS;
+ERL_NIF_TERM ATOM_STATS_EXCEPT_HISTOGRAM_OR_TIMERS;
+ERL_NIF_TERM ATOM_STATS_EXCEPT_TIMERS;
+ERL_NIF_TERM ATOM_STATS_EXCEPT_DETAILED_TIMERS;
+ERL_NIF_TERM ATOM_STATS_EXCEPT_TIME_FOR_MUTEX;
+ERL_NIF_TERM ATOM_STATS_ALL;
+ERL_NIF_TERM ATOM_STATS_LEVEL;
+
 }   // namespace erocksdb
 
 
@@ -511,6 +529,7 @@ try
   erocksdb::TLogItrObject::CreateTLogItrObjectType(env);
   erocksdb::BackupEngineObject::CreateBackupEngineObjectType(env);
   erocksdb::Cache::CreateCacheType(env);
+  erocksdb::Statistics::CreateStatisticsType(env);
   erocksdb::RateLimiter::CreateRateLimiterType(env);
   erocksdb::SstFileManager::CreateSstFileManagerType(env);
   erocksdb::WriteBufferManager::CreateWriteBufferManagerType(env);
@@ -808,6 +827,17 @@ try
   ATOM(erocksdb::ATOM_MAX_ALLOWED_SPACE_REACHED_INCLUDING_COMPACTIONS, "max_allowed_space_reached_including_compactions");
   ATOM(erocksdb::ATOM_TOTAL_SIZE, "total_size");
   ATOM(erocksdb::ATOM_TOTAL_TRASH_SIZE, "total_trash_size");
+
+  // statistics
+  ATOM(erocksdb::ATOM_STATISTICS, "statistics");
+  ATOM(erocksdb::ATOM_STATS_DISABLE_ALL, "stats_disable_all");
+  ATOM(erocksdb::ATOM_STATS_EXCEPT_TICKERS, "stats_except_tickers");
+  ATOM(erocksdb::ATOM_STATS_EXCEPT_HISTOGRAM_OR_TIMERS, "stats_except_histogram_or_timers");
+  ATOM(erocksdb::ATOM_STATS_EXCEPT_TIMERS, "stats_except_timers");
+  ATOM(erocksdb::ATOM_STATS_EXCEPT_DETAILED_TIMERS, "stats_except_detailed_timers");
+  ATOM(erocksdb::ATOM_STATS_EXCEPT_TIME_FOR_MUTEX, "stats_except_time_for_mutex");
+  ATOM(erocksdb::ATOM_STATS_ALL, "stats_all");
+  ATOM(erocksdb::ATOM_STATS_LEVEL, "stats_level");
 
 #undef ATOM
 

@@ -138,6 +138,11 @@ ERL_NIF_TERM NewWriteBufferManager(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
 ERL_NIF_TERM ReleaseWriteBufferManager(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM WriteBufferManagerInfo(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
+// Statistics API
+ERL_NIF_TERM NewStatistics(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM SetStatsLevel(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM StatisticsInfo(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
 void CreateBatchType(ErlNifEnv* env);
 void CreateTransactionType(ErlNifEnv* env);
 

@@ -113,7 +113,14 @@
   write_buffer_manager_info/1, write_buffer_manager_info/2
 ]).
 
-%% Env api
+%% Statistics API
+-export([
+  new_statistics/0,
+  set_stats_level/2,
+  statistics_info/1
+]).
+
+%% Env API
 -export([
   new_env/0, new_env/1,
   set_env_background_threads/2, set_env_background_threads/3,
@@ -195,7 +202,9 @@
   backup_engine/0,
   backup_info/0,
   sst_file_manager/0,
-  write_buffer_manager/0
+  write_buffer_manager/0,
+  statistics_handle/0,
+  stats_level/0
 ]).
 
 -deprecated({count, 1, next_major_release}).
@@ -248,6 +257,7 @@
 -opaque cache_handle() :: reference() | binary().
 -opaque rate_limiter_handle() :: reference() | binary().
 -opaque write_buffer_manager() :: reference() | binary().
+-opaque statistics_handle() :: reference() | binary().
 
 -type column_family() :: cf_handle() | default_column_family.
 
@@ -361,11 +371,12 @@
                        {max_subcompactions, non_neg_integer()} |
                        {atomic_flush, boolean()} |
                        {use_direct_reads, boolean()} |
-                       {use_direct_io_for_flush_and_compaction, boolean()}].
+                       {use_direct_io_for_flush_and_compaction, boolean()} |
+                       {statistics, statistics_handle()}].
 
 -type options() :: db_options() | cf_options().
 
--type read_options() :: [{read_tier, read_tier()} | 
+-type read_options() :: [{read_tier, read_tier()} |
                          {verify_checksums, boolean()} |
                          {fill_cache, boolean()} |
                          {iterate_upper_bound, binary()} |
@@ -417,6 +428,14 @@
 
 -type size_approximation_flag() :: none | include_memtables | include_files | include_both.
 -type range() :: {Start::binary(), Limit::binary()}.
+
+-type stats_level() :: stats_disable_all |
+      stats_except_tickers |
+      stats_except_histogram_or_timers |
+      stats_except_timers |
+      stats_except_detailed_timers |
+      stats_except_time_for_mutex |
+      stats_all.
 
 -compile(no_native).
 -on_load(on_load/0).
@@ -1666,6 +1685,24 @@ write_buffer_manager_info(_WriteBufferManager) ->
     Item :: memory_usage | mutable_memtable_memory_usage | buffer_size | enabled,
     Value :: term().
 write_buffer_manager_info(_WriteBufferManager, _Item) ->
+  ?nif_stub.
+
+%% ===================================================================
+%% Statistics API
+
+-spec new_statistics() -> {ok, statistics_handle()}.
+new_statistics() ->
+  ?nif_stub.
+
+-spec set_stats_level(statistics_handle(), stats_level()) -> ok.
+set_stats_level(_StatisticsHandle, _StatsLevel) ->
+  ?nif_stub.
+
+-spec statistics_info(Statistics) -> InfoList when
+  Statistics :: statistics_handle(),
+  InfoList :: [InfoTuple],
+  InfoTuple :: {stats_level, stats_level()}.
+statistics_info(_Statistics) ->
   ?nif_stub.
 
 %% ===================================================================
