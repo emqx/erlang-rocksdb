@@ -103,12 +103,10 @@ namespace erocksdb {
                     return on_error(env);
                 return mergeErlangInt(env, val, true, merge_in, merge_out);
             } else if ((op[0] == ATOM_MERGE_LIST_APPEND)  && enif_is_list(env, op[1])) {
-                ERL_NIF_TERM head, tail;
                 std::list<ERL_NIF_TERM> l;
-                tail = enif_make_list(env, 0);
-                while(enif_get_list_cell(env, tail, &head, &tail)) {
-                    l.push_back(std::move(head));
-                }
+                return mergeErlangList(env, l, false, merge_in, merge_out);
+            } else if ((op[0] == ATOM_MERGE_LIST_SUBSTRACT)  && enif_is_list(env, op[1])) {
+                std::list<ERL_NIF_TERM> l;
                 return mergeErlangList(env, l, true, merge_in, merge_out);
             } else if ((op[0] == ATOM_MERGE_BINARY_APPEND) && enif_is_binary(env, op[1])) {
                 ErlNifBinary bin;
