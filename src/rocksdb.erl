@@ -372,6 +372,9 @@
                        {atomic_flush, boolean()} |
                        {use_direct_reads, boolean()} |
                        {use_direct_io_for_flush_and_compaction, boolean()} |
+                       {enable_pipelined_write, boolean()} |
+                       {unordered_write, boolean()} |
+                       {two_write_queues, boolean()} |
                        {statistics, statistics_handle()}].
 
 -type options() :: db_options() | cf_options().

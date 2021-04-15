@@ -385,6 +385,18 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         {
             opts.use_direct_io_for_flush_and_compaction = (option[1] == erocksdb::ATOM_TRUE);
         }
+        else if (option[0] == erocksdb::ATOM_ENABLE_PIPELINED_WRITE)
+        {
+            opts.enable_pipelined_write = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_UNORDERED_WRITE)
+        {
+            opts.unordered_write = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_TWO_WRITE_QUEUES)
+        {
+            opts.two_write_queues = (option[1] == erocksdb::ATOM_TRUE);
+        }
     }
     return erocksdb::ATOM_OK;
 }
