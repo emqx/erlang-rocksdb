@@ -105,8 +105,8 @@ static ErlNifFunc nif_funcs[] =
         {"transaction", 2, erocksdb::NewTransaction, ERL_NIF_REGULAR_BOUND},
         {"transaction_put", 3, erocksdb::PutTransaction, ERL_NIF_REGULAR_BOUND},
         {"transaction_put", 4, erocksdb::PutTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_get", 2, erocksdb::GetTransaction, ERL_NIF_REGULAR_BOUND},
         {"transaction_get", 3, erocksdb::GetTransaction, ERL_NIF_REGULAR_BOUND},
+        {"transaction_get", 4, erocksdb::GetTransaction, ERL_NIF_REGULAR_BOUND},
         // see note in transaction.cc
         // {"transaction_merge", 3, erocksdb::MergeTransaction, ERL_NIF_REGULAR_BOUND},
         // {"transaction_merge", 4, erocksdb::MergeTransaction, ERL_NIF_REGULAR_BOUND},

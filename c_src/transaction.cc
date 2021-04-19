@@ -179,7 +179,7 @@ namespace erocksdb {
         }
 
         int i = 1;
-        if(argc == 3) {
+        if(argc == 4) {
             i = 2;
         }
 
@@ -193,7 +193,7 @@ namespace erocksdb {
 
         rocksdb::Status status;
         rocksdb::PinnableSlice pvalue;
-        if(argc == 3) {
+        if(argc == 4) {
             if(!enif_get_cf(env, argv[1], &cf_ptr)) {
                 return enif_make_badarg(env);
             }
