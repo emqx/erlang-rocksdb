@@ -21,6 +21,7 @@
 
 -export([
   open/2, open/3,
+  open_readonly/2, open_readonly/3,
   open_optimistic_transaction_db/2, open_optimistic_transaction_db/3,
   open_with_ttl/4,
   close/1,
@@ -41,7 +42,7 @@
   get_approximate_memtable_stats/3, get_approximate_memtable_stats/4
 ]).
 
--export([open_with_cf/3]).
+-export([open_with_cf/3, open_with_cf_readonly/3]).
 -export([drop_column_family/1]).
 -export([destroy_column_family/1]).
 
@@ -481,6 +482,13 @@ on_load() ->
 open(_Name, _DBOpts) ->
   ?nif_stub.
 
+-spec open_readonly(Name, DBOpts) -> Result when
+  Name :: file:filename_all(),
+  DBOpts :: options(),
+  Result :: {ok, db_handle()} | {error, any()}.
+open_readonly(_Name, _DBOpts) ->
+  ?nif_stub.
+
 %% @doc Open RocksDB with the specified column families
 -spec(open(Name, DBOpts, CFDescriptors) ->
        {ok, db_handle(), list(cf_handle())} | {error, any()}
@@ -490,8 +498,20 @@ open(_Name, _DBOpts) ->
 open(_Name, _DBOpts, _CFDescriptors) ->
   ?nif_stub.
 
+%% @doc Open read-only RocksDB with the specified column families
+-spec(open_readonly(Name, DBOpts, CFDescriptors) ->
+       {ok, db_handle(), list(cf_handle())} | {error, any()}
+         when Name::file:filename_all(),
+          DBOpts :: db_options(),
+          CFDescriptors :: list(cf_descriptor())).
+open_readonly(_Name, _DBOpts, _CFDescriptors) ->
+  ?nif_stub.
+
 open_with_cf(Name, DbOpts, CFDescriptors) ->
   open(Name, DbOpts, CFDescriptors).
+
+open_with_cf_readonly(Name, DbOpts, CFDescriptors) ->
+  open_readonly(Name, DbOpts, CFDescriptors).
 
 open_optimistic_transaction_db(_Name, _DbOpts) ->
     open_optimistic_transaction_db(_Name, _DbOpts, [{"default", []}]).

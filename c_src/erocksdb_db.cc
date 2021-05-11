@@ -891,11 +891,17 @@ parse_cf_descriptor(ErlNifEnv* env, ERL_NIF_TERM item,
 
 namespace erocksdb {
 
+// Base Open function.
+//
+// This `Open` function is not called by directly the VM due to the
+// extra `read_only` argument. Instead, it is called by `Open` or
+// `OpenReadOnly` below.
 ERL_NIF_TERM
 Open(
     ErlNifEnv* env,
     int /*argc*/,
-    const ERL_NIF_TERM argv[])
+    const ERL_NIF_TERM argv[],
+    bool read_only)
 {
     char db_name[4096];
     DbObject * db_ptr;
@@ -918,7 +924,12 @@ Open(
 
     // final options
     rocksdb::Options *opts = new rocksdb::Options(*db_opts, *cf_opts);
-    rocksdb::Status status = rocksdb::DB::Open(*opts, db_name, &db);
+    rocksdb::Status status;
+    if (read_only) {
+        status = rocksdb::DB::OpenForReadOnly(*opts, db_name, &db);
+    } else {
+        status = rocksdb::DB::Open(*opts, db_name, &db);
+    }
     delete opts;
     delete db_opts;
     delete cf_opts;
@@ -933,10 +944,30 @@ Open(
 }   // Open
 
 ERL_NIF_TERM
+Open(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    return Open(env, argc, argv, false);
+} // Open
+
+ERL_NIF_TERM
+OpenReadOnly(ErlNifEnv * env, int argc, const ERL_NIF_TERM argv[]) {
+    return Open(env, argc, argv, true);
+} // OpenReadOnly
+
+// Base OpenWithCf function.
+//
+// This `OpenWithCf` function is not called by directly the VM due to
+// the extra `read_only` argument. Instead, it is called by
+// `OpenWithCf` or `OpenWithCfReadOnly` below.
+ERL_NIF_TERM
 OpenWithCf(
     ErlNifEnv* env,
     int /*argc*/,
-    const ERL_NIF_TERM argv[])
+    const ERL_NIF_TERM argv[],
+    bool read_only)
 {
     char db_name[4096];
     DbObject * db_ptr;
@@ -965,7 +996,12 @@ OpenWithCf(
     }
 
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
-    rocksdb::Status status = rocksdb::DB::Open(db_opts, db_name, column_families, &handles, &db);
+    rocksdb::Status status;
+    if (read_only) {
+        status = rocksdb::DB::OpenForReadOnly(db_opts, db_name, column_families, &handles, &db);
+    } else {
+        status = rocksdb::DB::Open(db_opts, db_name, column_families, &handles, &db);
+    }
 
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
@@ -999,6 +1035,24 @@ OpenWithCf(
 
     return enif_make_tuple3(env, ATOM_OK, result, cf_list_out);
 }   // async_open
+
+ERL_NIF_TERM
+OpenWithCf(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    return OpenWithCf(env, argc, argv, false);
+} // OpenWithCf
+
+ERL_NIF_TERM
+OpenWithCfReadOnly(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    return OpenWithCf(env, argc, argv, true);
+}
 
 ERL_NIF_TERM
 OpenWithTTL(
