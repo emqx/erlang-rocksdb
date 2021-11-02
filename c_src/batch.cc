@@ -348,7 +348,7 @@ BatchCount(
     Batch* batch_ptr = nullptr;
     if(!enif_get_resource(env, argv[0], m_Batch_RESOURCE, (void **) &batch_ptr))
         return enif_make_badarg(env);
-    int count = batch_ptr->wb->Count();
+    int count = (int) batch_ptr->wb->Count();
     return enif_make_int(env, count);
 }
 
