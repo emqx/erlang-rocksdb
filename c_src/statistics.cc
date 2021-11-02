@@ -83,7 +83,7 @@ ERL_NIF_TERM
 NewStatistics(
     ErlNifEnv* env,
     int /*argc*/,
-    const ERL_NIF_TERM* /*argv[]*/)
+    const ERL_NIF_TERM[] /*argv[]*/)
 {
     Statistics *statistics_ptr = Statistics::CreateStatisticsResource(rocksdb::CreateDBStatistics());
     // create a resource reference to send erlang
