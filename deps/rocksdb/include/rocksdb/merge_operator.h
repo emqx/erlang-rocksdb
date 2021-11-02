@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "rocksdb/customizable.h"
 #include "rocksdb/slice.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -43,10 +44,13 @@ class Logger;
 //
 // Refer to rocksdb-merge wiki for more details and example implementations.
 //
-class MergeOperator {
+class MergeOperator : public Customizable {
  public:
   virtual ~MergeOperator() {}
   static const char* Type() { return "MergeOperator"; }
+  static Status CreateFromString(const ConfigOptions& opts,
+                                 const std::string& id,
+                                 std::shared_ptr<MergeOperator>* result);
 
   // Gives the client a way to express the read -> modify -> write semantics
   // key:      (IN)    The key that's associated with this merge operation.
@@ -109,7 +113,7 @@ class MergeOperator {
     Slice& existing_operand;
   };
 
-  // This function applies a stack of merge operands in chrionological order
+  // This function applies a stack of merge operands in chronological order
   // on top of an existing value. There are two ways in which this method is
   // being used:
   // a) During Get() operation, it used to calculate the final value of a key
@@ -176,7 +180,7 @@ class MergeOperator {
   // PartialMergeMulti should combine them into a single merge operation that is
   // saved into *new_value, and then it should return true.  *new_value should
   // be constructed such that a call to DB::Merge(key, *new_value) would yield
-  // the same result as subquential individual calls to DB::Merge(key, operand)
+  // the same result as sequential individual calls to DB::Merge(key, operand)
   // for each operand in operand_list from front() to back().
   //
   // The string that new_value is pointing to will be empty.

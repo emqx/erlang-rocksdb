@@ -7,6 +7,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#if !defined(OS_WIN)
+
 #include "port/port_posix.h"
 
 #include <assert.h>
@@ -19,11 +21,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/resource.h>
-#include <sys/syscall.h>
 #include <sys/time.h>
 #include <unistd.h>
+
 #include <cstdlib>
-#include "logging/logging.h"
+#include <fstream>
+#include <string>
+
+#include "util/string_util.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -45,7 +50,7 @@ namespace port {
 
 static int PthreadCall(const char* label, int result) {
   if (result != 0 && result != ETIMEDOUT) {
-    fprintf(stderr, "pthread %s: %s\n", label, strerror(result));
+    fprintf(stderr, "pthread %s: %s\n", label, errnoStr(result).c_str());
     abort();
   }
   return result;
@@ -260,5 +265,21 @@ void SetCpuPriority(ThreadId id, CpuPriority priority) {
 #endif
 }
 
+int64_t GetProcessID() { return getpid(); }
+
+bool GenerateRfcUuid(std::string* output) {
+  output->clear();
+  std::ifstream f("/proc/sys/kernel/random/uuid");
+  std::getline(f, /*&*/ *output);
+  if (output->size() == 36) {
+    return true;
+  } else {
+    output->clear();
+    return false;
+  }
+}
+
 }  // namespace port
 }  // namespace ROCKSDB_NAMESPACE
+
+#endif

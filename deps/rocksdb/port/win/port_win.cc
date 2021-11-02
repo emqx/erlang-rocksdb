@@ -7,24 +7,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#if !defined(OS_WIN) && !defined(WIN32) && !defined(_WIN32)
-#error Windows Specific Code
-#endif
+#if defined(OS_WIN)
 
 #include "port/win/port_win.h"
 
-#include <io.h>
-#include "port/port_dirent.h"
-#include "port/sys_time.h"
-
-#include <cstdlib>
-#include <stdio.h>
 #include <assert.h>
+#include <io.h>
+#include <rpc.h>
+#include <stdio.h>
 #include <string.h>
 
-#include <memory>
-#include <exception>
 #include <chrono>
+#include <cstdlib>
+#include <exception>
+#include <memory>
+
+#include "port/port_dirent.h"
+#include "port/sys_time.h"
 
 #ifdef ROCKSDB_WINDOWS_UTF8_FILENAMES
 // utf8 <-> utf16
@@ -100,6 +99,15 @@ bool CondVar::TimedWait(uint64_t abs_time_us) {
 
   // Caller must ensure that mutex is held prior to calling this method
   std::unique_lock<std::mutex> lk(mu_->getLock(), std::adopt_lock);
+
+  // Work around https://github.com/microsoft/STL/issues/369
+#if defined(_MSC_VER) && \
+    (!defined(_MSVC_STL_UPDATE) || _MSVC_STL_UPDATE < 202008L)
+  if (relTimeUs == microseconds::zero()) {
+    lk.unlock();
+    lk.lock();
+  }
+#endif
 #ifndef NDEBUG
   mu_->locked_ = false;
 #endif
@@ -270,5 +278,28 @@ void SetCpuPriority(ThreadId id, CpuPriority priority) {
   (void)priority;
 }
 
+int64_t GetProcessID() { return GetCurrentProcessId(); }
+
+bool GenerateRfcUuid(std::string* output) {
+  UUID uuid;
+  UuidCreateSequential(&uuid);
+
+  RPC_CSTR rpc_str;
+  auto status = UuidToStringA(&uuid, &rpc_str);
+  if (status != RPC_S_OK) {
+    return false;
+  }
+
+  // rpc_str is nul-terminated
+  *output = reinterpret_cast<char*>(rpc_str);
+
+  status = RpcStringFreeA(&rpc_str);
+  assert(status == RPC_S_OK);
+
+  return true;
+}
+
 }  // namespace port
 }  // namespace ROCKSDB_NAMESPACE
+
+#endif

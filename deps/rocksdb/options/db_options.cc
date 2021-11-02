@@ -8,14 +8,21 @@
 #include <cinttypes>
 
 #include "logging/logging.h"
+#include "options/configurable_helper.h"
 #include "options/options_helper.h"
+#include "options/options_parser.h"
 #include "port/port.h"
-#include "rocksdb/cache.h"
+#include "rocksdb/configurable.h"
 #include "rocksdb/env.h"
 #include "rocksdb/file_system.h"
+#include "rocksdb/listener.h"
 #include "rocksdb/rate_limiter.h"
 #include "rocksdb/sst_file_manager.h"
+#include "rocksdb/statistics.h"
+#include "rocksdb/system_clock.h"
+#include "rocksdb/utilities/options_type.h"
 #include "rocksdb/wal_filter.h"
+#include "util/string_util.h"
 
 namespace ROCKSDB_NAMESPACE {
 #ifndef ROCKSDB_LITE
@@ -42,8 +49,87 @@ static std::unordered_map<std::string, InfoLogLevel> info_log_level_string_map =
      {"FATAL_LEVEL", InfoLogLevel::FATAL_LEVEL},
      {"HEADER_LEVEL", InfoLogLevel::HEADER_LEVEL}};
 
-std::unordered_map<std::string, OptionTypeInfo>
-    OptionsHelper::db_options_type_info = {
+static std::unordered_map<std::string, OptionTypeInfo>
+    db_mutable_options_type_info = {
+        {"allow_os_buffer",
+         {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
+          OptionTypeFlags::kMutable}},
+        {"max_background_jobs",
+         {offsetof(struct MutableDBOptions, max_background_jobs),
+          OptionType::kInt, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"max_background_compactions",
+         {offsetof(struct MutableDBOptions, max_background_compactions),
+          OptionType::kInt, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"base_background_compactions",
+         {offsetof(struct MutableDBOptions, base_background_compactions),
+          OptionType::kInt, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"max_subcompactions",
+         {offsetof(struct MutableDBOptions, max_subcompactions),
+          OptionType::kUInt32T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"avoid_flush_during_shutdown",
+         {offsetof(struct MutableDBOptions, avoid_flush_during_shutdown),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"writable_file_max_buffer_size",
+         {offsetof(struct MutableDBOptions, writable_file_max_buffer_size),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"delayed_write_rate",
+         {offsetof(struct MutableDBOptions, delayed_write_rate),
+          OptionType::kUInt64T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"max_total_wal_size",
+         {offsetof(struct MutableDBOptions, max_total_wal_size),
+          OptionType::kUInt64T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"delete_obsolete_files_period_micros",
+         {offsetof(struct MutableDBOptions,
+                   delete_obsolete_files_period_micros),
+          OptionType::kUInt64T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"stats_dump_period_sec",
+         {offsetof(struct MutableDBOptions, stats_dump_period_sec),
+          OptionType::kUInt, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"stats_persist_period_sec",
+         {offsetof(struct MutableDBOptions, stats_persist_period_sec),
+          OptionType::kUInt, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"stats_history_buffer_size",
+         {offsetof(struct MutableDBOptions, stats_history_buffer_size),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"max_open_files",
+         {offsetof(struct MutableDBOptions, max_open_files), OptionType::kInt,
+          OptionVerificationType::kNormal, OptionTypeFlags::kMutable}},
+        {"bytes_per_sync",
+         {offsetof(struct MutableDBOptions, bytes_per_sync),
+          OptionType::kUInt64T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"wal_bytes_per_sync",
+         {offsetof(struct MutableDBOptions, wal_bytes_per_sync),
+          OptionType::kUInt64T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"strict_bytes_per_sync",
+         {offsetof(struct MutableDBOptions, strict_bytes_per_sync),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"compaction_readahead_size",
+         {offsetof(struct MutableDBOptions, compaction_readahead_size),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+        {"max_background_flushes",
+         {offsetof(struct MutableDBOptions, max_background_flushes),
+          OptionType::kInt, OptionVerificationType::kNormal,
+          OptionTypeFlags::kMutable}},
+};
+
+static std::unordered_map<std::string, OptionTypeInfo>
+    db_immutable_options_type_info = {
         /*
          // not yet supported
           std::shared_ptr<Cache> row_cache;
@@ -52,349 +138,448 @@ std::unordered_map<std::string, OptionTypeInfo>
           std::shared_ptr<RateLimiter> rate_limiter;
           std::shared_ptr<Statistics> statistics;
           std::vector<DbPath> db_paths;
-          std::vector<std::shared_ptr<EventListener>> listeners;
+          FileTypeSet checksum_handoff_file_types;
          */
         {"advise_random_on_open",
-         {offsetof(struct DBOptions, advise_random_on_open),
+         {offsetof(struct ImmutableDBOptions, advise_random_on_open),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"allow_mmap_reads",
-         {offsetof(struct DBOptions, allow_mmap_reads), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, allow_mmap_reads),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"allow_fallocate",
-         {offsetof(struct DBOptions, allow_fallocate), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, allow_fallocate),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"allow_mmap_writes",
-         {offsetof(struct DBOptions, allow_mmap_writes), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, allow_mmap_writes),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"use_direct_reads",
-         {offsetof(struct DBOptions, use_direct_reads), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, use_direct_reads),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"use_direct_writes",
          {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"use_direct_io_for_flush_and_compaction",
-         {offsetof(struct DBOptions, use_direct_io_for_flush_and_compaction),
+         {offsetof(struct ImmutableDBOptions,
+                   use_direct_io_for_flush_and_compaction),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"allow_2pc",
-         {offsetof(struct DBOptions, allow_2pc), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
-        {"allow_os_buffer",
-         {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
-          OptionTypeFlags::kMutable, 0}},
+         {offsetof(struct ImmutableDBOptions, allow_2pc), OptionType::kBoolean,
+          OptionVerificationType::kNormal, OptionTypeFlags::kNone}},
         {"create_if_missing",
-         {offsetof(struct DBOptions, create_if_missing), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
-        {"create_missing_column_families",
-         {offsetof(struct DBOptions, create_missing_column_families),
+         {offsetof(struct ImmutableDBOptions, create_if_missing),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
+        {"create_missing_column_families",
+         {offsetof(struct ImmutableDBOptions, create_missing_column_families),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"disableDataSync",
          {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"disable_data_sync",  // for compatibility
          {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"enable_thread_tracking",
-         {offsetof(struct DBOptions, enable_thread_tracking),
+         {offsetof(struct ImmutableDBOptions, enable_thread_tracking),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"error_if_exists",
-         {offsetof(struct DBOptions, error_if_exists), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, error_if_exists),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+        {"experimental_allow_mempurge",
+         {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
+          OptionTypeFlags::kNone}},
+        {"experimental_mempurge_policy",
+         {0, OptionType::kString, OptionVerificationType::kDeprecated,
+          OptionTypeFlags::kNone}},
+        {"experimental_mempurge_threshold",
+         {offsetof(struct ImmutableDBOptions, experimental_mempurge_threshold),
+          OptionType::kDouble, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"is_fd_close_on_exec",
-         {offsetof(struct DBOptions, is_fd_close_on_exec), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, is_fd_close_on_exec),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"paranoid_checks",
-         {offsetof(struct DBOptions, paranoid_checks), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, paranoid_checks),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+        {"flush_verify_memtable_count",
+         {offsetof(struct ImmutableDBOptions, flush_verify_memtable_count),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+        {"track_and_verify_wals_in_manifest",
+         {offsetof(struct ImmutableDBOptions,
+                   track_and_verify_wals_in_manifest),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"skip_log_error_on_recovery",
-         {offsetof(struct DBOptions, skip_log_error_on_recovery),
-          OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+         {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
+          OptionTypeFlags::kNone}},
         {"skip_stats_update_on_db_open",
-         {offsetof(struct DBOptions, skip_stats_update_on_db_open),
+         {offsetof(struct ImmutableDBOptions, skip_stats_update_on_db_open),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"skip_checking_sst_file_sizes_on_db_open",
-         {offsetof(struct DBOptions, skip_checking_sst_file_sizes_on_db_open),
+         {offsetof(struct ImmutableDBOptions,
+                   skip_checking_sst_file_sizes_on_db_open),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"new_table_reader_for_compaction_inputs",
-         {offsetof(struct DBOptions, new_table_reader_for_compaction_inputs),
+         {offsetof(struct ImmutableDBOptions,
+                   new_table_reader_for_compaction_inputs),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
-        {"compaction_readahead_size",
-         {offsetof(struct DBOptions, compaction_readahead_size),
-          OptionType::kSizeT, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, compaction_readahead_size)}},
+          OptionTypeFlags::kNone}},
         {"random_access_max_buffer_size",
-         {offsetof(struct DBOptions, random_access_max_buffer_size),
+         {offsetof(struct ImmutableDBOptions, random_access_max_buffer_size),
           OptionType::kSizeT, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"use_adaptive_mutex",
-         {offsetof(struct DBOptions, use_adaptive_mutex), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, use_adaptive_mutex),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"use_fsync",
-         {offsetof(struct DBOptions, use_fsync), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
-        {"max_background_jobs",
-         {offsetof(struct DBOptions, max_background_jobs), OptionType::kInt,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, max_background_jobs)}},
-        {"max_background_compactions",
-         {offsetof(struct DBOptions, max_background_compactions),
-          OptionType::kInt, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, max_background_compactions)}},
-        {"max_subcompactions",
-         {offsetof(struct DBOptions, max_subcompactions), OptionType::kUInt32T,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, max_subcompactions)}},
-        {"base_background_compactions",
-         {offsetof(struct DBOptions, base_background_compactions),
-          OptionType::kInt, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, base_background_compactions)}},
-        {"max_background_flushes",
-         {offsetof(struct DBOptions, max_background_flushes), OptionType::kInt,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, max_background_flushes)}},
+         {offsetof(struct ImmutableDBOptions, use_fsync), OptionType::kBoolean,
+          OptionVerificationType::kNormal, OptionTypeFlags::kNone}},
         {"max_file_opening_threads",
-         {offsetof(struct DBOptions, max_file_opening_threads),
+         {offsetof(struct ImmutableDBOptions, max_file_opening_threads),
           OptionType::kInt, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
-        {"max_open_files",
-         {offsetof(struct DBOptions, max_open_files), OptionType::kInt,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, max_open_files)}},
+          OptionTypeFlags::kNone}},
         {"table_cache_numshardbits",
-         {offsetof(struct DBOptions, table_cache_numshardbits),
+         {offsetof(struct ImmutableDBOptions, table_cache_numshardbits),
           OptionType::kInt, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"db_write_buffer_size",
-         {offsetof(struct DBOptions, db_write_buffer_size), OptionType::kSizeT,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, db_write_buffer_size),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"keep_log_file_num",
-         {offsetof(struct DBOptions, keep_log_file_num), OptionType::kSizeT,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, keep_log_file_num),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"recycle_log_file_num",
-         {offsetof(struct DBOptions, recycle_log_file_num), OptionType::kSizeT,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, recycle_log_file_num),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"log_file_time_to_roll",
-         {offsetof(struct DBOptions, log_file_time_to_roll), OptionType::kSizeT,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, log_file_time_to_roll),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"manifest_preallocation_size",
-         {offsetof(struct DBOptions, manifest_preallocation_size),
+         {offsetof(struct ImmutableDBOptions, manifest_preallocation_size),
           OptionType::kSizeT, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"max_log_file_size",
-         {offsetof(struct DBOptions, max_log_file_size), OptionType::kSizeT,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
-        {"db_log_dir",
-         {offsetof(struct DBOptions, db_log_dir), OptionType::kString,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
-        {"wal_dir",
-         {offsetof(struct DBOptions, wal_dir), OptionType::kString,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
-        {"WAL_size_limit_MB",
-         {offsetof(struct DBOptions, WAL_size_limit_MB), OptionType::kUInt64T,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
-        {"WAL_ttl_seconds",
-         {offsetof(struct DBOptions, WAL_ttl_seconds), OptionType::kUInt64T,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
-        {"bytes_per_sync",
-         {offsetof(struct DBOptions, bytes_per_sync), OptionType::kUInt64T,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, bytes_per_sync)}},
-        {"delayed_write_rate",
-         {offsetof(struct DBOptions, delayed_write_rate), OptionType::kUInt64T,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, delayed_write_rate)}},
-        {"delete_obsolete_files_period_micros",
-         {offsetof(struct DBOptions, delete_obsolete_files_period_micros),
-          OptionType::kUInt64T, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions,
-                   delete_obsolete_files_period_micros)}},
-        {"max_manifest_file_size",
-         {offsetof(struct DBOptions, max_manifest_file_size),
-          OptionType::kUInt64T, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
-        {"max_total_wal_size",
-         {offsetof(struct DBOptions, max_total_wal_size), OptionType::kUInt64T,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, max_total_wal_size)}},
-        {"wal_bytes_per_sync",
-         {offsetof(struct DBOptions, wal_bytes_per_sync), OptionType::kUInt64T,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, wal_bytes_per_sync)}},
-        {"strict_bytes_per_sync",
-         {offsetof(struct DBOptions, strict_bytes_per_sync),
-          OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, strict_bytes_per_sync)}},
-        {"stats_dump_period_sec",
-         {offsetof(struct DBOptions, stats_dump_period_sec), OptionType::kUInt,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, stats_dump_period_sec)}},
-        {"stats_persist_period_sec",
-         {offsetof(struct DBOptions, stats_persist_period_sec),
-          OptionType::kUInt, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, stats_persist_period_sec)}},
-        {"persist_stats_to_disk",
-         {offsetof(struct DBOptions, persist_stats_to_disk),
-          OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone,
-          offsetof(struct ImmutableDBOptions, persist_stats_to_disk)}},
-        {"stats_history_buffer_size",
-         {offsetof(struct DBOptions, stats_history_buffer_size),
+         {offsetof(struct ImmutableDBOptions, max_log_file_size),
           OptionType::kSizeT, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, stats_history_buffer_size)}},
+          OptionTypeFlags::kNone}},
+        {"db_log_dir",
+         {offsetof(struct ImmutableDBOptions, db_log_dir), OptionType::kString,
+          OptionVerificationType::kNormal, OptionTypeFlags::kNone}},
+        {"wal_dir",
+         {offsetof(struct ImmutableDBOptions, wal_dir), OptionType::kString,
+          OptionVerificationType::kNormal, OptionTypeFlags::kNone}},
+        {"WAL_size_limit_MB",
+         {offsetof(struct ImmutableDBOptions, WAL_size_limit_MB),
+          OptionType::kUInt64T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+        {"WAL_ttl_seconds",
+         {offsetof(struct ImmutableDBOptions, WAL_ttl_seconds),
+          OptionType::kUInt64T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+        {"max_manifest_file_size",
+         {offsetof(struct ImmutableDBOptions, max_manifest_file_size),
+          OptionType::kUInt64T, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+        {"persist_stats_to_disk",
+         {offsetof(struct ImmutableDBOptions, persist_stats_to_disk),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"fail_if_options_file_error",
-         {offsetof(struct DBOptions, fail_if_options_file_error),
+         {offsetof(struct ImmutableDBOptions, fail_if_options_file_error),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"enable_pipelined_write",
-         {offsetof(struct DBOptions, enable_pipelined_write),
+         {offsetof(struct ImmutableDBOptions, enable_pipelined_write),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"unordered_write",
-         {offsetof(struct DBOptions, unordered_write), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, unordered_write),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"allow_concurrent_memtable_write",
-         {offsetof(struct DBOptions, allow_concurrent_memtable_write),
+         {offsetof(struct ImmutableDBOptions, allow_concurrent_memtable_write),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
-        {"wal_recovery_mode", OptionTypeInfo::Enum<WALRecoveryMode>(
-                                  offsetof(struct DBOptions, wal_recovery_mode),
-                                  &wal_recovery_mode_string_map)},
+          OptionTypeFlags::kNone}},
+        {"wal_recovery_mode",
+         OptionTypeInfo::Enum<WALRecoveryMode>(
+             offsetof(struct ImmutableDBOptions, wal_recovery_mode),
+             &wal_recovery_mode_string_map)},
         {"enable_write_thread_adaptive_yield",
-         {offsetof(struct DBOptions, enable_write_thread_adaptive_yield),
+         {offsetof(struct ImmutableDBOptions,
+                   enable_write_thread_adaptive_yield),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"write_thread_slow_yield_usec",
-         {offsetof(struct DBOptions, write_thread_slow_yield_usec),
+         {offsetof(struct ImmutableDBOptions, write_thread_slow_yield_usec),
           OptionType::kUInt64T, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"max_write_batch_group_size_bytes",
-         {offsetof(struct DBOptions, max_write_batch_group_size_bytes),
+         {offsetof(struct ImmutableDBOptions, max_write_batch_group_size_bytes),
           OptionType::kUInt64T, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"write_thread_max_yield_usec",
-         {offsetof(struct DBOptions, write_thread_max_yield_usec),
+         {offsetof(struct ImmutableDBOptions, write_thread_max_yield_usec),
           OptionType::kUInt64T, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"access_hint_on_compaction_start",
          OptionTypeInfo::Enum<DBOptions::AccessHint>(
-             offsetof(struct DBOptions, access_hint_on_compaction_start),
+             offsetof(struct ImmutableDBOptions,
+                      access_hint_on_compaction_start),
              &access_hint_string_map)},
-        {"info_log_level", OptionTypeInfo::Enum<InfoLogLevel>(
-                               offsetof(struct DBOptions, info_log_level),
-                               &info_log_level_string_map)},
+        {"info_log_level",
+         OptionTypeInfo::Enum<InfoLogLevel>(
+             offsetof(struct ImmutableDBOptions, info_log_level),
+             &info_log_level_string_map)},
         {"dump_malloc_stats",
-         {offsetof(struct DBOptions, dump_malloc_stats), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, dump_malloc_stats),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"avoid_flush_during_recovery",
-         {offsetof(struct DBOptions, avoid_flush_during_recovery),
+         {offsetof(struct ImmutableDBOptions, avoid_flush_during_recovery),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
-        {"avoid_flush_during_shutdown",
-         {offsetof(struct DBOptions, avoid_flush_during_shutdown),
-          OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, avoid_flush_during_shutdown)}},
-        {"writable_file_max_buffer_size",
-         {offsetof(struct DBOptions, writable_file_max_buffer_size),
-          OptionType::kSizeT, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct MutableDBOptions, writable_file_max_buffer_size)}},
+          OptionTypeFlags::kNone}},
         {"allow_ingest_behind",
-         {offsetof(struct DBOptions, allow_ingest_behind), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone,
-          offsetof(struct ImmutableDBOptions, allow_ingest_behind)}},
+         {offsetof(struct ImmutableDBOptions, allow_ingest_behind),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"preserve_deletes",
-         {offsetof(struct DBOptions, preserve_deletes), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone,
-          offsetof(struct ImmutableDBOptions, preserve_deletes)}},
+         {offsetof(struct ImmutableDBOptions, preserve_deletes),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"concurrent_prepare",  // Deprecated by two_write_queues
          {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"two_write_queues",
-         {offsetof(struct DBOptions, two_write_queues), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone,
-          offsetof(struct ImmutableDBOptions, two_write_queues)}},
+         {offsetof(struct ImmutableDBOptions, two_write_queues),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"manual_wal_flush",
-         {offsetof(struct DBOptions, manual_wal_flush), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone,
-          offsetof(struct ImmutableDBOptions, manual_wal_flush)}},
+         {offsetof(struct ImmutableDBOptions, manual_wal_flush),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"seq_per_batch",
          {0, OptionType::kBoolean, OptionVerificationType::kDeprecated,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"atomic_flush",
-         {offsetof(struct DBOptions, atomic_flush), OptionType::kBoolean,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone,
-          offsetof(struct ImmutableDBOptions, atomic_flush)}},
+         {offsetof(struct ImmutableDBOptions, atomic_flush),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"avoid_unnecessary_blocking_io",
-         {offsetof(struct DBOptions, avoid_unnecessary_blocking_io),
+         {offsetof(struct ImmutableDBOptions, avoid_unnecessary_blocking_io),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone,
-          offsetof(struct ImmutableDBOptions, avoid_unnecessary_blocking_io)}},
+          OptionTypeFlags::kNone}},
         {"write_dbid_to_manifest",
-         {offsetof(struct DBOptions, write_dbid_to_manifest),
+         {offsetof(struct ImmutableDBOptions, write_dbid_to_manifest),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"log_readahead_size",
-         {offsetof(struct DBOptions, log_readahead_size), OptionType::kSizeT,
-          OptionVerificationType::kNormal, OptionTypeFlags::kNone, 0}},
+         {offsetof(struct ImmutableDBOptions, log_readahead_size),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
         {"best_efforts_recovery",
-         {offsetof(struct DBOptions, best_efforts_recovery),
+         {offsetof(struct ImmutableDBOptions, best_efforts_recovery),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"max_bgerror_resume_count",
-         {offsetof(struct DBOptions, max_bgerror_resume_count),
+         {offsetof(struct ImmutableDBOptions, max_bgerror_resume_count),
           OptionType::kInt, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
         {"bgerror_resume_retry_interval",
-         {offsetof(struct DBOptions, bgerror_resume_retry_interval),
+         {offsetof(struct ImmutableDBOptions, bgerror_resume_retry_interval),
           OptionType::kUInt64T, OptionVerificationType::kNormal,
-          OptionTypeFlags::kNone, 0}},
+          OptionTypeFlags::kNone}},
+        {"db_host_id",
+         {offsetof(struct ImmutableDBOptions, db_host_id), OptionType::kString,
+          OptionVerificationType::kNormal, OptionTypeFlags::kCompareNever}},
         // The following properties were handled as special cases in ParseOption
         // This means that the properties could be read from the options file
         // but never written to the file or compared to each other.
         {"rate_limiter_bytes_per_sec",
-         {offsetof(struct DBOptions, rate_limiter), OptionType::kUnknown,
-          OptionVerificationType::kNormal,
-          (OptionTypeFlags::kDontSerialize | OptionTypeFlags::kCompareNever), 0,
+         {offsetof(struct ImmutableDBOptions, rate_limiter),
+          OptionType::kUnknown, OptionVerificationType::kNormal,
+          (OptionTypeFlags::kDontSerialize | OptionTypeFlags::kCompareNever),
           // Parse the input value as a RateLimiter
           [](const ConfigOptions& /*opts*/, const std::string& /*name*/,
-             const std::string& value, char* addr) {
-            auto limiter =
-                reinterpret_cast<std::shared_ptr<RateLimiter>*>(addr);
+             const std::string& value, void* addr) {
+            auto limiter = static_cast<std::shared_ptr<RateLimiter>*>(addr);
             limiter->reset(NewGenericRateLimiter(
                 static_cast<int64_t>(ParseUint64(value))));
             return Status::OK();
           }}},
         {"env",
-         {offsetof(struct DBOptions, env), OptionType::kUnknown,
+         {offsetof(struct ImmutableDBOptions, env), OptionType::kUnknown,
           OptionVerificationType::kNormal,
-          (OptionTypeFlags::kDontSerialize | OptionTypeFlags::kCompareNever), 0,
+          (OptionTypeFlags::kDontSerialize | OptionTypeFlags::kCompareNever),
           // Parse the input value as an Env
-          [](const ConfigOptions& /*opts*/, const std::string& /*name*/,
-             const std::string& value, char* addr) {
-            auto old_env = reinterpret_cast<Env**>(addr);  // Get the old value
+          [](const ConfigOptions& opts, const std::string& /*name*/,
+             const std::string& value, void* addr) {
+            auto old_env = static_cast<Env**>(addr);       // Get the old value
             Env* new_env = *old_env;                       // Set new to old
-            Status s = Env::LoadEnv(value, &new_env);      // Update new value
+            Status s = Env::CreateFromString(opts, value,
+                                             &new_env);    // Update new value
             if (s.ok()) {                                  // It worked
               *old_env = new_env;                          // Update the old one
             }
             return s;
           }}},
+        {"allow_data_in_errors",
+         {offsetof(struct ImmutableDBOptions, allow_data_in_errors),
+          OptionType::kBoolean, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+        {"statistics",
+         OptionTypeInfo::AsCustomSharedPtr<Statistics>(
+             // Statistics should not be compared and can be null
+             // Statistics are maked "don't serialize" until they can be shared
+             // between DBs
+             offsetof(struct ImmutableDBOptions, statistics),
+             OptionVerificationType::kNormal,
+             OptionTypeFlags::kCompareNever | OptionTypeFlags::kDontSerialize |
+                 OptionTypeFlags::kAllowNull)},
+        // Allow EventListeners that have a non-empty Name() to be read/written
+        // as options Each listener will either be
+        // - A simple name (e.g. "MyEventListener")
+        // - A name with properties (e.g. "{id=MyListener1; timeout=60}"
+        // Multiple listeners will be separated by a ":":
+        //   - "MyListener0;{id=MyListener1; timeout=60}
+        {"listeners",
+         {offsetof(struct ImmutableDBOptions, listeners), OptionType::kVector,
+          OptionVerificationType::kByNameAllowNull,
+          OptionTypeFlags::kCompareNever,
+          [](const ConfigOptions& opts, const std::string& /*name*/,
+             const std::string& value, void* addr) {
+            ConfigOptions embedded = opts;
+            embedded.ignore_unsupported_options = true;
+            std::vector<std::shared_ptr<EventListener>> listeners;
+            Status s;
+            for (size_t start = 0, end = 0;
+                 s.ok() && start < value.size() && end != std::string::npos;
+                 start = end + 1) {
+              std::string token;
+              s = OptionTypeInfo::NextToken(value, ':', start, &end, &token);
+              if (s.ok() && !token.empty()) {
+                std::shared_ptr<EventListener> listener;
+                s = EventListener::CreateFromString(embedded, token, &listener);
+                if (s.ok() && listener != nullptr) {
+                  listeners.push_back(listener);
+                }
+              }
+            }
+            if (s.ok()) {  // It worked
+              *(static_cast<std::vector<std::shared_ptr<EventListener>>*>(
+                  addr)) = listeners;
+            }
+            return s;
+          },
+          [](const ConfigOptions& opts, const std::string& /*name*/,
+             const void* addr, std::string* value) {
+            const auto listeners =
+                static_cast<const std::vector<std::shared_ptr<EventListener>>*>(
+                    addr);
+            ConfigOptions embedded = opts;
+            embedded.delimiter = ";";
+            int printed = 0;
+            for (const auto& listener : *listeners) {
+              auto id = listener->GetId();
+              if (!id.empty()) {
+                std::string elem_str = listener->ToString(embedded, "");
+                if (printed++ == 0) {
+                  value->append("{");
+                } else {
+                  value->append(":");
+                }
+                value->append(elem_str);
+              }
+            }
+            if (printed > 0) {
+              value->append("}");
+            }
+            return Status::OK();
+          },
+          nullptr}},
 };
+
+const std::string OptionsHelper::kDBOptionsName = "DBOptions";
+
+class MutableDBConfigurable : public Configurable {
+ public:
+  explicit MutableDBConfigurable(const MutableDBOptions& mdb) {
+    mutable_ = mdb;
+    RegisterOptions(&mutable_, &db_mutable_options_type_info);
+  }
+
+ protected:
+  MutableDBOptions mutable_;
+};
+
+class DBOptionsConfigurable : public MutableDBConfigurable {
+ public:
+  explicit DBOptionsConfigurable(const DBOptions& opts)
+      : MutableDBConfigurable(MutableDBOptions(opts)), db_options_(opts) {
+    // The ImmutableDBOptions currently requires the env to be non-null.  Make
+    // sure it is
+    if (opts.env != nullptr) {
+      immutable_ = ImmutableDBOptions(opts);
+    } else {
+      DBOptions copy = opts;
+      copy.env = Env::Default();
+      immutable_ = ImmutableDBOptions(copy);
+    }
+    RegisterOptions(&immutable_, &db_immutable_options_type_info);
+  }
+
+ protected:
+  Status ConfigureOptions(
+      const ConfigOptions& config_options,
+      const std::unordered_map<std::string, std::string>& opts_map,
+      std::unordered_map<std::string, std::string>* unused) override {
+    Status s = Configurable::ConfigureOptions(config_options, opts_map, unused);
+    if (s.ok()) {
+      db_options_ = BuildDBOptions(immutable_, mutable_);
+      s = PrepareOptions(config_options);
+    }
+    return s;
+  }
+
+  const void* GetOptionsPtr(const std::string& name) const override {
+    if (name == OptionsHelper::kDBOptionsName) {
+      return &db_options_;
+    } else {
+      return MutableDBConfigurable::GetOptionsPtr(name);
+    }
+  }
+
+ private:
+  ImmutableDBOptions immutable_;
+  DBOptions db_options_;
+};
+
+std::unique_ptr<Configurable> DBOptionsAsConfigurable(
+    const MutableDBOptions& opts) {
+  std::unique_ptr<Configurable> ptr(new MutableDBConfigurable(opts));
+  return ptr;
+}
+std::unique_ptr<Configurable> DBOptionsAsConfigurable(const DBOptions& opts) {
+  std::unique_ptr<Configurable> ptr(new DBOptionsConfigurable(opts));
+  return ptr;
+}
 #endif  // ROCKSDB_LITE
 
 ImmutableDBOptions::ImmutableDBOptions() : ImmutableDBOptions(Options()) {}
@@ -404,8 +589,10 @@ ImmutableDBOptions::ImmutableDBOptions(const DBOptions& options)
       create_missing_column_families(options.create_missing_column_families),
       error_if_exists(options.error_if_exists),
       paranoid_checks(options.paranoid_checks),
+      flush_verify_memtable_count(options.flush_verify_memtable_count),
+      track_and_verify_wals_in_manifest(
+          options.track_and_verify_wals_in_manifest),
       env(options.env),
-      fs(options.env->GetFileSystem()),
       rate_limiter(options.rate_limiter),
       sst_file_manager(options.sst_file_manager),
       info_log(options.info_log),
@@ -422,8 +609,8 @@ ImmutableDBOptions::ImmutableDBOptions(const DBOptions& options)
       recycle_log_file_num(options.recycle_log_file_num),
       max_manifest_file_size(options.max_manifest_file_size),
       table_cache_numshardbits(options.table_cache_numshardbits),
-      wal_ttl_seconds(options.WAL_ttl_seconds),
-      wal_size_limit_mb(options.WAL_size_limit_MB),
+      WAL_ttl_seconds(options.WAL_ttl_seconds),
+      WAL_size_limit_MB(options.WAL_size_limit_MB),
       max_write_batch_group_size_bytes(
           options.max_write_batch_group_size_bytes),
       manifest_preallocation_size(options.manifest_preallocation_size),
@@ -435,6 +622,7 @@ ImmutableDBOptions::ImmutableDBOptions(const DBOptions& options)
       allow_fallocate(options.allow_fallocate),
       is_fd_close_on_exec(options.is_fd_close_on_exec),
       advise_random_on_open(options.advise_random_on_open),
+      experimental_mempurge_threshold(options.experimental_mempurge_threshold),
       db_write_buffer_size(options.db_write_buffer_size),
       write_buffer_manager(options.write_buffer_manager),
       access_hint_on_compaction_start(options.access_hint_on_compaction_start),
@@ -475,7 +663,20 @@ ImmutableDBOptions::ImmutableDBOptions(const DBOptions& options)
       file_checksum_gen_factory(options.file_checksum_gen_factory),
       best_efforts_recovery(options.best_efforts_recovery),
       max_bgerror_resume_count(options.max_bgerror_resume_count),
-      bgerror_resume_retry_interval(options.bgerror_resume_retry_interval) {
+      bgerror_resume_retry_interval(options.bgerror_resume_retry_interval),
+      allow_data_in_errors(options.allow_data_in_errors),
+      db_host_id(options.db_host_id),
+      checksum_handoff_file_types(options.checksum_handoff_file_types),
+      compaction_service(options.compaction_service) {
+  stats = statistics.get();
+  fs = env->GetFileSystem();
+  if (env != nullptr) {
+    clock = env->GetSystemClock().get();
+  } else {
+    clock = SystemClock::Default().get();
+  }
+  logger = info_log.get();
+  stats = statistics.get();
 }
 
 void ImmutableDBOptions::Dump(Logger* log) const {
@@ -485,6 +686,12 @@ void ImmutableDBOptions::Dump(Logger* log) const {
                    create_if_missing);
   ROCKS_LOG_HEADER(log, "                        Options.paranoid_checks: %d",
                    paranoid_checks);
+  ROCKS_LOG_HEADER(log, "            Options.flush_verify_memtable_count: %d",
+                   flush_verify_memtable_count);
+  ROCKS_LOG_HEADER(log,
+                   "                              "
+                   "Options.track_and_verify_wals_in_manifest: %d",
+                   track_and_verify_wals_in_manifest);
   ROCKS_LOG_HEADER(log, "                                    Options.env: %p",
                    env);
   ROCKS_LOG_HEADER(log, "                                     Options.fs: %s",
@@ -494,7 +701,7 @@ void ImmutableDBOptions::Dump(Logger* log) const {
   ROCKS_LOG_HEADER(log, "               Options.max_file_opening_threads: %d",
                    max_file_opening_threads);
   ROCKS_LOG_HEADER(log, "                             Options.statistics: %p",
-                   statistics.get());
+                   stats);
   ROCKS_LOG_HEADER(log, "                              Options.use_fsync: %d",
                    use_fsync);
   ROCKS_LOG_HEADER(
@@ -534,10 +741,10 @@ void ImmutableDBOptions::Dump(Logger* log) const {
                    table_cache_numshardbits);
   ROCKS_LOG_HEADER(log,
                    "                        Options.WAL_ttl_seconds: %" PRIu64,
-                   wal_ttl_seconds);
+                   WAL_ttl_seconds);
   ROCKS_LOG_HEADER(log,
                    "                      Options.WAL_size_limit_MB: %" PRIu64,
-                   wal_size_limit_mb);
+                   WAL_size_limit_MB);
   ROCKS_LOG_HEADER(log,
                    "                       "
                    "Options.max_write_batch_group_size_bytes: %" PRIu64,
@@ -549,6 +756,9 @@ void ImmutableDBOptions::Dump(Logger* log) const {
                    is_fd_close_on_exec);
   ROCKS_LOG_HEADER(log, "                  Options.advise_random_on_open: %d",
                    advise_random_on_open);
+  ROCKS_LOG_HEADER(
+      log, "                  Options.experimental_mempurge_threshold: %f",
+      experimental_mempurge_threshold);
   ROCKS_LOG_HEADER(
       log, "                   Options.db_write_buffer_size: %" ROCKSDB_PRIszt,
       db_write_buffer_size);
@@ -631,6 +841,45 @@ void ImmutableDBOptions::Dump(Logger* log) const {
   ROCKS_LOG_HEADER(log,
                    "           Options.bgerror_resume_retry_interval: %" PRIu64,
                    bgerror_resume_retry_interval);
+  ROCKS_LOG_HEADER(log, "            Options.allow_data_in_errors: %d",
+                   allow_data_in_errors);
+  ROCKS_LOG_HEADER(log, "            Options.db_host_id: %s",
+                   db_host_id.c_str());
+}
+
+bool ImmutableDBOptions::IsWalDirSameAsDBPath() const {
+  assert(!db_paths.empty());
+  return IsWalDirSameAsDBPath(db_paths[0].path);
+}
+
+bool ImmutableDBOptions::IsWalDirSameAsDBPath(
+    const std::string& db_path) const {
+  bool same = wal_dir.empty();
+  if (!same) {
+    Status s = env->AreFilesSame(wal_dir, db_path, &same);
+    if (s.IsNotSupported()) {
+      same = wal_dir == db_path;
+    }
+  }
+  return same;
+}
+
+const std::string& ImmutableDBOptions::GetWalDir() const {
+  if (wal_dir.empty()) {
+    assert(!db_paths.empty());
+    return db_paths[0].path;
+  } else {
+    return wal_dir;
+  }
+}
+
+const std::string& ImmutableDBOptions::GetWalDir(
+    const std::string& path) const {
+  if (wal_dir.empty()) {
+    return path;
+  } else {
+    return wal_dir;
+  }
 }
 
 MutableDBOptions::MutableDBOptions()
@@ -719,4 +968,36 @@ void MutableDBOptions::Dump(Logger* log) const {
                           max_background_flushes);
 }
 
+#ifndef ROCKSDB_LITE
+Status GetMutableDBOptionsFromStrings(
+    const MutableDBOptions& base_options,
+    const std::unordered_map<std::string, std::string>& options_map,
+    MutableDBOptions* new_options) {
+  assert(new_options);
+  *new_options = base_options;
+  ConfigOptions config_options;
+  Status s = OptionTypeInfo::ParseType(
+      config_options, options_map, db_mutable_options_type_info, new_options);
+  if (!s.ok()) {
+    *new_options = base_options;
+  }
+  return s;
+}
+
+bool MutableDBOptionsAreEqual(const MutableDBOptions& this_options,
+                              const MutableDBOptions& that_options) {
+  ConfigOptions config_options;
+  std::string mismatch;
+  return OptionTypeInfo::StructsAreEqual(
+      config_options, "MutableDBOptions", &db_mutable_options_type_info,
+      "MutableDBOptions", &this_options, &that_options, &mismatch);
+}
+
+Status GetStringFromMutableDBOptions(const ConfigOptions& config_options,
+                                     const MutableDBOptions& mutable_opts,
+                                     std::string* opt_string) {
+  return OptionTypeInfo::SerializeType(
+      config_options, db_mutable_options_type_info, &mutable_opts, opt_string);
+}
+#endif  // ROCKSDB_LITE
 }  // namespace ROCKSDB_NAMESPACE

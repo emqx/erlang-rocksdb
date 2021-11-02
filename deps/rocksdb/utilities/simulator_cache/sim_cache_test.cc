@@ -4,7 +4,9 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include "rocksdb/utilities/sim_cache.h"
+
 #include <cstdlib>
+
 #include "db/db_test_util.h"
 #include "port/stack_trace.h"
 
@@ -21,7 +23,7 @@ class SimCacheTest : public DBTestBase {
   const size_t kNumBlocks = 5;
   const size_t kValueSize = 1000;
 
-  SimCacheTest() : DBTestBase("/sim_cache_test", /*env_do_fsync=*/true) {}
+  SimCacheTest() : DBTestBase("sim_cache_test", /*env_do_fsync=*/true) {}
 
   BlockBasedTableOptions GetTableOptions() {
     BlockBasedTableOptions table_options;
@@ -35,7 +37,7 @@ class SimCacheTest : public DBTestBase {
     options.create_if_missing = true;
     // options.compression = kNoCompression;
     options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
-    options.table_factory.reset(new BlockBasedTableFactory(table_options));
+    options.table_factory.reset(NewBlockBasedTableFactory(table_options));
     return options;
   }
 
@@ -84,9 +86,11 @@ TEST_F(SimCacheTest, SimCache) {
   co.metadata_charge_policy = kDontChargeCacheMetadata;
   std::shared_ptr<SimCache> simCache = NewSimCache(NewLRUCache(co), 20000, 0);
   table_options.block_cache = simCache;
-  options.table_factory.reset(new BlockBasedTableFactory(table_options));
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
   Reopen(options);
   RecordCacheCounters(options);
+  // due to cache entry stats collector
+  uint64_t base_misses = simCache->get_miss_counter();
 
   std::vector<std::unique_ptr<Iterator>> iterators(kNumBlocks);
   Iterator* iter = nullptr;
@@ -99,8 +103,8 @@ TEST_F(SimCacheTest, SimCache) {
     CheckCacheCounters(options, 1, 0, 1, 0);
     iterators[i].reset(iter);
   }
-  ASSERT_EQ(kNumBlocks,
-            simCache->get_hit_counter() + simCache->get_miss_counter());
+  ASSERT_EQ(kNumBlocks, simCache->get_hit_counter() +
+                            simCache->get_miss_counter() - base_misses);
   ASSERT_EQ(0, simCache->get_hit_counter());
   size_t usage = simCache->GetUsage();
   ASSERT_LT(0, usage);
@@ -137,8 +141,8 @@ TEST_F(SimCacheTest, SimCache) {
     CheckCacheCounters(options, 1, 0, 1, 0);
   }
   ASSERT_EQ(0, simCache->GetPinnedUsage());
-  ASSERT_EQ(3 * kNumBlocks + 1,
-            simCache->get_hit_counter() + simCache->get_miss_counter());
+  ASSERT_EQ(3 * kNumBlocks + 1, simCache->get_hit_counter() +
+                                    simCache->get_miss_counter() - base_misses);
   ASSERT_EQ(6, simCache->get_hit_counter());
 }
 
@@ -151,7 +155,7 @@ TEST_F(SimCacheTest, SimCacheLogging) {
   co.metadata_charge_policy = kDontChargeCacheMetadata;
   std::shared_ptr<SimCache> sim_cache = NewSimCache(NewLRUCache(co), 20000, 0);
   table_options.block_cache = sim_cache;
-  options.table_factory.reset(new BlockBasedTableFactory(table_options));
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
   Reopen(options);
 
   int num_block_entries = 20;

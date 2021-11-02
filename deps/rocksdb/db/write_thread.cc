@@ -208,6 +208,7 @@ uint8_t WriteThread::AwaitState(Writer* w, uint8_t goal_mask,
 }
 
 void WriteThread::SetState(Writer* w, uint8_t new_state) {
+  assert(w);
   auto state = w->state.load(std::memory_order_acquire);
   if (state == STATE_LOCKED_WAITING ||
       !w->state.compare_exchange_strong(state, new_state)) {
@@ -240,6 +241,7 @@ bool WriteThread::LinkOne(Writer* w, std::atomic<Writer*>* newest_writer) {
         MutexLock lock(&stall_mu_);
         writers = newest_writer->load(std::memory_order_relaxed);
         if (writers == &write_stall_dummy_) {
+          TEST_SYNC_POINT_CALLBACK("WriteThread::WriteStall::Wait", w);
           stall_cv_.Wait();
           // Load newest_writers_ again since it may have changed
           writers = newest_writer->load(std::memory_order_relaxed);
@@ -464,6 +466,11 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
       break;
     }
 
+    if (w->protection_bytes_per_key != leader->protection_bytes_per_key) {
+      // Do not mix writes with different levels of integrity protection.
+      break;
+    }
+
     if (w->batch == nullptr) {
       // Do not include those writes with nullptr batch. Those are not writes,
       // those are something else. They want to be alone
@@ -608,6 +615,8 @@ bool WriteThread::CompleteParallelMemTableWriter(Writer* w) {
   }
   // else we're the last parallel worker and should perform exit duties.
   w->status = write_group->status;
+  // Callers of this function must ensure w->status is checked.
+  write_group->status.PermitUncheckedError();
   return true;
 }
 
@@ -624,10 +633,16 @@ void WriteThread::ExitAsBatchGroupFollower(Writer* w) {
 
 static WriteThread::AdaptationContext eabgl_ctx("ExitAsBatchGroupLeader");
 void WriteThread::ExitAsBatchGroupLeader(WriteGroup& write_group,
-                                         Status status) {
+                                         Status& status) {
   Writer* leader = write_group.leader;
   Writer* last_writer = write_group.last_writer;
   assert(leader->link_older == nullptr);
+
+  // If status is non-ok already, then write_group.status won't have the chance
+  // of being propagated to caller.
+  if (!status.ok()) {
+    write_group.status.PermitUncheckedError();
+  }
 
   // Propagate memtable write error to the whole group.
   if (status.ok() && !write_group.status.ok()) {

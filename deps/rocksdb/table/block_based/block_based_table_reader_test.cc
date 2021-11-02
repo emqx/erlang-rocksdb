@@ -59,17 +59,17 @@ class BlockBasedTableReaderTest
 
     // Create table builder.
     Options options;
-    ImmutableCFOptions ioptions(options);
+    ImmutableOptions ioptions(options);
     InternalKeyComparator comparator(options.comparator);
     ColumnFamilyOptions cf_options;
     MutableCFOptions moptions(cf_options);
-    std::vector<std::unique_ptr<IntTblPropCollectorFactory>> factories;
+    IntTblPropCollectorFactories factories;
     std::unique_ptr<TableBuilder> table_builder(table_factory_->NewTableBuilder(
         TableBuilderOptions(ioptions, moptions, comparator, &factories,
-                            compression_type, 0 /* sample_for_compression */,
-                            CompressionOptions(), false /* skip_filters */,
-                            kDefaultColumnFamilyName, -1 /* level */),
-        0 /* column_family_id */, writer.get()));
+                            compression_type, CompressionOptions(),
+                            0 /* column_family_id */, kDefaultColumnFamilyName,
+                            -1 /* level */),
+        writer.get()));
 
     // Build table.
     for (auto it = kv.begin(); it != kv.end(); it++) {
@@ -81,7 +81,7 @@ class BlockBasedTableReaderTest
   }
 
   void NewBlockBasedTableReader(const FileOptions& foptions,
-                                const ImmutableCFOptions& ioptions,
+                                const ImmutableOptions& ioptions,
                                 const InternalKeyComparator& comparator,
                                 const std::string& table_name,
                                 std::unique_ptr<BlockBasedTable>* table) {
@@ -93,9 +93,12 @@ class BlockBasedTableReaderTest
 
     std::unique_ptr<TableReader> table_reader;
     ReadOptions ro;
-    ASSERT_OK(BlockBasedTable::Open(ro, ioptions, EnvOptions(),
-                                    table_factory_->table_options(), comparator,
-                                    std::move(file), file_size, &table_reader));
+    const auto* table_options =
+        table_factory_->GetOptions<BlockBasedTableOptions>();
+    ASSERT_NE(table_options, nullptr);
+    ASSERT_OK(BlockBasedTable::Open(ro, ioptions, EnvOptions(), *table_options,
+                                    comparator, std::move(file), file_size,
+                                    &table_reader));
 
     table->reset(reinterpret_cast<BlockBasedTable*>(table_reader.release()));
   }
@@ -132,7 +135,8 @@ class BlockBasedTableReaderTest
     std::string path = Path(filename);
     std::unique_ptr<FSRandomAccessFile> f;
     ASSERT_OK(fs_->NewRandomAccessFile(path, opt, &f, nullptr));
-    reader->reset(new RandomAccessFileReader(std::move(f), path, env_));
+    reader->reset(new RandomAccessFileReader(std::move(f), path,
+                                             env_->GetSystemClock().get()));
   }
 
   std::string ToInternalKey(const std::string& key) {
@@ -193,7 +197,7 @@ TEST_P(BlockBasedTableReaderTest, MultiGet) {
 
   std::unique_ptr<BlockBasedTable> table;
   Options options;
-  ImmutableCFOptions ioptions(options);
+  ImmutableOptions ioptions(options);
   FileOptions foptions;
   foptions.use_direct_reads = use_direct_reads_;
   InternalKeyComparator comparator(options.comparator);
@@ -224,7 +228,15 @@ TEST_P(BlockBasedTableReaderTest, MultiGet) {
 
   // Execute MultiGet.
   MultiGetContext::Range range = ctx.GetMultiGetRange();
+  PerfContext* perf_ctx = get_perf_context();
+  perf_ctx->Reset();
   table->MultiGet(ReadOptions(), &range, nullptr);
+
+  ASSERT_GE(perf_ctx->block_read_count - perf_ctx->index_block_read_count -
+                perf_ctx->filter_block_read_count -
+                perf_ctx->compression_dict_block_read_count,
+            1);
+  ASSERT_GE(perf_ctx->block_read_byte, 1);
 
   for (const Status& status : statuses) {
     ASSERT_OK(status);
@@ -271,7 +283,7 @@ TEST_P(BlockBasedTableReaderTestVerifyChecksum, ChecksumMismatch) {
 
   std::unique_ptr<BlockBasedTable> table;
   Options options;
-  ImmutableCFOptions ioptions(options);
+  ImmutableOptions ioptions(options);
   FileOptions foptions;
   foptions.use_direct_reads = use_direct_reads_;
   InternalKeyComparator comparator(options.comparator);
@@ -290,13 +302,14 @@ TEST_P(BlockBasedTableReaderTestVerifyChecksum, ChecksumMismatch) {
   }
   ASSERT_OK(iiter->status());
   iiter->SeekToFirst();
-  BlockHandle handle = static_cast<ParititionedIndexIterator*>(iiter)
+  BlockHandle handle = static_cast<PartitionedIndexIterator*>(iiter)
                            ->index_iter_->value()
                            .handle;
   table.reset();
 
   // Corrupt the block pointed to by handle
-  test::CorruptFile(Path(table_name), static_cast<int>(handle.offset()), 128);
+  ASSERT_OK(test::CorruptFile(options.env, Path(table_name),
+                              static_cast<int>(handle.offset()), 128));
 
   NewBlockBasedTableReader(foptions, ioptions, comparator, table_name, &table);
   Status s = table->VerifyChecksum(ReadOptions(),

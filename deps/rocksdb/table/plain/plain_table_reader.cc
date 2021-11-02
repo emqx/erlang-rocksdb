@@ -93,7 +93,7 @@ class PlainTableIterator : public InternalIterator {
 
 extern const uint64_t kPlainTableMagicNumber;
 PlainTableReader::PlainTableReader(
-    const ImmutableCFOptions& ioptions,
+    const ImmutableOptions& ioptions,
     std::unique_ptr<RandomAccessFileReader>&& file,
     const EnvOptions& storage_options, const InternalKeyComparator& icomparator,
     EncodingType encoding_type, uint64_t file_size,
@@ -113,10 +113,12 @@ PlainTableReader::PlainTableReader(
       table_properties_(nullptr) {}
 
 PlainTableReader::~PlainTableReader() {
+  // Should fix?
+  status_.PermitUncheckedError();
 }
 
 Status PlainTableReader::Open(
-    const ImmutableCFOptions& ioptions, const EnvOptions& env_options,
+    const ImmutableOptions& ioptions, const EnvOptions& env_options,
     const InternalKeyComparator& internal_comparator,
     std::unique_ptr<RandomAccessFileReader>&& file, uint64_t file_size,
     std::unique_ptr<TableReader>* table_reader, const int bloom_bits_per_key,
@@ -275,7 +277,7 @@ void PlainTableReader::AllocateBloom(int bloom_bits_per_key, int num_keys,
   if (bloom_total_bits > 0) {
     enable_bloom_ = true;
     bloom_.SetTotalBits(&arena_, bloom_total_bits, ioptions_.bloom_locality,
-                        huge_page_tlb_size, ioptions_.info_log);
+                        huge_page_tlb_size, ioptions_.logger);
   }
 }
 
@@ -455,16 +457,16 @@ Status PlainTableReader::GetOffset(PlainTableKeyDecoder* decoder,
   uint32_t high = upper_bound;
   ParsedInternalKey mid_key;
   ParsedInternalKey parsed_target;
-  if (!ParseInternalKey(target, &parsed_target)) {
-    return Status::Corruption(Slice());
-  }
+  Status s = ParseInternalKey(target, &parsed_target,
+                              false /* log_err_key */);  // TODO
+  if (!s.ok()) return s;
 
   // The key is between [low, high). Do a binary search between it.
   while (high - low > 1) {
     uint32_t mid = (high + low) / 2;
     uint32_t file_offset = GetFixed32Element(base_ptr, mid);
     uint32_t tmp;
-    Status s = decoder->NextKeyNoValue(file_offset, &mid_key, nullptr, &tmp);
+    s = decoder->NextKeyNoValue(file_offset, &mid_key, nullptr, &tmp);
     if (!s.ok()) {
       return s;
     }
@@ -489,7 +491,7 @@ Status PlainTableReader::GetOffset(PlainTableKeyDecoder* decoder,
   ParsedInternalKey low_key;
   uint32_t tmp;
   uint32_t low_key_offset = GetFixed32Element(base_ptr, low);
-  Status s = decoder->NextKeyNoValue(low_key_offset, &low_key, nullptr, &tmp);
+  s = decoder->NextKeyNoValue(low_key_offset, &low_key, nullptr, &tmp);
   if (!s.ok()) {
     return s;
   }
@@ -592,9 +594,10 @@ Status PlainTableReader::Get(const ReadOptions& /*ro*/, const Slice& target,
   }
   ParsedInternalKey found_key;
   ParsedInternalKey parsed_target;
-  if (!ParseInternalKey(target, &parsed_target)) {
-    return Status::Corruption(Slice());
-  }
+  s = ParseInternalKey(target, &parsed_target,
+                       false /* log_err_key */);  // TODO
+  if (!s.ok()) return s;
+
   Slice found_value;
   while (offset < file_info_.data_end_offset) {
     s = Next(&decoder, &offset, &found_key, nullptr, &found_value);

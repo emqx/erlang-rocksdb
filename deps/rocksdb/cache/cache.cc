@@ -10,7 +10,9 @@
 #include "rocksdb/cache.h"
 
 #include "cache/lru_cache.h"
-#include "options/options_helper.h"
+#include "rocksdb/secondary_cache.h"
+#include "rocksdb/utilities/customizable_util.h"
+#include "rocksdb/utilities/options_type.h"
 #include "util/string_util.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -19,23 +21,27 @@ static std::unordered_map<std::string, OptionTypeInfo>
     lru_cache_options_type_info = {
         {"capacity",
          {offsetof(struct LRUCacheOptions, capacity), OptionType::kSizeT,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct LRUCacheOptions, capacity)}},
+          OptionVerificationType::kNormal, OptionTypeFlags::kMutable}},
         {"num_shard_bits",
          {offsetof(struct LRUCacheOptions, num_shard_bits), OptionType::kInt,
-          OptionVerificationType::kNormal, OptionTypeFlags::kMutable,
-          offsetof(struct LRUCacheOptions, num_shard_bits)}},
+          OptionVerificationType::kNormal, OptionTypeFlags::kMutable}},
         {"strict_capacity_limit",
          {offsetof(struct LRUCacheOptions, strict_capacity_limit),
           OptionType::kBoolean, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct LRUCacheOptions, strict_capacity_limit)}},
+          OptionTypeFlags::kMutable}},
         {"high_pri_pool_ratio",
          {offsetof(struct LRUCacheOptions, high_pri_pool_ratio),
           OptionType::kDouble, OptionVerificationType::kNormal,
-          OptionTypeFlags::kMutable,
-          offsetof(struct LRUCacheOptions, high_pri_pool_ratio)}}};
+          OptionTypeFlags::kMutable}},
+};
 #endif  // ROCKSDB_LITE
+
+Status SecondaryCache::CreateFromString(
+    const ConfigOptions& config_options, const std::string& value,
+    std::shared_ptr<SecondaryCache>* result) {
+  return LoadSharedObject<SecondaryCache>(config_options, value, nullptr,
+                                          result);
+}
 
 Status Cache::CreateFromString(const ConfigOptions& config_options,
                                const std::string& value,
@@ -47,9 +53,9 @@ Status Cache::CreateFromString(const ConfigOptions& config_options,
   } else {
 #ifndef ROCKSDB_LITE
     LRUCacheOptions cache_opts;
-    status = OptionTypeInfo::ParseStruct(
-        config_options, "", &lru_cache_options_type_info, "", value,
-        reinterpret_cast<char*>(&cache_opts));
+    status = OptionTypeInfo::ParseStruct(config_options, "",
+                                         &lru_cache_options_type_info, "",
+                                         value, &cache_opts);
     if (status.ok()) {
       cache = NewLRUCache(cache_opts);
     }
