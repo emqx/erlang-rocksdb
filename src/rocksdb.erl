@@ -118,7 +118,8 @@
 -export([
   new_statistics/0,
   set_stats_level/2,
-  statistics_info/1
+  statistics_info/1,
+  release_statistics/1
 ]).
 
 %% Env API
@@ -1727,6 +1728,12 @@ set_stats_level(_StatisticsHandle, _StatsLevel) ->
   InfoTuple :: {stats_level, stats_level()}.
 statistics_info(_Statistics) ->
   ?nif_stub.
+
+
+%% @doc release the Statistics Handle
+-spec release_statistics(statistics_handle()) -> ok.
+release_statistics(_Statistics) ->
+    ?nif_stub.
 
 %% ===================================================================
 %% Internal functions

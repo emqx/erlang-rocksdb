@@ -187,7 +187,8 @@ static ErlNifFunc nif_funcs[] =
         // Statistics
         {"new_statistics", 0, erocksdb::NewStatistics, ERL_NIF_REGULAR_BOUND},
         {"set_stats_level", 2, erocksdb::SetStatsLevel, ERL_NIF_REGULAR_BOUND},
-        {"statistics_info", 1, erocksdb::StatisticsInfo, ERL_NIF_REGULAR_BOUND}
+        {"statistics_info", 1, erocksdb::StatisticsInfo, ERL_NIF_REGULAR_BOUND},
+        {"release_statistics", 1, erocksdb::ReleaseStatistics, ERL_NIF_REGULAR_BOUND},
         };
 
 namespace erocksdb {

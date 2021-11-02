@@ -68,6 +68,11 @@ Statistics::Statistics(std::shared_ptr<rocksdb::Statistics> statistics_arg) : st
 
 Statistics::~Statistics()
 {
+    if(statistics_)
+    {
+        statistics_ = NULL;
+    }
+    return;
 }
 
 std::shared_ptr<rocksdb::Statistics> Statistics::statistics() {
@@ -87,6 +92,17 @@ NewStatistics(
     enif_release_resource(statistics_ptr);
     return enif_make_tuple2(env, ATOM_OK, result);
 }
+
+ERL_NIF_TERM
+ReleaseStatistics(ErlNifEnv* env, int /*argc*/, const ERL_NIF_TERM argv[])
+{
+    Statistics* statistics_ptr = erocksdb::Statistics::RetrieveStatisticsResource(env, argv[0]);
+    if(NULL==statistics_ptr)
+        return ATOM_OK;
+    statistics_ptr->~Statistics();
+    return ATOM_OK;
+}
+
 
 bool StatsLevelAtomToEnum(ERL_NIF_TERM atom, rocksdb::StatsLevel* stats_level)
 {
