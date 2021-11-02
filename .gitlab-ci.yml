@@ -16,6 +16,10 @@
     script:
         - ./deps/rebar3 eunit
 
+erlang24:
+    extends: .test_base
+    image: erlang:24
+
 erlang22:
     extends: .test_base
     image: erlang:22
