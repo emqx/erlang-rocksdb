@@ -20,6 +20,7 @@
 
 #include "erl_nif.h"
 
+// Forward declaration
 namespace rocksdb {
     class Statistics;
 }

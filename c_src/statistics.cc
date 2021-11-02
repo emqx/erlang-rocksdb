@@ -16,8 +16,9 @@
 //
 #include <array>
 
-#include "atoms.h"
 #include "rocksdb/statistics.h"
+
+#include "atoms.h"
 #include "statistics.h"
 #include "util.h"
 
