@@ -11,7 +11,6 @@
 
 #include "db/version_edit.h"
 #include "db/version_set.h"
-#include "logging/logging.h"
 #include "test_util/testharness.h"
 #include "test_util/testutil.h"
 #include "util/string_util.h"
@@ -23,7 +22,7 @@ class VersionBuilderTest : public testing::Test {
   const Comparator* ucmp_;
   InternalKeyComparator icmp_;
   Options options_;
-  ImmutableCFOptions ioptions_;
+  ImmutableOptions ioptions_;
   MutableCFOptions mutable_cf_options_;
   VersionStorageInfo vstorage_;
   uint32_t file_num_;
@@ -203,8 +202,8 @@ TEST_F(VersionBuilderTest, ApplyAndSaveTo) {
 
   VersionStorageInfo new_vstorage(&icmp_, ucmp_, options_.num_levels,
                                   kCompactionStyleLevel, nullptr, false);
-  version_builder.Apply(&version_edit);
-  version_builder.SaveTo(&new_vstorage);
+  ASSERT_OK(version_builder.Apply(&version_edit));
+  ASSERT_OK(version_builder.SaveTo(&new_vstorage));
 
   ASSERT_EQ(400U, new_vstorage.NumLevelBytes(2));
   ASSERT_EQ(300U, new_vstorage.NumLevelBytes(3));
@@ -244,8 +243,8 @@ TEST_F(VersionBuilderTest, ApplyAndSaveToDynamic) {
 
   VersionStorageInfo new_vstorage(&icmp_, ucmp_, options_.num_levels,
                                   kCompactionStyleLevel, nullptr, false);
-  version_builder.Apply(&version_edit);
-  version_builder.SaveTo(&new_vstorage);
+  ASSERT_OK(version_builder.Apply(&version_edit));
+  ASSERT_OK(version_builder.SaveTo(&new_vstorage));
 
   ASSERT_EQ(0U, new_vstorage.NumLevelBytes(0));
   ASSERT_EQ(100U, new_vstorage.NumLevelBytes(3));
@@ -290,8 +289,8 @@ TEST_F(VersionBuilderTest, ApplyAndSaveToDynamic2) {
 
   VersionStorageInfo new_vstorage(&icmp_, ucmp_, options_.num_levels,
                                   kCompactionStyleLevel, nullptr, false);
-  version_builder.Apply(&version_edit);
-  version_builder.SaveTo(&new_vstorage);
+  ASSERT_OK(version_builder.Apply(&version_edit));
+  ASSERT_OK(version_builder.SaveTo(&new_vstorage));
 
   ASSERT_EQ(0U, new_vstorage.NumLevelBytes(0));
   ASSERT_EQ(100U, new_vstorage.NumLevelBytes(4));
@@ -339,8 +338,8 @@ TEST_F(VersionBuilderTest, ApplyMultipleAndSaveTo) {
 
   VersionStorageInfo new_vstorage(&icmp_, ucmp_, options_.num_levels,
                                   kCompactionStyleLevel, nullptr, false);
-  version_builder.Apply(&version_edit);
-  version_builder.SaveTo(&new_vstorage);
+  ASSERT_OK(version_builder.Apply(&version_edit));
+  ASSERT_OK(version_builder.SaveTo(&new_vstorage));
 
   ASSERT_EQ(500U, new_vstorage.NumLevelBytes(2));
 
@@ -386,7 +385,7 @@ TEST_F(VersionBuilderTest, ApplyDeleteAndSaveTo) {
                        kInvalidBlobFileNumber, kUnknownOldestAncesterTime,
                        kUnknownFileCreationTime, kUnknownFileChecksum,
                        kUnknownFileChecksumFuncName);
-  version_builder.Apply(&version_edit);
+  ASSERT_OK(version_builder.Apply(&version_edit));
 
   VersionEdit version_edit2;
   version_edit.AddFile(2, 808, 0, 100U, GetInternalKey("901"),
@@ -401,9 +400,9 @@ TEST_F(VersionBuilderTest, ApplyDeleteAndSaveTo) {
                        kInvalidBlobFileNumber, kUnknownOldestAncesterTime,
                        kUnknownFileCreationTime, kUnknownFileChecksum,
                        kUnknownFileChecksumFuncName);
-  version_builder.Apply(&version_edit2);
 
-  version_builder.SaveTo(&new_vstorage);
+  ASSERT_OK(version_builder.Apply(&version_edit2));
+  ASSERT_OK(version_builder.SaveTo(&new_vstorage));
 
   ASSERT_EQ(300U, new_vstorage.NumLevelBytes(2));
 
@@ -660,7 +659,9 @@ TEST_F(VersionBuilderTest, ApplyBlobFileAddition) {
   constexpr uint64_t total_blob_count = 5678;
   constexpr uint64_t total_blob_bytes = 999999;
   constexpr char checksum_method[] = "SHA1";
-  constexpr char checksum_value[] = "bdb7f34a59dfa1592ce7f52e99f98c570c525cbd";
+  constexpr char checksum_value[] =
+      "\xbd\xb7\xf3\x4a\x59\xdf\xa1\x59\x2c\xe7\xf5\x2e\x99\xf9\x8c\x57\x0c\x52"
+      "\x5c\xbd";
 
   edit.AddBlobFile(blob_file_number, total_blob_count, total_blob_bytes,
                    checksum_method, checksum_value);
@@ -704,7 +705,9 @@ TEST_F(VersionBuilderTest, ApplyBlobFileAdditionAlreadyInBase) {
   constexpr uint64_t total_blob_count = 5678;
   constexpr uint64_t total_blob_bytes = 999999;
   constexpr char checksum_method[] = "SHA1";
-  constexpr char checksum_value[] = "bdb7f34a59dfa1592ce7f52e99f98c570c525cbd";
+  constexpr char checksum_value[] =
+      "\xbd\xb7\xf3\x4a\x59\xdf\xa1\x59\x2c\xe7\xf5\x2e\x99\xf9\x8c\x57\x0c\x52"
+      "\x5c\xbd";
   constexpr uint64_t garbage_blob_count = 123;
   constexpr uint64_t garbage_blob_bytes = 456789;
 
@@ -745,7 +748,9 @@ TEST_F(VersionBuilderTest, ApplyBlobFileAdditionAlreadyApplied) {
   constexpr uint64_t total_blob_count = 5678;
   constexpr uint64_t total_blob_bytes = 999999;
   constexpr char checksum_method[] = "SHA1";
-  constexpr char checksum_value[] = "bdb7f34a59dfa1592ce7f52e99f98c570c525cbd";
+  constexpr char checksum_value[] =
+      "\xbd\xb7\xf3\x4a\x59\xdf\xa1\x59\x2c\xe7\xf5\x2e\x99\xf9\x8c\x57\x0c\x52"
+      "\x5c\xbd";
 
   edit.AddBlobFile(blob_file_number, total_blob_count, total_blob_bytes,
                    checksum_method, checksum_value);
@@ -765,7 +770,9 @@ TEST_F(VersionBuilderTest, ApplyBlobFileGarbageFileInBase) {
   constexpr uint64_t total_blob_count = 5678;
   constexpr uint64_t total_blob_bytes = 999999;
   constexpr char checksum_method[] = "SHA1";
-  constexpr char checksum_value[] = "bdb7f34a59dfa1592ce7f52e99f98c570c525cbd";
+  constexpr char checksum_value[] =
+      "\xbd\xb7\xf3\x4a\x59\xdf\xa1\x59\x2c\xe7\xf5\x2e\x99\xf9\x8c\x57\x0c\x52"
+      "\x5c\xbd";
   constexpr uint64_t garbage_blob_count = 123;
   constexpr uint64_t garbage_blob_bytes = 456789;
 
@@ -842,7 +849,9 @@ TEST_F(VersionBuilderTest, ApplyBlobFileGarbageFileAdditionApplied) {
   constexpr uint64_t total_blob_count = 5678;
   constexpr uint64_t total_blob_bytes = 999999;
   constexpr char checksum_method[] = "SHA1";
-  constexpr char checksum_value[] = "bdb7f34a59dfa1592ce7f52e99f98c570c525cbd";
+  constexpr char checksum_value[] =
+      "\xbd\xb7\xf3\x4a\x59\xdf\xa1\x59\x2c\xe7\xf5\x2e\x99\xf9\x8c\x57\x0c\x52"
+      "\x5c\xbd";
 
   addition.AddBlobFile(blob_file_number, total_blob_count, total_blob_bytes,
                        checksum_method, checksum_value);

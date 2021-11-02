@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <array>
 #include <string>
+
+#include "db/dbformat.h"
 #include "db/lookup_key.h"
 #include "db/merge_context.h"
 #include "rocksdb/env.h"
@@ -21,13 +23,15 @@ class GetContext;
 struct KeyContext {
   const Slice* key;
   LookupKey* lkey;
-  Slice ukey;
+  Slice ukey_with_ts;
+  Slice ukey_without_ts;
   Slice ikey;
   ColumnFamilyHandle* column_family;
   Status* s;
   MergeContext merge_context;
   SequenceNumber max_covering_tombstone_seq;
   bool key_exists;
+  bool is_blob_index;
   void* cb_arg;
   PinnableSlice* value;
   std::string* timestamp;
@@ -41,6 +45,7 @@ struct KeyContext {
         s(stat),
         max_covering_tombstone_seq(0),
         key_exists(false),
+        is_blob_index(false),
         cb_arg(nullptr),
         value(val),
         timestamp(ts),
@@ -87,10 +92,12 @@ struct KeyContext {
 class MultiGetContext {
  public:
   // Limit the number of keys in a batch to this number. Benchmarks show that
-  // there is negligible benefit for batches exceeding this. Keeping this < 64
+  // there is negligible benefit for batches exceeding this. Keeping this < 32
   // simplifies iteration, as well as reduces the amount of stack allocations
-  // htat need to be performed
+  // that need to be performed
   static const int MAX_BATCH_SIZE = 32;
+
+  static_assert(MAX_BATCH_SIZE < 64, "MAX_BATCH_SIZE cannot exceed 63");
 
   MultiGetContext(autovector<KeyContext*, MAX_BATCH_SIZE>* sorted_keys,
                   size_t begin, size_t num_keys, SequenceNumber snapshot,
@@ -99,6 +106,7 @@ class MultiGetContext {
         value_mask_(0),
         value_size_(0),
         lookup_key_ptr_(reinterpret_cast<LookupKey*>(lookup_key_stack_buf)) {
+    assert(num_keys <= MAX_BATCH_SIZE);
     if (num_keys > MAX_LOOKUP_KEYS_ON_STACK) {
       lookup_key_heap_buf.reset(new char[sizeof(LookupKey) * num_keys]);
       lookup_key_ptr_ = reinterpret_cast<LookupKey*>(
@@ -110,7 +118,10 @@ class MultiGetContext {
       sorted_keys_[iter] = (*sorted_keys)[begin + iter];
       sorted_keys_[iter]->lkey = new (&lookup_key_ptr_[iter])
           LookupKey(*sorted_keys_[iter]->key, snapshot, read_opts.timestamp);
-      sorted_keys_[iter]->ukey = sorted_keys_[iter]->lkey->user_key();
+      sorted_keys_[iter]->ukey_with_ts = sorted_keys_[iter]->lkey->user_key();
+      sorted_keys_[iter]->ukey_without_ts = StripTimestampFromUserKey(
+          sorted_keys_[iter]->lkey->user_key(),
+          read_opts.timestamp == nullptr ? 0 : read_opts.timestamp->size());
       sorted_keys_[iter]->ikey = sorted_keys_[iter]->lkey->internal_key();
     }
   }
@@ -150,12 +161,12 @@ class MultiGetContext {
     class Iterator {
      public:
       // -- iterator traits
-      typedef Iterator self_type;
-      typedef KeyContext value_type;
-      typedef KeyContext& reference;
-      typedef KeyContext* pointer;
-      typedef int difference_type;
-      typedef std::forward_iterator_tag iterator_category;
+      using self_type = Iterator;
+      using value_type = KeyContext;
+      using reference = KeyContext&;
+      using pointer = KeyContext*;
+      using difference_type = int;
+      using iterator_category = std::forward_iterator_tag;
 
       Iterator(const Range* range, size_t idx)
           : range_(range), ctx_(range->ctx_), index_(idx) {
@@ -226,6 +237,10 @@ class MultiGetContext {
 
     void SkipKey(const Iterator& iter) {
       skip_mask_ |= uint64_t{1} << iter.index_;
+    }
+
+    bool IsKeySkipped(const Iterator& iter) const {
+      return skip_mask_ & (uint64_t{1} << iter.index_);
     }
 
     // Update the value_mask_ in MultiGetContext so its

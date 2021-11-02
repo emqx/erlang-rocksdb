@@ -54,7 +54,8 @@ CuckooTableBuilder::CuckooTableBuilder(
     bool use_module_hash, bool identity_as_first_hash,
     uint64_t (*get_slice_hash)(const Slice&, uint32_t, uint64_t),
     uint32_t column_family_id, const std::string& column_family_name,
-    const std::string& db_id, const std::string& db_session_id)
+    const std::string& db_id, const std::string& db_session_id,
+    uint64_t file_number)
     : num_hash_func_(2),
       file_(file),
       max_hash_table_ratio_(max_hash_table_ratio),
@@ -82,6 +83,9 @@ CuckooTableBuilder::CuckooTableBuilder(
   properties_.column_family_name = column_family_name;
   properties_.db_id = db_id;
   properties_.db_session_id = db_session_id;
+  properties_.orig_file_number = file_number;
+  status_.PermitUncheckedError();
+  io_status_.PermitUncheckedError();
 }
 
 void CuckooTableBuilder::Add(const Slice& key, const Slice& value) {
@@ -90,8 +94,11 @@ void CuckooTableBuilder::Add(const Slice& key, const Slice& value) {
     return;
   }
   ParsedInternalKey ikey;
-  if (!ParseInternalKey(key, &ikey)) {
-    status_ = Status::Corruption("Unable to parse key into inernal key.");
+  Status pik_status =
+      ParseInternalKey(key, &ikey, false /* log_err_key */);  // TODO
+  if (!pik_status.ok()) {
+    status_ = Status::Corruption("Unable to parse key into internal key. ",
+                                 pik_status.getState());
     return;
   }
   if (ikey.type != kTypeDeletion && ikey.type != kTypeValue) {
@@ -247,7 +254,6 @@ Status CuckooTableBuilder::Finish() {
   assert(!closed_);
   closed_ = true;
   std::vector<CuckooBucket> buckets;
-  Status s;
   std::string unused_bucket;
   if (num_entries_ > 0) {
     // Calculate the real hash size if module hash is enabled.

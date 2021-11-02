@@ -32,7 +32,7 @@ namespace {
 class UniversalCompactionBuilder {
  public:
   UniversalCompactionBuilder(
-      const ImmutableCFOptions& ioptions, const InternalKeyComparator* icmp,
+      const ImmutableOptions& ioptions, const InternalKeyComparator* icmp,
       const std::string& cf_name, const MutableCFOptions& mutable_cf_options,
       const MutableDBOptions& mutable_db_options, VersionStorageInfo* vstorage,
       UniversalCompactionPicker* picker, LogBuffer* log_buffer)
@@ -108,7 +108,7 @@ class UniversalCompactionBuilder {
   // overlapping.
   bool IsInputFilesNonOverlapping(Compaction* c);
 
-  const ImmutableCFOptions& ioptions_;
+  const ImmutableOptions& ioptions_;
   const InternalKeyComparator* icmp_;
   double score_;
   std::vector<SortedRun> sorted_runs_;
@@ -157,9 +157,9 @@ struct SmallestKeyHeapComparator {
   const Comparator* ucmp_;
 };
 
-typedef std::priority_queue<InputFileInfo, std::vector<InputFileInfo>,
-                            SmallestKeyHeapComparator>
-    SmallestKeyHeap;
+using SmallestKeyHeap =
+    std::priority_queue<InputFileInfo, std::vector<InputFileInfo>,
+                        SmallestKeyHeapComparator>;
 
 // This function creates the heap that is used to find if the files are
 // overlapping during universal compaction when the allow_trivial_move
@@ -461,7 +461,6 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
 
 // validate that all the chosen files of L0 are non overlapping in time
 #ifndef NDEBUG
-  SequenceNumber prev_smallest_seqno = 0U;
   bool is_first = true;
 
   size_t level_index = 0U;
@@ -471,7 +470,6 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
       if (is_first) {
         is_first = false;
       }
-      prev_smallest_seqno = f->fd.smallest_seqno;
     }
     level_index = 1U;
   }
@@ -483,21 +481,12 @@ Compaction* UniversalCompactionBuilder::PickCompaction() {
                               &largest_seqno);
       if (is_first) {
         is_first = false;
-      } else if (prev_smallest_seqno > 0) {
-        // A level is considered as the bottommost level if there are
-        // no files in higher levels or if files in higher levels do
-        // not overlap with the files being compacted. Sequence numbers
-        // of files in bottommost level can be set to 0 to help
-        // compression. As a result, the following assert may not hold
-        // if the prev_smallest_seqno is 0.
-        assert(prev_smallest_seqno > largest_seqno);
       }
-      prev_smallest_seqno = smallest_seqno;
     }
   }
 #endif
   // update statistics
-  RecordInHistogram(ioptions_.statistics, NUM_FILES_IN_SINGLE_COMPACTION,
+  RecordInHistogram(ioptions_.stats, NUM_FILES_IN_SINGLE_COMPACTION,
                     c->inputs(0)->size());
 
   picker_->RegisterCompaction(c);
@@ -739,12 +728,13 @@ Compaction* UniversalCompactionBuilder::PickCompactionToReduceSortedRuns(
                          1, enable_compression),
       GetCompressionOptions(mutable_cf_options_, vstorage_, start_level,
                             enable_compression),
+      Temperature::kUnknown,
       /* max_subcompactions */ 0, /* grandparents */ {}, /* is manual */ false,
       score_, false /* deletion_compaction */, compaction_reason);
 }
 
 // Look at overall size amplification. If size amplification
-// exceeeds the configured value, then do a compaction
+// exceeds the configured value, then do a compaction
 // of the candidate files all the way upto the earliest
 // base file (overrides configured values of file-size ratios,
 // min_merge_width and max_merge_width).
@@ -966,6 +956,7 @@ Compaction* UniversalCompactionBuilder::PickDeleteTriggeredCompaction() {
       GetCompressionType(ioptions_, vstorage_, mutable_cf_options_,
                          output_level, 1),
       GetCompressionOptions(mutable_cf_options_, vstorage_, output_level),
+      Temperature::kUnknown,
       /* max_subcompactions */ 0, /* grandparents */ {}, /* is manual */ false,
       score_, false /* deletion_compaction */,
       CompactionReason::kFilesMarkedForCompaction);
@@ -1007,6 +998,9 @@ Compaction* UniversalCompactionBuilder::PickCompactionToOldest(
       comp_reason_print_string = "size amp";
     } else {
       assert(false);
+      comp_reason_print_string = "unknown: ";
+      comp_reason_print_string.append(
+          std::to_string(static_cast<int>(compaction_reason)));
     }
 
     char file_num_buf[256];
@@ -1037,6 +1031,7 @@ Compaction* UniversalCompactionBuilder::PickCompactionToOldest(
                          output_level, 1, true /* enable_compression */),
       GetCompressionOptions(mutable_cf_options_, vstorage_, output_level,
                             true /* enable_compression */),
+      Temperature::kUnknown,
       /* max_subcompactions */ 0, /* grandparents */ {}, /* is manual */ false,
       score_, false /* deletion_compaction */, compaction_reason);
 }
