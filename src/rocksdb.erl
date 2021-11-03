@@ -162,7 +162,7 @@
 -export([
          transaction/2,
          transaction_put/3, transaction_put/4,
-         transaction_get/2, transaction_get/3,
+         transaction_get/3, transaction_get/4,
          %% see comment in c_src/transaction.cc
          %% transaction_merge/3, transaction_merge/4,
          transaction_delete/2, transaction_delete/3,
@@ -1276,22 +1276,27 @@ transaction_put(_Transaction, _Key, _Value) ->
 transaction_put(_Transaction, _ColumnFamily, _Key, _Value) ->
   ?nif_stub.
 
-%% @doc add a get operation to the transaction
--spec transaction_get(Transaction :: transaction_handle(), Key :: binary()) ->
-                     Res :: {ok, binary()} |
-                            not_found |
-                            {error, {corruption, string()}} |
-                            {error, any()}.
-transaction_get(_Transaction, _Key) ->
+%% @doc do a get operation on the contents of the transaction
+-spec transaction_get(Transaction :: transaction_handle(),
+                      Key :: binary(),
+                      Opts :: read_options()) ->
+          Res :: {ok, binary()} |
+                 not_found |
+                 {error, {corruption, string()}} |
+                 {error, any()}.
+transaction_get(_Transaction, _Key, _Opts) ->
   ?nif_stub.
 
 %% @doc like `transaction_get/3' but apply the operation to a column family
--spec transaction_get(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary()) ->
-                     Res :: {ok, binary()} |
-                            not_found |
-                            {error, {corruption, string()}} |
-                            {error, any()}.
-transaction_get(_Transaction, _ColumnFamily, _Key) ->
+-spec transaction_get(Transaction :: transaction_handle(),
+                      ColumnFamily :: cf_handle(),
+                      Key :: binary(),
+                      Opts :: read_options()) ->
+          Res :: {ok, binary()} |
+                 not_found |
+                 {error, {corruption, string()}} |
+                 {error, any()}.
+transaction_get(_Transaction, _ColumnFamily, _Key, _Opts) ->
   ?nif_stub.
 
 %% see comment in c_src/transaction.cc
