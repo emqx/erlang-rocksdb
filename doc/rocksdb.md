@@ -455,7 +455,7 @@ Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#tlog_iterator-2">tlog_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#tlog_iterator_close-1">tlog_iterator_close/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#tlog_next_binary_update-1">tlog_next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#tlog_next_update-1">tlog_next_update/1</a></td><td>like <code>tlog_nex_binary_update/1</code> but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#transaction-2">transaction/2</a></td><td>create a new transaction
 When opened as a Transaction or Optimistic Transaction db,
 a user can both read and write to a transaction without committing
-anything to the disk until they decide to do so.</td></tr><tr><td valign="top"><a href="#transaction_commit-1">transaction_commit/1</a></td><td>commit a transaction to disk atomically (?).</td></tr><tr><td valign="top"><a href="#transaction_delete-2">transaction_delete/2</a></td><td>transaction implementation of delete operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_delete-3">transaction_delete/3</a></td><td>like <code>transaction_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_get-2">transaction_get/2</a></td><td>add a get operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_get-3">transaction_get/3</a></td><td>like <code>transaction_get/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_iterator-3">transaction_iterator/3</a></td><td>Return a iterator over the contents of the database and
+anything to the disk until they decide to do so.</td></tr><tr><td valign="top"><a href="#transaction_commit-1">transaction_commit/1</a></td><td>commit a transaction to disk atomically (?).</td></tr><tr><td valign="top"><a href="#transaction_delete-2">transaction_delete/2</a></td><td>transaction implementation of delete operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_delete-3">transaction_delete/3</a></td><td>like <code>transaction_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_get-3">transaction_get/3</a></td><td>do a get operation on the contents of the transaction.</td></tr><tr><td valign="top"><a href="#transaction_get-4">transaction_get/4</a></td><td>like <code>transaction_get/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_iterator-3">transaction_iterator/3</a></td><td>Return a iterator over the contents of the database and
 uncommited writes and deletes in the current transaction.</td></tr><tr><td valign="top"><a href="#transaction_iterator-4">transaction_iterator/4</a></td><td>Return a iterator over the contents of the database and
 uncommited writes and deletes in the current transaction.</td></tr><tr><td valign="top"><a href="#transaction_put-3">transaction_put/3</a></td><td>add a put operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_put-4">transaction_put/4</a></td><td>like <code>transaction_put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td></td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
 our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-1">write_buffer_manager_info/1</a></td><td>return informations of a Write Buffer Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-2">write_buffer_manager_info/2</a></td><td>return the information associated with Item for a Write Buffer Manager.</td></tr></table>
@@ -2079,23 +2079,23 @@ transaction_delete(Transaction::<a href="#type-transaction_handle">transaction_h
 
 like `transaction_delete/2` but apply the operation to a column family
 
-<a name="transaction_get-2"></a>
-
-### transaction_get/2 ###
-
-<pre><code>
-transaction_get(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, Key::binary()) -&gt; Res::{ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}
-</code></pre>
-<br />
-
-add a get operation to the transaction
-
 <a name="transaction_get-3"></a>
 
 ### transaction_get/3 ###
 
 <pre><code>
-transaction_get(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary()) -&gt; Res::{ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}
+transaction_get(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, Key::binary(), Opts::<a href="#type-read_options">read_options()</a>) -&gt; Res::{ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}
+</code></pre>
+<br />
+
+do a get operation on the contents of the transaction
+
+<a name="transaction_get-4"></a>
+
+### transaction_get/4 ###
+
+<pre><code>
+transaction_get(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary(), Opts::<a href="#type-read_options">read_options()</a>) -&gt; Res::{ok, binary()} | not_found | {error, {corruption, string()}} | {error, any()}
 </code></pre>
 <br />
 
