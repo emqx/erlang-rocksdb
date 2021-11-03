@@ -264,6 +264,12 @@ IteratorMove(
     {
         if(ATOM_FIRST == action_or_target) itr->SeekToFirst();
         if(ATOM_LAST == action_or_target) itr->SeekToLast();
+
+        if(!itr->Valid())
+        {
+            return enif_make_tuple2(env, ATOM_ERROR, ATOM_INVALID_ITERATOR);
+        }
+
         if(ATOM_NEXT == action_or_target) itr->Next();
         if(ATOM_PREV == action_or_target) itr->Prev();
     }

@@ -153,13 +153,16 @@ refresh_test() ->
   {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
   try
     rocksdb:put(Ref, <<"a">>, <<"x">>, []),
-    rocksdb:put(Ref, <<"b">>, <<"y">>, []),
     {ok, I} = rocksdb:iterator(Ref, []),
+    rocksdb:put(Ref, <<"b">>, <<"y">>, []),
     ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
+    ?assertEqual({error, invalid_iterator},rocksdb:iterator_move(I, next)),
     ?assertEqual(ok, rocksdb:iterator_refresh(I)),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
     ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I, next)),
-    ?assertEqual(ok, rocksdb:iterator_refresh(I)),
     ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, prev)),
+    ?assertEqual(ok, rocksdb:iterator_refresh(I)),
+    ?assertEqual({error, invalid_iterator},rocksdb:iterator_move(I, next)),
     ?assertEqual(ok, rocksdb:iterator_close(I)),
     ?assertError(badarg, rocksdb:iterator_refresh(I))
   after
@@ -232,6 +235,26 @@ prefix_same_as_start_test() ->
   end,
   rocksdb:destroy("test_prefix", []),
   rocksdb_test_util:rm_rf("test_prefix").
+
+
+invalid_test() ->
+  rocksdb_test_util:rm_rf("ltest"),  % NOTE
+  {ok, Ref} = rocksdb:open("ltest", [{create_if_missing, true}]),
+  try
+    rocksdb:put(Ref, <<"a">>, <<"x">>, []),
+    rocksdb:put(Ref, <<"b">>, <<"y">>, []),
+    {ok, I} = rocksdb:iterator(Ref, []),
+    ?assertEqual({error, invalid_iterator}, rocksdb:iterator_move(I, next)),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, <<>>)),
+    ?assertEqual({ok, <<"b">>, <<"y">>},rocksdb:iterator_move(I, next)),
+    ?assertEqual({ok, <<"a">>, <<"x">>},rocksdb:iterator_move(I, prev)),
+    ?assertEqual(ok, rocksdb:iterator_close(I))
+  after
+    rocksdb:close(Ref)
+  end,
+  rocksdb:destroy("ltest", []),
+  rocksdb_test_util:rm_rf("ltest").
+
 
 seek_iterator(Itr, Prefix, Suffix) ->
   rocksdb:iterator_move(Itr, test_key(Prefix, Suffix)).
