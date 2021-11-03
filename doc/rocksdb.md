@@ -55,7 +55,7 @@ __abstract datatype__: `batch_handle()`
 
 
 <pre><code>
-block_based_table_options() = [{no_block_cache, boolean()} | {block_size, pos_integer()} | {block_cache, <a href="#type-cache_handle">cache_handle()</a>} | {block_cache_size, pos_integer()} | {bloom_filter_policy, BitsPerKey::pos_integer()} | {format_version, 0 | 1 | 2} | {cache_index_and_filter_blocks, boolean()}]
+block_based_table_options() = [{no_block_cache, boolean()} | {block_size, pos_integer()} | {block_cache, <a href="#type-cache_handle">cache_handle()</a>} | {block_cache_size, pos_integer()} | {bloom_filter_policy, BitsPerKey::pos_integer()} | {format_version, 0 | 1 | 2 | 3 | 4 | 5} | {cache_index_and_filter_blocks, boolean()}]
 </code></pre>
 
 
@@ -79,6 +79,16 @@ cache_type() = lru | clock
 
 
 
+### <a name="type-cf_descriptor">cf_descriptor()</a> ###
+
+
+<pre><code>
+cf_descriptor() = {string(), <a href="#type-cf_options">cf_options()</a>}
+</code></pre>
+
+
+
+
 ### <a name="type-cf_handle">cf_handle()</a> ###
 
 
@@ -91,7 +101,7 @@ __abstract datatype__: `cf_handle()`
 
 
 <pre><code>
-cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {memtable_memory_budget, pos_integer()} | {write_buffer_size, pos_integer()} | {max_write_buffer_number, pos_integer()} | {min_write_buffer_number_to_merge, pos_integer()} | {compression, <a href="#type-compression_type">compression_type()</a>} | {num_levels, pos_integer()} | {level0_file_num_compaction_trigger, integer()} | {level0_slowdown_writes_trigger, integer()} | {level0_stop_writes_trigger, integer()} | {max_mem_compaction_level, pos_integer()} | {target_file_size_base, pos_integer()} | {target_file_size_multiplier, pos_integer()} | {max_bytes_for_level_base, pos_integer()} | {max_bytes_for_level_multiplier, pos_integer()} | {max_compaction_bytes, pos_integer()} | {soft_rate_limit, float()} | {hard_rate_limit, float()} | {arena_block_size, integer()} | {disable_auto_compactions, boolean()} | {purge_redundant_kvs_while_flush, boolean()} | {compaction_style, <a href="#type-compaction_style">compaction_style()</a>} | {compaction_pri, <a href="#type-compaction_pri">compaction_pri()</a>} | {filter_deletes, boolean()} | {max_sequential_skip_in_iterations, pos_integer()} | {inplace_update_support, boolean()} | {inplace_update_num_locks, pos_integer()} | {table_factory_block_cache_size, pos_integer()} | {in_memory_mode, boolean()} | {block_based_table_options, <a href="#type-block_based_table_options">block_based_table_options()</a>} | {level_compaction_dynamic_level_bytes, boolean()} | {optimize_filters_for_hits, boolean()} | {prefix_transform, {fixed_prefix_transform, integer()} | {capped_prefix_transform, integer()}} | {merge_operator, <a href="#type-merge_operator">merge_operator()</a>}]
+cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {memtable_memory_budget, pos_integer()} | {write_buffer_size, pos_integer()} | {max_write_buffer_number, pos_integer()} | {min_write_buffer_number_to_merge, pos_integer()} | {compression, <a href="#type-compression_type">compression_type()</a>} | {bottommost_compression, <a href="#type-compression_type">compression_type()</a>} | {compression_opts, <a href="#type-compression_opts">compression_opts()</a>} | {bottommost_compression_opts, <a href="#type-compression_opts">compression_opts()</a>} | {num_levels, pos_integer()} | {level0_file_num_compaction_trigger, integer()} | {level0_slowdown_writes_trigger, integer()} | {level0_stop_writes_trigger, integer()} | {max_mem_compaction_level, pos_integer()} | {target_file_size_base, pos_integer()} | {target_file_size_multiplier, pos_integer()} | {max_bytes_for_level_base, pos_integer()} | {max_bytes_for_level_multiplier, pos_integer()} | {max_compaction_bytes, pos_integer()} | {soft_rate_limit, float()} | {hard_rate_limit, float()} | {arena_block_size, integer()} | {disable_auto_compactions, boolean()} | {purge_redundant_kvs_while_flush, boolean()} | {compaction_style, <a href="#type-compaction_style">compaction_style()</a>} | {compaction_pri, <a href="#type-compaction_pri">compaction_pri()</a>} | {filter_deletes, boolean()} | {max_sequential_skip_in_iterations, pos_integer()} | {inplace_update_support, boolean()} | {inplace_update_num_locks, pos_integer()} | {table_factory_block_cache_size, pos_integer()} | {in_memory_mode, boolean()} | {block_based_table_options, <a href="#type-block_based_table_options">block_based_table_options()</a>} | {level_compaction_dynamic_level_bytes, boolean()} | {optimize_filters_for_hits, boolean()} | {prefix_extractor, {fixed_prefix_transform, integer()} | {capped_prefix_transform, integer()}} | {merge_operator, <a href="#type-merge_operator">merge_operator()</a>}]
 </code></pre>
 
 
@@ -137,6 +147,16 @@ compaction_style() = level | universal | fifo | none
 
 
 
+### <a name="type-compression_opts">compression_opts()</a> ###
+
+
+<pre><code>
+compression_opts() = [{enabled, boolean()} | {window_bits, pos_integer()} | {level, non_neg_integer()} | {strategy, integer()} | {max_dict_bytes, non_neg_integer()} | {zstd_max_train_bytes, non_neg_integer()}]
+</code></pre>
+
+
+
+
 ### <a name="type-compression_type">compression_type()</a> ###
 
 
@@ -159,7 +179,7 @@ __abstract datatype__: `db_handle()`
 
 
 <pre><code>
-db_options() = [{env, <a href="#type-env">env()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="file.md#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="file.md#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_jobs, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {manual_wal_flush, boolean()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {new_table_reader_for_compaction_inputs, boolean()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {db_write_buffer_size, non_neg_integer()} | {in_memory, boolean()} | {rate_limiter, <a href="#type-rate_limiter_handle">rate_limiter_handle()</a>} | {sst_file_manager, <a href="#type-sst_file_manager">sst_file_manager()</a>} | {write_buffer_manager, <a href="#type-write_buffer_manager">write_buffer_manager()</a>} | {max_subcompactions, non_neg_integer()} | {atomic_flush, boolean()}]
+db_options() = [{env, <a href="#type-env">env()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_jobs, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {manual_wal_flush, boolean()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {new_table_reader_for_compaction_inputs, boolean()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {db_write_buffer_size, non_neg_integer()} | {in_memory, boolean()} | {rate_limiter, <a href="#type-rate_limiter_handle">rate_limiter_handle()</a>} | {sst_file_manager, <a href="#type-sst_file_manager">sst_file_manager()</a>} | {write_buffer_manager, <a href="#type-write_buffer_manager">write_buffer_manager()</a>} | {max_subcompactions, non_neg_integer()} | {atomic_flush, boolean()} | {use_direct_reads, boolean()} | {use_direct_io_for_flush_and_compaction, boolean()} | {enable_pipelined_write, boolean()} | {unordered_write, boolean()} | {two_write_queues, boolean()} | {statistics, <a href="#type-statistics_handle">statistics_handle()</a>}]
 </code></pre>
 
 
@@ -291,7 +311,17 @@ __abstract datatype__: `rate_limiter_handle()`
 
 
 <pre><code>
-read_options() = [{verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {iterate_lower_bound, binary()} | {tailing, boolean()} | {total_order_seek, boolean()} | {prefix_same_as_start, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
+read_options() = [{read_tier, <a href="#type-read_tier">read_tier()</a>} | {verify_checksums, boolean()} | {fill_cache, boolean()} | {iterate_upper_bound, binary()} | {iterate_lower_bound, binary()} | {tailing, boolean()} | {total_order_seek, boolean()} | {prefix_same_as_start, boolean()} | {snapshot, <a href="#type-snapshot_handle">snapshot_handle()</a>}]
+</code></pre>
+
+
+
+
+### <a name="type-read_tier">read_tier()</a> ###
+
+
+<pre><code>
+read_tier() = read_all_tier | block_cache_tier | persisted_tier | memtable_tier
 </code></pre>
 
 
@@ -319,6 +349,24 @@ __abstract datatype__: `snapshot_handle()`
 
 
 __abstract datatype__: `sst_file_manager()`
+
+
+
+
+### <a name="type-statistics_handle">statistics_handle()</a> ###
+
+
+__abstract datatype__: `statistics_handle()`
+
+
+
+
+### <a name="type-stats_level">stats_level()</a> ###
+
+
+<pre><code>
+stats_level() = stats_disable_all | stats_except_tickers | stats_except_histogram_or_timers | stats_except_timers | stats_except_detailed_timers | stats_except_time_for_mutex | stats_all
+</code></pre>
 
 
 
@@ -389,20 +437,20 @@ Move to the specified place.</td></tr><tr><td valign="top"><a href="#iterator_re
 Refresh iterator.</td></tr><tr><td valign="top"><a href="#iterators-3">iterators/3</a></td><td>
 Return a iterator over the contents of the specified column family.</td></tr><tr><td valign="top"><a href="#list_column_families-2">list_column_families/2</a></td><td>List column families.</td></tr><tr><td valign="top"><a href="#mem_env-0">mem_env/0</a></td><td></td></tr><tr><td valign="top"><a href="#merge-4">merge/4</a></td><td>Merge a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#merge-5">merge/5</a></td><td>Merge a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#new_cache-2">new_cache/2</a></td><td>// Create a new cache.</td></tr><tr><td valign="top"><a href="#new_clock_cache-1">new_clock_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_env-0">new_env/0</a></td><td>return a default db environment.</td></tr><tr><td valign="top"><a href="#new_env-1">new_env/1</a></td><td>return a db environment.</td></tr><tr><td valign="top"><a href="#new_lru_cache-1">new_lru_cache/1</a></td><td></td></tr><tr><td valign="top"><a href="#new_rate_limiter-2">new_rate_limiter/2</a></td><td>create new Limiter.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-1">new_sst_file_manager/1</a></td><td>create new SstFileManager with the default options:
 RateBytesPerSec = 0, MaxTrashDbRatio = 0.25, BytesMaxDeleteChunk = 64 * 1024 * 1024.</td></tr><tr><td valign="top"><a href="#new_sst_file_manager-2">new_sst_file_manager/2</a></td><td>create new SstFileManager that can be shared among multiple RocksDB
-instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open-3">open/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine for creating new backups.</td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-2">open_optimistic_transaction_db/2</a></td><td></td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-3">open_optimistic_transaction_db/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
+instances to track SST file and control there deletion rate.</td></tr><tr><td valign="top"><a href="#new_statistics-0">new_statistics/0</a></td><td></td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-1">new_write_buffer_manager/1</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#new_write_buffer_manager-2">new_write_buffer_manager/2</a></td><td> create a new WriteBufferManager.</td></tr><tr><td valign="top"><a href="#next_binary_update-1">next_binary_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#next_update-1">next_update/1</a></td><td></td></tr><tr><td valign="top"><a href="#open-2">open/2</a></td><td>Open RocksDB with the defalut column family.</td></tr><tr><td valign="top"><a href="#open-3">open/3</a></td><td>Open RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_backup_engine-1">open_backup_engine/1</a></td><td>open a new backup engine for creating new backups.</td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-2">open_optimistic_transaction_db/2</a></td><td></td></tr><tr><td valign="top"><a href="#open_optimistic_transaction_db-3">open_optimistic_transaction_db/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_readonly-2">open_readonly/2</a></td><td></td></tr><tr><td valign="top"><a href="#open_readonly-3">open_readonly/3</a></td><td>Open read-only RocksDB with the specified column families.</td></tr><tr><td valign="top"><a href="#open_with_cf-3">open_with_cf/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_cf_readonly-3">open_with_cf_readonly/3</a></td><td></td></tr><tr><td valign="top"><a href="#open_with_ttl-4">open_with_ttl/4</a></td><td>Open RocksDB with TTL support
 This API should be used to open the db when key-values inserted are
 meant to be removed from the db in a non-strict <code>TTL</code> amount of time
 Therefore, this guarantees that key-values inserted will remain in the
 db for >= TTL amount of time and the db will make efforts to remove the
-key-values as soon as possible after ttl seconds of their insertion.</td></tr><tr><td valign="top"><a href="#purge_old_backup-2">purge_old_backup/2</a></td><td>deletes old backups, keeping latest num_backups_to_keep alive.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_batch-1">release_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#release_cache-1">release_cache/1</a></td><td>release the cache.</td></tr><tr><td valign="top"><a href="#release_rate_limiter-1">release_rate_limiter/1</a></td><td>release the limiter.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#release_sst_file_manager-1">release_sst_file_manager/1</a></td><td>release the SstFileManager.</td></tr><tr><td valign="top"><a href="#release_write_buffer_manager-1">release_write_buffer_manager/1</a></td><td></td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-3">restore_db_from_backup/3</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-4">restore_db_from_backup/4</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-2">restore_db_from_latest_backup/2</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-3">restore_db_from_latest_backup/3</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#set_capacity-2">set_capacity/2</a></td><td>sets the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-2">set_db_background_threads/2</a></td><td>set background threads of a database.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-3">set_db_background_threads/3</a></td><td>set database background threads of low and high prioriry threads pool of an environment
+key-values as soon as possible after ttl seconds of their insertion.</td></tr><tr><td valign="top"><a href="#purge_old_backup-2">purge_old_backup/2</a></td><td>deletes old backups, keeping latest num_backups_to_keep alive.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_batch-1">release_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#release_cache-1">release_cache/1</a></td><td>release the cache.</td></tr><tr><td valign="top"><a href="#release_rate_limiter-1">release_rate_limiter/1</a></td><td>release the limiter.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#release_sst_file_manager-1">release_sst_file_manager/1</a></td><td>release the SstFileManager.</td></tr><tr><td valign="top"><a href="#release_statistics-1">release_statistics/1</a></td><td>release the Statistics Handle.</td></tr><tr><td valign="top"><a href="#release_write_buffer_manager-1">release_write_buffer_manager/1</a></td><td></td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-3">restore_db_from_backup/3</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-4">restore_db_from_backup/4</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-2">restore_db_from_latest_backup/2</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-3">restore_db_from_latest_backup/3</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#set_capacity-2">set_capacity/2</a></td><td>sets the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-2">set_db_background_threads/2</a></td><td>set background threads of a database.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-3">set_db_background_threads/3</a></td><td>set database background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-2">set_env_background_threads/2</a></td><td>set background threads of an environment.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-3">set_env_background_threads/3</a></td><td>set background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
-LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_strict_capacity_limit-2">set_strict_capacity_limit/2</a></td><td>sets strict_capacity_limit flag of the cache.</td></tr><tr><td valign="top"><a href="#single_delete-3">single_delete/3</a></td><td>Remove the database entry for "key".</td></tr><tr><td valign="top"><a href="#single_delete-4">single_delete/4</a></td><td>like <code>single_delete/3</code> but on the specified column family.</td></tr><tr><td valign="top"><a href="#snapshot-1">snapshot/1</a></td><td>return a database snapshot
+LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_stats_level-2">set_stats_level/2</a></td><td></td></tr><tr><td valign="top"><a href="#set_strict_capacity_limit-2">set_strict_capacity_limit/2</a></td><td>sets strict_capacity_limit flag of the cache.</td></tr><tr><td valign="top"><a href="#single_delete-3">single_delete/3</a></td><td>Remove the database entry for "key".</td></tr><tr><td valign="top"><a href="#single_delete-4">single_delete/4</a></td><td>like <code>single_delete/3</code> but on the specified column family.</td></tr><tr><td valign="top"><a href="#snapshot-1">snapshot/1</a></td><td>return a database snapshot
 Snapshots provide consistent read-only views over the entire state of the key-value store.</td></tr><tr><td valign="top"><a href="#sst_file_manager_flag-3">sst_file_manager_flag/3</a></td><td>set certains flags for the SST file manager
 * <code>max_allowed_space_usage</code>: Update the maximum allowed space that should be used by RocksDB, if
 the total size of the SST files exceeds MaxAllowedSpace, writes to
-RocksDB will fail.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-1">sst_file_manager_info/1</a></td><td>return informations of a Sst File Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-2">sst_file_manager_info/2</a></td><td>return the information associated with Item for an SST File Manager SstFileManager.</td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
+RocksDB will fail.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-1">sst_file_manager_info/1</a></td><td>return informations of a Sst File Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#sst_file_manager_info-2">sst_file_manager_info/2</a></td><td>return the information associated with Item for an SST File Manager SstFileManager.</td></tr><tr><td valign="top"><a href="#statistics_info-1">statistics_info/1</a></td><td></td></tr><tr><td valign="top"><a href="#stats-1">stats/1</a></td><td>Return the current stats of the default column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stats-2">stats/2</a></td><td>Return the current stats of the specified column family
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#tlog_iterator-2">tlog_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#tlog_iterator_close-1">tlog_iterator_close/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#tlog_next_binary_update-1">tlog_next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#tlog_next_update-1">tlog_next_update/1</a></td><td>like <code>tlog_nex_binary_update/1</code> but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#transaction-2">transaction/2</a></td><td>create a new transaction
 When opened as a Transaction or Optimistic Transaction db,
@@ -621,7 +669,7 @@ return the information associated with Item for cache Cache
 ### checkpoint/2 ###
 
 <pre><code>
-checkpoint(DbHandle::<a href="#type-db_handle">db_handle()</a>, Path::<a href="file.md#type-filename_all">file:filename_all()</a>) -&gt; ok | {error, any()}
+checkpoint(DbHandle::<a href="#type-db_handle">db_handle()</a>, Path::<a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>) -&gt; ok | {error, any()}
 </code></pre>
 <br />
 
@@ -666,7 +714,7 @@ note: experimental for testing only
 compact_range(DBHandle, BeginKey, EndKey, CompactRangeOpts) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>BeginKey = binary()</code></li><li><code>EndKey = binary()</code></li><li><code>CompactRangeOpts = <a href="#type-compact_range_options">compact_range_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>BeginKey = binary() | undefined</code></li><li><code>EndKey = binary() | undefined</code></li><li><code>CompactRangeOpts = <a href="#type-compact_range_options">compact_range_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
 
 Compact the underlying storage for the key range [*begin,*end].
 The actual compaction interval might be superset of [*begin, *end].
@@ -694,7 +742,7 @@ or a given level (specified by non-negative target_level).
 compact_range(DBHandle, CFHandle, BeginKey, EndKey, CompactRangeOpts) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>BeginKey = binary()</code></li><li><code>EndKey = binary()</code></li><li><code>CompactRangeOpts = <a href="#type-compact_range_options">compact_range_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>BeginKey = binary() | undefined</code></li><li><code>EndKey = binary() | undefined</code></li><li><code>CompactRangeOpts = <a href="#type-compact_range_options">compact_range_options()</a></code></li><li><code>Res = ok | {error, any()}</code></li></ul>
 
 Compact the underlying storage for the key range ["BeginKey", "EndKey").
 like `compact_range/3` but for a column family
@@ -834,7 +882,7 @@ like `delete_range/3` but for a column family
 ### destroy/2 ###
 
 <pre><code>
-destroy(Name::<a href="file.md#type-filename_all">file:filename_all()</a>, DBOpts::<a href="#type-db_options">db_options()</a>) -&gt; ok | {error, any()}
+destroy(Name::<a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>, DBOpts::<a href="#type-db_options">db_options()</a>) -&gt; ok | {error, any()}
 </code></pre>
 <br />
 
@@ -1239,7 +1287,7 @@ Return a iterator over the contents of the specified column family.
 list_column_families(Name, DBOpts) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>Res = {ok, [string()]} | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>Name = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>Res = {ok, [string()]} | {error, any()}</code></li></ul>
 
 List column families
 
@@ -1367,6 +1415,15 @@ than one linked names, the file will be deleted as a whole. Either way,
 files already renamed as a trash may be partial, so users should not
 directly recover them without checking.
 
+<a name="new_statistics-0"></a>
+
+### new_statistics/0 ###
+
+<pre><code>
+new_statistics() -&gt; {ok, <a href="#type-statistics_handle">statistics_handle()</a>}
+</code></pre>
+<br />
+
 <a name="new_write_buffer_manager-1"></a>
 
 ### new_write_buffer_manager/1 ###
@@ -1420,7 +1477,7 @@ override db_write_buffer_size.
 open(Name, DBOpts) -&gt; Result
 </code></pre>
 
-<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-options">options()</a></code></li><li><code>Result = {ok, <a href="#type-db_handle">db_handle()</a>} | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>Name = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-options">options()</a></code></li><li><code>Result = {ok, <a href="#type-db_handle">db_handle()</a>} | {error, any()}</code></li></ul>
 
 Open RocksDB with the defalut column family
 
@@ -1432,7 +1489,7 @@ Open RocksDB with the defalut column family
 open(Name, DBOpts, CFDescriptors) -&gt; {ok, <a href="#type-db_handle">db_handle()</a>, [<a href="#type-cf_handle">cf_handle()</a>]} | {error, any()}
 </code></pre>
 
-<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>CFDescriptors = [#cf_descriptor{name = string(), options = <a href="#type-cf_options">cf_options()</a>}]</code></li></ul>
+<ul class="definitions"><li><code>Name = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>CFDescriptors = [<a href="#type-cf_descriptor">cf_descriptor()</a>]</code></li></ul>
 
 Open RocksDB with the specified column families
 
@@ -1459,11 +1516,39 @@ open a new backup engine for creating new backups.
 
 `open_optimistic_transaction_db(Name, DbOpts, CFDescriptors) -> any()`
 
+<a name="open_readonly-2"></a>
+
+### open_readonly/2 ###
+
+<pre><code>
+open_readonly(Name, DBOpts) -&gt; Result
+</code></pre>
+
+<ul class="definitions"><li><code>Name = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-options">options()</a></code></li><li><code>Result = {ok, <a href="#type-db_handle">db_handle()</a>} | {error, any()}</code></li></ul>
+
+<a name="open_readonly-3"></a>
+
+### open_readonly/3 ###
+
+<pre><code>
+open_readonly(Name, DBOpts, CFDescriptors) -&gt; {ok, <a href="#type-db_handle">db_handle()</a>, [<a href="#type-cf_handle">cf_handle()</a>]} | {error, any()}
+</code></pre>
+
+<ul class="definitions"><li><code>Name = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>CFDescriptors = [<a href="#type-cf_descriptor">cf_descriptor()</a>]</code></li></ul>
+
+Open read-only RocksDB with the specified column families
+
 <a name="open_with_cf-3"></a>
 
 ### open_with_cf/3 ###
 
 `open_with_cf(Name, DbOpts, CFDescriptors) -> any()`
+
+<a name="open_with_cf_readonly-3"></a>
+
+### open_with_cf_readonly/3 ###
+
+`open_with_cf_readonly(Name, DbOpts, CFDescriptors) -> any()`
 
 <a name="open_with_ttl-4"></a>
 
@@ -1473,7 +1558,7 @@ open a new backup engine for creating new backups.
 open_with_ttl(Name, DBOpts, TTL, ReadOnly) -&gt; {ok, <a href="#type-db_handle">db_handle()</a>} | {error, any()}
 </code></pre>
 
-<ul class="definitions"><li><code>Name = <a href="file.md#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>TTL = integer()</code></li><li><code>ReadOnly = boolean()</code></li></ul>
+<ul class="definitions"><li><code>Name = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a></code></li><li><code>DBOpts = <a href="#type-db_options">db_options()</a></code></li><li><code>TTL = integer()</code></li><li><code>ReadOnly = boolean()</code></li></ul>
 
 Open RocksDB with TTL support
 This API should be used to open the db when key-values inserted are
@@ -1575,6 +1660,17 @@ release_sst_file_manager(SstFileManager::<a href="#type-sst_file_manager">sst_fi
 
 release the SstFileManager
 
+<a name="release_statistics-1"></a>
+
+### release_statistics/1 ###
+
+<pre><code>
+release_statistics(Statistics::<a href="#type-statistics_handle">statistics_handle()</a>) -&gt; ok
+</code></pre>
+<br />
+
+release the Statistics Handle
+
 <a name="release_write_buffer_manager-1"></a>
 
 ### release_write_buffer_manager/1 ###
@@ -1589,7 +1685,7 @@ release_write_buffer_manager(WriteBufferManager::<a href="#type-write_buffer_man
 ### repair/2 ###
 
 <pre><code>
-repair(Name::<a href="file.md#type-filename_all">file:filename_all()</a>, DBOpts::<a href="#type-db_options">db_options()</a>) -&gt; ok | {error, any()}
+repair(Name::<a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>, DBOpts::<a href="#type-db_options">db_options()</a>) -&gt; ok | {error, any()}
 </code></pre>
 <br />
 
@@ -1705,6 +1801,15 @@ set_env_background_threads(Env::<a href="#type-env_handle">env_handle()</a>, N::
 set background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool. To increase the number of threads in each pool call:
+
+<a name="set_stats_level-2"></a>
+
+### set_stats_level/2 ###
+
+<pre><code>
+set_stats_level(StatisticsHandle::<a href="#type-statistics_handle">statistics_handle()</a>, StatsLevel::<a href="#type-stats_level">stats_level()</a>) -&gt; ok
+</code></pre>
+<br />
 
 <a name="set_strict_capacity_limit-2"></a>
 
@@ -1826,6 +1931,16 @@ sst_file_manager_info(SstFileManager, Item) -&gt; Value
 
 return the information associated with Item for an SST File Manager SstFileManager
 
+<a name="statistics_info-1"></a>
+
+### statistics_info/1 ###
+
+<pre><code>
+statistics_info(Statistics) -&gt; InfoList
+</code></pre>
+
+<ul class="definitions"><li><code>Statistics = <a href="#type-statistics_handle">statistics_handle()</a></code></li><li><code>InfoList = [InfoTuple]</code></li><li><code>InfoTuple = {stats_level, <a href="#type-stats_level">stats_level()</a>}</code></li></ul>
+
 <a name="stats-1"></a>
 
 ### stats/1 ###
@@ -1936,7 +2051,7 @@ anything to the disk until they decide to do so.
 ### transaction_commit/1 ###
 
 <pre><code>
-transaction_commit(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>) -&gt; ok
+transaction_commit(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>) -&gt; ok | {error, term()}
 </code></pre>
 <br />
 
