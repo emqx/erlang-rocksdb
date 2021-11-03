@@ -1,3 +1,32 @@
+erlang-rocksdb 1.7.0, released on 2021/11/03
+============================================
+
+- bring compatibility with with Apple Mac M1 and Erlang OTP 24
+- bump to rocksdb version [6.25.3]((https://github.com/facebook/rocksdb/releases/tag/v6.25.3)
+- add `rocksdb:open_readonly/3` function to open databases in read only mode (useful for concurrency)
+- add support for read options `read_tier`
+- add support for direct IO  options `use_direct_reads` & `use_direct_io_for_flush_and_compaction`
+- new staistics API, exposing ``rocksdb::Statistics` object.
+- fix list merge operaion when empty
+- add `unordered_write` and & `two_write_queues` open options
+- fix `transaction_get`  when Options is unset.
+- fix iterator behaviour
+
+** BREAKING CHANGES **
+
+- return an invalid iterator if the user try to use next or prev without
+having set the initial location of the iterator:
+  - calling next, and prev without having put the iterator at a specific
+  key or location (first, last) will now return the tuple `{error, invalid_iterator}`
+  - fix crash when moving to next key on a new iterator.
+  - fix behavior of Refresh. Refresh is supposed to reset completely the
+  state of the iterator. Fix test accordingly.
+
+- `transction_get/2` has been removed, and is replaced by `transction_get/3` with the third argument to spass the options.
+- `transaction_get/3` to get using a column family is now `transaction_get/4`
+
+
+
 erlang-rocksdb 1.6.0, released on 2020/10/16
 ============================================
 
