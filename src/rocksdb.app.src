@@ -38,6 +38,8 @@
            "c_src",
            "doc",
            "test"]},
-  {exclude_files, ["deps/rebar3"]}
+  {exclude_files, ["deps/rebar3",
+                   "deps/rocksdb/java",
+                   "deps/rocksdb/docs"]}
 
  ]}.
