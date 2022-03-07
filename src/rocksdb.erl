@@ -1120,7 +1120,7 @@ get_property(_DBHandle, _Property) ->
 %% @doc Return the RocksDB internal status of the specified column family specified at Property
 -spec get_property(
   DBHandle::db_handle(), CFHandle::cf_handle(), Property::binary()
-) -> string() | {error, any()}.
+) -> {ok, binary()} | {error, any()}.
 get_property(_DBHandle, _CFHandle, _Property) ->
   ?nif_stub.
 
