@@ -11,4 +11,4 @@ fi
 
 ${CMAKE} "$@" ../../c_src || exit 1
 
-echo done.
+echo done-do_cmake.
