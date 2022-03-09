@@ -23,9 +23,7 @@ case "$UNAMES" in
 esac
 
 ARCH="$(uname -m)"
-TAG_BASE="$(git describe --tag | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')"
-C_SRC_COMMIT="$(git log --pretty=format:%h -1 c_src)"
-VSN="${TAG_BASE}-${C_SRC_COMMIT}"
+VSN="$(git describe --tags | head -1)"
 
 OTP="$(erl -noshell -eval 'io:format(erlang:system_info(otp_release)).' -s init stop)"
 

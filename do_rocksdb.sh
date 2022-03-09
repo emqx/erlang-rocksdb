@@ -5,7 +5,7 @@ set -x
 
 PKGNAME="$(./pkgname.sh)"
 
-if [ "${ALWAYS_BUILD_ROCKSDB:-}" != 1 ] && [ -n "$PKGNAME" ]; then
+if [ "${BUILD_RELEASE:-}" != 1 ] && [ -n "$PKGNAME" ]; then
     if ./download.sh $PKGNAME; then
         echo "done_dowloading_rocksdb"
         exit 0
@@ -45,7 +45,11 @@ if [ "${BUILD_RELEASE:-}" = 1 ]; then
     TARGET="_packages/${PKGNAME}"
     gzip -c 'priv/liberocksdb.so' > "$TARGET"
     # use openssl but not sha256sum command because in some macos env it does not exist
-    openssl dgst -sha256 "${TARGET}" | cut -d ' ' -f 2  > "${TARGET}.sha256"
+    if command -v openssl; then
+        openssl dgst -sha256 "${TARGET}" | cut -d ' ' -f 2  > "${TARGET}.sha256"
+    else
+        sha256sum "${TARGET}"  | cut -d ' ' -f 1 > "${TARGET}.sha256"
+    fi
 fi
 
 echo done_building_rocksdb
