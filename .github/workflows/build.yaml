@@ -39,6 +39,8 @@ jobs:
           kerl install ${{ matrix.otp }} $HOME/.kerl/${{ matrix.otp }}
 
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
       - name: install rebar3
         run: |
@@ -88,6 +90,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
       - name: install rebar3
         run: |
