@@ -44,3 +44,4 @@ deps/rocksdb/java/CMakeLists.txt
 deps/rocksdb/third-party/gtest-1.7.0/fused-src/gtest/CMakeLists.txt
 deps/rocksdb/tools/CMakeLists.txt
 test_prefix
+erocksdb.cleanup.test/
