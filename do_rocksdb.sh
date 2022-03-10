@@ -1,4 +1,18 @@
-#!/bin/sh -x
+#!/bin/sh
+
+set -eu
+set -x
+
+PKGNAME="$(./pkgname.sh)"
+
+if [ "${BUILD_RELEASE:-}" != 1 ] && [ -n "$PKGNAME" ]; then
+    if ./download.sh $PKGNAME; then
+        echo "done_dowloading_rocksdb"
+        exit 0
+    else
+        echo "failed to download, continue to build from source"
+    fi
+fi
 
 cd _build/cmake
 
@@ -24,4 +38,18 @@ case "$@" in
         ;;
 esac
 
-echo done.
+cd ../../
+
+if [ "${BUILD_RELEASE:-}" = 1 ]; then
+    mkdir -p _packages
+    TARGET="_packages/${PKGNAME}"
+    gzip -c 'priv/liberocksdb.so' > "$TARGET"
+    # use openssl but not sha256sum command because in some macos env it does not exist
+    if command -v openssl; then
+        openssl dgst -sha256 "${TARGET}" | cut -d ' ' -f 2  > "${TARGET}.sha256"
+    else
+        sha256sum "${TARGET}"  | cut -d ' ' -f 1 > "${TARGET}.sha256"
+    fi
+fi
+
+echo done_building_rocksdb
