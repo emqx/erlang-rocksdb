@@ -7,14 +7,15 @@ TAG="$(git describe --tags | head -1)"
 PKGNAME="$(./pkgname.sh)"
 URL="https://github.com/emqx/erlang-rocksdb/releases/download/$TAG/$PKGNAME"
 
-if [ ! -f "priv/${PKGNAME}" ]; then
-    curl -f -L -o "priv/${PKGNAME}" "${URL}"
+mkdir -p _packages
+if [ ! -f "_packages/${PKGNAME}" ]; then
+    curl -f -L -o "_packages/${PKGNAME}" "${URL}"
 fi
 
-if [ ! -f "priv/${PKGNAME}.sha256" ]; then
-    curl -f -L -o "priv/${PKGNAME}.sha256" "${URL}.sha256"
+if [ ! -f "_packages/${PKGNAME}.sha256" ]; then
+    curl -f -L -o "_packages/${PKGNAME}.sha256" "${URL}.sha256"
 fi
 
-echo "$(cat "priv/${PKGNAME}.sha256") priv/${PKGNAME}" | sha256sum -c || exit 1
+echo "$(cat "_packages/${PKGNAME}.sha256") _packages/${PKGNAME}" | sha256sum -c || exit 1
 
-gzip -c -d "priv/${PKGNAME}" > priv/liberocksdb.so
+gzip -c -d "_packages/${PKGNAME}" > priv/liberocksdb.so
