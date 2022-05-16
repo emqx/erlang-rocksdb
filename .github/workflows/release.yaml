@@ -85,9 +85,9 @@ jobs:
           - debian11
           - debian10
           - debian9
-          - rockylinux8
-          - centos7
-          - alpine3.14
+          - el7
+          - el8
+          - alpine3.15.1
     runs-on: ubuntu-latest
 
     steps:
@@ -114,7 +114,7 @@ jobs:
       - name: build release
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          IMAGE=ghcr.io/emqx/emqx-builder/5.0-8:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
+          IMAGE=ghcr.io/emqx/emqx-builder/5.0-15:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
           docker run -i --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} -e BUILD_RELEASE=1 $IMAGE bash -euc 'make'
 
       - uses: actions/upload-artifact@v2
