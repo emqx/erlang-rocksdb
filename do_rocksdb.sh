@@ -41,6 +41,10 @@ esac
 cd ../../
 
 if [ "${BUILD_RELEASE:-}" = 1 ]; then
+    if [ -z "$PKGNAME" ]; then
+        echo "JQ: unable_to_resolve_release_package_name"
+        exit 1
+    fi
     mkdir -p _packages
     TARGET="_packages/${PKGNAME}"
     gzip -c 'priv/liberocksdb.so' > "$TARGET"

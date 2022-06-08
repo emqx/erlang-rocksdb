@@ -1,11 +1,17 @@
 #!/bin/sh
 
+if [ ! -d .git ]; then
+    # not a clone
+    echo ''
+    exit 0
+fi
+
 UNAMES="$(uname -s)"
 case "$UNAMES" in
     Darwin)
         DIST='macos'
-        VERSION_ID=$(sw_vers | gsed -n '/^ProductVersion:/p' | gsed -r 's/ProductVersion:(.*)/\1/g' | gsed -r 's/([0-9]+).*/\1/g' | gsed 's/^[ \t]*//g')
-        SYSTEM="$(echo "${DIST}${VERSION_ID}" | gsed -r 's/([a-zA-Z]*)-.*/\1/g')"
+        VERSION_ID="$(sw_vers | grep 'ProductVersion' | cut -d':' -f 2 | cut -d'.' -f1 | tr -d ' \t')"
+        SYSTEM="${DIST}${VERSION_ID}"
         ;;
     Linux)
         if grep -q -i 'rhel' /etc/*-release; then
@@ -18,12 +24,18 @@ case "$UNAMES" in
         SYSTEM="$(echo "${DIST}${VERSION_ID}" | sed -r 's/([a-zA-Z]*)-.*/\1/g')"
         ;;
     *)
+        # unsupported system
         echo ''
+        exit 0
         ;;
 esac
 
 ARCH="$(uname -m)"
-VSN="$(git describe --tags | head -1)"
+VSN="$(git describe --tags --exact-match | head -1)"
+
+if [ -z "$VSN" ]; then
+    exit 0
+fi
 
 OTP="$(erl -noshell -eval 'io:format(erlang:system_info(otp_release)).' -s init stop)"
 
