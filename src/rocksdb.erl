@@ -458,18 +458,28 @@ nif_stub_error(Line) ->
 
 -spec on_load() -> ok | {error, any()}.
 on_load() ->
-  SoName = case code:priv_dir(?MODULE) of
-         {error, bad_name} ->
-           case code:which(?MODULE) of
-             Filename when is_list(Filename) ->
-               filename:join([filename:dirname(Filename),"../priv", "liberocksdb"]);
-             _ ->
-               filename:join("../priv", "liberocksdb")
-           end;
-         Dir ->
-           filename:join(Dir, "liberocksdb")
-       end,
+  Files = [filename:join(["priv", "liberocksdb"]),
+           filename:join(["..", "priv", "liberocksdb"]) |
+           case code:priv_dir(?MODULE) of
+               {error, bad_name} ->
+                   case code:which(?MODULE) of
+                       Filename when is_list(Filename) ->
+                           filename:join([filename:dirname(Filename),"..", "priv", "liberocksdb"]);
+                       _ ->
+                           []
+                   end;
+               _ ->
+                   []
+           end],
+  SoName = find_so(Files),
   erlang:load_nif(SoName, application:get_all_env(rocksdb)).
+
+find_so([]) -> error(liberocksdb_not_found);
+find_so([F | Rest]) ->
+    case filelib:is_regular(F ++ ".so") of
+        true -> F;
+        false -> find_so(Rest)
+    end.
 
 %%--------------------------------------------------------------------
 %%% API

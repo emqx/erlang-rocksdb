@@ -47,3 +47,4 @@ test_prefix
 erocksdb.cleanup.test/
 _packages/
 erocksdb_approximate_memtable_stats_test/
+erl_crash.dump

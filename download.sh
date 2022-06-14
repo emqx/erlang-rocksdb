@@ -1,7 +1,6 @@
 #!/bin/sh
 
 set -eu
-set -x
 
 TAG="$(git describe --tags | head -1)"
 PKGNAME="$(./pkgname.sh)"
@@ -19,3 +18,12 @@ fi
 echo "$(cat "_packages/${PKGNAME}.sha256") _packages/${PKGNAME}" | sha256sum -c || exit 1
 
 gzip -c -d "_packages/${PKGNAME}" > priv/liberocksdb.so
+
+erlc src/rocksdb.erl
+if erl -noshell -eval '[_|_]=rocksdb:module_info(), halt(0)'; then
+    res=0
+else
+    res=1
+fi
+rm -f rocksdb.beam
+exit $res
