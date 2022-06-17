@@ -472,7 +472,7 @@ on_load() ->
              Path ->
                [filename:join(Path, Name)]
            end],
-  case find_so(Files) of
+  case find_lib(Files) of
     false ->
       io:format(standard_error, "failed_to_find_liberocksdb ~n~p~n", [Files]),
       error(failed_to_find_liberocksdb);
@@ -480,11 +480,11 @@ on_load() ->
       erlang:load_nif(SoName, application:get_all_env(rocksdb))
   end.
 
-find_so([]) -> false;
-find_so([F | Rest]) ->
-    case filelib:is_regular(F ++ ".so") of
+find_lib([]) -> false;
+find_lib([F | Rest]) ->
+    case filelib:is_regular(F ++ ".so") orelse filelib:is_regular(F ++ ".dll") of
         true -> F;
-        false -> find_so(Rest)
+        false -> find_lib(Rest)
     end.
 
 %%--------------------------------------------------------------------
