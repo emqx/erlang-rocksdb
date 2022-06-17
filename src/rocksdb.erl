@@ -458,27 +458,33 @@ nif_stub_error(Line) ->
 
 -spec on_load() -> ok | {error, any()}.
 on_load() ->
-  Files = [filename:join(["priv", "liberocksdb"]),
-           filename:join(["..", "priv", "liberocksdb"]) |
+  Name = "liberocksdb",
+  Files = [filename:join(["priv", Name]),
+           filename:join(["..", "priv", Name]) |
            case code:priv_dir(?MODULE) of
-               {error, bad_name} ->
-                   case code:which(?MODULE) of
-                       Filename when is_list(Filename) ->
-                           filename:join([filename:dirname(Filename),"..", "priv", "liberocksdb"]);
-                       _ ->
-                           []
-                   end;
-               _ ->
+             {error, bad_name} ->
+               case code:which(?MODULE) of
+                 Filename when is_list(Filename) ->
+                   [filename:join([filename:dirname(Filename), "..", "priv", Name])];
+                 _ ->
                    []
+               end;
+             Path ->
+               [filename:join(Path, Name)]
            end],
-  SoName = find_so(Files),
-  erlang:load_nif(SoName, application:get_all_env(rocksdb)).
+  case find_lib(Files) of
+    false ->
+      io:format(standard_error, "failed_to_find_liberocksdb ~n~p~n", [Files]),
+      error(failed_to_find_liberocksdb);
+    SoName ->
+      erlang:load_nif(SoName, application:get_all_env(rocksdb))
+  end.
 
-find_so([]) -> error(liberocksdb_not_found);
-find_so([F | Rest]) ->
-    case filelib:is_regular(F ++ ".so") of
+find_lib([]) -> false;
+find_lib([F | Rest]) ->
+    case filelib:is_regular(F ++ ".so") orelse filelib:is_regular(F ++ ".dll") of
         true -> F;
-        false -> find_so(Rest)
+        false -> find_lib(Rest)
     end.
 
 %%--------------------------------------------------------------------
