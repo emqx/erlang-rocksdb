@@ -88,6 +88,10 @@ jobs:
           - el7
           - el8
           - alpine3.15.1
+        include:
+          - os: raspbian10
+            arch: arm64
+
     runs-on: ubuntu-latest
 
     steps:
