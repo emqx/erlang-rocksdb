@@ -132,6 +132,8 @@ if(WITH_SNAPPY)
     find_package(Snappy REQUIRED)
 endif()
 
+include(FindZstd)
+
 if(WITH_ZSTD)
   find_package(Zstd REQUIRED)
 endif()
