@@ -38,7 +38,8 @@ class GenericRateLimiter : public RateLimiter {
 
   // Request for token to write bytes. If this request can not be satisfied,
   // the call is blocked. Caller is responsible to make sure
-  // bytes <= GetSingleBurstBytes()
+  // bytes <= GetSingleBurstBytes() and bytes >= 0. Negative bytes
+  // passed in will be rounded up to 0.
   using RateLimiter::Request;
   virtual void Request(const int64_t bytes, const Env::IOPriority pri,
                        Statistics* stats) override;
@@ -91,26 +92,32 @@ class GenericRateLimiter : public RateLimiter {
   }
 
   virtual int64_t GetBytesPerSecond() const override {
-    return rate_bytes_per_sec_;
+    return rate_bytes_per_sec_.load(std::memory_order_relaxed);
+  }
+
+  virtual void TEST_SetClock(std::shared_ptr<SystemClock> clock) {
+    MutexLock g(&request_mutex_);
+    clock_ = std::move(clock);
+    next_refill_us_ = NowMicrosMonotonicLocked();
   }
 
  private:
-  void RefillBytesAndGrantRequests();
-  std::vector<Env::IOPriority> GeneratePriorityIterationOrder();
-  int64_t CalculateRefillBytesPerPeriod(int64_t rate_bytes_per_sec);
-  Status Tune();
+  void RefillBytesAndGrantRequestsLocked();
+  std::vector<Env::IOPriority> GeneratePriorityIterationOrderLocked();
+  int64_t CalculateRefillBytesPerPeriodLocked(int64_t rate_bytes_per_sec);
+  Status TuneLocked();
+  void SetBytesPerSecondLocked(int64_t bytes_per_second);
 
-  uint64_t NowMicrosMonotonic() { return clock_->NowNanos() / std::milli::den; }
+  uint64_t NowMicrosMonotonicLocked() {
+    return clock_->NowNanos() / std::milli::den;
+  }
 
   // This mutex guard all internal states
   mutable port::Mutex request_mutex_;
 
-  const int64_t kMinRefillBytesPerPeriod = 100;
-
   const int64_t refill_period_us_;
 
-  int64_t rate_bytes_per_sec_;
-  // This variable can be changed dynamically.
+  std::atomic<int64_t> rate_bytes_per_sec_;
   std::atomic<int64_t> refill_bytes_per_period_;
   std::shared_ptr<SystemClock> clock_;
 
@@ -132,7 +139,6 @@ class GenericRateLimiter : public RateLimiter {
 
   bool auto_tuned_;
   int64_t num_drains_;
-  int64_t prev_num_drains_;
   const int64_t max_bytes_per_sec_;
   std::chrono::microseconds tuned_time_;
 };

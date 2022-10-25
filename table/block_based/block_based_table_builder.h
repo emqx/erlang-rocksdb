@@ -10,6 +10,7 @@
 #pragma once
 #include <stdint.h>
 
+#include <array>
 #include <limits>
 #include <string>
 #include <utility>
@@ -20,6 +21,7 @@
 #include "rocksdb/listener.h"
 #include "rocksdb/options.h"
 #include "rocksdb/status.h"
+#include "rocksdb/table.h"
 #include "table/meta_blocks.h"
 #include "table/table_builder.h"
 #include "util/compression.h"
@@ -98,6 +100,10 @@ class BlockBasedTableBuilder : public TableBuilder {
   // Get file checksum function name
   const char* GetFileChecksumFuncName() const override;
 
+  void SetSeqnoTimeTableProperties(
+      const std::string& encoded_seqno_to_time_mapping,
+      uint64_t oldest_ancestor_time) override;
+
  private:
   bool ok() const { return status().ok(); }
 
@@ -117,7 +123,6 @@ class BlockBasedTableBuilder : public TableBuilder {
                   BlockType block_type);
   // Directly write data to the file.
   void WriteRawBlock(const Slice& data, CompressionType, BlockHandle* handle,
-
                      BlockType block_type, const Slice* raw_data = nullptr);
 
   void SetupCacheKeyPrefix(const TableBuilderOptions& tbo);

@@ -18,6 +18,7 @@
 
 #include "rocksdb/env.h"
 #include "rocksdb/io_status.h"
+#include "rocksdb/metadata.h"
 #include "rocksdb/options.h"
 #include "rocksdb/status.h"
 
@@ -37,7 +38,6 @@ struct BackupEngineOptions {
   // Backup Env object. It will be used for backup file I/O. If it's
   // nullptr, backups will be written out using DBs Env. If it's
   // non-nullptr, backup's I/O will be performed using this object.
-  // If you want to have backups on HDFS, use HDFS Env here!
   // Default: nullptr
   Env* backup_env;
 
@@ -204,6 +204,22 @@ struct BackupEngineOptions {
   // and share_table_files are true.
   ShareFilesNaming share_files_with_checksum_naming;
 
+  // Major schema version to use when writing backup meta files
+  // 1 (default) - compatible with very old versions of RocksDB.
+  // 2 - can be read by RocksDB versions >= 6.19.0. Minimum schema version for
+  //   * (Experimental) saving and restoring file temperature metadata
+  int schema_version = 1;
+
+  // (Experimental - subject to change or removal) When taking a backup and
+  // saving file temperature info (minimum schema_version is 2), there are
+  // two potential sources of truth for the placement of files into temperature
+  // tiers: (a) the current file temperature reported by the FileSystem or
+  // (b) the expected file temperature recorded in DB manifest. When this
+  // option is false (default), (b) overrides (a) if both are not UNKNOWN.
+  // When true, (a) overrides (b) if both are not UNKNOWN. Regardless of this
+  // setting, a known temperature overrides UNKNOWN.
+  bool current_temperatures_override_manifest = false;
+
   void Dump(Logger* logger) const;
 
   explicit BackupEngineOptions(
@@ -261,6 +277,10 @@ struct CreateBackupOptions {
   bool flush_before_backup = false;
 
   // Callback for reporting progress, based on callback_trigger_interval_size.
+  //
+  // RocksDB callbacks are NOT exception-safe. A callback completing with an
+  // exception can lead to undefined behavior in RocksDB, including data loss,
+  // unreported corruption, deadlocks, and more.
   std::function<void()> progress_callback = []() {};
 
   // If false, background_thread_cpu_priority is ignored.
@@ -284,15 +304,9 @@ struct RestoreOptions {
       : keep_log_files(_keep_log_files) {}
 };
 
-struct BackupFileInfo {
-  // File name and path relative to the backup_dir directory.
-  std::string relative_filename;
-
-  // Size of the file in bytes, not including filesystem overheads.
-  uint64_t size;
-};
-
 using BackupID = uint32_t;
+
+using BackupFileInfo = FileStorageInfo;
 
 struct BackupInfo {
   BackupID backup_id = 0U;
@@ -475,6 +489,9 @@ class BackupEngineAppendOnlyBase {
   // Captures the state of the database by creating a new (latest) backup.
   // On success (OK status), the BackupID of the new backup is saved to
   // *new_backup_id when not nullptr.
+  // NOTE: db_paths and cf_paths are not supported for creating backups,
+  // and NotSupported will be returned when the DB (without WALs) uses more
+  // than one directory.
   virtual IOStatus CreateNewBackup(const CreateBackupOptions& options, DB* db,
                                    BackupID* new_backup_id = nullptr) {
     return CreateNewBackupWithMetadata(options, db, "", new_backup_id);
