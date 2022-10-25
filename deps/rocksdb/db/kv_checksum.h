@@ -56,7 +56,7 @@ using ProtectionInfoKVOS64 = ProtectionInfoKVOS<uint64_t>;
 template <typename T>
 class ProtectionInfo {
  public:
-  ProtectionInfo<T>() = default;
+  ProtectionInfo() = default;
 
   Status GetStatus() const;
   ProtectionInfoKVO<T> ProtectKVO(const Slice& key, const Slice& value,
@@ -64,6 +64,8 @@ class ProtectionInfo {
   ProtectionInfoKVO<T> ProtectKVO(const SliceParts& key,
                                   const SliceParts& value,
                                   ValueType op_type) const;
+
+  T GetVal() const { return val_; }
 
  private:
   friend class ProtectionInfoKVO<T>;
@@ -83,11 +85,10 @@ class ProtectionInfo {
   static const uint64_t kSeedS = 0x77A00858DDD37F21;
   static const uint64_t kSeedC = 0x4A2AB5CBD26F542C;
 
-  ProtectionInfo<T>(T val) : val_(val) {
+  ProtectionInfo(T val) : val_(val) {
     static_assert(sizeof(ProtectionInfo<T>) == sizeof(T), "");
   }
 
-  T GetVal() const { return val_; }
   void SetVal(T val) { val_ = val; }
 
   T val_ = 0;
@@ -96,7 +97,7 @@ class ProtectionInfo {
 template <typename T>
 class ProtectionInfoKVO {
  public:
-  ProtectionInfoKVO<T>() = default;
+  ProtectionInfoKVO() = default;
 
   ProtectionInfo<T> StripKVO(const Slice& key, const Slice& value,
                              ValueType op_type) const;
@@ -112,16 +113,17 @@ class ProtectionInfoKVO {
   void UpdateV(const SliceParts& old_value, const SliceParts& new_value);
   void UpdateO(ValueType old_op_type, ValueType new_op_type);
 
+  T GetVal() const { return info_.GetVal(); }
+
  private:
   friend class ProtectionInfo<T>;
   friend class ProtectionInfoKVOS<T>;
   friend class ProtectionInfoKVOC<T>;
 
-  ProtectionInfoKVO<T>(T val) : info_(val) {
+  explicit ProtectionInfoKVO(T val) : info_(val) {
     static_assert(sizeof(ProtectionInfoKVO<T>) == sizeof(T), "");
   }
 
-  T GetVal() const { return info_.GetVal(); }
   void SetVal(T val) { info_.SetVal(val); }
 
   ProtectionInfo<T> info_;
@@ -130,7 +132,7 @@ class ProtectionInfoKVO {
 template <typename T>
 class ProtectionInfoKVOC {
  public:
-  ProtectionInfoKVOC<T>() = default;
+  ProtectionInfoKVOC() = default;
 
   ProtectionInfoKVO<T> StripC(ColumnFamilyId column_family_id) const;
 
@@ -152,14 +154,15 @@ class ProtectionInfoKVOC {
   void UpdateC(ColumnFamilyId old_column_family_id,
                ColumnFamilyId new_column_family_id);
 
+  T GetVal() const { return kvo_.GetVal(); }
+
  private:
   friend class ProtectionInfoKVO<T>;
 
-  ProtectionInfoKVOC<T>(T val) : kvo_(val) {
+  explicit ProtectionInfoKVOC(T val) : kvo_(val) {
     static_assert(sizeof(ProtectionInfoKVOC<T>) == sizeof(T), "");
   }
 
-  T GetVal() const { return kvo_.GetVal(); }
   void SetVal(T val) { kvo_.SetVal(val); }
 
   ProtectionInfoKVO<T> kvo_;
@@ -168,7 +171,7 @@ class ProtectionInfoKVOC {
 template <typename T>
 class ProtectionInfoKVOS {
  public:
-  ProtectionInfoKVOS<T>() = default;
+  ProtectionInfoKVOS() = default;
 
   ProtectionInfoKVO<T> StripS(SequenceNumber sequence_number) const;
 
@@ -190,14 +193,15 @@ class ProtectionInfoKVOS {
   void UpdateS(SequenceNumber old_sequence_number,
                SequenceNumber new_sequence_number);
 
+  T GetVal() const { return kvo_.GetVal(); }
+
  private:
   friend class ProtectionInfoKVO<T>;
 
-  ProtectionInfoKVOS<T>(T val) : kvo_(val) {
+  explicit ProtectionInfoKVOS(T val) : kvo_(val) {
     static_assert(sizeof(ProtectionInfoKVOS<T>) == sizeof(T), "");
   }
 
-  T GetVal() const { return kvo_.GetVal(); }
   void SetVal(T val) { kvo_.SetVal(val); }
 
   ProtectionInfoKVO<T> kvo_;

@@ -58,30 +58,57 @@ void ThreadBody(void* v) {
 
 bool RunStressTest(StressTest* stress) {
   SystemClock* clock = db_stress_env->GetSystemClock().get();
-  stress->InitDb();
+
   SharedState shared(db_stress_env, stress);
+
+  if (shared.ShouldVerifyAtBeginning() && FLAGS_preserve_unverified_changes) {
+    Status s = InitUnverifiedSubdir(FLAGS_db);
+    if (s.ok() && !FLAGS_expected_values_dir.empty()) {
+      s = InitUnverifiedSubdir(FLAGS_expected_values_dir);
+    }
+    if (!s.ok()) {
+      fprintf(stderr, "Failed to setup unverified state dir: %s\n",
+              s.ToString().c_str());
+      exit(1);
+    }
+  }
+
+  stress->InitDb(&shared);
   stress->FinishInitDb(&shared);
 
-#ifndef NDEBUG
   if (FLAGS_sync_fault_injection) {
     fault_fs_guard->SetFilesystemDirectWritable(false);
   }
-#endif
+  if (FLAGS_write_fault_one_in) {
+    fault_fs_guard->EnableWriteErrorInjection();
+  }
 
-  uint32_t n = shared.GetNumThreads();
-
+  uint32_t n = FLAGS_threads;
   uint64_t now = clock->NowMicros();
   fprintf(stdout, "%s Initializing worker threads\n",
           clock->TimeToString(now / 1000000).c_str());
+
+  shared.SetThreads(n);
+
+  if (FLAGS_compaction_thread_pool_adjust_interval > 0) {
+    shared.IncBgThreads();
+  }
+
+  if (FLAGS_continuous_verification_interval > 0) {
+    shared.IncBgThreads();
+  }
+
   std::vector<ThreadState*> threads(n);
   for (uint32_t i = 0; i < n; i++) {
     threads[i] = new ThreadState(i, &shared);
     db_stress_env->StartThread(ThreadBody, threads[i]);
   }
+
   ThreadState bg_thread(0, &shared);
   if (FLAGS_compaction_thread_pool_adjust_interval > 0) {
     db_stress_env->StartThread(PoolSizeChangeThread, &bg_thread);
   }
+
   ThreadState continuous_verification_thread(0, &shared);
   if (FLAGS_continuous_verification_interval > 0) {
     db_stress_env->StartThread(DbVerificationThread,
@@ -102,8 +129,21 @@ bool RunStressTest(StressTest* stress) {
         fprintf(stderr, "Crash-recovery verification failed :(\n");
       } else {
         fprintf(stdout, "Crash-recovery verification passed :)\n");
+        Status s = DestroyUnverifiedSubdir(FLAGS_db);
+        if (s.ok() && !FLAGS_expected_values_dir.empty()) {
+          s = DestroyUnverifiedSubdir(FLAGS_expected_values_dir);
+        }
+        if (!s.ok()) {
+          fprintf(stderr, "Failed to cleanup unverified state dir: %s\n",
+                  s.ToString().c_str());
+          exit(1);
+        }
       }
     }
+
+    // This is after the verification step to avoid making all those `Get()`s
+    // and `MultiGet()`s contend on the DB-wide trace mutex.
+    stress->TrackExpectedState(&shared);
 
     now = clock->NowMicros();
     fprintf(stdout, "%s Starting database operations\n",
@@ -158,10 +198,6 @@ bool RunStressTest(StressTest* stress) {
     while (!shared.BgThreadsFinished()) {
       shared.GetCondVar()->Wait();
     }
-  }
-
-  if (!stress->VerifySecondaries()) {
-    return false;
   }
 
   if (shared.HasVerificationFailedYet()) {

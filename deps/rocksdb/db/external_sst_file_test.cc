@@ -10,6 +10,7 @@
 #include "db/db_test_util.h"
 #include "db/dbformat.h"
 #include "file/filename.h"
+#include "options/options_helper.h"
 #include "port/port.h"
 #include "port/stack_trace.h"
 #include "rocksdb/sst_file_reader.h"
@@ -26,6 +27,8 @@ class ExternalSSTTestEnv : public EnvWrapper {
  public:
   ExternalSSTTestEnv(Env* t, bool fail_link)
       : EnvWrapper(t), fail_link_(fail_link) {}
+  static const char* kClassName() { return "ExternalSSTTestEnv"; }
+  const char* Name() const override { return kClassName(); }
 
   Status LinkFile(const std::string& s, const std::string& t) override {
     if (fail_link_) {
@@ -40,16 +43,33 @@ class ExternalSSTTestEnv : public EnvWrapper {
   bool fail_link_;
 };
 
+class ExternalSSTFileTestBase : public DBTestBase {
+ public:
+  ExternalSSTFileTestBase()
+      : DBTestBase("external_sst_file_test", /*env_do_fsync=*/true) {
+    sst_files_dir_ = dbname_ + "/sst_files/";
+    DestroyAndRecreateExternalSSTFilesDir();
+  }
+
+  void DestroyAndRecreateExternalSSTFilesDir() {
+    ASSERT_OK(DestroyDir(env_, sst_files_dir_));
+    ASSERT_OK(env_->CreateDir(sst_files_dir_));
+  }
+
+  ~ExternalSSTFileTestBase() override {
+    DestroyDir(env_, sst_files_dir_).PermitUncheckedError();
+  }
+
+ protected:
+  std::string sst_files_dir_;
+};
+
 class ExternSSTFileLinkFailFallbackTest
-    : public DBTestBase,
+    : public ExternalSSTFileTestBase,
       public ::testing::WithParamInterface<std::tuple<bool, bool>> {
  public:
   ExternSSTFileLinkFailFallbackTest()
-      : DBTestBase("external_sst_file_test", /*env_do_fsync=*/true),
-        test_env_(new ExternalSSTTestEnv(env_, true)) {
-    sst_files_dir_ = dbname_ + "/sst_files/";
-    EXPECT_EQ(DestroyDir(env_, sst_files_dir_), Status::OK());
-    EXPECT_EQ(env_->CreateDir(sst_files_dir_), Status::OK());
+      : test_env_(new ExternalSSTTestEnv(env_, true)) {
     options_ = CurrentOptions();
     options_.disable_auto_compactions = true;
     options_.env = test_env_;
@@ -64,25 +84,15 @@ class ExternSSTFileLinkFailFallbackTest
   }
 
  protected:
-  std::string sst_files_dir_;
   Options options_;
   ExternalSSTTestEnv* test_env_;
 };
 
 class ExternalSSTFileTest
-    : public DBTestBase,
+    : public ExternalSSTFileTestBase,
       public ::testing::WithParamInterface<std::tuple<bool, bool>> {
  public:
-  ExternalSSTFileTest()
-      : DBTestBase("external_sst_file_test", /*env_do_fsync=*/true) {
-    sst_files_dir_ = dbname_ + "/sst_files/";
-    DestroyAndRecreateExternalSSTFilesDir();
-  }
-
-  void DestroyAndRecreateExternalSSTFilesDir() {
-    ASSERT_OK(DestroyDir(env_, sst_files_dir_));
-    ASSERT_OK(env_->CreateDir(sst_files_dir_));
-  }
+  ExternalSSTFileTest() {}
 
   Status GenerateOneExternalFile(
       const Options& options, ColumnFamilyHandle* cfh,
@@ -108,7 +118,7 @@ class ExternalSSTFileTest
           });
       data.resize(uniq_iter - data.begin());
     }
-    std::string file_path = sst_files_dir_ + ToString(file_id);
+    std::string file_path = sst_files_dir_ + std::to_string(file_id);
     SstFileWriter sst_file_writer(EnvOptions(), options, cfh);
     Status s = sst_file_writer.Open(file_path);
     if (!s.ok()) {
@@ -162,7 +172,7 @@ class ExternalSSTFileTest
           });
       data.resize(uniq_iter - data.begin());
     }
-    std::string file_path = sst_files_dir_ + ToString(file_id);
+    std::string file_path = sst_files_dir_ + std::to_string(file_id);
     SstFileWriter sst_file_writer(EnvOptions(), options, cfh);
 
     Status s = sst_file_writer.Open(file_path);
@@ -260,7 +270,7 @@ class ExternalSSTFileTest
       ColumnFamilyHandle* cfh = nullptr) {
     std::vector<std::pair<std::string, std::string>> file_data;
     for (auto& k : keys) {
-      file_data.emplace_back(Key(k), Key(k) + ToString(file_id));
+      file_data.emplace_back(Key(k), Key(k) + std::to_string(file_id));
     }
     return GenerateAndAddExternalFile(options, file_data, file_id,
                                       allow_global_seqno, write_global_seqno,
@@ -281,13 +291,8 @@ class ExternalSSTFileTest
     return db_->IngestExternalFile(files, opts);
   }
 
-  ~ExternalSSTFileTest() override {
-    DestroyDir(env_, sst_files_dir_).PermitUncheckedError();
-  }
-
  protected:
   int last_file_id_ = 0;
-  std::string sst_files_dir_;
 };
 
 TEST_F(ExternalSSTFileTest, Basic) {
@@ -961,7 +966,7 @@ TEST_F(ExternalSSTFileTest, MultiThreaded) {
   // Generate file names
   std::vector<std::string> file_names;
   for (int i = 0; i < num_files; i++) {
-    std::string file_name = "file_" + ToString(i) + ".sst";
+    std::string file_name = "file_" + std::to_string(i) + ".sst";
     file_names.push_back(sst_files_dir_ + file_name);
   }
 
@@ -1111,7 +1116,7 @@ TEST_F(ExternalSSTFileTest, OverlappingRanges) {
       int range_end = key_ranges[i].second;
 
       Status s;
-      std::string range_val = "range_" + ToString(i);
+      std::string range_val = "range_" + std::to_string(i);
 
       // For 20% of ranges we use DB::Put, for 80% we use DB::AddFile
       if (i && i % 5 == 0) {
@@ -1451,7 +1456,7 @@ TEST_F(ExternalSSTFileTest, CompactDuringAddFileRandom) {
     ASSERT_EQ(Get(Key(range_start)), Key(range_start)) << rid;
     ASSERT_EQ(Get(Key(range_end)), Key(range_end)) << rid;
     for (int k = range_start + 1; k < range_end; k++) {
-      std::string v = Key(k) + ToString(rid);
+      std::string v = Key(k) + std::to_string(rid);
       ASSERT_EQ(Get(Key(k)), v) << rid;
     }
   }
@@ -1991,7 +1996,8 @@ TEST_F(ExternalSSTFileTest, CompactionDeadlock) {
     if (running_threads.load() == 0) {
       break;
     }
-    env_->SleepForMicroseconds(500000);
+    // Make sure we do a "real sleep", not a mock one.
+    SystemClock::Default()->SleepForMicroseconds(500000);
   }
 
   ASSERT_EQ(running_threads.load(), 0);
@@ -2380,19 +2386,26 @@ TEST_F(ExternalSSTFileTest, IngestFileWrittenWithCompressionDictionary) {
   ASSERT_EQ(1, num_compression_dicts);
 }
 
+class ExternalSSTBlockChecksumTest
+    : public ExternalSSTFileTestBase,
+      public testing::WithParamInterface<uint32_t> {};
+
+INSTANTIATE_TEST_CASE_P(FormatVersions, ExternalSSTBlockChecksumTest,
+                        testing::ValuesIn(test::kFooterFormatVersionsToTest));
+
 // Very slow, not worth the cost to run regularly
-TEST_F(ExternalSSTFileTest, DISABLED_HugeBlockChecksum) {
-  int max_checksum = static_cast<int>(kxxHash64);
-  for (int i = 0; i <= max_checksum; ++i) {
-    BlockBasedTableOptions table_options;
-    table_options.checksum = static_cast<ChecksumType>(i);
+TEST_P(ExternalSSTBlockChecksumTest, DISABLED_HugeBlockChecksum) {
+  BlockBasedTableOptions table_options;
+  table_options.format_version = GetParam();
+  for (auto t : GetSupportedChecksums()) {
+    table_options.checksum = t;
     Options options = CurrentOptions();
     options.table_factory.reset(NewBlockBasedTableFactory(table_options));
 
     SstFileWriter sst_file_writer(EnvOptions(), options);
 
     // 2^32 - 1, will lead to data block with more than 2^32 bytes
-    size_t huge_size = port::kMaxUint32;
+    size_t huge_size = std::numeric_limits<uint32_t>::max();
 
     std::string f = sst_files_dir_ + "f.sst";
     ASSERT_OK(sst_file_writer.Open(f));

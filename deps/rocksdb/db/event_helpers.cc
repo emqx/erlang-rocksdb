@@ -95,8 +95,10 @@ void EventHelpers::LogAndNotifyTableFileCreationFinished(
     jwriter << "cf_name" << cf_name << "job" << job_id << "event"
             << "table_file_creation"
             << "file_number" << fd.GetNumber() << "file_size"
-            << fd.GetFileSize() << "file_checksum" << file_checksum
-            << "file_checksum_func_name" << file_checksum_func_name;
+            << fd.GetFileSize() << "file_checksum"
+            << Slice(file_checksum).ToString(true) << "file_checksum_func_name"
+            << file_checksum_func_name << "smallest_seqno" << fd.smallest_seqno
+            << "largest_seqno" << fd.largest_seqno;
 
     // table_properties
     {
@@ -147,7 +149,19 @@ void EventHelpers::LogAndNotifyTableFileCreationFinished(
               << table_properties.fast_compression_estimated_data_size
               << "db_id" << table_properties.db_id << "db_session_id"
               << table_properties.db_session_id << "orig_file_number"
-              << table_properties.orig_file_number;
+              << table_properties.orig_file_number << "seqno_to_time_mapping";
+
+      if (table_properties.seqno_to_time_mapping.empty()) {
+        jwriter << "N/A";
+      } else {
+        SeqnoToTimeMapping tmp;
+        Status status = tmp.Add(table_properties.seqno_to_time_mapping);
+        if (status.ok()) {
+          jwriter << tmp.ToHumanString();
+        } else {
+          jwriter << "Invalid";
+        }
+      }
 
       // user collected properties
       for (const auto& prop : table_properties.readable_properties) {
@@ -232,23 +246,30 @@ void EventHelpers::LogAndNotifyTableFileDeletion(
 #endif  // !ROCKSDB_LITE
 }
 
-void EventHelpers::NotifyOnErrorRecoveryCompleted(
+void EventHelpers::NotifyOnErrorRecoveryEnd(
     const std::vector<std::shared_ptr<EventListener>>& listeners,
-    Status old_bg_error, InstrumentedMutex* db_mutex) {
+    const Status& old_bg_error, const Status& new_bg_error,
+    InstrumentedMutex* db_mutex) {
 #ifndef ROCKSDB_LITE
   if (!listeners.empty()) {
     db_mutex->AssertHeld();
     // release lock while notifying events
     db_mutex->Unlock();
     for (auto& listener : listeners) {
+      BackgroundErrorRecoveryInfo info;
+      info.old_bg_error = old_bg_error;
+      info.new_bg_error = new_bg_error;
       listener->OnErrorRecoveryCompleted(old_bg_error);
+      listener->OnErrorRecoveryEnd(info);
+      info.old_bg_error.PermitUncheckedError();
+      info.new_bg_error.PermitUncheckedError();
     }
     db_mutex->Lock();
   }
-  old_bg_error.PermitUncheckedError();
 #else
   (void)listeners;
   (void)old_bg_error;
+  (void)new_bg_error;
   (void)db_mutex;
 #endif  // ROCKSDB_LITE
 }

@@ -35,7 +35,7 @@ class SpecialTimeEnv : public EnvWrapper {
   explicit SpecialTimeEnv(Env* base) : EnvWrapper(base) {
     EXPECT_OK(base->GetCurrentTime(&current_time_));
   }
-
+  const char* Name() const override { return "SpecialTimeEnv"; }
   void Sleep(int64_t sleep_time) { current_time_ += sleep_time; }
   Status GetCurrentTime(int64_t* current_time) override {
     *current_time = current_time_;
@@ -57,12 +57,12 @@ class TtlTest : public testing::Test {
     options_.max_compaction_bytes = 1;
     // compaction should take place always from level0 for determinism
     db_ttl_ = nullptr;
-    DestroyDB(dbname_, Options());
+    EXPECT_OK(DestroyDB(dbname_, Options()));
   }
 
   ~TtlTest() override {
     CloseTtl();
-    DestroyDB(dbname_, Options());
+    EXPECT_OK(DestroyDB(dbname_, Options()));
   }
 
   // Open database with TTL support when TTL not provided with db_ttl_ pointer
@@ -185,6 +185,7 @@ class TtlTest : public testing::Test {
 
   // Runs a manual compaction
   Status ManualCompact(ColumnFamilyHandle* cf = nullptr) {
+    assert(db_ttl_);
     if (cf == nullptr) {
       return db_ttl_->CompactRange(CompactRangeOptions(), nullptr, nullptr);
     } else {
@@ -751,14 +752,14 @@ class DummyFilterFactory : public CompactionFilterFactory {
 
 static int RegisterTestObjects(ObjectLibrary& library,
                                const std::string& /*arg*/) {
-  library.Register<CompactionFilter>(
+  library.AddFactory<CompactionFilter>(
       "DummyFilter", [](const std::string& /*uri*/,
                         std::unique_ptr<CompactionFilter>* /*guard*/,
                         std::string* /* errmsg */) {
         static DummyFilter dummy;
         return &dummy;
       });
-  library.Register<CompactionFilterFactory>(
+  library.AddFactory<CompactionFilterFactory>(
       "DummyFilterFactory", [](const std::string& /*uri*/,
                                std::unique_ptr<CompactionFilterFactory>* guard,
                                std::string* /* errmsg */) {

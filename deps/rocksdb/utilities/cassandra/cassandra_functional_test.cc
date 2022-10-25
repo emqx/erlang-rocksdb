@@ -122,7 +122,8 @@ private:
 class CassandraFunctionalTest : public testing::Test {
 public:
   CassandraFunctionalTest() {
-    DestroyDB(kDbName, Options());    // Start each test with a fresh DB
+    EXPECT_OK(
+        DestroyDB(kDbName, Options()));  // Start each test with a fresh DB
   }
 
   std::shared_ptr<DB> OpenDb() {
@@ -182,16 +183,22 @@ TEST_F(CassandraFunctionalTest, SimpleMergeTest) {
                         ToMicroSeconds(now + 11));
 }
 
+constexpr int64_t kTestTimeoutSecs = 600;
+
 TEST_F(CassandraFunctionalTest,
        CompactionShouldConvertExpiredColumnsToTombstone) {
   CassandraStore store(OpenDb());
   int64_t now= time(nullptr);
 
-  store.Append("k1", CreateTestRowValue({
-    CreateTestColumnSpec(kExpiringColumn, 0, ToMicroSeconds(now - kTtl - 20)), //expired
-    CreateTestColumnSpec(kExpiringColumn, 1, ToMicroSeconds(now - kTtl + 10)), // not expired
-    CreateTestColumnSpec(kTombstone, 3, ToMicroSeconds(now))
-  }));
+  store.Append(
+      "k1",
+      CreateTestRowValue(
+          {CreateTestColumnSpec(kExpiringColumn, 0,
+                                ToMicroSeconds(now - kTtl - 20)),  // expired
+           CreateTestColumnSpec(
+               kExpiringColumn, 1,
+               ToMicroSeconds(now - kTtl + kTestTimeoutSecs)),  // not expired
+           CreateTestColumnSpec(kTombstone, 3, ToMicroSeconds(now))}));
 
   ASSERT_OK(store.Flush());
 
@@ -210,7 +217,7 @@ TEST_F(CassandraFunctionalTest,
   VerifyRowValueColumns(merged.get_columns(), 0, kTombstone, 0,
                         ToMicroSeconds(now - 10));
   VerifyRowValueColumns(merged.get_columns(), 1, kExpiringColumn, 1,
-                        ToMicroSeconds(now - kTtl + 10));
+                        ToMicroSeconds(now - kTtl + kTestTimeoutSecs));
   VerifyRowValueColumns(merged.get_columns(), 2, kColumn, 2,
                         ToMicroSeconds(now));
   VerifyRowValueColumns(merged.get_columns(), 3, kTombstone, 3,
