@@ -347,10 +347,11 @@ namespace erocksdb {
             return enif_make_badarg(env);
         }
 
-        rocksdb::ReadOptions opts;
+        rocksdb::ReadOptions *opts = new rocksdb::ReadOptions;
         ItrBounds bounds;
         auto itr_env = std::make_shared<ErlEnvCtr>();
-        if (!parse_iterator_options(env, itr_env->env, argv[i], opts, bounds)) {
+        if (!parse_iterator_options(env, itr_env->env, argv[i], *opts, bounds)) {
+            delete opts;
             return enif_make_badarg(env);
         }
 
@@ -360,11 +361,12 @@ namespace erocksdb {
         if (argc == 4) {
             ReferencePtr<ColumnFamilyObject> cf_ptr;
             if(!enif_get_cf(env, argv[2], &cf_ptr)) {
+                delete opts;
                 return enif_make_badarg(env);
             }
-            iterator = t->GetIterator(opts, cf_ptr->m_ColumnFamily);
+            iterator = t->GetIterator(*opts, cf_ptr->m_ColumnFamily);
         } else {
-            iterator = t->GetIterator(opts);
+            iterator = t->GetIterator(*opts);
         }
 
         itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), itr_env, iterator);
@@ -381,7 +383,7 @@ namespace erocksdb {
 
         // release reference created during CreateItrObject()
         enif_release_resource(itr_ptr);
-
+        delete opts;
         iterator = NULL;
         return enif_make_tuple2(env, ATOM_OK, result);
 
