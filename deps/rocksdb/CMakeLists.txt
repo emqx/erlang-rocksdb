@@ -87,7 +87,7 @@ endif()
 
 include(CMakeDependentOption)
 
-if(MSVC)
+if(MSVC AND NOT WITHOUT_THIRDPARTY_INC)
   option(WITH_GFLAGS "build with GFlags" OFF)
   option(WITH_XPRESS "build with windows built in compression" OFF)
   option(ROCKSDB_SKIP_THIRDPARTY "skip thirdparty.inc" OFF)
