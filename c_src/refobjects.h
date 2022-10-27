@@ -28,6 +28,8 @@
 
 #include "erl_nif.h"
 
+#include "rocksdb/db.h"
+
 namespace rocksdb {
     class DB;
     class ColumnFamilyHandle;

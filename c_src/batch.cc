@@ -20,6 +20,11 @@
 
 #include "erl_nif.h"
 
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 #include "rocksdb/db.h"
 #include "rocksdb/write_batch.h"
 

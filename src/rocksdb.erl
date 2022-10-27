@@ -298,17 +298,13 @@
                        {level0_file_num_compaction_trigger,  integer()} |
                        {level0_slowdown_writes_trigger,  integer()} |
                        {level0_stop_writes_trigger,  integer()} |
-                       {max_mem_compaction_level,  pos_integer()} |
                        {target_file_size_base,  pos_integer()} |
                        {target_file_size_multiplier,  pos_integer()} |
                        {max_bytes_for_level_base,  pos_integer()} |
                        {max_bytes_for_level_multiplier,  pos_integer()} |
                        {max_compaction_bytes,  pos_integer()} |
-                       {soft_rate_limit,  float()} |
-                       {hard_rate_limit,  float()} |
                        {arena_block_size,  integer()} |
                        {disable_auto_compactions,  boolean()} |
-                       {purge_redundant_kvs_while_flush,  boolean()} |
                        {compaction_style,  compaction_style()} |
                        {compaction_pri,  compaction_pri()} |
                        {filter_deletes,  boolean()} |
@@ -353,12 +349,10 @@
                        {allow_mmap_reads, boolean()} |
                        {allow_mmap_writes, boolean()} |
                        {is_fd_close_on_exec, boolean()} |
-                       {skip_log_error_on_recovery, boolean()} |
                        {stats_dump_period_sec, non_neg_integer()} |
                        {advise_random_on_open, boolean()} |
                        {access_hint, access_hint()} |
                        {compaction_readahead_size, non_neg_integer()} |
-                       {new_table_reader_for_compaction_inputs, boolean()} |
                        {use_adaptive_mutex, boolean()} |
                        {bytes_per_sync, non_neg_integer()} |
                        {skip_stats_update_on_db_open, boolean()} |

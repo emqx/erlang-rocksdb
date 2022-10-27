@@ -97,7 +97,7 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
                 if(option[1] == erocksdb::ATOM_MEMENV)
                 {
                     auto memenv = rocksdb::NewMemEnv(rocksdb::Env::Default());
-                    memenv->CreateDir("/");
+                    memenv->CreateDir("test");
                     opts.env = memenv;
                     opts.create_if_missing = true;
                 }
@@ -253,10 +253,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         {
             opts.is_fd_close_on_exec = (option[1] == erocksdb::ATOM_TRUE);
         }
-        else if (option[0] == erocksdb::ATOM_SKIP_LOG_ERROR_ON_RECOVERY)
-        {
-            opts.skip_log_error_on_recovery = (option[1] == erocksdb::ATOM_TRUE);
-        }
         else if (option[0] == erocksdb::ATOM_STATS_DUMP_PERIOD_SEC)
         {
             unsigned int stats_dump_period_sec;
@@ -287,10 +283,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             unsigned int compaction_readahead_size;
             if (enif_get_uint(env, option[1], &compaction_readahead_size))
                 opts.compaction_readahead_size = compaction_readahead_size;
-        }
-        else if (option[0] == erocksdb::ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS)
-        {
-            opts.new_table_reader_for_compaction_inputs = (option[1] == erocksdb::ATOM_TRUE);
         }
         else if (option[0] == erocksdb::ATOM_USE_ADAPTIVE_MUTEX)
         {
@@ -340,7 +332,7 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             if (option[1] == erocksdb::ATOM_TRUE)
             {
                 auto memenv = rocksdb::NewMemEnv(rocksdb::Env::Default());
-                memenv->CreateDir("/");
+                memenv->CreateDir("test");
                 opts.env = memenv;
                 opts.create_if_missing = true;
             }
@@ -543,12 +535,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             if (enif_get_int(env, option[1], &level0_stop_writes_trigger))
                 opts.level0_stop_writes_trigger = level0_stop_writes_trigger;
         }
-        else if (option[0] == erocksdb::ATOM_MAX_MEM_COMPACTION_LEVEL)
-        {
-            int max_mem_compaction_level;
-            if (enif_get_int(env, option[1], &max_mem_compaction_level))
-                opts.max_mem_compaction_level = max_mem_compaction_level;
-        }
         else if (option[0] == erocksdb::ATOM_TARGET_FILE_SIZE_BASE)
         {
             ErlNifUInt64 target_file_size_base;
@@ -579,18 +565,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             if (enif_get_int(env, option[1], &max_compaction_bytes))
                 opts.max_compaction_bytes = max_compaction_bytes;
         }
-        else if (option[0] == erocksdb::ATOM_SOFT_RATE_LIMIT)
-        {
-            double soft_rate_limit;
-            if (enif_get_double(env, option[1], &soft_rate_limit))
-                opts.soft_rate_limit = soft_rate_limit;
-        }
-        else if (option[0] == erocksdb::ATOM_HARD_RATE_LIMIT)
-        {
-            double hard_rate_limit;
-            if (enif_get_double(env, option[1], &hard_rate_limit))
-                opts.hard_rate_limit = hard_rate_limit;
-        }
         else if (option[0] == erocksdb::ATOM_ARENA_BLOCK_SIZE)
         {
             unsigned int arena_block_size;
@@ -600,10 +574,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         else if (option[0] == erocksdb::ATOM_DISABLE_AUTO_COMPACTIONS)
         {
             opts.disable_auto_compactions = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        else if (option[0] == erocksdb::ATOM_PURGE_REDUNDANT_KVS_WHILE_FLUSH)
-        {
-            opts.purge_redundant_kvs_while_flush = (option[1] == erocksdb::ATOM_TRUE);
         }
         else if (option[0] == erocksdb::ATOM_COMPACTION_STYLE)
         {
@@ -1647,7 +1617,7 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         column_family = db_ptr->m_Db->DefaultColumnFamily();
     }
 
-    uint8_t flag;
+    rocksdb::DB::SizeApproximationFlags flag = rocksdb::DB::SizeApproximationFlags::NONE;
     ERL_NIF_TERM flag_term = argv[i + 1];
     if (flag_term == erocksdb::ATOM_NONE)
         flag = rocksdb::DB::SizeApproximationFlags::NONE;
