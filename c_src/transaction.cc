@@ -329,15 +329,12 @@ namespace erocksdb {
             return enif_make_badarg(env);
         }
 
-        rocksdb::Transaction *t = nullptr;
-        TransactionResource *transaction = nullptr;
-
-        if(!enif_get_resource(env, argv[1], m_Transaction_RESOURCE, (void **) &transaction)) {
+        TransactionResource *tr;
+        if(!enif_get_resource(env, argv[1], m_Transaction_RESOURCE, (void **) &tr)) {
             return enif_make_badarg(env);
         }
 
-        t = transaction->transaction;
-        if(t == nullptr ) {
+        if(tr->transaction == nullptr ) {
             return enif_make_badarg(env);
         }
 
@@ -364,9 +361,9 @@ namespace erocksdb {
                 delete opts;
                 return enif_make_badarg(env);
             }
-            iterator = t->GetIterator(*opts, cf_ptr->m_ColumnFamily);
+            iterator = tr->transaction->GetIterator(*opts, cf_ptr->m_ColumnFamily);
         } else {
-            iterator = t->GetIterator(*opts);
+            iterator = tr->transaction->GetIterator(*opts);
         }
 
         itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), itr_env, iterator);
