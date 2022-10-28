@@ -12,7 +12,8 @@ basic_test() ->
       "test_blobdb", 
       [{create_if_missing, true}
       ,{enable_blob_files, true}
-      ,{min_blob_size, 0}]
+      ,{min_blob_size, 0}
+      ,{blob_garbage_collection_age_cutoff, 0.25}]
     ),
   try
     ok = rocksdb:put(Db, <<"key">>, <<"blob_value">>, []),

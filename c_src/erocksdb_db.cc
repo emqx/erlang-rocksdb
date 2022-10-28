@@ -713,13 +713,13 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         else if (option[0] == erocksdb::ATOM_MIN_BLOB_SIZE)
         {
 
-          unsigned long min_blob_size;
+          ErlNifUInt64 min_blob_size;
           if (enif_get_uint64(env, option[1], &min_blob_size))
             opts.min_blob_size = min_blob_size;
         }
         else if (option[0] == erocksdb::ATOM_BLOB_FILE_SIZE)
         {
-          unsigned long blob_file_size;
+          ErlNifUInt64 blob_file_size;
           if (enif_get_uint64(env, option[1], &blob_file_size))
             opts.min_blob_size = blob_file_size;
         }
