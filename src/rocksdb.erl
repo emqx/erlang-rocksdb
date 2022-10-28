@@ -285,11 +285,24 @@
                      persisted_tier |
                      memtable_tier.
 
+-type prepopulate_blob_cache() :: disable | flush_only.
+
 -type cf_options() :: [{block_cache_size_mb_for_point_lookup, non_neg_integer()} |
                        {memtable_memory_budget, pos_integer()} |
                        {write_buffer_size,  pos_integer()} |
                        {max_write_buffer_number,  pos_integer()} |
                        {min_write_buffer_number_to_merge,  pos_integer()} |
+                       {enable_blob_files, boolean()} |
+                       {min_blob_size, non_neg_integer()} |
+                       {blob_file_size, non_neg_integer()} |
+                       {blob_compression_type, compression_type()} |
+                       {enable_blob_garbage_collection, boolean()} |
+                       {blob_garbage_collection_age_cutoff, float()} |
+                       {blob_garbage_collection_force_threshold, float()} |
+                       {blob_compaction_readahead_size, non_neg_integer()} |
+                       {blob_file_starting_level, non_neg_integer()} |
+                       {blob_cache, cache_handle()} |
+                       {prepopulate_blob_cache, prepopulate_blob_cache()} |
                        {compression,  compression_type()} |
                        {bottommost_compression,  compression_type()} |
                        {compression_opts, compression_opts()} |

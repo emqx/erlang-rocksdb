@@ -219,6 +219,8 @@ ERL_NIF_TERM ATOM_USAGE;
 ERL_NIF_TERM ATOM_PINNED_USAGE;
 ERL_NIF_TERM ATOM_CAPACITY;
 ERL_NIF_TERM ATOM_STRICT_CAPACITY;
+ERL_NIF_TERM ATOM_FLUSH_ONLY;
+ERL_NIF_TERM ATOM_DISABLE;
 
 // generic
 ERL_NIF_TERM ATOM_DEFAULT_COLUMN_FAMILY;
@@ -230,6 +232,19 @@ ERL_NIF_TERM ATOM_WRITE_BUFFER_SIZE;
 ERL_NIF_TERM ATOM_MAX_WRITE_BUFFER_NUMBER;
 ERL_NIF_TERM ATOM_MIN_WRITE_BUFFER_NUMBER_TO_MERGE;
 ERL_NIF_TERM ATOM_COMPRESSION;
+
+// CFOptions blob
+ERL_NIF_TERM ATOM_ENABLE_BLOB_FILES;
+ERL_NIF_TERM ATOM_MIN_BLOB_SIZE;
+ERL_NIF_TERM ATOM_BLOB_FILE_SIZE;
+ERL_NIF_TERM ATOM_BLOB_COMPRESSION_TYPE;
+ERL_NIF_TERM ATOM_ENABLE_BLOB_GC;
+ERL_NIF_TERM ATOM_BLOB_GC_AGE_CUTOFF;
+ERL_NIF_TERM ATOM_BLOB_GC_FORCE_THRESHOLD;
+ERL_NIF_TERM ATOM_BLOB_COMPACTION_READAHEAD_SIZE;
+ERL_NIF_TERM ATOM_BLOB_FILE_STARTING_LEVEL;
+ERL_NIF_TERM ATOM_BLOB_CACHE;
+ERL_NIF_TERM ATOM_PREPOLUATE_BLOB_CACHE;
 
 // Related to CFOpCompressionOptions
 ERL_NIF_TERM ATOM_BOTTOMMOST_COMPRESSION;
@@ -559,6 +574,8 @@ try
   ATOM(erocksdb::ATOM_PINNED_USAGE, "pinned_usage");
   ATOM(erocksdb::ATOM_CAPACITY, "capacity");
   ATOM(erocksdb::ATOM_STRICT_CAPACITY, "strict_capacity");
+  ATOM(erocksdb::ATOM_FLUSH_ONLY, "flush_only");
+  ATOM(erocksdb::ATOM_DISABLE, "disable");
 
   ATOM(erocksdb::ATOM_DEFAULT_COLUMN_FAMILY, "default_column_family");
 
@@ -570,6 +587,17 @@ try
   ATOM(erocksdb::ATOM_MIN_WRITE_BUFFER_NUMBER_TO_MERGE, "min_write_buffer_number_to_merge");
   ATOM(erocksdb::ATOM_COMPRESSION, "compression");
 
+  ATOM(erocksdb::ATOM_ENABLE_BLOB_FILES, "enable_blob_files");
+  ATOM(erocksdb::ATOM_MIN_BLOB_SIZE, "min_blob_size");
+  ATOM(erocksdb::ATOM_BLOB_FILE_SIZE, "blob_file_size");
+  ATOM(erocksdb::ATOM_BLOB_COMPRESSION_TYPE, "blob_compression_type");
+  ATOM(erocksdb::ATOM_ENABLE_BLOB_GC, "enable_blob_garbage_collection");
+  ATOM(erocksdb::ATOM_BLOB_GC_AGE_CUTOFF, "blob_garbage_collection_age_cutoff");
+  ATOM(erocksdb::ATOM_BLOB_GC_FORCE_THRESHOLD, "blob_garbage_collection_force_threshold");
+  ATOM(erocksdb::ATOM_BLOB_COMPACTION_READAHEAD_SIZE, "blob_compaction_readahead_size");
+  ATOM(erocksdb::ATOM_BLOB_FILE_STARTING_LEVEL, "blob_file_starting_level");
+  ATOM(erocksdb::ATOM_BLOB_CACHE, "blob_cache");
+  ATOM(erocksdb::ATOM_PREPOLUATE_BLOB_CACHE, "prepopulate_blob_cache");
   ATOM(erocksdb::ATOM_BOTTOMMOST_COMPRESSION, "bottommost_compression");
   ATOM(erocksdb::ATOM_BOTTOMMOST_COMPRESSION_OPTS, "bottommost_compression_opts");
   ATOM(erocksdb::ATOM_COMPRESSION_OPTS, "compression_opts");

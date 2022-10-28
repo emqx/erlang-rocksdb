@@ -706,7 +706,104 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             else if (option[1] == erocksdb::ATOM_REVERSE_BYTEWISE_COMPARATOR)
                 opts.comparator = rocksdb::ReverseBytewiseComparator();
         }
+        else if (option[0] == erocksdb::ATOM_ENABLE_BLOB_FILES)
+        {
+          opts.enable_blob_files = (option[1] ==erocksdb::ATOM_TRUE); 
+        }
+        else if (option[0] == erocksdb::ATOM_MIN_BLOB_SIZE)
+        {
 
+          unsigned long min_blob_size;
+          if (enif_get_uint64(env, option[1], &min_blob_size))
+            opts.min_blob_size = min_blob_size;
+        }
+        else if (option[0] == erocksdb::ATOM_BLOB_FILE_SIZE)
+        {
+          unsigned long blob_file_size;
+          if (enif_get_uint64(env, option[1], &blob_file_size))
+            opts.min_blob_size = blob_file_size;
+        }
+        else if(option[0] == erocksdb::ATOM_BLOB_COMPRESSION_TYPE)
+        {
+          rocksdb::CompressionType compression = rocksdb::CompressionType::kNoCompression;
+          if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_SNAPPY)
+          {
+            compression = rocksdb::CompressionType::kSnappyCompression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_ZLIB)
+          {
+            compression = rocksdb::CompressionType::kZlibCompression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_BZIP2)
+          {
+            compression = rocksdb::CompressionType::kBZip2Compression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4)
+          {
+            compression = rocksdb::CompressionType::kLZ4Compression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4H)
+          {
+            compression = rocksdb::CompressionType::kLZ4HCCompression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_ZSTD)
+          {
+            compression = rocksdb::CompressionType::kZSTD;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_NONE)
+          {
+            compression = rocksdb::CompressionType::kNoCompression;
+          }
+
+          opts.blob_compression_type = compression;
+        }
+        else if(option[0] == erocksdb::ATOM_ENABLE_BLOB_GC)
+        {
+          opts.enable_blob_garbage_collection = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if(option[0] == erocksdb::ATOM_BLOB_GC_AGE_CUTOFF)
+        {
+          double cutoff;
+          if (enif_get_double(env, option[1], &cutoff))
+            opts.blob_garbage_collection_age_cutoff = cutoff;
+        }
+        if(option[0] == erocksdb::ATOM_BLOB_GC_FORCE_THRESHOLD)
+        {
+          double threshold;
+          if (enif_get_double(env, option[1], &threshold))
+            opts.blob_garbage_collection_force_threshold = threshold;
+        }
+        if(option[0] == erocksdb::ATOM_BLOB_COMPACTION_READAHEAD_SIZE)
+        {
+          unsigned long readahead_size;
+          if (enif_get_uint64(env, option[1], &readahead_size))
+            opts.blob_compaction_readahead_size = readahead_size;
+        }
+        if(option[0] == erocksdb::ATOM_BLOB_FILE_STARTING_LEVEL)
+        {
+          int starting_level;
+          if (enif_get_int(env, option[1], &starting_level))
+            opts.blob_file_starting_level = starting_level;
+        }
+        if(option[0] == erocksdb::ATOM_BLOB_CACHE)
+        {
+          erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
+          if(NULL!=cache_ptr) {
+            auto cache = cache_ptr->cache();
+            opts.blob_cache = cache;
+          }
+        }
+        if(option[0] == erocksdb::ATOM_PREPOLUATE_BLOB_CACHE)
+        {
+          if (option[1] == erocksdb::ATOM_DISABLE)
+          {
+            opts.prepopulate_blob_cache = rocksdb::PrepopulateBlobCache::kDisable;
+          }
+          else if (option[1] == erocksdb::ATOM_FLUSH_ONLY)
+          {
+            opts.prepopulate_blob_cache = rocksdb::PrepopulateBlobCache::kFlushOnly;
+          }
+        }
     }
     return erocksdb::ATOM_OK;
 }
