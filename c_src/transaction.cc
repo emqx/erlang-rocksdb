@@ -68,8 +68,7 @@ namespace erocksdb {
     CreateTransactionType(ErlNifEnv *env)
     {
         ErlNifResourceFlags flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
-        m_Transaction_RESOURCE = enif_open_resource_type(env, NULL, "rocksdb_Transaction",
-                                                 transaction_resource_cleanup, flags, NULL);
+        m_Transaction_RESOURCE = enif_open_resource_type(env, NULL, "rocksdb_Transaction", transaction_resource_cleanup, flags, NULL);
         return;
     }
 
