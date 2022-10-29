@@ -104,6 +104,9 @@ cf_iterators_test() ->
     ok = rocksdb:iterator_close(PlainIt),
     ok = rocksdb:iterator_close(DefaultIt),
 
+    rocksdb:transaction_commit(Txn),
+    rocksdb:release_transaction(Txn),
+
     close_destroy(Db, "transaction_testdb").
 
 
