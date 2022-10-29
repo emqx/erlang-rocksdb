@@ -79,8 +79,8 @@ cf_iterators_test() ->
     ok = rocksdb:transaction_put(Txn, TestH, <<"d">>, <<"v2">>),
     %% ok = rocksdb:transaction_put(Txn, TestH, <<"e">>, <<"v2">>),
 
-    {ok, DefaultIt} = rocksdb:transaction_iterator(Db, Txn, []),
-    {ok, TestIt} = rocksdb:transaction_iterator(Db, Txn, TestH, []),
+    {ok, DefaultIt} = rocksdb:transaction_iterator(Txn, []),
+    {ok, TestIt} = rocksdb:transaction_iterator(Txn, TestH, []),
 
     {ok, PlainIt} = rocksdb:iterator(Db, TestH, []),
 

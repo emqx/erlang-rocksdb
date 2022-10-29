@@ -214,13 +214,8 @@ namespace erocksdb {
                         const ERL_NIF_TERM argv[]) {
 
         ReferencePtr<erocksdb::TransactionObject> tx_ptr;
-        ReferencePtr<DbObject> db_ptr;
 
-        if(!enif_get_db(env, argv[0], &db_ptr)) {
-            return enif_make_badarg(env);
-        }
-
-        if(!enif_get_transaction(env, argv[1], &tx_ptr))
+        if(!enif_get_transaction(env, argv[0], &tx_ptr))
           return enif_make_badarg(env);
 
         int i = argc - 1;
@@ -240,9 +235,9 @@ namespace erocksdb {
         ItrObject * itr_ptr;
         rocksdb::Iterator * iterator;
 
-        if (argc == 4) {
+        if (argc == 3) {
             ReferencePtr<ColumnFamilyObject> cf_ptr;
-            if(!enif_get_cf(env, argv[2], &cf_ptr)) {
+            if(!enif_get_cf(env, argv[1], &cf_ptr)) {
                 delete opts;
                 return enif_make_badarg(env);
             }
@@ -251,7 +246,7 @@ namespace erocksdb {
             iterator = tx_ptr->m_Tx->GetIterator(*opts);
         }
 
-        itr_ptr = ItrObject::CreateItrObject(db_ptr.get(), itr_env, iterator);
+        itr_ptr = ItrObject::CreateItrObject(tx_ptr->m_DbPtr.get(), itr_env, iterator);
 
         if(bounds.upper_bound_slice != nullptr) {
             itr_ptr->SetUpperBoundSlice(bounds.upper_bound_slice);
