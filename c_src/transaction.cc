@@ -291,6 +291,25 @@ namespace erocksdb {
     }
 
     ERL_NIF_TERM
+    RollbackTransaction(ErlNifEnv* env,
+                      int /*argc*/,
+                      const ERL_NIF_TERM argv[])
+    {
+
+        ReferencePtr<erocksdb::TransactionObject> tx_ptr;
+        if(!enif_get_transaction(env, argv[0], &tx_ptr))
+          return enif_make_badarg(env);
+
+        rocksdb::Status s = tx_ptr->m_Tx->Rollback();
+
+        if(s.ok() ) {
+            return ATOM_OK;
+        } else {
+            return error_tuple(env, ATOM_ERROR, s);
+        }
+    }
+
+    ERL_NIF_TERM
     ReleaseTransaction(
         ErlNifEnv* env,
         int /*argc*/,

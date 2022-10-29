@@ -168,7 +168,8 @@
          %% transaction_merge/3, transaction_merge/4,
          transaction_delete/2, transaction_delete/3,
          transaction_iterator/3, transaction_iterator/4,
-         transaction_commit/1
+         transaction_commit/1,
+         transaction_rollback/1
         ]).
 
 %% Backup Engine
@@ -1362,6 +1363,11 @@ transaction_iterator(_DBHandle, _TransactionHandle, _CfHandle, _ReadOpts) ->
 %% @doc commit a transaction to disk atomically (?)
 -spec transaction_commit(Transaction :: transaction_handle()) -> ok | {error, term()}.
 transaction_commit(_Transaction) ->
+  ?nif_stub.
+
+%% @doc rollback a transaction to disk atomically (?)
+-spec transaction_rollback(Transaction :: transaction_handle()) -> ok | {error, term()}.
+transaction_rollback(_Transaction) ->
   ?nif_stub.
 
 %% ===================================================================
