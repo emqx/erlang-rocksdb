@@ -775,7 +775,7 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         }
         if(option[0] == erocksdb::ATOM_BLOB_COMPACTION_READAHEAD_SIZE)
         {
-          unsigned long readahead_size;
+          ErlNifUInt64 readahead_size;
           if (enif_get_uint64(env, option[1], &readahead_size))
             opts.blob_compaction_readahead_size = readahead_size;
         }
