@@ -161,6 +161,7 @@
 %% Transaction API
 -export([
          transaction/2,
+         release_transaction/1,
          transaction_put/3, transaction_put/4,
          transaction_get/3, transaction_get/4,
          %% see comment in c_src/transaction.cc
@@ -1273,13 +1274,18 @@ batch_tolist(_Batch) ->
 transaction(_TransactionDB, _WriteOptions) ->
   ?nif_stub.
 
+%% @doc release a transaction
+-spec release_transaction(TransactionHandle::transaction_handle()) -> ok.
+release_transaction(_TransactionHandle) ->
+  ?nif_stub.
+
 %% @doc add a put operation to the transaction
--spec transaction_put(Transaction :: transaction_handle(), Key :: binary(), Value :: binary()) -> ok.
+-spec transaction_put(Transaction :: transaction_handle(), Key :: binary(), Value :: binary()) -> ok | {error, any()}.
 transaction_put(_Transaction, _Key, _Value) ->
   ?nif_stub.
 
 %% @doc like `transaction_put/3' but apply the operation to a column family
--spec transaction_put(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary(),  Value :: binary()) -> ok.
+-spec transaction_put(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary(),  Value :: binary()) -> ok | {error, any()}.
 transaction_put(_Transaction, _ColumnFamily, _Key, _Value) ->
   ?nif_stub.
 

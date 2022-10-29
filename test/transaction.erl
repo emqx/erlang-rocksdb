@@ -34,7 +34,9 @@ basic_test() ->
     ?assertEqual({ok, <<"v1">>}, rocksdb:get(Db, <<"a">>, [])),
     ?assertEqual({ok, <<"v2">>}, rocksdb:get(Db, <<"b">>, [])),
 
-    ?assertException(error, badarg, rocksdb:transaction_put(Transaction, <<"a">>, <<"v2">>)),
+    ok = rocksdb:release_transaction(Transaction),
+
+    
     close_destroy(Db, "transaction_testdb"),
     ok.
 

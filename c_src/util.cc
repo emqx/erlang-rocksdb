@@ -128,6 +128,21 @@ enif_get_backup_engine(
     return 1;
 }
 
+int
+enif_get_transaction(
+    ErlNifEnv* env, ERL_NIF_TERM val,
+    erocksdb::ReferencePtr<erocksdb::TransactionObject>* tx_ptr)
+{
+    tx_ptr->assign(erocksdb::TransactionObject::RetrieveTransactionObject(env, val));
+
+    if(NULL==tx_ptr->get())
+        return 0;
+
+    return 1;
+}
+
+
+
 int parse_int(const std::string& value) {
     size_t endchar;
 #ifndef CYGWIN

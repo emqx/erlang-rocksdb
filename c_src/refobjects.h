@@ -29,6 +29,7 @@
 #include "erl_nif.h"
 
 #include "rocksdb/db.h"
+#include "rocksdb/utilities/transaction.h"
 
 namespace rocksdb {
     class DB;
@@ -38,6 +39,7 @@ namespace rocksdb {
     class TransactionLogIterator;
     class BackupEngine;
     class Slice;
+    class Transaction;
 }
 
 namespace erocksdb {
@@ -187,11 +189,13 @@ public:
     std::mutex m_SnapshotMutex;                    //!< mutex protecting m_SnapshotList
     std::mutex m_ColumnFamilyMutex;                //!< mutex protecting m_ColumnFamily
     std::mutex m_TLogItrMutex;                     //!< mutex protecting m_TransactionLogList
+    std::mutex m_TransactionMutex;
 
     std::list<class ItrObject *> m_ItrList;        //!< ItrObjects holding ref count to this
     std::list<class SnapshotObject *> m_SnapshotList;
     std::list<class ColumnFamilyObject *> m_ColumnFamilyList;
     std::list<class TLogItrObject *> m_TLogItrList;
+    std::list<class TransactionObject *> m_TransactionList;
 
 protected:
     static ErlNifResourceType* m_Db_RESOURCE;
@@ -226,6 +230,11 @@ public:
     void AddTLogReference(class TLogItrObject *);
 
     void RemoveTLogReference(class TLogItrObject *);
+
+     // manual back link to  Transaction Objects holding reference to this
+    void AddTransactionReference(class TransactionObject *);
+
+    void RemoveTransactionReference(class TransactionObject *);
 
     static void CreateDbObjectType(ErlNifEnv * Env);
 
@@ -372,7 +381,7 @@ public:
 
     static TLogItrObject * CreateTLogItrObject(DbObject * Db, rocksdb::TransactionLogIterator * Itr);
 
-    static TLogItrObject * RetrieveTLogItrObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerme);
+    static TLogItrObject * RetrieveTLogItrObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
 
     static void TLogItrObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
 };  // class TLogItrObject
@@ -410,6 +419,39 @@ public:
 
     static void BackupEngineObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
 };  // class BackupEngineObject
+    //
+
+/**
+ * Per Transaction object.  Created as erlang reference.
+ */
+class TransactionObject : public ErlRefObject
+{
+public:
+    rocksdb::Transaction* m_Tx;
+    ReferencePtr<DbObject> m_DbPtr;
+
+protected:
+    static ErlNifResourceType* m_Transaction_RESOURCE;
+
+public:
+    TransactionObject(DbObject *, rocksdb::Transaction * Tx);
+
+    TransactionObject() = delete;                                   // no default construct
+    TransactionObject(const TransactionObject &) = delete;             // no copy
+    TransactionObject & operator=(const TransactionObject &) = delete; // no assignment
+
+    virtual ~TransactionObject(); // needs to perform free_itr
+
+    virtual void Shutdown();
+
+    static void CreateTransactionObjectType(ErlNifEnv * Env);
+
+    static TransactionObject * CreateTransactionObject(DbObject * Db, rocksdb::Transaction * Tx);
+
+    static TransactionObject * RetrieveTransactionObject(ErlNifEnv * Env, const ERL_NIF_TERM & DbTerm);
+
+    static void TransactionObjectResourceCleanup(ErlNifEnv *Env, void * Arg);
+};  // class TransactionObject
 
 } // namespace erocksdb
 
