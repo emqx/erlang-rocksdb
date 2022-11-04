@@ -1,7 +1,7 @@
 erlang-rocksdb 1.8.0, released on 2022/11/04
 ============================================
 
-- bring compatibility with with Apple Mac M1 and Erlang OTP 
+- bring compatibility with with Apple Mac M1 and Erlang OTP 25 
 - bum to rocksdb version [7.7.3]((https://github.com/facebook/rocksdb/releases/tag/v7.7.3)
 - add support for BLOB databases
 - add `rocksdb:transaction_rollback/1` function
