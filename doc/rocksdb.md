@@ -101,7 +101,7 @@ __abstract datatype__: `cf_handle()`
 
 
 <pre><code>
-cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {memtable_memory_budget, pos_integer()} | {write_buffer_size, pos_integer()} | {max_write_buffer_number, pos_integer()} | {min_write_buffer_number_to_merge, pos_integer()} | {compression, <a href="#type-compression_type">compression_type()</a>} | {bottommost_compression, <a href="#type-compression_type">compression_type()</a>} | {compression_opts, <a href="#type-compression_opts">compression_opts()</a>} | {bottommost_compression_opts, <a href="#type-compression_opts">compression_opts()</a>} | {num_levels, pos_integer()} | {level0_file_num_compaction_trigger, integer()} | {level0_slowdown_writes_trigger, integer()} | {level0_stop_writes_trigger, integer()} | {max_mem_compaction_level, pos_integer()} | {target_file_size_base, pos_integer()} | {target_file_size_multiplier, pos_integer()} | {max_bytes_for_level_base, pos_integer()} | {max_bytes_for_level_multiplier, pos_integer()} | {max_compaction_bytes, pos_integer()} | {soft_rate_limit, float()} | {hard_rate_limit, float()} | {arena_block_size, integer()} | {disable_auto_compactions, boolean()} | {purge_redundant_kvs_while_flush, boolean()} | {compaction_style, <a href="#type-compaction_style">compaction_style()</a>} | {compaction_pri, <a href="#type-compaction_pri">compaction_pri()</a>} | {filter_deletes, boolean()} | {max_sequential_skip_in_iterations, pos_integer()} | {inplace_update_support, boolean()} | {inplace_update_num_locks, pos_integer()} | {table_factory_block_cache_size, pos_integer()} | {in_memory_mode, boolean()} | {block_based_table_options, <a href="#type-block_based_table_options">block_based_table_options()</a>} | {level_compaction_dynamic_level_bytes, boolean()} | {optimize_filters_for_hits, boolean()} | {prefix_extractor, {fixed_prefix_transform, integer()} | {capped_prefix_transform, integer()}} | {merge_operator, <a href="#type-merge_operator">merge_operator()</a>}]
+cf_options() = [{block_cache_size_mb_for_point_lookup, non_neg_integer()} | {memtable_memory_budget, pos_integer()} | {write_buffer_size, pos_integer()} | {max_write_buffer_number, pos_integer()} | {min_write_buffer_number_to_merge, pos_integer()} | {enable_blob_files, boolean()} | {min_blob_size, non_neg_integer()} | {blob_file_size, non_neg_integer()} | {blob_compression_type, <a href="#type-compression_type">compression_type()</a>} | {enable_blob_garbage_collection, boolean()} | {blob_garbage_collection_age_cutoff, float()} | {blob_garbage_collection_force_threshold, float()} | {blob_compaction_readahead_size, non_neg_integer()} | {blob_file_starting_level, non_neg_integer()} | {blob_cache, <a href="#type-cache_handle">cache_handle()</a>} | {prepopulate_blob_cache, <a href="#type-prepopulate_blob_cache">prepopulate_blob_cache()</a>} | {compression, <a href="#type-compression_type">compression_type()</a>} | {bottommost_compression, <a href="#type-compression_type">compression_type()</a>} | {compression_opts, <a href="#type-compression_opts">compression_opts()</a>} | {bottommost_compression_opts, <a href="#type-compression_opts">compression_opts()</a>} | {num_levels, pos_integer()} | {level0_file_num_compaction_trigger, integer()} | {level0_slowdown_writes_trigger, integer()} | {level0_stop_writes_trigger, integer()} | {target_file_size_base, pos_integer()} | {target_file_size_multiplier, pos_integer()} | {max_bytes_for_level_base, pos_integer()} | {max_bytes_for_level_multiplier, pos_integer()} | {max_compaction_bytes, pos_integer()} | {arena_block_size, integer()} | {disable_auto_compactions, boolean()} | {compaction_style, <a href="#type-compaction_style">compaction_style()</a>} | {compaction_pri, <a href="#type-compaction_pri">compaction_pri()</a>} | {filter_deletes, boolean()} | {max_sequential_skip_in_iterations, pos_integer()} | {inplace_update_support, boolean()} | {inplace_update_num_locks, pos_integer()} | {table_factory_block_cache_size, pos_integer()} | {in_memory_mode, boolean()} | {block_based_table_options, <a href="#type-block_based_table_options">block_based_table_options()</a>} | {level_compaction_dynamic_level_bytes, boolean()} | {optimize_filters_for_hits, boolean()} | {prefix_extractor, {fixed_prefix_transform, integer()} | {capped_prefix_transform, integer()}} | {merge_operator, <a href="#type-merge_operator">merge_operator()</a>}]
 </code></pre>
 
 
@@ -179,7 +179,7 @@ __abstract datatype__: `db_handle()`
 
 
 <pre><code>
-db_options() = [{env, <a href="#type-env">env()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_jobs, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {manual_wal_flush, boolean()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {skip_log_error_on_recovery, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {new_table_reader_for_compaction_inputs, boolean()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {db_write_buffer_size, non_neg_integer()} | {in_memory, boolean()} | {rate_limiter, <a href="#type-rate_limiter_handle">rate_limiter_handle()</a>} | {sst_file_manager, <a href="#type-sst_file_manager">sst_file_manager()</a>} | {write_buffer_manager, <a href="#type-write_buffer_manager">write_buffer_manager()</a>} | {max_subcompactions, non_neg_integer()} | {atomic_flush, boolean()} | {use_direct_reads, boolean()} | {use_direct_io_for_flush_and_compaction, boolean()} | {enable_pipelined_write, boolean()} | {unordered_write, boolean()} | {two_write_queues, boolean()} | {statistics, <a href="#type-statistics_handle">statistics_handle()</a>}]
+db_options() = [{env, <a href="#type-env">env()</a>} | {total_threads, pos_integer()} | {create_if_missing, boolean()} | {create_missing_column_families, boolean()} | {error_if_exists, boolean()} | {paranoid_checks, boolean()} | {max_open_files, integer()} | {max_total_wal_size, non_neg_integer()} | {use_fsync, boolean()} | {db_paths, [#db_path{path = <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>, target_size = non_neg_integer()}]} | {db_log_dir, <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>} | {wal_dir, <a href="http://www.erlang.org/edoc/doc/kernel/doc/file.html#type-filename_all">file:filename_all()</a>} | {delete_obsolete_files_period_micros, pos_integer()} | {max_background_jobs, pos_integer()} | {max_background_compactions, pos_integer()} | {max_background_flushes, pos_integer()} | {max_log_file_size, non_neg_integer()} | {log_file_time_to_roll, non_neg_integer()} | {keep_log_file_num, pos_integer()} | {max_manifest_file_size, pos_integer()} | {table_cache_numshardbits, pos_integer()} | {wal_ttl_seconds, non_neg_integer()} | {manual_wal_flush, boolean()} | {wal_size_limit_mb, non_neg_integer()} | {manifest_preallocation_size, pos_integer()} | {allow_mmap_reads, boolean()} | {allow_mmap_writes, boolean()} | {is_fd_close_on_exec, boolean()} | {stats_dump_period_sec, non_neg_integer()} | {advise_random_on_open, boolean()} | {access_hint, <a href="#type-access_hint">access_hint()</a>} | {compaction_readahead_size, non_neg_integer()} | {use_adaptive_mutex, boolean()} | {bytes_per_sync, non_neg_integer()} | {skip_stats_update_on_db_open, boolean()} | {wal_recovery_mode, <a href="#type-wal_recovery_mode">wal_recovery_mode()</a>} | {allow_concurrent_memtable_write, boolean()} | {enable_write_thread_adaptive_yield, boolean()} | {db_write_buffer_size, non_neg_integer()} | {in_memory, boolean()} | {rate_limiter, <a href="#type-rate_limiter_handle">rate_limiter_handle()</a>} | {sst_file_manager, <a href="#type-sst_file_manager">sst_file_manager()</a>} | {write_buffer_manager, <a href="#type-write_buffer_manager">write_buffer_manager()</a>} | {max_subcompactions, non_neg_integer()} | {atomic_flush, boolean()} | {use_direct_reads, boolean()} | {use_direct_io_for_flush_and_compaction, boolean()} | {enable_pipelined_write, boolean()} | {unordered_write, boolean()} | {two_write_queues, boolean()} | {statistics, <a href="#type-statistics_handle">statistics_handle()</a>}]
 </code></pre>
 
 
@@ -284,6 +284,16 @@ merge_operator() = erlang_merge_operator | bitset_merge_operator | {bitset_merge
 
 <pre><code>
 options() = <a href="#type-db_options">db_options()</a> | <a href="#type-cf_options">cf_options()</a>
+</code></pre>
+
+
+
+
+### <a name="type-prepopulate_blob_cache">prepopulate_blob_cache()</a> ###
+
+
+<pre><code>
+prepopulate_blob_cache() = disable | flush_only
 </code></pre>
 
 
@@ -442,7 +452,7 @@ This API should be used to open the db when key-values inserted are
 meant to be removed from the db in a non-strict <code>TTL</code> amount of time
 Therefore, this guarantees that key-values inserted will remain in the
 db for >= TTL amount of time and the db will make efforts to remove the
-key-values as soon as possible after ttl seconds of their insertion.</td></tr><tr><td valign="top"><a href="#purge_old_backup-2">purge_old_backup/2</a></td><td>deletes old backups, keeping latest num_backups_to_keep alive.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_batch-1">release_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#release_cache-1">release_cache/1</a></td><td>release the cache.</td></tr><tr><td valign="top"><a href="#release_rate_limiter-1">release_rate_limiter/1</a></td><td>release the limiter.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#release_sst_file_manager-1">release_sst_file_manager/1</a></td><td>release the SstFileManager.</td></tr><tr><td valign="top"><a href="#release_statistics-1">release_statistics/1</a></td><td>release the Statistics Handle.</td></tr><tr><td valign="top"><a href="#release_write_buffer_manager-1">release_write_buffer_manager/1</a></td><td></td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-3">restore_db_from_backup/3</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-4">restore_db_from_backup/4</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-2">restore_db_from_latest_backup/2</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-3">restore_db_from_latest_backup/3</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#set_capacity-2">set_capacity/2</a></td><td>sets the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-2">set_db_background_threads/2</a></td><td>set background threads of a database.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-3">set_db_background_threads/3</a></td><td>set database background threads of low and high prioriry threads pool of an environment
+key-values as soon as possible after ttl seconds of their insertion.</td></tr><tr><td valign="top"><a href="#purge_old_backup-2">purge_old_backup/2</a></td><td>deletes old backups, keeping latest num_backups_to_keep alive.</td></tr><tr><td valign="top"><a href="#put-4">put/4</a></td><td>Put a key/value pair into the default column family.</td></tr><tr><td valign="top"><a href="#put-5">put/5</a></td><td>Put a key/value pair into the specified column family.</td></tr><tr><td valign="top"><a href="#release_batch-1">release_batch/1</a></td><td></td></tr><tr><td valign="top"><a href="#release_cache-1">release_cache/1</a></td><td>release the cache.</td></tr><tr><td valign="top"><a href="#release_rate_limiter-1">release_rate_limiter/1</a></td><td>release the limiter.</td></tr><tr><td valign="top"><a href="#release_snapshot-1">release_snapshot/1</a></td><td>release a snapshot.</td></tr><tr><td valign="top"><a href="#release_sst_file_manager-1">release_sst_file_manager/1</a></td><td>release the SstFileManager.</td></tr><tr><td valign="top"><a href="#release_statistics-1">release_statistics/1</a></td><td>release the Statistics Handle.</td></tr><tr><td valign="top"><a href="#release_transaction-1">release_transaction/1</a></td><td>release a transaction.</td></tr><tr><td valign="top"><a href="#release_write_buffer_manager-1">release_write_buffer_manager/1</a></td><td></td></tr><tr><td valign="top"><a href="#repair-2">repair/2</a></td><td>Try to repair as much of the contents of the database as possible.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-3">restore_db_from_backup/3</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_backup-4">restore_db_from_backup/4</a></td><td>restore from backup with backup_id.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-2">restore_db_from_latest_backup/2</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#restore_db_from_latest_backup-3">restore_db_from_latest_backup/3</a></td><td>restore from the latest backup.</td></tr><tr><td valign="top"><a href="#set_capacity-2">set_capacity/2</a></td><td>sets the maximum configured capacity of the cache.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-2">set_db_background_threads/2</a></td><td>set background threads of a database.</td></tr><tr><td valign="top"><a href="#set_db_background_threads-3">set_db_background_threads/3</a></td><td>set database background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
 LOW priority pool.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-2">set_env_background_threads/2</a></td><td>set background threads of an environment.</td></tr><tr><td valign="top"><a href="#set_env_background_threads-3">set_env_background_threads/3</a></td><td>set background threads of low and high prioriry threads pool of an environment
 Flush threads are in the HIGH priority pool, while compaction threads are in the
@@ -455,9 +465,9 @@ Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign
 Implemented by calling GetProperty with "rocksdb.stats".</td></tr><tr><td valign="top"><a href="#stop_backup-1">stop_backup/1</a></td><td></td></tr><tr><td valign="top"><a href="#sync_wal-1">sync_wal/1</a></td><td> Sync the wal.</td></tr><tr><td valign="top"><a href="#tlog_iterator-2">tlog_iterator/2</a></td><td>create a new iterator to retrive ethe transaction log since a sequce.</td></tr><tr><td valign="top"><a href="#tlog_iterator_close-1">tlog_iterator_close/1</a></td><td>close the transaction log.</td></tr><tr><td valign="top"><a href="#tlog_next_binary_update-1">tlog_next_binary_update/1</a></td><td>go to the last update as a binary in the transaction log, can be ussed with the write_binary_update function.</td></tr><tr><td valign="top"><a href="#tlog_next_update-1">tlog_next_update/1</a></td><td>like <code>tlog_nex_binary_update/1</code> but also return the batch as a list of operations.</td></tr><tr><td valign="top"><a href="#transaction-2">transaction/2</a></td><td>create a new transaction
 When opened as a Transaction or Optimistic Transaction db,
 a user can both read and write to a transaction without committing
-anything to the disk until they decide to do so.</td></tr><tr><td valign="top"><a href="#transaction_commit-1">transaction_commit/1</a></td><td>commit a transaction to disk atomically (?).</td></tr><tr><td valign="top"><a href="#transaction_delete-2">transaction_delete/2</a></td><td>transaction implementation of delete operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_delete-3">transaction_delete/3</a></td><td>like <code>transaction_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_get-3">transaction_get/3</a></td><td>do a get operation on the contents of the transaction.</td></tr><tr><td valign="top"><a href="#transaction_get-4">transaction_get/4</a></td><td>like <code>transaction_get/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_iterator-3">transaction_iterator/3</a></td><td>Return a iterator over the contents of the database and
-uncommited writes and deletes in the current transaction.</td></tr><tr><td valign="top"><a href="#transaction_iterator-4">transaction_iterator/4</a></td><td>Return a iterator over the contents of the database and
-uncommited writes and deletes in the current transaction.</td></tr><tr><td valign="top"><a href="#transaction_put-3">transaction_put/3</a></td><td>add a put operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_put-4">transaction_put/4</a></td><td>like <code>transaction_put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td></td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
+anything to the disk until they decide to do so.</td></tr><tr><td valign="top"><a href="#transaction_commit-1">transaction_commit/1</a></td><td>commit a transaction to disk atomically (?).</td></tr><tr><td valign="top"><a href="#transaction_delete-2">transaction_delete/2</a></td><td>transaction implementation of delete operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_delete-3">transaction_delete/3</a></td><td>like <code>transaction_delete/2</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_get-3">transaction_get/3</a></td><td>do a get operation on the contents of the transaction.</td></tr><tr><td valign="top"><a href="#transaction_get-4">transaction_get/4</a></td><td>like <code>transaction_get/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_iterator-2">transaction_iterator/2</a></td><td>Return a iterator over the contents of the database and
+uncommited writes and deletes in the current transaction.</td></tr><tr><td valign="top"><a href="#transaction_iterator-3">transaction_iterator/3</a></td><td>Return a iterator over the contents of the database and
+uncommited writes and deletes in the current transaction.</td></tr><tr><td valign="top"><a href="#transaction_put-3">transaction_put/3</a></td><td>add a put operation to the transaction.</td></tr><tr><td valign="top"><a href="#transaction_put-4">transaction_put/4</a></td><td>like <code>transaction_put/3</code> but apply the operation to a column family.</td></tr><tr><td valign="top"><a href="#transaction_rollback-1">transaction_rollback/1</a></td><td>rollback a transaction to disk atomically (?).</td></tr><tr><td valign="top"><a href="#updates_iterator-2">updates_iterator/2</a></td><td></td></tr><tr><td valign="top"><a href="#verify_backup-2">verify_backup/2</a></td><td>checks that each file exists and that the size of the file matches
 our expectations.</td></tr><tr><td valign="top"><a href="#write-3">write/3</a></td><td>Apply the specified updates to the database.</td></tr><tr><td valign="top"><a href="#write_batch-3">write_batch/3</a></td><td>write the batch to the database.</td></tr><tr><td valign="top"><a href="#write_binary_update-3">write_binary_update/3</a></td><td>apply a set of operation coming from a transaction log to another database.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-1">write_buffer_manager_info/1</a></td><td>return informations of a Write Buffer Manager as a list of tuples.</td></tr><tr><td valign="top"><a href="#write_buffer_manager_info-2">write_buffer_manager_info/2</a></td><td>return the information associated with Item for a Write Buffer Manager.</td></tr></table>
 
 
@@ -1169,7 +1179,7 @@ Return the RocksDB internal status of the default column family specified at Pro
 ### get_property/3 ###
 
 <pre><code>
-get_property(DBHandle::<a href="#type-db_handle">db_handle()</a>, CFHandle::<a href="#type-cf_handle">cf_handle()</a>, Property::binary()) -&gt; string() | {error, any()}
+get_property(DBHandle::<a href="#type-db_handle">db_handle()</a>, CFHandle::<a href="#type-cf_handle">cf_handle()</a>, Property::binary()) -&gt; {ok, binary()} | {error, any()}
 </code></pre>
 <br />
 
@@ -1671,6 +1681,17 @@ release_statistics(Statistics::<a href="#type-statistics_handle">statistics_hand
 
 release the Statistics Handle
 
+<a name="release_transaction-1"></a>
+
+### release_transaction/1 ###
+
+<pre><code>
+release_transaction(TransactionHandle::<a href="#type-transaction_handle">transaction_handle()</a>) -&gt; ok
+</code></pre>
+<br />
+
+release a transaction
+
 <a name="release_write_buffer_manager-1"></a>
 
 ### release_write_buffer_manager/1 ###
@@ -2101,30 +2122,30 @@ transaction_get(Transaction::<a href="#type-transaction_handle">transaction_hand
 
 like `transaction_get/3` but apply the operation to a column family
 
-<a name="transaction_iterator-3"></a>
+<a name="transaction_iterator-2"></a>
 
-### transaction_iterator/3 ###
+### transaction_iterator/2 ###
 
 <pre><code>
-transaction_iterator(DBHandle, TransactionHandle, ReadOpts) -&gt; Res
+transaction_iterator(TransactionHandle, ReadOpts) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>TransactionHandle = <a href="#type-transaction_handle">transaction_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>TransactionHandle = <a href="#type-transaction_handle">transaction_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
 
 Return a iterator over the contents of the database and
 uncommited writes and deletes in the current transaction.
 The result of iterator() is initially invalid (caller must
 call iterator_move function on the iterator before using it).
 
-<a name="transaction_iterator-4"></a>
+<a name="transaction_iterator-3"></a>
 
-### transaction_iterator/4 ###
+### transaction_iterator/3 ###
 
 <pre><code>
-transaction_iterator(DBHandle, TransactionHandle, CFHandle, ReadOpts) -&gt; Res
+transaction_iterator(TransactionHandle, CFHandle, ReadOpts) -&gt; Res
 </code></pre>
 
-<ul class="definitions"><li><code>DBHandle = <a href="#type-db_handle">db_handle()</a></code></li><li><code>TransactionHandle = <a href="#type-transaction_handle">transaction_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
+<ul class="definitions"><li><code>TransactionHandle = <a href="#type-transaction_handle">transaction_handle()</a></code></li><li><code>CFHandle = <a href="#type-cf_handle">cf_handle()</a></code></li><li><code>ReadOpts = <a href="#type-read_options">read_options()</a></code></li><li><code>Res = {ok, <a href="#type-itr_handle">itr_handle()</a>} | {error, any()}</code></li></ul>
 
 Return a iterator over the contents of the database and
 uncommited writes and deletes in the current transaction.
@@ -2136,7 +2157,7 @@ call iterator_move function on the iterator before using it).
 ### transaction_put/3 ###
 
 <pre><code>
-transaction_put(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, Key::binary(), Value::binary()) -&gt; ok
+transaction_put(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, Key::binary(), Value::binary()) -&gt; ok | {error, any()}
 </code></pre>
 <br />
 
@@ -2147,11 +2168,22 @@ add a put operation to the transaction
 ### transaction_put/4 ###
 
 <pre><code>
-transaction_put(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary(), Value::binary()) -&gt; ok
+transaction_put(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>, ColumnFamily::<a href="#type-cf_handle">cf_handle()</a>, Key::binary(), Value::binary()) -&gt; ok | {error, any()}
 </code></pre>
 <br />
 
 like `transaction_put/3` but apply the operation to a column family
+
+<a name="transaction_rollback-1"></a>
+
+### transaction_rollback/1 ###
+
+<pre><code>
+transaction_rollback(Transaction::<a href="#type-transaction_handle">transaction_handle()</a>) -&gt; ok | {error, term()}
+</code></pre>
+<br />
+
+rollback a transaction to disk atomically (?)
 
 <a name="updates_iterator-2"></a>
 
