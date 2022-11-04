@@ -1,3 +1,22 @@
+erlang-rocksdb 1.8.0, released on 2022/11/04
+============================================
+
+- bring compatibility with with Apple Mac M1 and Erlang OTP 
+- bum to rocksdb version [7.7.3]((https://github.com/facebook/rocksdb/releases/tag/v7.7.3)
+- add support for BLOB databases
+- add `rocksdb:transaction_rollback/1` function
+- add `release_transaction_rollback/1` function
+- fix: bind transactions OPs that require it to IO threads.
+- fix transaction iterator
+- fix transaction leaks: ensure the resource is always closed
+- fix specs
+
+** BREAKING CHANGES **
+
+- rocksdb:transction_commit doesn't delete the transaction
+- `rocksdb_transaction:iterators`: database handle is removed from the functions parameter. Instead only use the
+transaction resource.
+
 erlang-rocksdb 1.7.0, released on 2021/11/03
 ============================================
 
