@@ -25,7 +25,7 @@
          ]},
   {env, []},
 
-  {licenses, ["Apache 2.0"]},
+  {licenses, ["Apache-2.0"]},
   {links, [{"Gitlab", "https://gitlab.com/barrel-db/erlang-rocksdb"}]},
   {files, ["rebar.config",
            "rebar.config.script",
