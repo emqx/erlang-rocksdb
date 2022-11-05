@@ -5,7 +5,7 @@ erlang-rocksdb 1.8.0, released on 2022/11/04
 - bum to rocksdb version [7.7.3]((https://github.com/facebook/rocksdb/releases/tag/v7.7.3)
 - add support for BLOB databases
 - add `rocksdb:transaction_rollback/1` function
-- add `release_transaction_rollback/1` function
+- add `rocksdb:release_transaction/1` function
 - fix: bind transactions OPs that require it to IO threads.
 - fix transaction iterator
 - fix transaction leaks: ensure the resource is always closed
