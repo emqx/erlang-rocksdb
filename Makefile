@@ -1,4 +1,4 @@
-REBAR ?= ./deps/rebar3
+REBAR ?= $(shell which rebar3 2>/dev/null)
 
 TEST_DIR=$(CURDIR)/test
 
