@@ -8,10 +8,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        builder:
+          - 5.0-24
         otp:
-          - 24.2.1-1
+          - 25.1.2-2
         elixir:
-          - 1.13.3
+          - 1.13.4
         arch:
           - amd64
           - arm64
@@ -28,18 +30,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: install rebar3
-        run: |
-          wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
-          cp ./rebar3 /usr/local/bin/rebar3
-
       - uses: docker/setup-buildx-action@v1
 
-      - name: prepare buildx
-        run: docker run --rm --privileged tonistiigi/binfmt:latest --install ${{ matrix.arch }}
+      - uses: docker/setup-qemu-action@v2
+        with:
+          platforms: ${{ matrix.arch }}
 
       - name: test build
-        if: ${{ ! startsWith(github.ref, 'refs/tags/') }}
         run: |
-          IMAGE=ghcr.io/emqx/emqx-builder/5.0-15:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
-          docker run -i --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} $IMAGE bash -euc 'make'
+          IMAGE=ghcr.io/emqx/emqx-builder/${{ matrix.builder }}:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
+          docker run --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} $IMAGE bash -euc 'make'
