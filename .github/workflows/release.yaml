@@ -71,7 +71,7 @@ jobs:
       fail-fast: false
       matrix:
         builder:
-          - 5.0-24
+          - 5.0-26
         otp:
           - 25.1.2-2
           - 24.3.4.2-1
