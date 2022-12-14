@@ -10,8 +10,8 @@ jobs:
       fail-fast: false
       matrix:
         otp:
-          - 24.2.1-1
-          - 23.3.4.9-3
+          - 25.1.2-2
+          - 24.3.4.2-1
         os:
           - macos-11
           - macos-10.15
@@ -70,9 +70,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        builder:
+          - 5.0-26
         otp:
-          - 23.3.4.9-4
-          - 24.2.1-1
+          - 25.1.2-2
+          - 24.3.4.2-1
         elixir:
           - 1.13.4
         arch:
@@ -91,31 +93,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: install rebar3
-        run: |
-          wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
-          cp ./rebar3 /usr/local/bin/rebar3
+      - uses: docker/setup-buildx-action@v2
 
-      - uses: docker/setup-buildx-action@v1
-
-      - name: prepare buildx
-        run: docker run --rm --privileged tonistiigi/binfmt:latest --install ${{ matrix.arch }}
+      - uses: docker/setup-qemu-action@v2
+        with:
+          platforms: ${{ matrix.arch }}
 
       - name: test build
         if: ${{ ! startsWith(github.ref, 'refs/tags/') }}
         run: |
-          IMAGE=ghcr.io/emqx/emqx-builder/5.0-16:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
-          docker run -i --user 1001 --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} $IMAGE bash -euc 'make'
+          IMAGE=ghcr.io/emqx/emqx-builder/${{ matrix.builder }}:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
+          docker run --user 1001 --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} $IMAGE bash -euc 'make'
 
       - name: build release
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          IMAGE=ghcr.io/emqx/emqx-builder/5.0-16:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
-          docker run -i --user 1001 --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} -e BUILD_RELEASE=1 $IMAGE bash -euc 'make'
+          IMAGE=ghcr.io/emqx/emqx-builder/${{ matrix.builder }}:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
+          docker run --user 1001 --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} -e BUILD_RELEASE=1 $IMAGE bash -euc 'make'
 
       - uses: actions/upload-artifact@v2
         if: startsWith(github.ref, 'refs/tags/')
@@ -137,17 +135,9 @@ jobs:
           name: packages
           path: packages
       - name: Create Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Erlang Rocksdb NIF ${{ github.ref }} Released
-          body: Erlang Rocksdb NIF ${{ github.ref }} Released
+          name: Erlang Rocksdb NIF ${{ github.ref_name }} Released
+          files: packages/*
           draft: false
           prerelease: false
-      - uses: Rory-Z/upload-release-asset@v1
-        with:
-          repo: erlang-rocksdb
-          path: "packages/*"
-          token: ${{ github.token }}
