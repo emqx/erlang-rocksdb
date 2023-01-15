@@ -1372,7 +1372,7 @@ transaction_rollback(_Transaction) ->
 %% Backup Engine API
 
 %% @doc open a new backup engine for creating new backups.
--spec open_backup_engine(Path :: string) -> {ok, backup_engine()} | {error, term()}.
+-spec open_backup_engine(Path :: string()) -> {ok, backup_engine()} | {error, term()}.
 open_backup_engine(_Path) ->
   ?nif_stub.
 
