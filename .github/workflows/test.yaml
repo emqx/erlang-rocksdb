@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         builder:
-          - 5.0-26
+          - 5.0-29
         otp:
           - 25.1.2-2
         elixir:
@@ -18,10 +18,10 @@ jobs:
           - amd64
           - arm64
         os:
-          - ubuntu20.04
+          - ubuntu22.04
           - debian11
-          - el7
-          - el8
+          - el9
+          - amzn2
           - alpine3.15.1
     runs-on: ubuntu-latest
 
