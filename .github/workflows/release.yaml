@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
+    inputs:
+      branch_or_tag:
+        required: false
+      is_release:
+        required: false
+        default: false
+
 jobs:
   mac:
     strategy:
@@ -13,33 +21,58 @@ jobs:
           - 25.1.2-2
           - 24.3.4.2-2
         os:
+          - macos-12-arm64
           - macos-12
           - macos-11
     runs-on: ${{ matrix.os }}
     steps:
-      - name: prepare
+      - id: prepare
+        shell: bash
         run: |
           brew update
-          brew install curl zip unzip gnu-sed kerl
+          brew install curl zip unzip coreutils openssl@1.1
+          echo "/usr/local/opt/bison/bin" >> $GITHUB_PATH
           echo "/usr/local/bin" >> $GITHUB_PATH
-          git config --global credential.helper store
+          echo "emqx_name=${emqx_name}" >> $GITHUB_OUTPUT
+          OTP_SOURCE_PATH="$HOME/src/otp-${{ inputs.otp }}"
+          OTP_INSTALL_PATH="$HOME/otp/${{ inputs.otp }}"
+          echo "OTP_SOURCE_PATH=$OTP_SOURCE_PATH" >> $GITHUB_OUTPUT
+          echo "OTP_INSTALL_PATH=$OTP_INSTALL_PATH" >> $GITHUB_OUTPUT
+          mkdir -p "$OTP_SOURCE_PATH" "$OTP_INSTALL_PATH"
       - uses: actions/cache@v3
         id: cache
         with:
-          path: ~/.kerl/${{ matrix.otp }}
-          key: otp-install-${{ matrix.otp }}-${{ matrix.os }}
-
+          path: ${{ steps.prepare.outputs.OTP_INSTALL_PATH }}
+          key: otp-install-${{ inputs.otp }}-${{ inputs.os }}-static-ssl-disable-hipe-disable-jit
       - name: build erlang
         if: steps.cache.outputs.cache-hit != 'true'
-        timeout-minutes: 60
+        shell: bash
         run: |
-          kerl update releases
-          kerl build git https://github.com/emqx/otp.git OTP-${{ matrix.otp }} ${{ matrix.otp }}
-          kerl install ${{ matrix.otp }} $HOME/.kerl/${{ matrix.otp }}
+          OTP_SOURCE_PATH="${{ steps.prepare.outputs.OTP_SOURCE_PATH }}"
+          OTP_INSTALL_PATH="${{ steps.prepare.outputs.OTP_INSTALL_PATH }}"
+          if [ -d "$OTP_SOURCE_PATH" ]; then
+            rm -rf "$OTP_SOURCE_PATH"
+          fi
+          git clone --depth 1 --branch OTP-${{ inputs.otp }} https://github.com/emqx/otp.git "$OTP_SOURCE_PATH"
+          cd "$OTP_SOURCE_PATH"
+          if [ "$(arch)" = arm64 ]; then
+              export LDFLAGS="-L$(brew --prefix unixodbc)/lib"
+              export CC="/usr/bin/gcc -I$(brew --prefix unixodbc)/include"
+          fi
+          ./configure --disable-dynamic-ssl-lib --with-ssl=$(brew --prefix openssl@1.1) --disable-hipe --disable-jit --prefix="$OTP_INSTALL_PATH"
+          make -j$(nproc)
+          rm -rf "$OTP_INSTALL_PATH"
+          make install
+          if [ "$(arch)" = arm64 ]; then
+              unset LDFLAGS
+              unset CC
+          fi
+          echo "$OTP_INSTALL_PATH" >> $GITHUB_PATH
 
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.branch_or_tag }} # when input is not given, the event tag is used
 
       - name: install rebar3
         run: |
@@ -47,19 +80,17 @@ jobs:
           cp ./rebar3 /usr/local/bin/rebar3
 
       - name: test build
-        if: ${{ ! startsWith(github.ref, 'refs/tags/') }}
+        if: ! startsWith(github.ref, 'refs/tags/') || inputs.is_release == false
         run: |
-          . $HOME/.kerl/${{ matrix.otp }}/activate
           make
 
       - name: build release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.is_release == true
         run: |
-          . $HOME/.kerl/${{ matrix.otp }}/activate
           BUILD_RELEASE=1 make
 
       - uses: actions/upload-artifact@v3
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.is_release == true
         with:
           name: packages
           path: |
@@ -71,7 +102,7 @@ jobs:
       fail-fast: false
       matrix:
         builder:
-          - 5.0-29
+          - 5.0-32
         otp:
           - 25.1.2-2
           - 24.3.4.2-2
@@ -99,6 +130,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.branch_or_tag }} # when input is not given, the event tag is used
 
       - uses: docker/setup-buildx-action@v2
 
@@ -107,19 +139,19 @@ jobs:
           platforms: ${{ matrix.arch }}
 
       - name: test build
-        if: ${{ ! startsWith(github.ref, 'refs/tags/') }}
+        if: ! startsWith(github.ref, 'refs/tags/') || inputs.is_release == false
         run: |
           IMAGE=ghcr.io/emqx/emqx-builder/${{ matrix.builder }}:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
           docker run --user 1001 --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} $IMAGE bash -euc 'make'
 
       - name: build release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.is_release == true
         run: |
           IMAGE=ghcr.io/emqx/emqx-builder/${{ matrix.builder }}:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
           docker run --user 1001 --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} -e BUILD_RELEASE=1 $IMAGE bash -euc 'make'
 
       - uses: actions/upload-artifact@v3
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || inputs.is_release == true
         with:
           name: packages
           path: |
@@ -131,7 +163,7 @@ jobs:
     needs:
       - mac
       - linux
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || inputs.is_release == true
     steps:
       - uses: actions/download-artifact@v3
         with:
