@@ -953,7 +953,7 @@ iterator_move(_ITRHandle, _ITRAction) ->
 
 %% @doc
 %% Refresh iterator
--spec(iterator_refresh(ITRHandle) -> ok when ITRHandle::itr_handle()).
+-spec(iterator_refresh(ITRHandle) -> ok | {error, _} when ITRHandle::itr_handle()).
 iterator_refresh(_ITRHandle) ->
     ?nif_stub.
 
