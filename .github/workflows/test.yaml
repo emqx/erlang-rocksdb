@@ -9,19 +9,19 @@ jobs:
       fail-fast: false
       matrix:
         builder:
-          - 5.0-29
+          - 5.1-3
         otp:
-          - 25.1.2-2
+          - 25.3.2-1
         elixir:
-          - 1.13.4
+          - 1.14.5
         arch:
           - amd64
           - arm64
         os:
           - ubuntu22.04
-          - debian11
+          - debian12
           - el9
-          - amzn2
+          - amzn2023
           - alpine3.15.1
     runs-on: ubuntu-latest
 
@@ -35,4 +35,4 @@ jobs:
       - name: test build
         run: |
           IMAGE=ghcr.io/emqx/emqx-builder/${{ matrix.builder }}:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
-          docker run --rm -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} $IMAGE bash -euc 'make'
+          docker run --rm -u $UID -v $(pwd):/wd --workdir /wd --platform=linux/${{ matrix.arch }} $IMAGE bash -euc 'make'
