@@ -143,8 +143,8 @@ void TableReaderBenchmark(Options& opts, EnvOptions& env_options,
     std::unique_ptr<RandomAccessFileReader> file_reader(
         new RandomAccessFileReader(std::move(raf), file_name));
     s = opts.table_factory->NewTableReader(
-        TableReaderOptions(ioptions, moptions.prefix_extractor.get(),
-                           env_options, ikc),
+        TableReaderOptions(ioptions, moptions.prefix_extractor, env_options,
+                           ikc),
         std::move(file_reader), file_size, &table_reader);
     if (!s.ok()) {
       fprintf(stderr, "Open Table Error: %s\n", s.ToString().c_str());
@@ -177,8 +177,8 @@ void TableReaderBenchmark(Options& opts, EnvOptions& env_options,
             GetContext get_context(
                 ioptions.user_comparator, ioptions.merge_operator.get(),
                 ioptions.logger, ioptions.stats, GetContext::kNotFound,
-                Slice(key), &value, nullptr, &merge_context, true,
-                &max_covering_tombstone_seq, clock);
+                Slice(key), &value, /*columns=*/nullptr, /*timestamp=*/nullptr,
+                &merge_context, true, &max_covering_tombstone_seq, clock);
             s = table_reader->Get(read_options, key, &get_context, nullptr);
           } else {
             s = db->Get(read_options, key, &result);

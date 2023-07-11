@@ -19,6 +19,7 @@ int main() {
 #include <vector>
 
 #include "memory/arena.h"
+#include "rocksdb/db.h"
 #include "table/cuckoo/cuckoo_table_builder.h"
 #include "table/cuckoo/cuckoo_table_factory.h"
 #include "table/cuckoo/cuckoo_table_reader.h"
@@ -118,7 +119,8 @@ class CuckooReaderTest : public testing::Test {
       PinnableSlice value;
       GetContext get_context(ucomp, nullptr, nullptr, nullptr,
                              GetContext::kNotFound, Slice(user_keys[i]), &value,
-                             nullptr, nullptr, true, nullptr, nullptr);
+                             nullptr, nullptr, nullptr, nullptr, true, nullptr,
+                             nullptr);
       ASSERT_OK(
           reader.Get(ReadOptions(), Slice(keys[i]), &get_context, nullptr));
       ASSERT_STREQ(values[i].c_str(), value.data());
@@ -340,8 +342,8 @@ TEST_F(CuckooReaderTest, WhenKeyNotFound) {
   AppendInternalKey(&not_found_key, ikey);
   PinnableSlice value;
   GetContext get_context(ucmp, nullptr, nullptr, nullptr, GetContext::kNotFound,
-                         Slice(not_found_key), &value, nullptr, nullptr, true,
-                         nullptr, nullptr);
+                         Slice(not_found_key), &value, nullptr, nullptr,
+                         nullptr, nullptr, true, nullptr, nullptr);
   ASSERT_OK(
       reader.Get(ReadOptions(), Slice(not_found_key), &get_context, nullptr));
   ASSERT_TRUE(value.empty());
@@ -355,7 +357,8 @@ TEST_F(CuckooReaderTest, WhenKeyNotFound) {
   value.Reset();
   GetContext get_context2(ucmp, nullptr, nullptr, nullptr,
                           GetContext::kNotFound, Slice(not_found_key2), &value,
-                          nullptr, nullptr, true, nullptr, nullptr);
+                          nullptr, nullptr, nullptr, nullptr, true, nullptr,
+                          nullptr);
   ASSERT_OK(
       reader.Get(ReadOptions(), Slice(not_found_key2), &get_context2, nullptr));
   ASSERT_TRUE(value.empty());
@@ -369,9 +372,9 @@ TEST_F(CuckooReaderTest, WhenKeyNotFound) {
   AddHashLookups(ExtractUserKey(unused_key).ToString(),
       kNumHashFunc, kNumHashFunc);
   value.Reset();
-  GetContext get_context3(ucmp, nullptr, nullptr, nullptr,
-                          GetContext::kNotFound, Slice(unused_key), &value,
-                          nullptr, nullptr, true, nullptr, nullptr);
+  GetContext get_context3(
+      ucmp, nullptr, nullptr, nullptr, GetContext::kNotFound, Slice(unused_key),
+      &value, nullptr, nullptr, nullptr, nullptr, true, nullptr, nullptr);
   ASSERT_OK(
       reader.Get(ReadOptions(), Slice(unused_key), &get_context3, nullptr));
   ASSERT_TRUE(value.empty());
@@ -399,7 +402,7 @@ std::string GetFileName(uint64_t num) {
     FLAGS_file_dir = test::TmpDir();
   }
   return test::PerThreadDBPath(FLAGS_file_dir, "cuckoo_read_benchmark") +
-         ToString(num / 1000000) + "Mkeys";
+         std::to_string(num / 1000000) + "Mkeys";
 }
 
 // Create last level file as we are interested in measuring performance of
@@ -446,7 +449,7 @@ void WriteFile(const std::vector<std::string>& keys,
   // Assume only the fast path is triggered
   GetContext get_context(nullptr, nullptr, nullptr, nullptr,
                          GetContext::kNotFound, Slice(), &value, nullptr,
-                         nullptr, true, nullptr, nullptr);
+                         nullptr, nullptr, true, nullptr, nullptr);
   for (uint64_t i = 0; i < num; ++i) {
     value.Reset();
     value.clear();
@@ -495,7 +498,7 @@ void ReadKeys(uint64_t num, uint32_t batch_size) {
   // Assume only the fast path is triggered
   GetContext get_context(nullptr, nullptr, nullptr, nullptr,
                          GetContext::kNotFound, Slice(), &value, nullptr,
-                         nullptr, true, nullptr, nullptr);
+                         nullptr, nullptr, true, nullptr, nullptr);
   uint64_t start_time = env->NowMicros();
   if (batch_size > 0) {
     for (uint64_t i = 0; i < num; i += batch_size) {

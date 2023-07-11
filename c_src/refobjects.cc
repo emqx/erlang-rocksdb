@@ -3,6 +3,7 @@
 // eleveldb: Erlang Wrapper for LevelDB (http://code.google.com/p/leveldb/)
 //
 // Copyright (c) 2011-2013 Basho Technologies, Inc. All Rights Reserved.
+// Copyright (c) 2016-2022 Benoit Chesneau/
 //
 // This file is provided to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file
@@ -20,7 +21,7 @@
 //
 // -------------------------------------------------------------------
 
-#include "rocksdb/utilities/backupable_db.h"
+#include "rocksdb/utilities/backup_engine.h"
 #include "refobjects.h"
 #include "detail.hpp"
 
@@ -283,6 +284,7 @@ DbObject::Shutdown()
     ItrObject * itr_ptr;
     SnapshotObject * snapshot_ptr;
     TLogItrObject *tlog_ptr;
+    TransactionObject *tx_ptr;
 
     do
     {
@@ -379,6 +381,31 @@ DbObject::Shutdown()
 
     } while (again);
 
+     // clean transactions
+     do {
+        again = false;
+        tx_ptr = NULL;
+
+        // lock the SnapshotList
+        {
+            std::lock_guard<std::mutex> lock(m_TransactionMutex);
+
+            if (!m_TransactionList.empty()) {
+                again = true;
+                tx_ptr = m_TransactionList.front();
+                m_TransactionList.pop_front();
+            }   // if
+        }
+
+        // must be outside lock so SnapshotObject can attempt
+        //  RemoveReference
+        if (again)
+            TransactionObject::InitiateCloseRequest(tx_ptr);
+
+    } while (again);
+
+
+
 #endif
 
     RefDec();
@@ -471,6 +498,28 @@ DbObject::RemoveTLogReference(TLogItrObject *TLogItrPtr) {
     return;
 
 }   // DbObject::RemoveTLogReference
+
+void
+DbObject::AddTransactionReference(TransactionObject *TxPtr) {
+    std::lock_guard<std::mutex> lock(m_TransactionMutex);
+
+    m_TransactionList.push_back(TxPtr);
+
+    return;
+
+}   // DbObject::AddTransactioneference
+
+
+void
+DbObject::RemoveTransactionReference(TransactionObject *TxPtr) {
+    std::lock_guard<std::mutex> lock(m_TransactionMutex);
+
+    m_TransactionList.remove(TxPtr);
+
+    return;
+
+}   // DbObject::RemoveTransactionference
+
 
 /**
 * ColumnFamily object
@@ -1092,6 +1141,122 @@ BackupEngineObject::Shutdown()
 
 }   // BackupEngineObject::Shutdown
 
+/**
+ * TransactionObject Functions
+ */
+
+ErlNifResourceType * TransactionObject::m_Transaction_RESOURCE(NULL);
+
+
+void
+TransactionObject::CreateTransactionObjectType(
+    ErlNifEnv * Env)
+{
+    ErlNifResourceFlags flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
+
+    m_Transaction_RESOURCE = enif_open_resource_type(Env, NULL, "erocksdb_TransactionObject",
+                                            &TransactionObject::TransactionObjectResourceCleanup,
+                                            flags, NULL);
+
+    return;
+
+}
+
+
+TransactionObject *
+TransactionObject::CreateTransactionObject(
+    DbObject* DbPtr,
+    rocksdb::Transaction* Tx)
+{
+    TransactionObject * ret_ptr;
+    void * alloc_ptr;
+
+    // the alloc call initializes the reference count to "one"
+    alloc_ptr=enif_alloc_resource(m_Transaction_RESOURCE, sizeof(TransactionObject));
+    ret_ptr=new (alloc_ptr) TransactionObject(DbPtr, Tx);
+
+    // manual reference increase to keep active until "close" called
+    //  only inc local counter, leave erl ref count alone ... will force
+    //  erlang to call us if process holding ref dies
+    ret_ptr->RefInc();
+
+    // see OpenTask::operator() for release of reference count
+
+    return(ret_ptr);
+
+}
+
+TransactionObject *
+TransactionObject::RetrieveTransactionObject(
+    ErlNifEnv * Env,
+    const ERL_NIF_TERM & TxTerm)
+{
+    TransactionObject * ret_ptr;
+    ret_ptr=NULL;
+    if (enif_get_resource(Env, TxTerm, m_Transaction_RESOURCE, (void **)&ret_ptr))
+    {
+        // has close been requested?
+        if (ret_ptr->m_CloseRequested)
+        {
+            // object already closing
+            ret_ptr=NULL;
+        }   // else
+    }   // if
+    return(ret_ptr);
+}
+
+
+void
+TransactionObject::TransactionObjectResourceCleanup(
+    ErlNifEnv * /*env*/,
+    void * arg)
+{
+    TransactionObject * tx_ptr;
+
+    tx_ptr=(TransactionObject *)arg;
+
+    // YES, the destructor may already have been called
+    InitiateCloseRequest(tx_ptr);
+
+    // YES, the destructor may already have been called
+    AwaitCloseAndDestructor(tx_ptr);
+
+    return;
+
+}
+
+TransactionObject::TransactionObject(
+    DbObject* DbPtr,
+    rocksdb::Transaction * TxPtr)
+    : m_Tx(TxPtr), m_DbPtr(DbPtr)
+    {
+
+      if (NULL!=DbPtr)
+        DbPtr->AddTransactionReference(this);
+
+    }
+
+
+TransactionObject::~TransactionObject()
+{
+
+  if(NULL!=m_DbPtr.get())
+    m_DbPtr->RemoveTransactionReference(this);
+  
+  delete m_Tx;
+  m_Tx=NULL;
+  return;
+
+}   // TransactionObject::~BackupEngineObject
+
+
+void
+TransactionObject::Shutdown()
+{
+    RefDec();
+    return;
+
+}   // TransactionObject::Shutdown
 
 } // namespace erocksdb
 

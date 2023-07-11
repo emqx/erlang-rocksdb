@@ -22,7 +22,7 @@ class ReduceLevelTest : public testing::Test {
 public:
   ReduceLevelTest() {
     dbname_ = test::PerThreadDBPath("db_reduce_levels_test");
-    DestroyDB(dbname_, Options());
+    EXPECT_OK(DestroyDB(dbname_, Options()));
     db_ = nullptr;
   }
 
@@ -70,8 +70,8 @@ public:
 
   int FilesOnLevel(int level) {
     std::string property;
-    EXPECT_TRUE(db_->GetProperty("rocksdb.num-files-at-level" + ToString(level),
-                                 &property));
+    EXPECT_TRUE(db_->GetProperty(
+        "rocksdb.num-files-at-level" + std::to_string(level), &property));
     return atoi(property.c_str());
   }
 

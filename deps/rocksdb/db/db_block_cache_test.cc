@@ -9,16 +9,27 @@
 #include <cstdlib>
 #include <functional>
 #include <memory>
+#include <unordered_set>
 
 #include "cache/cache_entry_roles.h"
+#include "cache/cache_key.h"
+#include "cache/fast_lru_cache.h"
 #include "cache/lru_cache.h"
 #include "db/column_family.h"
+#include "db/db_impl/db_impl.h"
 #include "db/db_test_util.h"
+#include "env/unique_id_gen.h"
 #include "port/stack_trace.h"
+#include "rocksdb/persistent_cache.h"
 #include "rocksdb/statistics.h"
 #include "rocksdb/table.h"
+#include "rocksdb/table_properties.h"
+#include "table/block_based/block_based_table_reader.h"
+#include "table/unique_id_impl.h"
 #include "util/compression.h"
 #include "util/defer.h"
+#include "util/hash.h"
+#include "util/math.h"
 #include "util/random.h"
 #include "utilities/fault_injection_fs.h"
 
@@ -65,7 +76,7 @@ class DBBlockCacheTest : public DBTestBase {
   void InitTable(const Options& /*options*/) {
     std::string value(kValueSize, 'a');
     for (size_t i = 0; i < kNumBlocks; i++) {
-      ASSERT_OK(Put(ToString(i), value.c_str()));
+      ASSERT_OK(Put(std::to_string(i), value.c_str()));
     }
   }
 
@@ -194,7 +205,7 @@ TEST_F(DBBlockCacheTest, IteratorBlockCacheUsage) {
 
   ASSERT_EQ(0, cache->GetUsage());
   iter = db_->NewIterator(read_options);
-  iter->Seek(ToString(0));
+  iter->Seek(std::to_string(0));
   ASSERT_LT(0, cache->GetUsage());
   delete iter;
   iter = nullptr;
@@ -225,7 +236,7 @@ TEST_F(DBBlockCacheTest, TestWithoutCompressedBlockCache) {
   // Load blocks into cache.
   for (size_t i = 0; i + 1 < kNumBlocks; i++) {
     iter = db_->NewIterator(read_options);
-    iter->Seek(ToString(i));
+    iter->Seek(std::to_string(i));
     ASSERT_OK(iter->status());
     CheckCacheCounters(options, 1, 0, 1, 0);
     iterators[i].reset(iter);
@@ -238,8 +249,8 @@ TEST_F(DBBlockCacheTest, TestWithoutCompressedBlockCache) {
   // Test with strict capacity limit.
   cache->SetStrictCapacityLimit(true);
   iter = db_->NewIterator(read_options);
-  iter->Seek(ToString(kNumBlocks - 1));
-  ASSERT_TRUE(iter->status().IsIncomplete());
+  iter->Seek(std::to_string(kNumBlocks - 1));
+  ASSERT_TRUE(iter->status().IsMemoryLimit());
   CheckCacheCounters(options, 1, 0, 0, 1);
   delete iter;
   iter = nullptr;
@@ -252,7 +263,7 @@ TEST_F(DBBlockCacheTest, TestWithoutCompressedBlockCache) {
   ASSERT_EQ(0, cache->GetPinnedUsage());
   for (size_t i = 0; i + 1 < kNumBlocks; i++) {
     iter = db_->NewIterator(read_options);
-    iter->Seek(ToString(i));
+    iter->Seek(std::to_string(i));
     ASSERT_OK(iter->status());
     CheckCacheCounters(options, 0, 1, 0, 0);
     iterators[i].reset(iter);
@@ -278,7 +289,7 @@ TEST_F(DBBlockCacheTest, TestWithCompressedBlockCache) {
 
   std::string value(kValueSize, 'a');
   for (size_t i = 0; i < kNumBlocks; i++) {
-    ASSERT_OK(Put(ToString(i), value));
+    ASSERT_OK(Put(std::to_string(i), value));
     ASSERT_OK(Flush());
   }
 
@@ -302,7 +313,7 @@ TEST_F(DBBlockCacheTest, TestWithCompressedBlockCache) {
 
   // Load blocks into cache.
   for (size_t i = 0; i < kNumBlocks - 1; i++) {
-    ASSERT_EQ(value, Get(ToString(i)));
+    ASSERT_EQ(value, Get(std::to_string(i)));
     CheckCacheCounters(options, 1, 0, 1, 0);
     CheckCompressedCacheCounters(options, 1, 0, 1, 0);
   }
@@ -322,8 +333,10 @@ TEST_F(DBBlockCacheTest, TestWithCompressedBlockCache) {
   ASSERT_EQ(usage, cache->GetPinnedUsage());
 
   // Load last key block.
-  ASSERT_EQ("Result incomplete: Insert failed due to LRU cache being full.",
-            Get(ToString(kNumBlocks - 1)));
+  ASSERT_EQ(
+      "Operation aborted: Memory limit reached: Insert failed due to LRU cache "
+      "being full.",
+      Get(std::to_string(kNumBlocks - 1)));
   // Failure will also record the miss counter.
   CheckCacheCounters(options, 1, 0, 0, 1);
   CheckCompressedCacheCounters(options, 1, 0, 1, 0);
@@ -332,9 +345,146 @@ TEST_F(DBBlockCacheTest, TestWithCompressedBlockCache) {
   // cache and load into block cache.
   cache->SetStrictCapacityLimit(false);
   // Load last key block.
-  ASSERT_EQ(value, Get(ToString(kNumBlocks - 1)));
+  ASSERT_EQ(value, Get(std::to_string(kNumBlocks - 1)));
   CheckCacheCounters(options, 1, 0, 1, 0);
   CheckCompressedCacheCounters(options, 0, 1, 0, 0);
+}
+
+namespace {
+class PersistentCacheFromCache : public PersistentCache {
+ public:
+  PersistentCacheFromCache(std::shared_ptr<Cache> cache, bool read_only)
+      : cache_(cache), read_only_(read_only) {}
+
+  Status Insert(const Slice& key, const char* data,
+                const size_t size) override {
+    if (read_only_) {
+      return Status::NotSupported();
+    }
+    std::unique_ptr<char[]> copy{new char[size]};
+    std::copy_n(data, size, copy.get());
+    Status s = cache_->Insert(
+        key, copy.get(), size,
+        GetCacheEntryDeleterForRole<char[], CacheEntryRole::kMisc>());
+    if (s.ok()) {
+      copy.release();
+    }
+    return s;
+  }
+
+  Status Lookup(const Slice& key, std::unique_ptr<char[]>* data,
+                size_t* size) override {
+    auto handle = cache_->Lookup(key);
+    if (handle) {
+      char* ptr = static_cast<char*>(cache_->Value(handle));
+      *size = cache_->GetCharge(handle);
+      data->reset(new char[*size]);
+      std::copy_n(ptr, *size, data->get());
+      cache_->Release(handle);
+      return Status::OK();
+    } else {
+      return Status::NotFound();
+    }
+  }
+
+  bool IsCompressed() override { return false; }
+
+  StatsType Stats() override { return StatsType(); }
+
+  std::string GetPrintableOptions() const override { return ""; }
+
+  uint64_t NewId() override { return cache_->NewId(); }
+
+ private:
+  std::shared_ptr<Cache> cache_;
+  bool read_only_;
+};
+
+class ReadOnlyCacheWrapper : public CacheWrapper {
+  using CacheWrapper::CacheWrapper;
+
+  using Cache::Insert;
+  Status Insert(const Slice& /*key*/, void* /*value*/, size_t /*charge*/,
+                void (*)(const Slice& key, void* value) /*deleter*/,
+                Handle** /*handle*/, Priority /*priority*/) override {
+    return Status::NotSupported();
+  }
+};
+
+}  // namespace
+
+TEST_F(DBBlockCacheTest, TestWithSameCompressed) {
+  auto table_options = GetTableOptions();
+  auto options = GetOptions(table_options);
+  InitTable(options);
+
+  std::shared_ptr<Cache> rw_cache{NewLRUCache(1000000)};
+  std::shared_ptr<PersistentCacheFromCache> rw_pcache{
+      new PersistentCacheFromCache(rw_cache, /*read_only*/ false)};
+  // Exercise some obscure behavior with read-only wrappers
+  std::shared_ptr<Cache> ro_cache{new ReadOnlyCacheWrapper(rw_cache)};
+  std::shared_ptr<PersistentCacheFromCache> ro_pcache{
+      new PersistentCacheFromCache(rw_cache, /*read_only*/ true)};
+
+  // Simple same pointer
+  table_options.block_cache = rw_cache;
+  table_options.block_cache_compressed = rw_cache;
+  table_options.persistent_cache.reset();
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  ASSERT_EQ(TryReopen(options).ToString(),
+            "Invalid argument: block_cache same as block_cache_compressed not "
+            "currently supported, and would be bad for performance anyway");
+
+  // Other cases
+  table_options.block_cache = ro_cache;
+  table_options.block_cache_compressed = rw_cache;
+  table_options.persistent_cache.reset();
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  ASSERT_EQ(TryReopen(options).ToString(),
+            "Invalid argument: block_cache and block_cache_compressed share "
+            "the same key space, which is not supported");
+
+  table_options.block_cache = rw_cache;
+  table_options.block_cache_compressed = ro_cache;
+  table_options.persistent_cache.reset();
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  ASSERT_EQ(TryReopen(options).ToString(),
+            "Invalid argument: block_cache_compressed and block_cache share "
+            "the same key space, which is not supported");
+
+  table_options.block_cache = ro_cache;
+  table_options.block_cache_compressed.reset();
+  table_options.persistent_cache = rw_pcache;
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  ASSERT_EQ(TryReopen(options).ToString(),
+            "Invalid argument: block_cache and persistent_cache share the same "
+            "key space, which is not supported");
+
+  table_options.block_cache = rw_cache;
+  table_options.block_cache_compressed.reset();
+  table_options.persistent_cache = ro_pcache;
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  ASSERT_EQ(TryReopen(options).ToString(),
+            "Invalid argument: persistent_cache and block_cache share the same "
+            "key space, which is not supported");
+
+  table_options.block_cache.reset();
+  table_options.no_block_cache = true;
+  table_options.block_cache_compressed = ro_cache;
+  table_options.persistent_cache = rw_pcache;
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  ASSERT_EQ(TryReopen(options).ToString(),
+            "Invalid argument: block_cache_compressed and persistent_cache "
+            "share the same key space, which is not supported");
+
+  table_options.block_cache.reset();
+  table_options.no_block_cache = true;
+  table_options.block_cache_compressed = rw_cache;
+  table_options.persistent_cache = ro_pcache;
+  options.table_factory.reset(NewBlockBasedTableFactory(table_options));
+  ASSERT_EQ(TryReopen(options).ToString(),
+            "Invalid argument: persistent_cache and block_cache_compressed "
+            "share the same key space, which is not supported");
 }
 #endif  // SNAPPY
 
@@ -420,7 +570,7 @@ TEST_F(DBBlockCacheTest, FillCacheAndIterateDB) {
   Iterator* iter = nullptr;
 
   iter = db_->NewIterator(read_options);
-  iter->Seek(ToString(0));
+  iter->Seek(std::to_string(0));
   while (iter->Valid()) {
     iter->Next();
   }
@@ -498,10 +648,10 @@ TEST_F(DBBlockCacheTest, WarmCacheWithDataBlocksDuringFlush) {
 
   std::string value(kValueSize, 'a');
   for (size_t i = 1; i <= kNumBlocks; i++) {
-    ASSERT_OK(Put(ToString(i), value));
+    ASSERT_OK(Put(std::to_string(i), value));
     ASSERT_OK(Flush());
     ASSERT_EQ(i, options.statistics->getTickerCount(BLOCK_CACHE_DATA_ADD));
-    ASSERT_EQ(value, Get(ToString(i)));
+    ASSERT_EQ(value, Get(std::to_string(i)));
     ASSERT_EQ(0, options.statistics->getTickerCount(BLOCK_CACHE_DATA_MISS));
     ASSERT_EQ(i, options.statistics->getTickerCount(BLOCK_CACHE_DATA_HIT));
   }
@@ -513,52 +663,99 @@ TEST_F(DBBlockCacheTest, WarmCacheWithDataBlocksDuringFlush) {
 }
 
 // This test cache data, index and filter blocks during flush.
-TEST_F(DBBlockCacheTest, WarmCacheWithBlocksDuringFlush) {
+class DBBlockCacheTest1 : public DBTestBase,
+                          public ::testing::WithParamInterface<uint32_t> {
+ public:
+  const size_t kNumBlocks = 10;
+  const size_t kValueSize = 100;
+  DBBlockCacheTest1() : DBTestBase("db_block_cache_test1", true) {}
+};
+
+INSTANTIATE_TEST_CASE_P(DBBlockCacheTest1, DBBlockCacheTest1,
+                        ::testing::Values(1, 2));
+
+TEST_P(DBBlockCacheTest1, WarmCacheWithBlocksDuringFlush) {
   Options options = CurrentOptions();
   options.create_if_missing = true;
+  options.disable_auto_compactions = true;
   options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
 
   BlockBasedTableOptions table_options;
   table_options.block_cache = NewLRUCache(1 << 25, 0, false);
+
+  uint32_t filter_type = GetParam();
+  switch (filter_type) {
+    case 1:  // partition_filter
+      table_options.partition_filters = true;
+      table_options.index_type =
+          BlockBasedTableOptions::IndexType::kTwoLevelIndexSearch;
+      table_options.filter_policy.reset(NewBloomFilterPolicy(10));
+      break;
+    case 2:  // full filter
+      table_options.filter_policy.reset(NewBloomFilterPolicy(10));
+      break;
+    default:
+      assert(false);
+  }
+
   table_options.cache_index_and_filter_blocks = true;
   table_options.prepopulate_block_cache =
       BlockBasedTableOptions::PrepopulateBlockCache::kFlushOnly;
-  table_options.filter_policy.reset(NewBloomFilterPolicy(10, false));
   options.table_factory.reset(NewBlockBasedTableFactory(table_options));
   DestroyAndReopen(options);
 
   std::string value(kValueSize, 'a');
   for (size_t i = 1; i <= kNumBlocks; i++) {
-    ASSERT_OK(Put(ToString(i), value));
+    ASSERT_OK(Put(std::to_string(i), value));
     ASSERT_OK(Flush());
     ASSERT_EQ(i, options.statistics->getTickerCount(BLOCK_CACHE_DATA_ADD));
-    ASSERT_EQ(i, options.statistics->getTickerCount(BLOCK_CACHE_INDEX_ADD));
-    ASSERT_EQ(i, options.statistics->getTickerCount(BLOCK_CACHE_FILTER_ADD));
-
-    ASSERT_EQ(value, Get(ToString(i)));
+    if (filter_type == 1) {
+      ASSERT_EQ(2 * i,
+                options.statistics->getTickerCount(BLOCK_CACHE_INDEX_ADD));
+      ASSERT_EQ(2 * i,
+                options.statistics->getTickerCount(BLOCK_CACHE_FILTER_ADD));
+    } else {
+      ASSERT_EQ(i, options.statistics->getTickerCount(BLOCK_CACHE_INDEX_ADD));
+      ASSERT_EQ(i, options.statistics->getTickerCount(BLOCK_CACHE_FILTER_ADD));
+    }
+    ASSERT_EQ(value, Get(std::to_string(i)));
 
     ASSERT_EQ(0, options.statistics->getTickerCount(BLOCK_CACHE_DATA_MISS));
     ASSERT_EQ(i, options.statistics->getTickerCount(BLOCK_CACHE_DATA_HIT));
 
     ASSERT_EQ(0, options.statistics->getTickerCount(BLOCK_CACHE_INDEX_MISS));
     ASSERT_EQ(i * 3, options.statistics->getTickerCount(BLOCK_CACHE_INDEX_HIT));
-
+    if (filter_type == 1) {
+      ASSERT_EQ(i * 3,
+                options.statistics->getTickerCount(BLOCK_CACHE_FILTER_HIT));
+    } else {
+      ASSERT_EQ(i * 2,
+                options.statistics->getTickerCount(BLOCK_CACHE_FILTER_HIT));
+    }
     ASSERT_EQ(0, options.statistics->getTickerCount(BLOCK_CACHE_FILTER_MISS));
-    ASSERT_EQ(i * 2,
-              options.statistics->getTickerCount(BLOCK_CACHE_FILTER_HIT));
   }
+
   // Verify compaction not counted
-  ASSERT_OK(db_->CompactRange(CompactRangeOptions(), /*begin=*/nullptr,
-                              /*end=*/nullptr));
+  CompactRangeOptions cro;
+  // Ensure files are rewritten, not just trivially moved.
+  cro.bottommost_level_compaction = BottommostLevelCompaction::kForceOptimized;
+  ASSERT_OK(db_->CompactRange(cro, /*begin=*/nullptr, /*end=*/nullptr));
   EXPECT_EQ(kNumBlocks,
             options.statistics->getTickerCount(BLOCK_CACHE_DATA_ADD));
   // Index and filter blocks are automatically warmed when the new table file
   // is automatically opened at the end of compaction. This is not easily
   // disabled so results in the new index and filter blocks being warmed.
-  EXPECT_EQ(1 + kNumBlocks,
-            options.statistics->getTickerCount(BLOCK_CACHE_INDEX_ADD));
-  EXPECT_EQ(1 + kNumBlocks,
-            options.statistics->getTickerCount(BLOCK_CACHE_FILTER_ADD));
+  if (filter_type == 1) {
+    EXPECT_EQ(2 * (1 + kNumBlocks),
+              options.statistics->getTickerCount(BLOCK_CACHE_INDEX_ADD));
+    EXPECT_EQ(2 * (1 + kNumBlocks),
+              options.statistics->getTickerCount(BLOCK_CACHE_FILTER_ADD));
+  } else {
+    EXPECT_EQ(1 + kNumBlocks,
+              options.statistics->getTickerCount(BLOCK_CACHE_INDEX_ADD));
+    EXPECT_EQ(1 + kNumBlocks,
+              options.statistics->getTickerCount(BLOCK_CACHE_FILTER_ADD));
+  }
 }
 
 TEST_F(DBBlockCacheTest, DynamicallyWarmCacheDuringFlush) {
@@ -578,12 +775,12 @@ TEST_F(DBBlockCacheTest, DynamicallyWarmCacheDuringFlush) {
   std::string value(kValueSize, 'a');
 
   for (size_t i = 1; i <= 5; i++) {
-    ASSERT_OK(Put(ToString(i), value));
+    ASSERT_OK(Put(std::to_string(i), value));
     ASSERT_OK(Flush());
     ASSERT_EQ(1,
               options.statistics->getAndResetTickerCount(BLOCK_CACHE_DATA_ADD));
 
-    ASSERT_EQ(value, Get(ToString(i)));
+    ASSERT_EQ(value, Get(std::to_string(i)));
     ASSERT_EQ(0,
               options.statistics->getAndResetTickerCount(BLOCK_CACHE_DATA_ADD));
     ASSERT_EQ(
@@ -596,12 +793,12 @@ TEST_F(DBBlockCacheTest, DynamicallyWarmCacheDuringFlush) {
       {{"block_based_table_factory", "{prepopulate_block_cache=kDisable;}"}}));
 
   for (size_t i = 6; i <= kNumBlocks; i++) {
-    ASSERT_OK(Put(ToString(i), value));
+    ASSERT_OK(Put(std::to_string(i), value));
     ASSERT_OK(Flush());
     ASSERT_EQ(0,
               options.statistics->getAndResetTickerCount(BLOCK_CACHE_DATA_ADD));
 
-    ASSERT_EQ(value, Get(ToString(i)));
+    ASSERT_EQ(value, Get(std::to_string(i)));
     ASSERT_EQ(1,
               options.statistics->getAndResetTickerCount(BLOCK_CACHE_DATA_ADD));
     ASSERT_EQ(
@@ -623,8 +820,8 @@ class MockCache : public LRUCache {
 
   MockCache()
       : LRUCache((size_t)1 << 25 /*capacity*/, 0 /*num_shard_bits*/,
-                 false /*strict_capacity_limit*/, 0.0 /*high_pri_pool_ratio*/) {
-  }
+                 false /*strict_capacity_limit*/, 0.0 /*high_pri_pool_ratio*/,
+                 0.0 /*low_pri_pool_ratio*/) {}
 
   using ShardedCache::Insert;
 
@@ -740,7 +937,14 @@ TEST_F(DBBlockCacheTest, AddRedundantStats) {
   int iterations_tested = 0;
   for (std::shared_ptr<Cache> base_cache :
        {NewLRUCache(capacity, num_shard_bits),
-        NewClockCache(capacity, num_shard_bits)}) {
+        HyperClockCacheOptions(
+            capacity,
+            BlockBasedTableOptions().block_size /*estimated_value_size*/,
+            num_shard_bits)
+            .MakeSharedCache(),
+        NewFastLRUCache(capacity, 1 /*estimated_value_size*/, num_shard_bits,
+                        false /*strict_capacity_limit*/,
+                        kDefaultCacheMetadataChargePolicy)}) {
     if (!base_cache) {
       // Skip clock cache when not supported
       continue;
@@ -1094,11 +1298,16 @@ TEST_F(DBBlockCacheTest, CacheEntryRoleStats) {
   int iterations_tested = 0;
   for (bool partition : {false, true}) {
     for (std::shared_ptr<Cache> cache :
-         {NewLRUCache(capacity), NewClockCache(capacity)}) {
+         {NewLRUCache(capacity),
+          HyperClockCacheOptions(
+              capacity,
+              BlockBasedTableOptions().block_size /*estimated_value_size*/)
+              .MakeSharedCache()}) {
       if (!cache) {
         // Skip clock cache when not supported
         continue;
       }
+
       ++iterations_tested;
 
       Options options = CurrentOptions();
@@ -1210,21 +1419,11 @@ TEST_F(DBBlockCacheTest, CacheEntryRoleStats) {
       ASSERT_TRUE(
           db_->GetMapProperty(DB::Properties::kBlockCacheEntryStats, &values));
 
-      EXPECT_EQ(
-          ToString(expected[static_cast<size_t>(CacheEntryRole::kIndexBlock)]),
-          values["count.index-block"]);
-      EXPECT_EQ(
-          ToString(expected[static_cast<size_t>(CacheEntryRole::kDataBlock)]),
-          values["count.data-block"]);
-      EXPECT_EQ(
-          ToString(expected[static_cast<size_t>(CacheEntryRole::kFilterBlock)]),
-          values["count.filter-block"]);
-      EXPECT_EQ(
-          ToString(
-              prev_expected[static_cast<size_t>(CacheEntryRole::kWriteBuffer)]),
-          values["count.write-buffer"]);
-      EXPECT_EQ(ToString(expected[static_cast<size_t>(CacheEntryRole::kMisc)]),
-                values["count.misc"]);
+      for (size_t i = 0; i < kNumCacheEntryRoles; ++i) {
+        auto role = static_cast<CacheEntryRole>(i);
+        EXPECT_EQ(std::to_string(expected[i]),
+                  values[BlockCacheEntryStatsMapKeys::EntryCount(role)]);
+      }
 
       // Add one for kWriteBuffer
       {
@@ -1235,18 +1434,20 @@ TEST_F(DBBlockCacheTest, CacheEntryRoleStats) {
         // re-scanning stats, but not totally aggressive.
         // Within some time window, we will get cached entry stats
         env_->MockSleepForSeconds(1);
-        EXPECT_EQ(ToString(prev_expected[static_cast<size_t>(
+        EXPECT_EQ(std::to_string(prev_expected[static_cast<size_t>(
                       CacheEntryRole::kWriteBuffer)]),
-                  values["count.write-buffer"]);
+                  values[BlockCacheEntryStatsMapKeys::EntryCount(
+                      CacheEntryRole::kWriteBuffer)]);
         // Not enough for a "background" miss but enough for a "foreground" miss
         env_->MockSleepForSeconds(45);
 
         ASSERT_TRUE(db_->GetMapProperty(DB::Properties::kBlockCacheEntryStats,
                                         &values));
         EXPECT_EQ(
-            ToString(
+            std::to_string(
                 expected[static_cast<size_t>(CacheEntryRole::kWriteBuffer)]),
-            values["count.write-buffer"]);
+            values[BlockCacheEntryStatsMapKeys::EntryCount(
+                CacheEntryRole::kWriteBuffer)]);
       }
       prev_expected = expected;
 
@@ -1254,9 +1455,16 @@ TEST_F(DBBlockCacheTest, CacheEntryRoleStats) {
       // even if the cache is full
       ClearCache(cache.get());
       Cache::Handle* h = nullptr;
-      ASSERT_OK(cache->Insert("Fill-it-up", nullptr, capacity + 1,
-                              GetNoopDeleterForRole<CacheEntryRole::kMisc>(),
-                              &h, Cache::Priority::HIGH));
+      if (strcmp(cache->Name(), "LRUCache") == 0) {
+        ASSERT_OK(cache->Insert("Fill-it-up", nullptr, capacity + 1,
+                                GetNoopDeleterForRole<CacheEntryRole::kMisc>(),
+                                &h, Cache::Priority::HIGH));
+      } else {
+        // For ClockCache we use a 16-byte key.
+        ASSERT_OK(cache->Insert("Fill-it-up-xxxxx", nullptr, capacity + 1,
+                                GetNoopDeleterForRole<CacheEntryRole::kMisc>(),
+                                &h, Cache::Priority::HIGH));
+      }
       ASSERT_GT(cache->GetUsage(), cache->GetCapacity());
       expected = {};
       // For CacheEntryStatsCollector
@@ -1363,6 +1571,10 @@ TEST_P(DBBlockCacheKeyTest, StableCacheKeys) {
   options.statistics = ROCKSDB_NAMESPACE::CreateDBStatistics();
   options.env = test_env.get();
 
+  // Corrupting the table properties corrupts the unique id.
+  // Ignore the unique id recorded in the manifest.
+  options.verify_sst_unique_id_in_manifest = false;
+
   BlockBasedTableOptions table_options;
 
   int key_count = 0;
@@ -1404,7 +1616,8 @@ TEST_P(DBBlockCacheKeyTest, StableCacheKeys) {
     // This is a "control" side of the test that also ensures safely degraded
     // behavior on old files.
     ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
-        "PropertyBlockBuilder::AddTableProperty:Start", [&](void* arg) {
+        "BlockBasedTableBuilder::BlockBasedTableBuilder:PreSetupBaseCacheKey",
+        [&](void* arg) {
           TableProperties* props = reinterpret_cast<TableProperties*>(arg);
           props->orig_file_number = 0;
         });
@@ -1450,7 +1663,7 @@ TEST_P(DBBlockCacheKeyTest, StableCacheKeys) {
   SstFileWriter sst_file_writer(EnvOptions(), options);
   std::vector<std::string> external;
   for (int i = 0; i < 2; ++i) {
-    std::string f = dbname_ + "/external" + ToString(i) + ".sst";
+    std::string f = dbname_ + "/external" + std::to_string(i) + ".sst";
     external.push_back(f);
     ASSERT_OK(sst_file_writer.Open(f));
     ASSERT_OK(sst_file_writer.Put(Key(key_count), "abc"));
@@ -1464,11 +1677,7 @@ TEST_P(DBBlockCacheKeyTest, StableCacheKeys) {
   }
 
   if (exclude_file_numbers_) {
-    // FIXME(peterd): figure out where these extra two ADDs are coming from
-    options.statistics->recordTick(BLOCK_CACHE_INDEX_ADD,
-                                   uint64_t{0} - uint64_t{2});
-    options.statistics->recordTick(BLOCK_CACHE_FILTER_ADD,
-                                   uint64_t{0} - uint64_t{2});
+    // FIXME(peterd): figure out where these extra ADDs are coming from
     options.statistics->recordTick(BLOCK_CACHE_COMPRESSED_ADD,
                                    uint64_t{0} - uint64_t{2});
   }
@@ -1516,20 +1725,12 @@ TEST_P(DBBlockCacheKeyTest, StableCacheKeys) {
   delete metadata_ptr_;
   metadata_ptr_ = nullptr;
 
-  DestroyDB(export_files_dir, options);
+  ASSERT_OK(DestroyDB(export_files_dir, options));
 
   ReopenWithColumnFamilies({"default", "yoyo"}, options);
 
   IngestExternalFileOptions ingest_opts;
   ASSERT_OK(db_->IngestExternalFile(handles_[1], {external}, ingest_opts));
-
-  if (exclude_file_numbers_) {
-    // FIXME(peterd): figure out where these extra two ADDs are coming from
-    options.statistics->recordTick(BLOCK_CACHE_INDEX_ADD,
-                                   uint64_t{0} - uint64_t{2});
-    options.statistics->recordTick(BLOCK_CACHE_FILTER_ADD,
-                                   uint64_t{0} - uint64_t{2});
-  }
 
   perform_gets();
   verify_stats();
@@ -1538,6 +1739,278 @@ TEST_P(DBBlockCacheKeyTest, StableCacheKeys) {
   Close();
   Destroy(options);
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
+}
+
+class CacheKeyTest : public testing::Test {
+ public:
+  CacheKey GetBaseCacheKey() {
+    CacheKey rv = GetOffsetableCacheKey(0, /*min file_number*/ 1).WithOffset(0);
+    // Correct for file_number_ == 1
+    *reinterpret_cast<uint64_t*>(&rv) ^= ReverseBits(uint64_t{1});
+    return rv;
+  }
+  CacheKey GetCacheKey(uint64_t session_counter, uint64_t file_number,
+                       uint64_t offset) {
+    OffsetableCacheKey offsetable =
+        GetOffsetableCacheKey(session_counter, file_number);
+    // * 4 to counteract optimization that strips lower 2 bits in encoding
+    // the offset in BlockBasedTable::GetCacheKey (which we prefer to include
+    // in unit tests to maximize functional coverage).
+    EXPECT_GE(offset * 4, offset);  // no overflow
+    return BlockBasedTable::GetCacheKey(offsetable,
+                                        BlockHandle(offset * 4, /*size*/ 5));
+  }
+
+ protected:
+  OffsetableCacheKey GetOffsetableCacheKey(uint64_t session_counter,
+                                           uint64_t file_number) {
+    // Like SemiStructuredUniqueIdGen::GenerateNext
+    tp_.db_session_id = EncodeSessionId(base_session_upper_,
+                                        base_session_lower_ ^ session_counter);
+    tp_.db_id = std::to_string(db_id_);
+    tp_.orig_file_number = file_number;
+    bool is_stable;
+    std::string cur_session_id = "";  // ignored
+    uint64_t cur_file_number = 42;    // ignored
+    OffsetableCacheKey rv;
+    BlockBasedTable::SetupBaseCacheKey(&tp_, cur_session_id, cur_file_number,
+                                       &rv, &is_stable);
+    EXPECT_TRUE(is_stable);
+    EXPECT_TRUE(!rv.IsEmpty());
+    // BEGIN some assertions in relation to SST unique IDs
+    std::string external_unique_id_str;
+    EXPECT_OK(GetUniqueIdFromTableProperties(tp_, &external_unique_id_str));
+    UniqueId64x2 sst_unique_id = {};
+    EXPECT_OK(DecodeUniqueIdBytes(external_unique_id_str, &sst_unique_id));
+    ExternalUniqueIdToInternal(&sst_unique_id);
+    OffsetableCacheKey ock =
+        OffsetableCacheKey::FromInternalUniqueId(&sst_unique_id);
+    EXPECT_EQ(rv.WithOffset(0).AsSlice(), ock.WithOffset(0).AsSlice());
+    EXPECT_EQ(ock.ToInternalUniqueId(), sst_unique_id);
+    // END some assertions in relation to SST unique IDs
+    return rv;
+  }
+
+  TableProperties tp_;
+  uint64_t base_session_upper_ = 0;
+  uint64_t base_session_lower_ = 0;
+  uint64_t db_id_ = 0;
+};
+
+TEST_F(CacheKeyTest, DBImplSessionIdStructure) {
+  // We have to generate our own session IDs for simulation purposes in other
+  // tests. Here we verify that the DBImpl implementation seems to match
+  // our construction here, by using lowest XORed-in bits for "session
+  // counter."
+  std::string session_id1 = DBImpl::GenerateDbSessionId(/*env*/ nullptr);
+  std::string session_id2 = DBImpl::GenerateDbSessionId(/*env*/ nullptr);
+  uint64_t upper1, upper2, lower1, lower2;
+  ASSERT_OK(DecodeSessionId(session_id1, &upper1, &lower1));
+  ASSERT_OK(DecodeSessionId(session_id2, &upper2, &lower2));
+  // Because generated in same process
+  ASSERT_EQ(upper1, upper2);
+  // Unless we generate > 4 billion session IDs in this process...
+  ASSERT_EQ(Upper32of64(lower1), Upper32of64(lower2));
+  // But they must be different somewhere
+  ASSERT_NE(Lower32of64(lower1), Lower32of64(lower2));
+}
+
+namespace {
+// Deconstruct cache key, based on knowledge of implementation details.
+void DeconstructNonemptyCacheKey(const CacheKey& key, uint64_t* file_num_etc64,
+                                 uint64_t* offset_etc64) {
+  *file_num_etc64 = *reinterpret_cast<const uint64_t*>(key.AsSlice().data());
+  *offset_etc64 = *reinterpret_cast<const uint64_t*>(key.AsSlice().data() + 8);
+  assert(*file_num_etc64 != 0);
+  if (*offset_etc64 == 0) {
+    std::swap(*file_num_etc64, *offset_etc64);
+  }
+  assert(*offset_etc64 != 0);
+}
+
+// Make a bit mask of 0 to 64 bits
+uint64_t MakeMask64(int bits) {
+  if (bits >= 64) {
+    return uint64_t{0} - 1;
+  } else {
+    return (uint64_t{1} << bits) - 1;
+  }
+}
+
+// See CacheKeyTest::Encodings
+struct CacheKeyDecoder {
+  // Inputs
+  uint64_t base_file_num_etc64, base_offset_etc64;
+  int session_counter_bits, file_number_bits, offset_bits;
+
+  // Derived
+  uint64_t session_counter_mask, file_number_mask, offset_mask;
+
+  // Outputs
+  uint64_t decoded_session_counter, decoded_file_num, decoded_offset;
+
+  void SetBaseCacheKey(const CacheKey& base) {
+    DeconstructNonemptyCacheKey(base, &base_file_num_etc64, &base_offset_etc64);
+  }
+
+  void SetRanges(int _session_counter_bits, int _file_number_bits,
+                 int _offset_bits) {
+    session_counter_bits = _session_counter_bits;
+    session_counter_mask = MakeMask64(session_counter_bits);
+    file_number_bits = _file_number_bits;
+    file_number_mask = MakeMask64(file_number_bits);
+    offset_bits = _offset_bits;
+    offset_mask = MakeMask64(offset_bits);
+  }
+
+  void Decode(const CacheKey& key) {
+    uint64_t file_num_etc64, offset_etc64;
+    DeconstructNonemptyCacheKey(key, &file_num_etc64, &offset_etc64);
+
+    // First decode session counter
+    if (offset_bits + session_counter_bits <= 64) {
+      // fully recoverable from offset_etc64
+      decoded_session_counter =
+          ReverseBits((offset_etc64 ^ base_offset_etc64)) &
+          session_counter_mask;
+    } else if (file_number_bits + session_counter_bits <= 64) {
+      // fully recoverable from file_num_etc64
+      decoded_session_counter = DownwardInvolution(
+          (file_num_etc64 ^ base_file_num_etc64) & session_counter_mask);
+    } else {
+      // Need to combine parts from each word.
+      // Piece1 will contain some correct prefix of the bottom bits of
+      // session counter.
+      uint64_t piece1 =
+          ReverseBits((offset_etc64 ^ base_offset_etc64) & ~offset_mask);
+      int piece1_bits = 64 - offset_bits;
+      // Piece2 will contain involuded bits that we can combine with piece1
+      // to infer rest of session counter
+      int piece2_bits = std::min(64 - file_number_bits, 64 - piece1_bits);
+      ASSERT_LT(piece2_bits, 64);
+      uint64_t piece2_mask = MakeMask64(piece2_bits);
+      uint64_t piece2 = (file_num_etc64 ^ base_file_num_etc64) & piece2_mask;
+
+      // Cancel out the part of piece2 that we can infer from piece1
+      // (DownwardInvolution distributes over xor)
+      piece2 ^= DownwardInvolution(piece1) & piece2_mask;
+
+      // Now we need to solve for the unknown original bits in higher
+      // positions than piece1 provides. We use Gaussian elimination
+      // because we know that a piece2_bits X piece2_bits submatrix of
+      // the matrix underlying DownwardInvolution times the vector of
+      // unknown original bits equals piece2.
+      //
+      // Build an augmented row matrix for that submatrix, built column by
+      // column.
+      std::array<uint64_t, 64> aug_rows{};
+      for (int i = 0; i < piece2_bits; ++i) {  // over columns
+        uint64_t col_i = DownwardInvolution(uint64_t{1} << piece1_bits << i);
+        ASSERT_NE(col_i & 1U, 0);
+        for (int j = 0; j < piece2_bits; ++j) {  // over rows
+          aug_rows[j] |= (col_i & 1U) << i;
+          col_i >>= 1;
+        }
+      }
+      // Augment with right hand side
+      for (int j = 0; j < piece2_bits; ++j) {  // over rows
+        aug_rows[j] |= (piece2 & 1U) << piece2_bits;
+        piece2 >>= 1;
+      }
+      // Run Gaussian elimination
+      for (int i = 0; i < piece2_bits; ++i) {  // over columns
+        // Find a row that can be used to cancel others
+        uint64_t canceller = 0;
+        // Note: Rows 0 through i-1 contain 1s in columns already eliminated
+        for (int j = i; j < piece2_bits; ++j) {  // over rows
+          if (aug_rows[j] & (uint64_t{1} << i)) {
+            // Swap into appropriate row
+            std::swap(aug_rows[i], aug_rows[j]);
+            // Keep a handy copy for row reductions
+            canceller = aug_rows[i];
+            break;
+          }
+        }
+        ASSERT_NE(canceller, 0);
+        for (int j = 0; j < piece2_bits; ++j) {  // over rows
+          if (i != j && ((aug_rows[j] >> i) & 1) != 0) {
+            // Row reduction
+            aug_rows[j] ^= canceller;
+          }
+        }
+      }
+      // Extract result
+      decoded_session_counter = piece1;
+      for (int j = 0; j < piece2_bits; ++j) {  // over rows
+        ASSERT_EQ(aug_rows[j] & piece2_mask, uint64_t{1} << j);
+        decoded_session_counter |= aug_rows[j] >> piece2_bits << piece1_bits
+                                                              << j;
+      }
+    }
+
+    decoded_offset =
+        offset_etc64 ^ base_offset_etc64 ^ ReverseBits(decoded_session_counter);
+
+    decoded_file_num = ReverseBits(file_num_etc64 ^ base_file_num_etc64 ^
+                                   DownwardInvolution(decoded_session_counter));
+  }
+};
+}  // namespace
+
+TEST_F(CacheKeyTest, Encodings) {
+  // This test primarily verifies this claim from cache_key.cc:
+  // // In fact, if DB ids were not involved, we would be guaranteed unique
+  // // cache keys for files generated in a single process until total bits for
+  // // biggest session_id_counter, orig_file_number, and offset_in_file
+  // // reach 128 bits.
+  //
+  // To demonstrate this, CacheKeyDecoder can reconstruct the structured inputs
+  // to the cache key when provided an output cache key, the unstructured
+  // inputs, and bounds on the structured inputs.
+  //
+  // See OffsetableCacheKey comments in cache_key.cc.
+
+  // We are going to randomly initialize some values that *should* not affect
+  // result
+  Random64 r{std::random_device{}()};
+
+  CacheKeyDecoder decoder;
+  db_id_ = r.Next();
+  base_session_upper_ = r.Next();
+  base_session_lower_ = r.Next();
+  if (base_session_lower_ == 0) {
+    base_session_lower_ = 1;
+  }
+
+  decoder.SetBaseCacheKey(GetBaseCacheKey());
+
+  // Loop over configurations and test those
+  for (int session_counter_bits = 0; session_counter_bits <= 64;
+       ++session_counter_bits) {
+    for (int file_number_bits = 1; file_number_bits <= 64; ++file_number_bits) {
+      // 62 bits max because unoptimized offset will be 64 bits in that case
+      for (int offset_bits = 0; offset_bits <= 62; ++offset_bits) {
+        if (session_counter_bits + file_number_bits + offset_bits > 128) {
+          break;
+        }
+
+        decoder.SetRanges(session_counter_bits, file_number_bits, offset_bits);
+
+        uint64_t session_counter = r.Next() & decoder.session_counter_mask;
+        uint64_t file_number = r.Next() & decoder.file_number_mask;
+        if (file_number == 0) {
+          // Minimum
+          file_number = 1;
+        }
+        uint64_t offset = r.Next() & decoder.offset_mask;
+        decoder.Decode(GetCacheKey(session_counter, file_number, offset));
+
+        EXPECT_EQ(decoder.decoded_session_counter, session_counter);
+        EXPECT_EQ(decoder.decoded_file_num, file_number);
+        EXPECT_EQ(decoder.decoded_offset, offset);
+      }
+    }
+  }
 }
 
 INSTANTIATE_TEST_CASE_P(DBBlockCacheKeyTest, DBBlockCacheKeyTest,
