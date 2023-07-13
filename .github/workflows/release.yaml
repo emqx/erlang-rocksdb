@@ -82,14 +82,13 @@ jobs:
           - ubuntu22.04
           - ubuntu20.04
           - ubuntu18.04
-          - ubuntu16.04
           - debian12
           - debian11
           - debian10
-          - debian9
           - el9
           - el8
           - el7
+          - amzn2
           - amzn2023
           - alpine3.15.1
     runs-on: ubuntu-latest
