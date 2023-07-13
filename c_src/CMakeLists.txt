@@ -45,7 +45,7 @@ endif()
 #    set(CMAKE_FIND_LIBRARY_SUFFIXES .a .so .dylib)
 #endif()
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
@@ -174,7 +174,7 @@ include_directories(${ROCKSDB_INCLUDE_DIRS})
 
 #--------------------------------------------------------------------------------
 
-set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_STANDARD 14)
+set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_EXTENSIONS OFF)
 

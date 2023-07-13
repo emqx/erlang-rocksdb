@@ -1,7 +1,7 @@
 
 // -------------------------------------------------------------------
 // Copyright (c) 2011-2013 Basho Technologies, Inc. All Rights Reserved.
-// Copyright (c) 2016-2020 Benoit Chesneau. All Rights Reserved.
+// Copyright (c) 2016-2022 Benoit Chesneau. All Rights Reserved.
 //
 // This file is provided to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file
@@ -127,6 +127,21 @@ enif_get_backup_engine(
 
     return 1;
 }
+
+int
+enif_get_transaction(
+    ErlNifEnv* env, ERL_NIF_TERM val,
+    erocksdb::ReferencePtr<erocksdb::TransactionObject>* tx_ptr)
+{
+    tx_ptr->assign(erocksdb::TransactionObject::RetrieveTransactionObject(env, val));
+
+    if(NULL==tx_ptr->get())
+        return 0;
+
+    return 1;
+}
+
+
 
 int parse_int(const std::string& value) {
     size_t endchar;

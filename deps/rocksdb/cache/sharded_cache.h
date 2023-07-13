@@ -20,7 +20,8 @@ namespace ROCKSDB_NAMESPACE {
 // Single cache shard interface.
 class CacheShard {
  public:
-  CacheShard() = default;
+  explicit CacheShard(CacheMetadataChargePolicy metadata_charge_policy)
+      : metadata_charge_policy_(metadata_charge_policy) {}
   virtual ~CacheShard() = default;
 
   using DeleterFn = Cache::DeleterFn;
@@ -37,16 +38,18 @@ class CacheShard {
                                 Cache::Priority priority, bool wait,
                                 Statistics* stats) = 0;
   virtual bool Release(Cache::Handle* handle, bool useful,
-                       bool force_erase) = 0;
+                       bool erase_if_last_ref) = 0;
   virtual bool IsReady(Cache::Handle* handle) = 0;
   virtual void Wait(Cache::Handle* handle) = 0;
   virtual bool Ref(Cache::Handle* handle) = 0;
-  virtual bool Release(Cache::Handle* handle, bool force_erase) = 0;
+  virtual bool Release(Cache::Handle* handle, bool erase_if_last_ref) = 0;
   virtual void Erase(const Slice& key, uint32_t hash) = 0;
   virtual void SetCapacity(size_t capacity) = 0;
   virtual void SetStrictCapacityLimit(bool strict_capacity_limit) = 0;
   virtual size_t GetUsage() const = 0;
   virtual size_t GetPinnedUsage() const = 0;
+  virtual size_t GetOccupancyCount() const = 0;
+  virtual size_t GetTableAddressCount() const = 0;
   // Handles iterating over roughly `average_entries_per_lock` entries, using
   // `state` to somehow record where it last ended up. Caller initially uses
   // *state == 0 and implementation sets *state = UINT32_MAX to indicate
@@ -57,13 +60,9 @@ class CacheShard {
       uint32_t average_entries_per_lock, uint32_t* state) = 0;
   virtual void EraseUnRefEntries() = 0;
   virtual std::string GetPrintableOptions() const { return ""; }
-  void set_metadata_charge_policy(
-      CacheMetadataChargePolicy metadata_charge_policy) {
-    metadata_charge_policy_ = metadata_charge_policy;
-  }
 
  protected:
-  CacheMetadataChargePolicy metadata_charge_policy_ = kDontChargeCacheMetadata;
+  const CacheMetadataChargePolicy metadata_charge_policy_;
 };
 
 // Generic cache interface which shards cache by hash of keys. 2^num_shard_bits
@@ -86,7 +85,7 @@ class ShardedCache : public Cache {
                         DeleterFn deleter, Handle** handle,
                         Priority priority) override;
   virtual Status Insert(const Slice& key, void* value,
-                        const CacheItemHelper* helper, size_t chargge,
+                        const CacheItemHelper* helper, size_t charge,
                         Handle** handle = nullptr,
                         Priority priority = Priority::LOW) override;
   virtual Handle* Lookup(const Slice& key, Statistics* stats) override;
@@ -94,11 +93,11 @@ class ShardedCache : public Cache {
                          const CreateCallback& create_cb, Priority priority,
                          bool wait, Statistics* stats = nullptr) override;
   virtual bool Release(Handle* handle, bool useful,
-                       bool force_erase = false) override;
+                       bool erase_if_last_ref = false) override;
   virtual bool IsReady(Handle* handle) override;
   virtual void Wait(Handle* handle) override;
   virtual bool Ref(Handle* handle) override;
-  virtual bool Release(Handle* handle, bool force_erase = false) override;
+  virtual bool Release(Handle* handle, bool erase_if_last_ref = false) override;
   virtual void Erase(const Slice& key) override;
   virtual uint64_t NewId() override;
   virtual size_t GetCapacity() const override;
@@ -106,6 +105,8 @@ class ShardedCache : public Cache {
   virtual size_t GetUsage() const override;
   virtual size_t GetUsage(Handle* handle) const override;
   virtual size_t GetPinnedUsage() const override;
+  virtual size_t GetOccupancyCount() const override;
+  virtual size_t GetTableAddressCount() const override;
   virtual void ApplyToAllEntries(
       const std::function<void(const Slice& key, void* value, size_t charge,
                                DeleterFn deleter)>& callback,
@@ -127,6 +128,8 @@ class ShardedCache : public Cache {
   std::atomic<uint64_t> last_id_;
 };
 
-extern int GetDefaultCacheShardBits(size_t capacity);
+// 512KB is traditional minimum shard size.
+int GetDefaultCacheShardBits(size_t capacity,
+                             size_t min_shard_size = 512U * 1024U);
 
 }  // namespace ROCKSDB_NAMESPACE

@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2013 Basho Technologies, Inc. All Rights Reserved.
-// Copyright (c) 2016-2020 Benoit Chesneau
+// Copyright (c) 2016-2022 Benoit Chesneau
 //
 // This file is provided to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file
@@ -105,18 +105,17 @@ static ErlNifFunc nif_funcs[] =
         // optimistic transaction db
 
         {"transaction", 2, erocksdb::NewTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_put", 3, erocksdb::PutTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_put", 4, erocksdb::PutTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_get", 3, erocksdb::GetTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_get", 4, erocksdb::GetTransaction, ERL_NIF_REGULAR_BOUND},
-        // see note in transaction.cc
-        // {"transaction_merge", 3, erocksdb::MergeTransaction, ERL_NIF_REGULAR_BOUND},
-        // {"transaction_merge", 4, erocksdb::MergeTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_delete", 2, erocksdb::DelTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_delete", 3, erocksdb::DelTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_iterator", 3, erocksdb::IteratorTransaction, ERL_NIF_REGULAR_BOUND},
-        {"transaction_iterator", 4, erocksdb::IteratorTransaction, ERL_NIF_REGULAR_BOUND},
+        {"transaction_put", 3, erocksdb::PutTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"transaction_put", 4, erocksdb::PutTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"transaction_get", 3, erocksdb::GetTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"transaction_get", 4, erocksdb::GetTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"transaction_delete", 2, erocksdb::DelTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"transaction_delete", 3, erocksdb::DelTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"transaction_iterator", 2, erocksdb::IteratorTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"transaction_iterator", 3, erocksdb::IteratorTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
         {"transaction_commit", 1, erocksdb::CommitTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"transaction_rollback", 1, erocksdb::RollbackTransaction, ERL_NIF_DIRTY_JOB_IO_BOUND},
+        {"release_transaction", 1, erocksdb::ReleaseTransaction, ERL_NIF_REGULAR_BOUND},
 
         // Batch
         {"batch", 0, erocksdb::NewBatch, ERL_NIF_REGULAR_BOUND},
@@ -219,6 +218,8 @@ ERL_NIF_TERM ATOM_USAGE;
 ERL_NIF_TERM ATOM_PINNED_USAGE;
 ERL_NIF_TERM ATOM_CAPACITY;
 ERL_NIF_TERM ATOM_STRICT_CAPACITY;
+ERL_NIF_TERM ATOM_FLUSH_ONLY;
+ERL_NIF_TERM ATOM_DISABLE;
 
 // generic
 ERL_NIF_TERM ATOM_DEFAULT_COLUMN_FAMILY;
@@ -230,6 +231,19 @@ ERL_NIF_TERM ATOM_WRITE_BUFFER_SIZE;
 ERL_NIF_TERM ATOM_MAX_WRITE_BUFFER_NUMBER;
 ERL_NIF_TERM ATOM_MIN_WRITE_BUFFER_NUMBER_TO_MERGE;
 ERL_NIF_TERM ATOM_COMPRESSION;
+
+// CFOptions blob
+ERL_NIF_TERM ATOM_ENABLE_BLOB_FILES;
+ERL_NIF_TERM ATOM_MIN_BLOB_SIZE;
+ERL_NIF_TERM ATOM_BLOB_FILE_SIZE;
+ERL_NIF_TERM ATOM_BLOB_COMPRESSION_TYPE;
+ERL_NIF_TERM ATOM_ENABLE_BLOB_GC;
+ERL_NIF_TERM ATOM_BLOB_GC_AGE_CUTOFF;
+ERL_NIF_TERM ATOM_BLOB_GC_FORCE_THRESHOLD;
+ERL_NIF_TERM ATOM_BLOB_COMPACTION_READAHEAD_SIZE;
+ERL_NIF_TERM ATOM_BLOB_FILE_STARTING_LEVEL;
+ERL_NIF_TERM ATOM_BLOB_CACHE;
+ERL_NIF_TERM ATOM_PREPOLUATE_BLOB_CACHE;
 
 // Related to CFOpCompressionOptions
 ERL_NIF_TERM ATOM_BOTTOMMOST_COMPRESSION;
@@ -245,17 +259,13 @@ ERL_NIF_TERM ATOM_NUM_LEVELS;
 ERL_NIF_TERM ATOM_LEVEL0_FILE_NUM_COMPACTION_TRIGGER;
 ERL_NIF_TERM ATOM_LEVEL0_SLOWDOWN_WRITES_TRIGGER;
 ERL_NIF_TERM ATOM_LEVEL0_STOP_WRITES_TRIGGER;
-ERL_NIF_TERM ATOM_MAX_MEM_COMPACTION_LEVEL;
 ERL_NIF_TERM ATOM_TARGET_FILE_SIZE_BASE;
 ERL_NIF_TERM ATOM_TARGET_FILE_SIZE_MULTIPLIER;
 ERL_NIF_TERM ATOM_MAX_BYTES_FOR_LEVEL_BASE;
 ERL_NIF_TERM ATOM_MAX_BYTES_FOR_LEVEL_MULTIPLIER;
 ERL_NIF_TERM ATOM_MAX_COMPACTION_BYTES;
-ERL_NIF_TERM ATOM_SOFT_RATE_LIMIT;
-ERL_NIF_TERM ATOM_HARD_RATE_LIMIT;
 ERL_NIF_TERM ATOM_ARENA_BLOCK_SIZE;
 ERL_NIF_TERM ATOM_DISABLE_AUTO_COMPACTIONS;
-ERL_NIF_TERM ATOM_PURGE_REDUNDANT_KVS_WHILE_FLUSH;
 ERL_NIF_TERM ATOM_COMPACTION_STYLE;
 ERL_NIF_TERM ATOM_COMPACTION_PRI;
 ERL_NIF_TERM ATOM_FILTER_DELETES;
@@ -297,7 +307,6 @@ ERL_NIF_TERM ATOM_MANIFEST_PREALLOCATION_SIZE;
 ERL_NIF_TERM ATOM_ALLOW_MMAP_READS;
 ERL_NIF_TERM ATOM_ALLOW_MMAP_WRITES;
 ERL_NIF_TERM ATOM_IS_FD_CLOSE_ON_EXEC;
-ERL_NIF_TERM ATOM_SKIP_LOG_ERROR_ON_RECOVERY;
 ERL_NIF_TERM ATOM_STATS_DUMP_PERIOD_SEC;
 ERL_NIF_TERM ATOM_ADVISE_RANDOM_ON_OPEN;
 ERL_NIF_TERM ATOM_ACCESS_HINT;
@@ -313,7 +322,6 @@ ERL_NIF_TERM ATOM_RATE_LIMITER;
 ERL_NIF_TERM ATOM_SST_FILE_MANAGER;
 ERL_NIF_TERM ATOM_WRITE_BUFFER_MANAGER;
 ERL_NIF_TERM ATOM_MAX_SUBCOMPACTIONS;
-ERL_NIF_TERM ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS;
 ERL_NIF_TERM ATOM_MANUAL_WAL_FLUSH;
 ERL_NIF_TERM ATOM_ATOMIC_FLUSH;
 ERL_NIF_TERM ATOM_USE_DIRECT_READS;
@@ -531,7 +539,7 @@ try
   erocksdb::ItrObject::CreateItrObjectType(env);
   erocksdb::SnapshotObject::CreateSnapshotObjectType(env);
   erocksdb::CreateBatchType(env);
-  erocksdb::CreateTransactionType(env);
+  erocksdb::TransactionObject::CreateTransactionObjectType(env);
   erocksdb::TLogItrObject::CreateTLogItrObjectType(env);
   erocksdb::BackupEngineObject::CreateBackupEngineObjectType(env);
   erocksdb::Cache::CreateCacheType(env);
@@ -565,6 +573,8 @@ try
   ATOM(erocksdb::ATOM_PINNED_USAGE, "pinned_usage");
   ATOM(erocksdb::ATOM_CAPACITY, "capacity");
   ATOM(erocksdb::ATOM_STRICT_CAPACITY, "strict_capacity");
+  ATOM(erocksdb::ATOM_FLUSH_ONLY, "flush_only");
+  ATOM(erocksdb::ATOM_DISABLE, "disable");
 
   ATOM(erocksdb::ATOM_DEFAULT_COLUMN_FAMILY, "default_column_family");
 
@@ -576,6 +586,17 @@ try
   ATOM(erocksdb::ATOM_MIN_WRITE_BUFFER_NUMBER_TO_MERGE, "min_write_buffer_number_to_merge");
   ATOM(erocksdb::ATOM_COMPRESSION, "compression");
 
+  ATOM(erocksdb::ATOM_ENABLE_BLOB_FILES, "enable_blob_files");
+  ATOM(erocksdb::ATOM_MIN_BLOB_SIZE, "min_blob_size");
+  ATOM(erocksdb::ATOM_BLOB_FILE_SIZE, "blob_file_size");
+  ATOM(erocksdb::ATOM_BLOB_COMPRESSION_TYPE, "blob_compression_type");
+  ATOM(erocksdb::ATOM_ENABLE_BLOB_GC, "enable_blob_garbage_collection");
+  ATOM(erocksdb::ATOM_BLOB_GC_AGE_CUTOFF, "blob_garbage_collection_age_cutoff");
+  ATOM(erocksdb::ATOM_BLOB_GC_FORCE_THRESHOLD, "blob_garbage_collection_force_threshold");
+  ATOM(erocksdb::ATOM_BLOB_COMPACTION_READAHEAD_SIZE, "blob_compaction_readahead_size");
+  ATOM(erocksdb::ATOM_BLOB_FILE_STARTING_LEVEL, "blob_file_starting_level");
+  ATOM(erocksdb::ATOM_BLOB_CACHE, "blob_cache");
+  ATOM(erocksdb::ATOM_PREPOLUATE_BLOB_CACHE, "prepopulate_blob_cache");
   ATOM(erocksdb::ATOM_BOTTOMMOST_COMPRESSION, "bottommost_compression");
   ATOM(erocksdb::ATOM_BOTTOMMOST_COMPRESSION_OPTS, "bottommost_compression_opts");
   ATOM(erocksdb::ATOM_COMPRESSION_OPTS, "compression_opts");
@@ -589,17 +610,13 @@ try
   ATOM(erocksdb::ATOM_LEVEL0_FILE_NUM_COMPACTION_TRIGGER, "level0_file_num_compaction_trigger");
   ATOM(erocksdb::ATOM_LEVEL0_SLOWDOWN_WRITES_TRIGGER, "level0_slowdown_writes_trigger");
   ATOM(erocksdb::ATOM_LEVEL0_STOP_WRITES_TRIGGER, "level0_stop_writes_trigger");
-  ATOM(erocksdb::ATOM_MAX_MEM_COMPACTION_LEVEL, "max_mem_compaction_level");
   ATOM(erocksdb::ATOM_TARGET_FILE_SIZE_BASE, "target_file_size_base");
   ATOM(erocksdb::ATOM_TARGET_FILE_SIZE_MULTIPLIER, "target_file_size_multiplier");
   ATOM(erocksdb::ATOM_MAX_BYTES_FOR_LEVEL_BASE, "max_bytes_for_level_base");
   ATOM(erocksdb::ATOM_MAX_BYTES_FOR_LEVEL_MULTIPLIER, "max_bytes_for_level_multiplier");
   ATOM(erocksdb::ATOM_MAX_COMPACTION_BYTES, "max_compaction_bytes");
-  ATOM(erocksdb::ATOM_SOFT_RATE_LIMIT, "soft_rate_limit");
-  ATOM(erocksdb::ATOM_HARD_RATE_LIMIT, "hard_rate_limit");
   ATOM(erocksdb::ATOM_ARENA_BLOCK_SIZE, "arena_block_size");
   ATOM(erocksdb::ATOM_DISABLE_AUTO_COMPACTIONS, "disable_auto_compactions");
-  ATOM(erocksdb::ATOM_PURGE_REDUNDANT_KVS_WHILE_FLUSH, "purge_redundant_kvs_while_flush");
   ATOM(erocksdb::ATOM_COMPACTION_STYLE, "compaction_style");
   ATOM(erocksdb::ATOM_COMPACTION_PRI, "compaction_pri");
   ATOM(erocksdb::ATOM_FILTER_DELETES, "filter_deletes");
@@ -641,7 +658,6 @@ try
   ATOM(erocksdb::ATOM_ALLOW_MMAP_READS, "allow_mmap_reads");
   ATOM(erocksdb::ATOM_ALLOW_MMAP_WRITES, "allow_mmap_writes");
   ATOM(erocksdb::ATOM_IS_FD_CLOSE_ON_EXEC, "is_fd_close_on_exec");
-  ATOM(erocksdb::ATOM_SKIP_LOG_ERROR_ON_RECOVERY, "skip_log_error_on_recovery");
   ATOM(erocksdb::ATOM_STATS_DUMP_PERIOD_SEC, "stats_dump_period_sec");
   ATOM(erocksdb::ATOM_ADVISE_RANDOM_ON_OPEN, "advise_random_on_open");
   ATOM(erocksdb::ATOM_ACCESS_HINT, "access_hint");
@@ -657,7 +673,6 @@ try
   ATOM(erocksdb::ATOM_SST_FILE_MANAGER, "sst_file_manager");
   ATOM(erocksdb::ATOM_WRITE_BUFFER_MANAGER, "write_buffer_manager");
   ATOM(erocksdb::ATOM_MAX_SUBCOMPACTIONS, "max_subcompactions");
-  ATOM(erocksdb::ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS, "new_table_reader_for_compaction_inputs");
   ATOM(erocksdb::ATOM_MANUAL_WAL_FLUSH, "manual_wal_flush");
   ATOM(erocksdb::ATOM_ATOMIC_FLUSH, "atomic_flush");
   ATOM(erocksdb::ATOM_USE_DIRECT_READS, "use_direct_reads");

@@ -261,7 +261,6 @@ class Configurable {
   virtual Status ValidateOptions(const DBOptions& db_opts,
                                  const ColumnFamilyOptions& cf_opts) const;
 
-
   // Splits the input opt_value into the ID field and the remaining options.
   // The input opt_value can be in the form of "name" or "name=value
   // [;name=value]". The first form uses the "name" as an id with no options The
@@ -388,6 +387,9 @@ class Configurable {
   void RegisterOptions(
       const std::string& name, void* opt_ptr,
       const std::unordered_map<std::string, OptionTypeInfo>* opt_map);
+
+  // Returns true if there are registered options for this Configurable object
+  inline bool HasRegisteredOptions() const { return !options_.empty(); }
 
  private:
   // Contains the collection of options (name, opt_ptr, opt_map) associated with

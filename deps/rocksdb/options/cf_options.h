@@ -62,10 +62,6 @@ struct ImmutableCFOptions {
   // to PlainTableOptions just like bloom_bits_per_key
   uint32_t bloom_locality;
 
-  bool purge_redundant_kvs_while_flush;
-
-  std::vector<CompressionType> compression_per_level;
-
   bool level_compaction_dynamic_level_bytes;
 
   int num_levels;
@@ -73,6 +69,8 @@ struct ImmutableCFOptions {
   bool optimize_filters_for_hits;
 
   bool force_consistency_checks;
+
+  uint64_t preclude_last_level_data_seconds;
 
   std::shared_ptr<const SliceTransform>
       memtable_insert_with_hint_prefix_extractor;
@@ -82,6 +80,8 @@ struct ImmutableCFOptions {
   std::shared_ptr<ConcurrentTaskLimiter> compaction_thread_limiter;
 
   std::shared_ptr<SstPartitionerFactory> sst_partitioner_factory;
+
+  std::shared_ptr<Cache> blob_cache;
 };
 
 struct ImmutableOptions : public ImmutableDBOptions, public ImmutableCFOptions {
@@ -114,6 +114,8 @@ struct MutableCFOptions {
         max_successive_merges(options.max_successive_merges),
         inplace_update_num_locks(options.inplace_update_num_locks),
         prefix_extractor(options.prefix_extractor),
+        experimental_mempurge_threshold(
+            options.experimental_mempurge_threshold),
         disable_auto_compactions(options.disable_auto_compactions),
         soft_pending_compaction_bytes_limit(
             options.soft_pending_compaction_bytes_limit),
@@ -141,6 +143,11 @@ struct MutableCFOptions {
         enable_blob_garbage_collection(options.enable_blob_garbage_collection),
         blob_garbage_collection_age_cutoff(
             options.blob_garbage_collection_age_cutoff),
+        blob_garbage_collection_force_threshold(
+            options.blob_garbage_collection_force_threshold),
+        blob_compaction_readahead_size(options.blob_compaction_readahead_size),
+        blob_file_starting_level(options.blob_file_starting_level),
+        prepopulate_blob_cache(options.prepopulate_blob_cache),
         max_sequential_skip_in_iterations(
             options.max_sequential_skip_in_iterations),
         check_flush_compaction_key_order(
@@ -151,9 +158,15 @@ struct MutableCFOptions {
         bottommost_compression(options.bottommost_compression),
         compression_opts(options.compression_opts),
         bottommost_compression_opts(options.bottommost_compression_opts),
-        bottommost_temperature(options.bottommost_temperature),
+        last_level_temperature(options.last_level_temperature ==
+                                       Temperature::kUnknown
+                                   ? options.bottommost_temperature
+                                   : options.last_level_temperature),
+        memtable_protection_bytes_per_key(
+            options.memtable_protection_bytes_per_key),
         sample_for_compression(
-            options.sample_for_compression) {  // TODO: is 0 fine here?
+            options.sample_for_compression),  // TODO: is 0 fine here?
+        compression_per_level(options.compression_per_level) {
     RefreshDerivedOptions(options.num_levels, options.compaction_style);
   }
 
@@ -167,6 +180,7 @@ struct MutableCFOptions {
         max_successive_merges(0),
         inplace_update_num_locks(0),
         prefix_extractor(nullptr),
+        experimental_mempurge_threshold(0.0),
         disable_auto_compactions(false),
         soft_pending_compaction_bytes_limit(0),
         hard_pending_compaction_bytes_limit(0),
@@ -187,13 +201,18 @@ struct MutableCFOptions {
         blob_compression_type(kNoCompression),
         enable_blob_garbage_collection(false),
         blob_garbage_collection_age_cutoff(0.0),
+        blob_garbage_collection_force_threshold(0.0),
+        blob_compaction_readahead_size(0),
+        blob_file_starting_level(0),
+        prepopulate_blob_cache(PrepopulateBlobCache::kDisable),
         max_sequential_skip_in_iterations(0),
         check_flush_compaction_key_order(true),
         paranoid_file_checks(false),
         report_bg_io_stats(false),
         compression(Snappy_Supported() ? kSnappyCompression : kNoCompression),
         bottommost_compression(kDisableCompressionOption),
-        bottommost_temperature(Temperature::kUnknown),
+        last_level_temperature(Temperature::kUnknown),
+        memtable_protection_bytes_per_key(0),
         sample_for_compression(0) {}
 
   explicit MutableCFOptions(const Options& options);
@@ -225,6 +244,22 @@ struct MutableCFOptions {
   size_t max_successive_merges;
   size_t inplace_update_num_locks;
   std::shared_ptr<const SliceTransform> prefix_extractor;
+  // [experimental]
+  // Used to activate or deactive the Mempurge feature (memtable garbage
+  // collection). (deactivated by default). At every flush, the total useful
+  // payload (total entries minus garbage entries) is estimated as a ratio
+  // [useful payload bytes]/[size of a memtable (in bytes)]. This ratio is then
+  // compared to this `threshold` value:
+  //     - if ratio<threshold: the flush is replaced by a mempurge operation
+  //     - else: a regular flush operation takes place.
+  // Threshold values:
+  //   0.0: mempurge deactivated (default).
+  //   1.0: recommended threshold value.
+  //   >1.0 : aggressive mempurge.
+  //   0 < threshold < 1.0: mempurge triggered only for very low useful payload
+  //   ratios.
+  // [experimental]
+  double experimental_mempurge_threshold;
 
   // Compaction related options
   bool disable_auto_compactions;
@@ -251,6 +286,10 @@ struct MutableCFOptions {
   CompressionType blob_compression_type;
   bool enable_blob_garbage_collection;
   double blob_garbage_collection_age_cutoff;
+  double blob_garbage_collection_force_threshold;
+  uint64_t blob_compaction_readahead_size;
+  int blob_file_starting_level;
+  PrepopulateBlobCache prepopulate_blob_cache;
 
   // Misc options
   uint64_t max_sequential_skip_in_iterations;
@@ -261,11 +300,11 @@ struct MutableCFOptions {
   CompressionType bottommost_compression;
   CompressionOptions compression_opts;
   CompressionOptions bottommost_compression_opts;
-  // TODO this experimental option isn't made configurable
-  // through strings yet.
-  Temperature bottommost_temperature;
+  Temperature last_level_temperature;
+  uint32_t memtable_protection_bytes_per_key;
 
   uint64_t sample_for_compression;
+  std::vector<CompressionType> compression_per_level;
 
   // Derived options
   // Per-level target file size.

@@ -1,5 +1,5 @@
 // -------------------------------------------------------------------
-// Copyright (c) 2016-2020 Benoit Chesneau. All Rights Reserved.
+// Copyright (c) 2016-2022 Benoit Chesneau. All Rights Reserved.
 //
 // This file is provided to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file
@@ -19,6 +19,11 @@
 
 
 #include "erl_nif.h"
+
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "rocksdb/db.h"
 #include "rocksdb/write_batch.h"

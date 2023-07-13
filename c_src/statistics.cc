@@ -1,4 +1,5 @@
 // Copyright (c) 2020 Josep-Angel Herrero Bajo
+// Copyright (c) 2020-2022 Benoit Chesneau:w
 //
 // This file is provided to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file

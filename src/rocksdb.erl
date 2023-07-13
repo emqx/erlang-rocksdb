@@ -161,13 +161,15 @@
 %% Transaction API
 -export([
          transaction/2,
+         release_transaction/1,
          transaction_put/3, transaction_put/4,
          transaction_get/3, transaction_get/4,
          %% see comment in c_src/transaction.cc
          %% transaction_merge/3, transaction_merge/4,
          transaction_delete/2, transaction_delete/3,
-         transaction_iterator/3, transaction_iterator/4,
-         transaction_commit/1
+         transaction_iterator/2, transaction_iterator/3,
+         transaction_commit/1,
+         transaction_rollback/1
         ]).
 
 %% Backup Engine
@@ -285,11 +287,24 @@
                      persisted_tier |
                      memtable_tier.
 
+-type prepopulate_blob_cache() :: disable | flush_only.
+
 -type cf_options() :: [{block_cache_size_mb_for_point_lookup, non_neg_integer()} |
                        {memtable_memory_budget, pos_integer()} |
                        {write_buffer_size,  pos_integer()} |
                        {max_write_buffer_number,  pos_integer()} |
                        {min_write_buffer_number_to_merge,  pos_integer()} |
+                       {enable_blob_files, boolean()} |
+                       {min_blob_size, non_neg_integer()} |
+                       {blob_file_size, non_neg_integer()} |
+                       {blob_compression_type, compression_type()} |
+                       {enable_blob_garbage_collection, boolean()} |
+                       {blob_garbage_collection_age_cutoff, float()} |
+                       {blob_garbage_collection_force_threshold, float()} |
+                       {blob_compaction_readahead_size, non_neg_integer()} |
+                       {blob_file_starting_level, non_neg_integer()} |
+                       {blob_cache, cache_handle()} |
+                       {prepopulate_blob_cache, prepopulate_blob_cache()} |
                        {compression,  compression_type()} |
                        {bottommost_compression,  compression_type()} |
                        {compression_opts, compression_opts()} |
@@ -298,17 +313,13 @@
                        {level0_file_num_compaction_trigger,  integer()} |
                        {level0_slowdown_writes_trigger,  integer()} |
                        {level0_stop_writes_trigger,  integer()} |
-                       {max_mem_compaction_level,  pos_integer()} |
                        {target_file_size_base,  pos_integer()} |
                        {target_file_size_multiplier,  pos_integer()} |
                        {max_bytes_for_level_base,  pos_integer()} |
                        {max_bytes_for_level_multiplier,  pos_integer()} |
                        {max_compaction_bytes,  pos_integer()} |
-                       {soft_rate_limit,  float()} |
-                       {hard_rate_limit,  float()} |
                        {arena_block_size,  integer()} |
                        {disable_auto_compactions,  boolean()} |
-                       {purge_redundant_kvs_while_flush,  boolean()} |
                        {compaction_style,  compaction_style()} |
                        {compaction_pri,  compaction_pri()} |
                        {filter_deletes,  boolean()} |
@@ -353,12 +364,10 @@
                        {allow_mmap_reads, boolean()} |
                        {allow_mmap_writes, boolean()} |
                        {is_fd_close_on_exec, boolean()} |
-                       {skip_log_error_on_recovery, boolean()} |
                        {stats_dump_period_sec, non_neg_integer()} |
                        {advise_random_on_open, boolean()} |
                        {access_hint, access_hint()} |
                        {compaction_readahead_size, non_neg_integer()} |
-                       {new_table_reader_for_compaction_inputs, boolean()} |
                        {use_adaptive_mutex, boolean()} |
                        {bytes_per_sync, non_neg_integer()} |
                        {skip_stats_update_on_db_open, boolean()} |
@@ -1127,7 +1136,7 @@ get_property(_DBHandle, _Property) ->
 %% @doc Return the RocksDB internal status of the specified column family specified at Property
 -spec get_property(
   DBHandle::db_handle(), CFHandle::cf_handle(), Property::binary()
-) -> string() | {error, any()}.
+) -> {ok, binary()} | {error, any()}.
 get_property(_DBHandle, _CFHandle, _Property) ->
   ?nif_stub.
 
@@ -1282,13 +1291,18 @@ batch_tolist(_Batch) ->
 transaction(_TransactionDB, _WriteOptions) ->
   ?nif_stub.
 
+%% @doc release a transaction
+-spec release_transaction(TransactionHandle::transaction_handle()) -> ok.
+release_transaction(_TransactionHandle) ->
+  ?nif_stub.
+
 %% @doc add a put operation to the transaction
--spec transaction_put(Transaction :: transaction_handle(), Key :: binary(), Value :: binary()) -> ok.
+-spec transaction_put(Transaction :: transaction_handle(), Key :: binary(), Value :: binary()) -> ok | {error, any()}.
 transaction_put(_Transaction, _Key, _Value) ->
   ?nif_stub.
 
 %% @doc like `transaction_put/3' but apply the operation to a column family
--spec transaction_put(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary(),  Value :: binary()) -> ok.
+-spec transaction_put(Transaction :: transaction_handle(), ColumnFamily :: cf_handle(), Key :: binary(),  Value :: binary()) -> ok | {error, any()}.
 transaction_put(_Transaction, _ColumnFamily, _Key, _Value) ->
   ?nif_stub.
 
@@ -1341,25 +1355,23 @@ transaction_delete(_Transaction, _ColumnFamily, _Key) ->
 %% uncommited writes and deletes in the current transaction.
 %% The result of iterator() is initially invalid (caller must
 %% call iterator_move function on the iterator before using it).
--spec transaction_iterator(DBHandle, TransactionHandle, ReadOpts) -> Res when
-  DBHandle::db_handle(),
+-spec transaction_iterator(TransactionHandle, ReadOpts) -> Res when
   TransactionHandle::transaction_handle(),
   ReadOpts::read_options(),
   Res :: {ok, itr_handle()} | {error, any()}.
-transaction_iterator(_DBHandle, _TransactionHandle, _Ta_ReadOpts) ->
+transaction_iterator(_TransactionHandle, _Ta_ReadOpts) ->
   ?nif_stub.
 
 %% @doc Return a iterator over the contents of the database and
 %% uncommited writes and deletes in the current transaction.
 %% The result of iterator() is initially invalid (caller must
 %% call iterator_move function on the iterator before using it).
--spec transaction_iterator(DBHandle, TransactionHandle, CFHandle, ReadOpts) -> Res when
-  DBHandle::db_handle(),
+-spec transaction_iterator(TransactionHandle, CFHandle, ReadOpts) -> Res when
   TransactionHandle::transaction_handle(),
   CFHandle::cf_handle(),
   ReadOpts::read_options(),
   Res :: {ok, itr_handle()} | {error, any()}.
-transaction_iterator(_DBHandle, _TransactionHandle, _CfHandle, _ReadOpts) ->
+transaction_iterator(_TransactionHandle, _CfHandle, _ReadOpts) ->
   ?nif_stub.
 
 %% @doc commit a transaction to disk atomically (?)
@@ -1367,11 +1379,16 @@ transaction_iterator(_DBHandle, _TransactionHandle, _CfHandle, _ReadOpts) ->
 transaction_commit(_Transaction) ->
   ?nif_stub.
 
+%% @doc rollback a transaction to disk atomically (?)
+-spec transaction_rollback(Transaction :: transaction_handle()) -> ok | {error, term()}.
+transaction_rollback(_Transaction) ->
+  ?nif_stub.
+
 %% ===================================================================
 %% Backup Engine API
 
 %% @doc open a new backup engine for creating new backups.
--spec open_backup_engine(Path :: string) -> {ok, backup_engine()} | {error, term()}.
+-spec open_backup_engine(Path :: string()) -> {ok, backup_engine()} | {error, term()}.
 open_backup_engine(_Path) ->
   ?nif_stub.
 

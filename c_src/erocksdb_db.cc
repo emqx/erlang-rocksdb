@@ -1,5 +1,5 @@
 // -------------------------------------------------------------------
-// Copyright (c) 2016-2020 Benoit Chesneau. All Rights Reserved.
+// Copyright (c) 2016-2022 Benoit Chesneau. All Rights Reserved.
 //
 // This file is provided to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file
@@ -97,7 +97,7 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
                 if(option[1] == erocksdb::ATOM_MEMENV)
                 {
                     auto memenv = rocksdb::NewMemEnv(rocksdb::Env::Default());
-                    memenv->CreateDir("/");
+                    memenv->CreateDir("test");
                     opts.env = memenv;
                     opts.create_if_missing = true;
                 }
@@ -253,10 +253,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         {
             opts.is_fd_close_on_exec = (option[1] == erocksdb::ATOM_TRUE);
         }
-        else if (option[0] == erocksdb::ATOM_SKIP_LOG_ERROR_ON_RECOVERY)
-        {
-            opts.skip_log_error_on_recovery = (option[1] == erocksdb::ATOM_TRUE);
-        }
         else if (option[0] == erocksdb::ATOM_STATS_DUMP_PERIOD_SEC)
         {
             unsigned int stats_dump_period_sec;
@@ -287,10 +283,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             unsigned int compaction_readahead_size;
             if (enif_get_uint(env, option[1], &compaction_readahead_size))
                 opts.compaction_readahead_size = compaction_readahead_size;
-        }
-        else if (option[0] == erocksdb::ATOM_NEW_TABLE_READER_FOR_COMPACTION_INPUTS)
-        {
-            opts.new_table_reader_for_compaction_inputs = (option[1] == erocksdb::ATOM_TRUE);
         }
         else if (option[0] == erocksdb::ATOM_USE_ADAPTIVE_MUTEX)
         {
@@ -340,7 +332,7 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
             if (option[1] == erocksdb::ATOM_TRUE)
             {
                 auto memenv = rocksdb::NewMemEnv(rocksdb::Env::Default());
-                memenv->CreateDir("/");
+                memenv->CreateDir("test");
                 opts.env = memenv;
                 opts.create_if_missing = true;
             }
@@ -543,12 +535,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             if (enif_get_int(env, option[1], &level0_stop_writes_trigger))
                 opts.level0_stop_writes_trigger = level0_stop_writes_trigger;
         }
-        else if (option[0] == erocksdb::ATOM_MAX_MEM_COMPACTION_LEVEL)
-        {
-            int max_mem_compaction_level;
-            if (enif_get_int(env, option[1], &max_mem_compaction_level))
-                opts.max_mem_compaction_level = max_mem_compaction_level;
-        }
         else if (option[0] == erocksdb::ATOM_TARGET_FILE_SIZE_BASE)
         {
             ErlNifUInt64 target_file_size_base;
@@ -579,18 +565,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             if (enif_get_int(env, option[1], &max_compaction_bytes))
                 opts.max_compaction_bytes = max_compaction_bytes;
         }
-        else if (option[0] == erocksdb::ATOM_SOFT_RATE_LIMIT)
-        {
-            double soft_rate_limit;
-            if (enif_get_double(env, option[1], &soft_rate_limit))
-                opts.soft_rate_limit = soft_rate_limit;
-        }
-        else if (option[0] == erocksdb::ATOM_HARD_RATE_LIMIT)
-        {
-            double hard_rate_limit;
-            if (enif_get_double(env, option[1], &hard_rate_limit))
-                opts.hard_rate_limit = hard_rate_limit;
-        }
         else if (option[0] == erocksdb::ATOM_ARENA_BLOCK_SIZE)
         {
             unsigned int arena_block_size;
@@ -600,10 +574,6 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         else if (option[0] == erocksdb::ATOM_DISABLE_AUTO_COMPACTIONS)
         {
             opts.disable_auto_compactions = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        else if (option[0] == erocksdb::ATOM_PURGE_REDUNDANT_KVS_WHILE_FLUSH)
-        {
-            opts.purge_redundant_kvs_while_flush = (option[1] == erocksdb::ATOM_TRUE);
         }
         else if (option[0] == erocksdb::ATOM_COMPACTION_STYLE)
         {
@@ -736,7 +706,104 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             else if (option[1] == erocksdb::ATOM_REVERSE_BYTEWISE_COMPARATOR)
                 opts.comparator = rocksdb::ReverseBytewiseComparator();
         }
+        else if (option[0] == erocksdb::ATOM_ENABLE_BLOB_FILES)
+        {
+          opts.enable_blob_files = (option[1] ==erocksdb::ATOM_TRUE); 
+        }
+        else if (option[0] == erocksdb::ATOM_MIN_BLOB_SIZE)
+        {
 
+          ErlNifUInt64 min_blob_size;
+          if (enif_get_uint64(env, option[1], &min_blob_size))
+            opts.min_blob_size = min_blob_size;
+        }
+        else if (option[0] == erocksdb::ATOM_BLOB_FILE_SIZE)
+        {
+          ErlNifUInt64 blob_file_size;
+          if (enif_get_uint64(env, option[1], &blob_file_size))
+            opts.min_blob_size = blob_file_size;
+        }
+        else if(option[0] == erocksdb::ATOM_BLOB_COMPRESSION_TYPE)
+        {
+          rocksdb::CompressionType compression = rocksdb::CompressionType::kNoCompression;
+          if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_SNAPPY)
+          {
+            compression = rocksdb::CompressionType::kSnappyCompression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_ZLIB)
+          {
+            compression = rocksdb::CompressionType::kZlibCompression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_BZIP2)
+          {
+            compression = rocksdb::CompressionType::kBZip2Compression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4)
+          {
+            compression = rocksdb::CompressionType::kLZ4Compression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_LZ4H)
+          {
+            compression = rocksdb::CompressionType::kLZ4HCCompression;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_ZSTD)
+          {
+            compression = rocksdb::CompressionType::kZSTD;
+          }
+          else if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_NONE)
+          {
+            compression = rocksdb::CompressionType::kNoCompression;
+          }
+
+          opts.blob_compression_type = compression;
+        }
+        else if(option[0] == erocksdb::ATOM_ENABLE_BLOB_GC)
+        {
+          opts.enable_blob_garbage_collection = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if(option[0] == erocksdb::ATOM_BLOB_GC_AGE_CUTOFF)
+        {
+          double cutoff;
+          if (enif_get_double(env, option[1], &cutoff))
+            opts.blob_garbage_collection_age_cutoff = cutoff;
+        }
+        if(option[0] == erocksdb::ATOM_BLOB_GC_FORCE_THRESHOLD)
+        {
+          double threshold;
+          if (enif_get_double(env, option[1], &threshold))
+            opts.blob_garbage_collection_force_threshold = threshold;
+        }
+        if(option[0] == erocksdb::ATOM_BLOB_COMPACTION_READAHEAD_SIZE)
+        {
+          ErlNifUInt64 readahead_size;
+          if (enif_get_uint64(env, option[1], &readahead_size))
+            opts.blob_compaction_readahead_size = readahead_size;
+        }
+        if(option[0] == erocksdb::ATOM_BLOB_FILE_STARTING_LEVEL)
+        {
+          int starting_level;
+          if (enif_get_int(env, option[1], &starting_level))
+            opts.blob_file_starting_level = starting_level;
+        }
+        if(option[0] == erocksdb::ATOM_BLOB_CACHE)
+        {
+          erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
+          if(NULL!=cache_ptr) {
+            auto cache = cache_ptr->cache();
+            opts.blob_cache = cache;
+          }
+        }
+        if(option[0] == erocksdb::ATOM_PREPOLUATE_BLOB_CACHE)
+        {
+          if (option[1] == erocksdb::ATOM_DISABLE)
+          {
+            opts.prepopulate_blob_cache = rocksdb::PrepopulateBlobCache::kDisable;
+          }
+          else if (option[1] == erocksdb::ATOM_FLUSH_ONLY)
+          {
+            opts.prepopulate_blob_cache = rocksdb::PrepopulateBlobCache::kFlushOnly;
+          }
+        }
     }
     return erocksdb::ATOM_OK;
 }
@@ -1647,7 +1714,7 @@ GetApproximateSizes(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
         column_family = db_ptr->m_Db->DefaultColumnFamily();
     }
 
-    uint8_t flag;
+    rocksdb::DB::SizeApproximationFlags flag = rocksdb::DB::SizeApproximationFlags::NONE;
     ERL_NIF_TERM flag_term = argv[i + 1];
     if (flag_term == erocksdb::ATOM_NONE)
         flag = rocksdb::DB::SizeApproximationFlags::NONE;

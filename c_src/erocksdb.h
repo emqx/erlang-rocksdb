@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2013 Basho Technologies, Inc. All Rights Reserved.
-// Copyright (c) 2016-2020 Benoit Chesneau
+// Copyright (c) 2016-2022 Benoit Chesneau
 //
 // This file is provided to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file
@@ -100,6 +100,8 @@ ERL_NIF_TERM PutTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 ERL_NIF_TERM DelTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM IteratorTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 ERL_NIF_TERM CommitTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM RollbackTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM ReleaseTransaction(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 /* Backup Engine */
 ERL_NIF_TERM OpenBackupEngine(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);

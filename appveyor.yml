@@ -2,12 +2,12 @@ version: '{build}'
 image: Visual Studio 2017
 environment:
   matrix:
-  - erlang_vsn: 21.0
+  - erlang_vsn: 24.0
 install:
 - ps: >-
     choco install erlang --version $env:erlang_vsn
 
-    choco install rebar3 --version 3.6.1
+    choco install rebar3
 build_script:
 - cmd: C:\ProgramData\chocolatey\lib\rebar3\tools\rebar3.cmd compile
 test_script:

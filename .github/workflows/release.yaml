@@ -10,8 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         otp:
-          - 25.1.2-2
-          - 24.3.4.2-2
+          - 25.3.2-1
         os:
           - macos-12
           - macos-11
@@ -71,12 +70,11 @@ jobs:
       fail-fast: false
       matrix:
         builder:
-          - 5.0-29
+          - 5.1-3
         otp:
-          - 25.1.2-2
-          - 24.3.4.2-2
+          - 25.3.2-1
         elixir:
-          - 1.13.4
+          - 1.14.5
         arch:
           - amd64
           - arm64
@@ -85,13 +83,14 @@ jobs:
           - ubuntu20.04
           - ubuntu18.04
           - ubuntu16.04
+          - debian12
           - debian11
           - debian10
           - debian9
           - el9
           - el8
           - el7
-          - amzn2
+          - amzn2023
           - alpine3.15.1
     runs-on: ubuntu-latest
 

@@ -31,11 +31,11 @@ void PopulateHistogram(Histogram& histogram,
     for (uint64_t i = low; i <= high; i++) {
       histogram.Add(i);
       // sleep a random microseconds [0-10)
-      clock->MockSleepForMicroseconds(rnd.Uniform(10));
+      clock->SleepForMicroseconds(rnd.Uniform(10));
     }
   }
   // make sure each data population at least take some time
-  clock->MockSleepForMicroseconds(1);
+  clock->SleepForMicroseconds(1);
 }
 
 void BasicOperation(Histogram& histogram) {
@@ -143,41 +143,46 @@ TEST_F(HistogramTest, HistogramWindowingExpire) {
       histogramWindowing(num_windows, micros_per_window, min_num_per_window);
   histogramWindowing.TEST_UpdateClock(clock);
   PopulateHistogram(histogramWindowing, 1, 1, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
   ASSERT_EQ(histogramWindowing.num(), 100);
   ASSERT_EQ(histogramWindowing.min(), 1);
   ASSERT_EQ(histogramWindowing.max(), 1);
-  ASSERT_EQ(histogramWindowing.Average(), 1);
+  ASSERT_EQ(histogramWindowing.Average(), 1.0);
+  ASSERT_EQ(histogramWindowing.StandardDeviation(), 0.0);
 
   PopulateHistogram(histogramWindowing, 2, 2, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
   ASSERT_EQ(histogramWindowing.num(), 200);
   ASSERT_EQ(histogramWindowing.min(), 1);
   ASSERT_EQ(histogramWindowing.max(), 2);
   ASSERT_EQ(histogramWindowing.Average(), 1.5);
+  ASSERT_GT(histogramWindowing.StandardDeviation(), 0.0);
 
   PopulateHistogram(histogramWindowing, 3, 3, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
   ASSERT_EQ(histogramWindowing.num(), 300);
   ASSERT_EQ(histogramWindowing.min(), 1);
   ASSERT_EQ(histogramWindowing.max(), 3);
   ASSERT_EQ(histogramWindowing.Average(), 2.0);
+  ASSERT_GT(histogramWindowing.StandardDeviation(), 0.0);
 
   // dropping oldest window with value 1, remaining 2 ~ 4
   PopulateHistogram(histogramWindowing, 4, 4, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
   ASSERT_EQ(histogramWindowing.num(), 300);
   ASSERT_EQ(histogramWindowing.min(), 2);
   ASSERT_EQ(histogramWindowing.max(), 4);
   ASSERT_EQ(histogramWindowing.Average(), 3.0);
+  ASSERT_GT(histogramWindowing.StandardDeviation(), 0.0);
 
   // dropping oldest window with value 2, remaining 3 ~ 5
   PopulateHistogram(histogramWindowing, 5, 5, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
   ASSERT_EQ(histogramWindowing.num(), 300);
   ASSERT_EQ(histogramWindowing.min(), 3);
   ASSERT_EQ(histogramWindowing.max(), 5);
   ASSERT_EQ(histogramWindowing.Average(), 4.0);
+  ASSERT_GT(histogramWindowing.StandardDeviation(), 0.0);
 }
 
 TEST_F(HistogramTest, HistogramWindowingMerge) {
@@ -194,15 +199,15 @@ TEST_F(HistogramTest, HistogramWindowingMerge) {
 
   PopulateHistogram(histogramWindowing, 1, 1, 100);
   PopulateHistogram(otherWindowing, 1, 1, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
 
   PopulateHistogram(histogramWindowing, 2, 2, 100);
   PopulateHistogram(otherWindowing, 2, 2, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
 
   PopulateHistogram(histogramWindowing, 3, 3, 100);
   PopulateHistogram(otherWindowing, 3, 3, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
 
   histogramWindowing.Merge(otherWindowing);
   ASSERT_EQ(histogramWindowing.num(), 600);
@@ -212,17 +217,32 @@ TEST_F(HistogramTest, HistogramWindowingMerge) {
 
   // dropping oldest window with value 1, remaining 2 ~ 4
   PopulateHistogram(histogramWindowing, 4, 4, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
   ASSERT_EQ(histogramWindowing.num(), 500);
   ASSERT_EQ(histogramWindowing.min(), 2);
   ASSERT_EQ(histogramWindowing.max(), 4);
 
   // dropping oldest window with value 2, remaining 3 ~ 5
   PopulateHistogram(histogramWindowing, 5, 5, 100);
-  clock->MockSleepForMicroseconds(micros_per_window);
+  clock->SleepForMicroseconds(micros_per_window);
   ASSERT_EQ(histogramWindowing.num(), 400);
   ASSERT_EQ(histogramWindowing.min(), 3);
   ASSERT_EQ(histogramWindowing.max(), 5);
+}
+
+TEST_F(HistogramTest, LargeStandardDeviation) {
+  HistogramImpl histogram;
+  PopulateHistogram(histogram, 1, 1000000);
+  ASSERT_LT(fabs(histogram.StandardDeviation() - 288675), 1);
+}
+
+TEST_F(HistogramTest, LostUpdateStandardDeviation) {
+  HistogramImpl histogram;
+  PopulateHistogram(histogram, 100, 100, 100);
+  // Simulate a possible lost update (since they are not atomic)
+  histogram.TEST_GetStats().sum_squares_ -= 10000;
+  // Ideally zero, but should never be negative or NaN
+  ASSERT_GE(histogram.StandardDeviation(), 0.0);
 }
 
 }  // namespace ROCKSDB_NAMESPACE
