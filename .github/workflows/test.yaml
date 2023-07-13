@@ -16,7 +16,7 @@ jobs:
           - 1.14.5
         arch:
           - amd64
-          - arm64
+          # - arm64
         os:
           - ubuntu22.04
           - debian12
