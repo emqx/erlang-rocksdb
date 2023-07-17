@@ -24,8 +24,7 @@ jobs:
     steps:
       - name: prepare
         run: |
-          brew install curl zip unzip gnu-sed kerl
-          echo "/usr/local/bin" >> $GITHUB_PATH
+          brew install curl zip unzip gnu-sed kerl wget
           git config --global credential.helper store
       - uses: actions/cache@v3
         id: cache
@@ -39,25 +38,31 @@ jobs:
         env:
           OTP: ${{ matrix.otp }}
         run: |
-          kerl update releases
-          kerl build git https://github.com/emqx/otp.git OTP-$OTP $OTP
-          kerl install $OTP $HOME/.kerl/$OTP
+          set -eux
+          if [ ! -d $HOME/.kerl/$OTP ]; then
+            kerl build git https://github.com/emqx/otp.git OTP-$OTP $OTP
+            kerl install $OTP $HOME/.kerl/$OTP
+          fi
 
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.inputs.ref }}
 
       - name: install rebar3
         run: |
-          wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
-          cp ./rebar3 /usr/local/bin/rebar3
+          set -eux
+          REBAR=$(brew --prefix)/bin/rebar3
+          if [ ! -f $REBAR ]; then
+            wget https://s3.amazonaws.com/rebar3/rebar3 -O $REBAR
+            chmod +x $REBAR
+          fi
 
       - name: build
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           . $HOME/.kerl/${{ matrix.otp }}/activate
           BUILD_RELEASE=1 make
 
       - uses: actions/upload-artifact@v3
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           name: packages
           path: |
@@ -96,7 +101,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          ref: ${{ github.event.inputs.ref }}
+        # NOTE: we tried to use build in container, it did not work
+        #       so let's stick to the old way for now
       - name: build
         env:
           IMAGE: ghcr.io/emqx/emqx-builder/${{ matrix.builder }}:${{ matrix.elixir }}-${{ matrix.otp }}-${{ matrix.os }}
