@@ -3,15 +3,10 @@
 set -eu
 set -x
 
-PKGNAME="$(./pkgname.sh)"
-
-if [ "${BUILD_RELEASE:-}" != 1 ] && [ -n "$PKGNAME" ]; then
-    if ./download.sh $PKGNAME; then
-        echo "done_dowloading_rocksdb"
-        exit 0
-    else
-        echo "failed to download, continue to build from source"
-    fi
+if ./do_prebuilt.sh; then
+    exit 0
+else
+    echo "No prebuilt artifacts, building from source"
 fi
 
 cd _build/cmake

@@ -1,5 +1,11 @@
 #!/bin/sh -x
 
+if ./do_prebuilt.sh; then
+    exit 0
+else
+    echo "No prebuilt artifacts, building from source"
+fi
+
 mkdir -p _build/cmake
 cd _build/cmake
 
