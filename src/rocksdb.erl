@@ -40,7 +40,8 @@
   stats/1, stats/2,
   get_property/2, get_property/3,
   get_approximate_sizes/3, get_approximate_sizes/4,
-  get_approximate_memtable_stats/3, get_approximate_memtable_stats/4
+  get_approximate_memtable_stats/3, get_approximate_memtable_stats/4,
+  try_catch_up_with_primary/1
 ]).
 
 -export([open_with_cf/3, open_with_cf_readonly/3]).
@@ -859,6 +860,14 @@ get_approximate_memtable_stats(_DBHandle, _StartKey, _LimitKey) ->
   LimitKey :: binary(),
   Res :: {ok, {Count::non_neg_integer(), Size::non_neg_integer()}}.
 get_approximate_memtable_stats(_DBHandle, _CFHandle, _StartKey, _LimitKey) ->
+  ?nif_stub.
+
+%% @doc Attempts to catch a secondary connection up to the current
+%% position of the primary connection.
+-spec try_catch_up_with_primary(DBHandle) -> Res when
+  DBHandle :: db_handle(),
+  Res :: ok | {error, any()}.
+try_catch_up_with_primary(_DBHandle) ->
   ?nif_stub.
 
 %% @doc Removes the database entries in the range ["BeginKey", "EndKey"), i.e.,

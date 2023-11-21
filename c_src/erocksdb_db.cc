@@ -1867,6 +1867,21 @@ GetApproximateMemTableStats(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 }
 
 ERL_NIF_TERM
+TryCatchUpWithPrimary(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+    ReferencePtr<DbObject> db_ptr;
+
+    if (!enif_get_db(env, argv[0], &db_ptr))
+        return enif_make_badarg(env);
+
+    if (auto status = db_ptr->m_Db->TryCatchUpWithPrimary(); status.ok()) {
+        return erocksdb::ATOM_OK;
+    } else {
+        return error_tuple(env, ATOM_ERROR, status);
+    }
+}
+
+ERL_NIF_TERM
 CompactRange(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
     ReferencePtr<DbObject> db_ptr;
