@@ -1111,6 +1111,7 @@ OpenWithCf(
         status = rocksdb::DB::Open(db_opts, db_name, column_families, &handles, &db);
         break;
     case open_mode::secondary:
+        db_opts.max_open_files = -1;
         status = rocksdb::DB::OpenAsSecondary(db_opts, db_name, secondary, column_families, &handles, &db);
         break;
     case open_mode::read_only:
