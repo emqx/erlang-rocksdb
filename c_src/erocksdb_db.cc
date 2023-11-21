@@ -958,6 +958,10 @@ parse_cf_descriptor(ErlNifEnv* env, ERL_NIF_TERM item,
 
 namespace erocksdb {
 
+
+    enum class open_mode { primary, secondary, read_only };
+
+
 // Base Open function.
 //
 // This `Open` function is not called by directly the VM due to the
@@ -968,38 +972,54 @@ Open(
     ErlNifEnv* env,
     int /*argc*/,
     const ERL_NIF_TERM argv[],
-    bool read_only)
+    open_mode const mode)
 {
-    char db_name[4096];
+    char db_name[4096], secondary[4096];
     DbObject * db_ptr;
-    rocksdb::DB *db(0);
+    rocksdb::DB *db = nullptr;
 
 
-    if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
-       !enif_is_list(env, argv[1]))
-    {
-        return enif_make_badarg(env);
+    auto db_opts = std::make_unique<rocksdb::DBOptions>();
+    auto cf_opts = std::make_unique<rocksdb::ColumnFamilyOptions>();
+
+    switch (mode) {
+    case open_mode::primary: [[fallthrough]];
+    case open_mode::read_only:
+        if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+        !enif_is_list(env, argv[1]))
+        {
+            return enif_make_badarg(env);
+        }
+        fold(env, argv[1], parse_db_option, *db_opts);
+        fold(env, argv[1], parse_cf_option, *cf_opts);
+        break;
+    case open_mode::secondary:
+        if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+            !enif_get_string(env, argv[1], secondary, sizeof(secondary), ERL_NIF_LATIN1) ||
+            !enif_is_list(env, argv[2]))
+        {
+            return enif_make_badarg(env);
+        }
+        fold(env, argv[2], parse_db_option, *db_opts);
+        fold(env, argv[2], parse_cf_option, *cf_opts);
+        break;
     }
-
-    // parse db options
-    rocksdb::DBOptions *db_opts = new rocksdb::DBOptions;
-    fold(env, argv[1], parse_db_option, *db_opts);
-
-    // parse column family options
-    rocksdb::ColumnFamilyOptions *cf_opts = new rocksdb::ColumnFamilyOptions;
-    fold(env, argv[1], parse_cf_option, *cf_opts);
 
     // final options
-    rocksdb::Options *opts = new rocksdb::Options(*db_opts, *cf_opts);
+    auto opts = std::make_unique<rocksdb::Options>(*db_opts, *cf_opts);
     rocksdb::Status status;
-    if (read_only) {
-        status = rocksdb::DB::OpenForReadOnly(*opts, db_name, &db);
-    } else {
+    switch (mode) {
+    case open_mode::primary:
         status = rocksdb::DB::Open(*opts, db_name, &db);
+        break;
+    case open_mode::secondary:
+        opts->max_open_files = -1;
+        status = rocksdb::DB::OpenAsSecondary(*opts, db_name, secondary, &db);
+        break;
+    case open_mode::read_only:
+        status = rocksdb::DB::OpenForReadOnly(*opts, db_name, &db);
+        break;
     }
-    delete opts;
-    delete db_opts;
-    delete cf_opts;
 
     if(!status.ok())
         return error_tuple(env, ATOM_ERROR_DB_OPEN, status);
@@ -1016,13 +1036,18 @@ Open(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    return Open(env, argc, argv, false);
+    return Open(env, argc, argv, open_mode::primary);
 } // Open
 
 ERL_NIF_TERM
 OpenReadOnly(ErlNifEnv * env, int argc, const ERL_NIF_TERM argv[]) {
-    return Open(env, argc, argv, true);
+    return Open(env, argc, argv, open_mode::read_only);
 } // OpenReadOnly
+
+ERL_NIF_TERM
+OpenSecondary(ErlNifEnv * env, int argc, const ERL_NIF_TERM argv[]) {
+    return Open(env, argc, argv, open_mode::secondary);
+} // OpenSecondary
 
 // Base OpenWithCf function.
 //
@@ -1034,25 +1059,42 @@ OpenWithCf(
     ErlNifEnv* env,
     int /*argc*/,
     const ERL_NIF_TERM argv[],
-    bool read_only)
+    open_mode const mode)
 {
-    char db_name[4096];
+    char db_name[4096], secondary[4096];
     DbObject * db_ptr;
-    rocksdb::DB *db(0);
+    rocksdb::DB *db = nullptr;
 
-
-    if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
-       !enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]))
-    {
-        return enif_make_badarg(env);
-    }   // if
-
-    // read db options
     rocksdb::DBOptions db_opts;
-    fold(env, argv[1], parse_db_option, db_opts);
-
     std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
-    ERL_NIF_TERM head, tail = argv[2];
+    ERL_NIF_TERM head, tail;
+    unsigned int num_cols;
+
+    switch (mode) {
+    case open_mode::primary: [[fallthrough]];
+    case open_mode::read_only:
+        if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+        !enif_is_list(env, argv[1]) || !enif_is_list(env, argv[2]))
+        {
+            return enif_make_badarg(env);
+        }   // if
+        fold(env, argv[1], parse_db_option, db_opts);
+        tail = argv[2];
+        enif_get_list_length(env, argv[2], &num_cols);
+        break;
+    case open_mode::secondary:
+        if(!enif_get_string(env, argv[0], db_name, sizeof(db_name), ERL_NIF_LATIN1) ||
+            !enif_get_string(env, argv[1], secondary, sizeof(secondary), ERL_NIF_LATIN1) ||
+        !enif_is_list(env, argv[2]) || !enif_is_list(env, argv[3]))
+        {
+            return enif_make_badarg(env);
+        }   // if
+        fold(env, argv[2], parse_db_option, db_opts);
+        tail = argv[3];
+        enif_get_list_length(env, argv[3], &num_cols);
+        break;
+    }
+
     while(enif_get_list_cell(env, tail, &head, &tail))
     {
         ERL_NIF_TERM result = parse_cf_descriptor(env, head, column_families);
@@ -1064,10 +1106,16 @@ OpenWithCf(
 
     std::vector<rocksdb::ColumnFamilyHandle*> handles;
     rocksdb::Status status;
-    if (read_only) {
-        status = rocksdb::DB::OpenForReadOnly(db_opts, db_name, column_families, &handles, &db);
-    } else {
+    switch (mode) {
+    case open_mode::primary:
         status = rocksdb::DB::Open(db_opts, db_name, column_families, &handles, &db);
+        break;
+    case open_mode::secondary:
+        status = rocksdb::DB::OpenAsSecondary(db_opts, db_name, secondary, column_families, &handles, &db);
+        break;
+    case open_mode::read_only:
+        status = rocksdb::DB::OpenForReadOnly(db_opts, db_name, column_families, &handles, &db);
+        break;
     }
 
     if(!status.ok())
@@ -1076,9 +1124,6 @@ OpenWithCf(
     db_ptr = DbObject::CreateDbObject(std::move(db));
 
     ERL_NIF_TERM result = enif_make_resource(env, db_ptr);
-
-    unsigned int num_cols;
-    enif_get_list_length(env, argv[2], &num_cols);
 
     ERL_NIF_TERM cf_list = enif_make_list(env, 0);
     try {
@@ -1109,7 +1154,7 @@ OpenWithCf(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    return OpenWithCf(env, argc, argv, false);
+    return OpenWithCf(env, argc, argv, open_mode::primary);
 } // OpenWithCf
 
 ERL_NIF_TERM
@@ -1118,7 +1163,16 @@ OpenWithCfReadOnly(
     int argc,
     const ERL_NIF_TERM argv[])
 {
-    return OpenWithCf(env, argc, argv, true);
+    return OpenWithCf(env, argc, argv, open_mode::read_only);
+}
+
+ERL_NIF_TERM
+OpenWithCfSecondary(
+    ErlNifEnv* env,
+    int argc,
+    const ERL_NIF_TERM argv[])
+{
+    return OpenWithCf(env, argc, argv, open_mode::secondary);
 }
 
 ERL_NIF_TERM
