@@ -20,4 +20,4 @@ jobs:
         env:
           IMAGE: ghcr.io/emqx/emqx-builder/${{ matrix.builder }}-${{ matrix.os }}
         run: |
-          docker run --rm -u $UID -v $(pwd):/wd --workdir /wd $IMAGE bash -euc 'make'
+          docker run --rm -u $UID -v $(pwd):/wd --workdir /wd $IMAGE bash -euc 'git config --global --add safe.directory /wd; make'
