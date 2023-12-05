@@ -35,6 +35,8 @@ esac
 
 cd ../../
 
+PKGNAME="$(./pkgname.sh)"
+
 if [ "${BUILD_RELEASE:-}" = 1 ]; then
     if [ -z "$PKGNAME" ]; then
         echo "unable_to_resolve_release_package_name"

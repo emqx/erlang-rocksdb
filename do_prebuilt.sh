@@ -2,17 +2,20 @@
 
 set -eu
 
-if [ ! -f priv/liberocksdb.so ]; then
-
-PKGNAME="$(./pkgname.sh)"
-if [ "${BUILD_RELEASE:-}" != 1 ] && [ -n "$PKGNAME" ]; then
-    if ./download.sh $PKGNAME; then
-        exit 0
-    else
-        exit 1
-    fi
+if [ "${BUILD_RELEASE:-}" = 1 ]; then
+    # never download when building a new release
+    exit 1
 fi
 
+if [ ! -f priv/liberocksdb.so ]; then
+    PKGNAME="$(./pkgname.sh)"
+    if [ -n "$PKGNAME" ]; then
+        if ./download.sh $PKGNAME; then
+            exit 0
+        else
+            exit 1
+        fi
+    fi
 fi
 
 # Sanity check
