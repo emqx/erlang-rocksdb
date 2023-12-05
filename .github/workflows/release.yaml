@@ -106,7 +106,7 @@ jobs:
         env:
           IMAGE: ghcr.io/emqx/emqx-builder/${{ matrix.builder }}-${{ matrix.os }}
         run: |
-          docker run --user 1001 --rm -v $(pwd):/wd --workdir /wd -e BUILD_RELEASE=1 $IMAGE bash -euc 'make'
+          docker run --user 1001 --rm -v $(pwd):/wd --workdir /wd -e BUILD_RELEASE=1 -e DIAGNOSTIC=1 $IMAGE bash -euc 'make'
 
       - uses: actions/upload-artifact@v3
         if: startsWith(github.ref, 'refs/tags/')
