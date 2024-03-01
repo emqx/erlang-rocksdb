@@ -14,15 +14,13 @@ jobs:
           - ubuntu22.04
     runs-on: ubuntu-22.04
 
+    container: ghcr.io/emqx/emqx-builder/${{ matrix.builder }}-${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: gitconfig
+        run: git config --system --add safe.directory ${PWD}
       - name: test build
-        env:
-          IMAGE: ghcr.io/emqx/emqx-builder/${{ matrix.builder }}-${{ matrix.os }}
-        run: |
-          docker run --rm -u $UID -v $(pwd):/wd --workdir /wd $IMAGE \
-            bash -euc \
-              'git config --global --add safe.directory /wd; \
-               git config --global --add safe.directory /wd/deps/snappy/third_party/googletest; \
-               git config --global --add safe.directory /wd/deps/snappy/third_party/benchmark; \
-               make'
+        run: make
