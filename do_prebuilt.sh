@@ -16,6 +16,7 @@ if [ ! -f priv/liberocksdb.so ]; then
             exit 1
         fi
     fi
+    exit 2
 fi
 
 # Sanity check
