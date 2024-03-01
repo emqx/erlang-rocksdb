@@ -95,23 +95,19 @@ jobs:
           - alpine3.15.1
 
     runs-on: "aws-${{ matrix.arch }}"
+    container: ghcr.io/emqx/emqx-builder/${{ matrix.builder }}-${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v3
         with:
           ref: ${{ github.event.inputs.ref }}
-        # NOTE: we tried to use build in container, it did not work
-        #       so let's stick to the old way for now
+          submodules: recursive
+      - name: gitconfig
+        run: git config --global --add safe.directory ${PWD}
       - name: build
         env:
-          IMAGE: ghcr.io/emqx/emqx-builder/${{ matrix.builder }}-${{ matrix.os }}
-        run: |
-          docker run --rm -v $(pwd):/wd --workdir /wd -e BUILD_RELEASE=1 $IMAGE \
-            bash -euc \
-              'git config --global --add safe.directory /wd; \
-               git config --global --add safe.directory /wd/deps/snappy/third_party/googletest; \
-               git config --global --add safe.directory /wd/deps/snappy/third_party/benchmark; \
-               make'
+          BUILD_RELEASE: 1
+        run: make
 
       - uses: actions/upload-artifact@v3
         if: startsWith(github.ref, 'refs/tags/')
