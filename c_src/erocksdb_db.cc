@@ -369,6 +369,10 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         {
             opts.atomic_flush = (option[1] == erocksdb::ATOM_TRUE);
         }
+        else if (option[0] == erocksdb::ATOM_MANUAL_WAL_FLUSH)
+        {
+            opts.manual_wal_flush = (option[1] == erocksdb::ATOM_TRUE);
+        }
         else if (option[0] == erocksdb::ATOM_USE_DIRECT_READS)
         {
             opts.use_direct_reads = (option[1] == erocksdb::ATOM_TRUE);
