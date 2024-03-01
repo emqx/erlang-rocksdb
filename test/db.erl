@@ -110,6 +110,27 @@ close_fold_test_Z() ->
                    rocksdb:fold(Ref, fun(_,_A) -> rocksdb:close(Ref) end, undefined, [])),
   ?rm_rf("erocksdb.close_fold.test").
 
+write_opts_test() ->
+  ?rm_rf("erocksdb.write_opts_test.test"),
+  {ok, Ref} = rocksdb:open( "erocksdb.close.test"
+                          , [{create_if_missing, true}, {atomic_flush, true}]),
+  ?assertEqual( ok
+              , rocksdb:put(Ref, <<"k1">>, <<"v1">>, [])),
+  ?assertEqual( ok
+              , rocksdb:put(Ref, <<"k2">>, <<"v2">>, [{disable_wal, true}])),
+  ?assertMatch( {error, {error, _InvalidArgument}}
+              , rocksdb:put(Ref, <<"k3">>, <<"v3">>, [ {disable_wal, true}
+                                                     , {sync, true}])),
+  ?assertEqual( ok
+              , rocksdb:flush(Ref, [{wait, true}])),
+  CaptureOpts = [{capture, all_but_first, list}],
+  {ok, Stats} = rocksdb:stats(Ref),
+  ?assertEqual( {match, ["2"]}
+              , re:run(Stats, "Cumulative writes: ([0-9]+)", CaptureOpts)),
+  ?assertEqual( {match, ["1"]}
+              , re:run(Stats, "Cumulative WAL: ([0-9]+)", CaptureOpts)),
+  ?rm_rf("erocksdb.write_opts_test.test").
+
 fixed_prefix_extractor_test() ->
   ?rm_rf("erocksdb.fixed_prefix_extractor.test"),
   {ok, Ref} = rocksdb:open("erocksdb.fixed_prefix_extractor.test", [{create_if_missing, true}, {prefix_extractor,
