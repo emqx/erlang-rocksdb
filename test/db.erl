@@ -112,20 +112,26 @@ close_fold_test_Z() ->
 
 write_opts_test() ->
   ?rm_rf("erocksdb.write_opts_test.test"),
-  {ok, Ref} = rocksdb:open( "erocksdb.close.test"
-                          , [{create_if_missing, true}, {atomic_flush, true}]),
+  {ok, Ref, [CFDef]} = rocksdb:open( "erocksdb.close.test"
+                                   , [{create_if_missing, true}, {atomic_flush, true}]
+                                   , [{"default", []}]),
   ?assertEqual( ok
               , rocksdb:put(Ref, <<"k1">>, <<"v1">>, [])),
   ?assertEqual( ok
               , rocksdb:put(Ref, <<"k2">>, <<"v2">>, [{disable_wal, true}])),
+  ?assertEqual( ok
+              , rocksdb:put(Ref, CFDef, <<"k3">>, <<"v3">>, [{disable_wal, true}])),
   ?assertMatch( {error, {error, _InvalidArgument}}
-              , rocksdb:put(Ref, <<"k3">>, <<"v3">>, [ {disable_wal, true}
+              , rocksdb:put(Ref, <<"k4">>, <<"v4">>, [ {disable_wal, true}
                                                      , {sync, true}])),
+  ?assertMatch( {error, {error, _InvalidArgument}}
+              , rocksdb:put(Ref, CFDef, <<"k4">>, <<"v4">>, [ {disable_wal, true}
+                                                            , {sync, true}])),
   ?assertEqual( ok
               , rocksdb:flush(Ref, [{wait, true}])),
   CaptureOpts = [{capture, all_but_first, list}],
   {ok, Stats} = rocksdb:stats(Ref),
-  ?assertEqual( {match, ["2"]}
+  ?assertEqual( {match, ["3"]}
               , re:run(Stats, "Cumulative writes: ([0-9]+)", CaptureOpts)),
   ?assertEqual( {match, ["1"]}
               , re:run(Stats, "Cumulative WAL: ([0-9]+)", CaptureOpts)),
