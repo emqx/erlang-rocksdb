@@ -9,15 +9,15 @@ jobs:
       fail-fast: false
       matrix:
         builder:
-          - 5.2-7:1.15.7-26.1.2-1
+          - 5.3-5:1.15.7-26.2.1-2
         os:
-          - ubuntu22.04
-    runs-on: ubuntu-22.04
+          - ubuntu24.04
+    runs-on: ubuntu-24.04
 
     container: ghcr.io/emqx/emqx-builder/${{ matrix.builder }}-${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           submodules: recursive
       - name: gitconfig
