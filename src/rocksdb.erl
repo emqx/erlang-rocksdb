@@ -237,8 +237,8 @@
           target_size :: non_neg_integer()}).
 
 -type cf_descriptor() :: {string(), cf_options()}.
--type cache_type() :: lru | clock.
--type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | zstd | none.
+-type cache_type() :: lru | clock.
+-type compression_type() :: snappy | zlib | bzip2 | lz4 | lz4h | zstd | none.
 -type compaction_style() :: level | universal | fifo | none.
 -type compaction_pri() :: compensated_size | oldest_largest_seq_first | oldest_smallest_seq_first.
 -type access_hint() :: normal | sequential | willneed | none.

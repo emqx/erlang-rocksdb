@@ -1269,18 +1269,24 @@ GetProperty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     ErlNifBinary name_bin;
     ERL_NIF_TERM name_ref;
 
-    ReferencePtr<DbObject> db_ptr;
-    ReferencePtr<ColumnFamilyObject> cf_ptr;
+    ReferencePtr<DbObject> db_ptr
+    {
+      DbObject::RetrieveDbObject(env, argv[0])
+    };
 
-    db_ptr.assign(DbObject::RetrieveDbObject(env, argv[0]));
-    if(NULL==db_ptr.get())
+    if(NULL == db_ptr.get())
         return enif_make_badarg(env);
 
-    if(argc  == 3)
+    ReferencePtr<ColumnFamilyObject> cf_ptr;
+    if(argc == 3)
     {
       name_ref = argv[2];
       // we use a column family assign the value
       cf_ptr.assign(ColumnFamilyObject::RetrieveColumnFamilyObject(env, argv[1]));
+      if (NULL == cf_ptr.get())
+      {
+        return enif_make_badarg(env);
+      }
     }
     else
     {
@@ -1290,16 +1296,27 @@ GetProperty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if (!enif_inspect_binary(env, name_ref, &name_bin))
         return enif_make_badarg(env);
 
-
     rocksdb::Slice name(reinterpret_cast<char*>(name_bin.data), name_bin.size);
     std::string value;
-    if (db_ptr->m_Db->GetProperty(name, &value))
+
+    bool success;
+    if (NULL == cf_ptr.get())
     {
-        ERL_NIF_TERM result;
-        memcpy(enif_make_new_binary(env, value.size(), &result), value.c_str(), value.size());
-        return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
+      success = db_ptr->m_Db->GetProperty(name, &value);
     }
-    return erocksdb::ATOM_ERROR;
+    else
+    {
+      success = db_ptr->m_Db->GetProperty(cf_ptr->m_ColumnFamily, name, &value);
+    }
+
+    if (!success)
+    {
+      return erocksdb::ATOM_ERROR;
+    }
+
+    ERL_NIF_TERM result;
+    memcpy(enif_make_new_binary(env, value.size(), &result), value.c_str(), value.size());
+    return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
 }   // erocksdb_status
 
 ERL_NIF_TERM
