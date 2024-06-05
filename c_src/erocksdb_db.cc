@@ -1886,29 +1886,59 @@ Flush(
         return enif_make_badarg(env);
 
     // parse flush options
-    rocksdb::FlushOptions *opts = new rocksdb::FlushOptions;
-    fold(env, argv[2], parse_flush_option, *opts);
+    rocksdb::FlushOptions opts;
+    fold(env, argv[2], parse_flush_option, opts);
 
     ReferencePtr<ColumnFamilyObject> cf_ptr;
+    std::vector<ReferencePtr<ColumnFamilyObject>> cfs;
     rocksdb::Status status;
-    if(argv[1] == erocksdb::ATOM_DEFAULT_COLUMN_FAMILY)
+    if (argv[1] == erocksdb::ATOM_DEFAULT_COLUMN_FAMILY)
     {
-        status = db_ptr->m_Db->Flush(*opts);
+        status = db_ptr->m_Db->Flush(opts);
+    }
+    else if (enif_is_list(env, argv[1]))
+    {
+        ERL_NIF_TERM head, tail = argv[1];
+        while (enif_get_list_cell(env, tail, &head, &tail))
+        {
+            cfs.emplace_back();
+            if (0 == enif_get_cf(env, head, &cfs.back()))
+            {
+                return enif_make_badarg(env);
+            }
+        }
     }
     else if (enif_get_cf(env, argv[1], &cf_ptr))
     {
-        status = db_ptr->m_Db->Flush(*opts, cf_ptr->m_ColumnFamily);
+        cfs.push_back(cf_ptr);
     }
     else
     {
-        delete opts;
-        opts = NULL;
         return enif_make_badarg(env);
     }
 
-    delete opts;
-    opts = NULL;
-
+    if (cfs.size() > 1)
+    {
+        std::vector<rocksdb::ColumnFamilyHandle*> cf_handles;
+        std::for_each(
+            cfs.begin(),
+            cfs.end(),
+            [&cf_handles](const auto& cf)
+            {
+                cf_handles.push_back(cf->m_ColumnFamily);
+            }
+        );
+        status = db_ptr->m_Db->Flush(opts, cf_handles);
+    }
+    else if (cfs.size() == 1)
+    {
+        status = db_ptr->m_Db->Flush(opts, cfs[0]->m_ColumnFamily);
+    }
+    else
+    {
+        return ATOM_OK;
+    }
+    
     if (!status.ok())
         return error_tuple(env, ATOM_ERROR, status);
 

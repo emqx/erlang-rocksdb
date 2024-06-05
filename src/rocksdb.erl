@@ -264,6 +264,7 @@
 -opaque statistics_handle() :: reference() | binary().
 
 -type column_family() :: cf_handle() | default_column_family.
+-type column_families() :: [cf_handle()].
 
 -type env_type() :: default | memenv.
 -opaque env() :: env_type() | env_handle().
@@ -1079,8 +1080,9 @@ flush(DbHandle, FlushOptions) ->
   flush(DbHandle, default_column_family, FlushOptions).
 
 %% @doc Flush all mem-table data for a column family
--spec flush(db_handle(), column_family(), flush_options()) -> ok | {error, term()}.
-flush(_DbHandle, _Cf, _FlushOptions) ->
+-spec flush(db_handle(), column_family() | column_families(), flush_options()) ->
+  ok | {error, term()}.
+flush(_DbHandle, _Cfs, _FlushOptions) ->
   ?nif_stub.
 
 %% @doc  Sync the wal. Note that Write() followed by SyncWAL() is not exactly the
