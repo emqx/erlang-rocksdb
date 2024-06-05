@@ -170,9 +170,9 @@ public:
         }   // if
     };
 
-    TargetT * get() {return(t);};
+    TargetT * get() const { return t; }
 
-    TargetT * operator->() {return(t);};
+    TargetT * operator->() const { return t; }
 };  // ReferencePtr
 
 
