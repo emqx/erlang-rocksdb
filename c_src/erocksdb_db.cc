@@ -1906,60 +1906,46 @@ Flush(
     rocksdb::FlushOptions opts;
     fold(env, argv[2], parse_flush_option, opts);
 
-    ReferencePtr<ColumnFamilyObject> cf_ptr;
-    std::vector<ReferencePtr<ColumnFamilyObject>> cfs;
     rocksdb::Status status;
     if (argv[1] == erocksdb::ATOM_DEFAULT_COLUMN_FAMILY)
     {
         status = db_ptr->m_Db->Flush(opts);
+        return status_to_term(env, status);
     }
-    else if (enif_is_list(env, argv[1]))
+
+    std::vector<ReferencePtr<ColumnFamilyObject>> cfs;
+    std::vector<rocksdb::ColumnFamilyHandle*> cf_handles;
+    if (enif_is_list(env, argv[1]))
     {
         ERL_NIF_TERM head, tail = argv[1];
         while (enif_get_list_cell(env, tail, &head, &tail))
         {
-            cfs.emplace_back();
-            if (0 == enif_get_cf(env, head, &cfs.back()))
-            {
+            cfs.emplace_back(ColumnFamilyObject::RetrieveColumnFamilyObject(env, head));
+            if (auto cfo = cfs.back().get())
+                cf_handles.push_back(cfo->m_ColumnFamily);
+            else
                 return enif_make_badarg(env);
-            }
         }
     }
-    else if (enif_get_cf(env, argv[1], &cf_ptr))
+    else if (enif_is_ref(env, argv[1]))
     {
-        cfs.push_back(cf_ptr);
+        cfs.emplace_back(ColumnFamilyObject::RetrieveColumnFamilyObject(env, argv[1]));
+        if (auto cfo = cfs.back().get())
+            cf_handles.push_back(cfo->m_ColumnFamily);
+        else
+            return enif_make_badarg(env);
     }
     else
     {
         return enif_make_badarg(env);
     }
 
-    if (cfs.size() > 1)
+    if (cfs.size() > 0)
     {
-        std::vector<rocksdb::ColumnFamilyHandle*> cf_handles;
-        std::for_each(
-            cfs.begin(),
-            cfs.end(),
-            [&cf_handles](const auto& cf)
-            {
-                cf_handles.push_back(cf->m_ColumnFamily);
-            }
-        );
         status = db_ptr->m_Db->Flush(opts, cf_handles);
     }
-    else if (cfs.size() == 1)
-    {
-        status = db_ptr->m_Db->Flush(opts, cfs[0]->m_ColumnFamily);
-    }
-    else
-    {
-        return ATOM_OK;
-    }
     
-    if (!status.ok())
-        return error_tuple(env, ATOM_ERROR, status);
-
-    return ATOM_OK;
+    return status_to_term(env, status);
 
 }   // erocksdb::Flush
 
