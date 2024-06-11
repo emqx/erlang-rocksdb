@@ -111,8 +111,9 @@ close_fold_test_Z() ->
   ?rm_rf("erocksdb.close_fold.test").
 
 write_opts_test() ->
-  ?rm_rf("erocksdb.write_opts_test.test"),
-  {ok, Ref, [CFDef]} = rocksdb:open( "erocksdb.close.test"
+  DBPath = "erocksdb.write_opts.test",
+  ?rm_rf(DBPath),
+  {ok, Ref, [CFDef]} = rocksdb:open( DBPath
                                    , [{create_if_missing, true}, {atomic_flush, true}]
                                    , [{"default", []}]),
   ?assertEqual( ok
@@ -135,7 +136,36 @@ write_opts_test() ->
               , re:run(Stats, "Cumulative writes: ([0-9]+)", CaptureOpts)),
   ?assertEqual( {match, ["1"]}
               , re:run(Stats, "Cumulative WAL: ([0-9]+)", CaptureOpts)),
-  ?rm_rf("erocksdb.write_opts_test.test").
+  ?rm_rf(DBPath).
+
+flush_test() ->
+  DBPath = "erocksdb.flush.test",
+  ?rm_rf(DBPath),
+  {ok, Ref, [CFDef, CF1]} = rocksdb:open( DBPath
+                                        , [ {create_if_missing, true}
+                                          , {create_missing_column_families, true}
+                                          ]
+                                        , [ {"default", []},
+                                            {"cf1", [{compression, snappy}]}
+                                          ]),
+  ?assertEqual(ok, rocksdb:put(Ref, CFDef, <<"k1">>, <<"v1">>, [])),
+  ?assertEqual(ok, rocksdb:put(Ref, CFDef, <<"k2">>, <<"v2">>, [])),
+  ?assertEqual(ok, rocksdb:put(Ref, CF1, <<"k3">>, <<"v3">>, [{disable_wal, true}])),
+  ?assertEqual(ok, rocksdb:put(Ref, CF1, <<"k4">>, <<"v4">>, [{disable_wal, true}])),
+  ?assertEqual( {ok, <<"2">>}
+              , rocksdb:get_property(Ref, <<"rocksdb.num-entries-active-mem-table">>)),
+  ?assertEqual( {ok, <<"2">>}
+              , rocksdb:get_property(Ref, CF1, <<"rocksdb.num-entries-active-mem-table">>)),
+  ?assertEqual( ok
+              , rocksdb:flush(Ref, [CFDef, CF1], [{wait, true}])),
+  ?assertEqual(ok, rocksdb:put(Ref, CFDef, <<"k5">>, <<"v5">>, [])),
+  ?assertEqual(ok, rocksdb:flush(Ref, CF1, [])),
+  ?assertEqual(ok, rocksdb:flush(Ref, [], [])),
+  ?assertEqual( {ok, <<"1">>}
+              , rocksdb:get_property(Ref, <<"rocksdb.num-entries-active-mem-table">>)),
+  ?assertEqual( {ok, <<"0">>}
+              , rocksdb:get_property(Ref, CF1, <<"rocksdb.num-entries-active-mem-table">>)),
+  ?rm_rf(DBPath).
 
 fixed_prefix_extractor_test() ->
   ?rm_rf("erocksdb.fixed_prefix_extractor.test"),

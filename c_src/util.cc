@@ -33,6 +33,14 @@ ERL_NIF_TERM error_einval(ErlNifEnv* env)
     return enif_make_tuple2(env, erocksdb::ATOM_ERROR, erocksdb::ATOM_EINVAL);
 }
 
+ERL_NIF_TERM status_to_term(ErlNifEnv* env, rocksdb::Status& status)
+{
+    if (status.ok())
+        return erocksdb::ATOM_OK;
+    else 
+        return error_tuple(env, erocksdb::ATOM_ERROR, status);
+}
+
 ERL_NIF_TERM error_tuple(ErlNifEnv* env, ERL_NIF_TERM error,
 rocksdb::Status& status)
 {

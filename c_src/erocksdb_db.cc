@@ -1269,18 +1269,24 @@ GetProperty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     ErlNifBinary name_bin;
     ERL_NIF_TERM name_ref;
 
-    ReferencePtr<DbObject> db_ptr;
-    ReferencePtr<ColumnFamilyObject> cf_ptr;
+    ReferencePtr<DbObject> db_ptr
+    {
+      DbObject::RetrieveDbObject(env, argv[0])
+    };
 
-    db_ptr.assign(DbObject::RetrieveDbObject(env, argv[0]));
-    if(NULL==db_ptr.get())
+    if(NULL == db_ptr.get())
         return enif_make_badarg(env);
 
-    if(argc  == 3)
+    ReferencePtr<ColumnFamilyObject> cf_ptr;
+    if(argc == 3)
     {
       name_ref = argv[2];
       // we use a column family assign the value
       cf_ptr.assign(ColumnFamilyObject::RetrieveColumnFamilyObject(env, argv[1]));
+      if (NULL == cf_ptr.get())
+      {
+        return enif_make_badarg(env);
+      }
     }
     else
     {
@@ -1290,16 +1296,27 @@ GetProperty(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     if (!enif_inspect_binary(env, name_ref, &name_bin))
         return enif_make_badarg(env);
 
-
     rocksdb::Slice name(reinterpret_cast<char*>(name_bin.data), name_bin.size);
     std::string value;
-    if (db_ptr->m_Db->GetProperty(name, &value))
+
+    bool success;
+    if (NULL == cf_ptr.get())
     {
-        ERL_NIF_TERM result;
-        memcpy(enif_make_new_binary(env, value.size(), &result), value.c_str(), value.size());
-        return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
+      success = db_ptr->m_Db->GetProperty(name, &value);
     }
-    return erocksdb::ATOM_ERROR;
+    else
+    {
+      success = db_ptr->m_Db->GetProperty(cf_ptr->m_ColumnFamily, name, &value);
+    }
+
+    if (!success)
+    {
+      return erocksdb::ATOM_ERROR;
+    }
+
+    ERL_NIF_TERM result;
+    memcpy(enif_make_new_binary(env, value.size(), &result), value.c_str(), value.size());
+    return enif_make_tuple2(env, erocksdb::ATOM_OK, result);
 }   // erocksdb_status
 
 ERL_NIF_TERM
@@ -1886,33 +1903,49 @@ Flush(
         return enif_make_badarg(env);
 
     // parse flush options
-    rocksdb::FlushOptions *opts = new rocksdb::FlushOptions;
-    fold(env, argv[2], parse_flush_option, *opts);
+    rocksdb::FlushOptions opts;
+    fold(env, argv[2], parse_flush_option, opts);
 
-    ReferencePtr<ColumnFamilyObject> cf_ptr;
     rocksdb::Status status;
-    if(argv[1] == erocksdb::ATOM_DEFAULT_COLUMN_FAMILY)
+    if (argv[1] == erocksdb::ATOM_DEFAULT_COLUMN_FAMILY)
     {
-        status = db_ptr->m_Db->Flush(*opts);
+        status = db_ptr->m_Db->Flush(opts);
+        return status_to_term(env, status);
     }
-    else if (enif_get_cf(env, argv[1], &cf_ptr))
+
+    std::vector<ReferencePtr<ColumnFamilyObject>> cfs;
+    std::vector<rocksdb::ColumnFamilyHandle*> cf_handles;
+    if (enif_is_list(env, argv[1]))
     {
-        status = db_ptr->m_Db->Flush(*opts, cf_ptr->m_ColumnFamily);
+        ERL_NIF_TERM head, tail = argv[1];
+        while (enif_get_list_cell(env, tail, &head, &tail))
+        {
+            cfs.emplace_back(ColumnFamilyObject::RetrieveColumnFamilyObject(env, head));
+            if (auto cfo = cfs.back().get())
+                cf_handles.push_back(cfo->m_ColumnFamily);
+            else
+                return enif_make_badarg(env);
+        }
+    }
+    else if (enif_is_ref(env, argv[1]))
+    {
+        cfs.emplace_back(ColumnFamilyObject::RetrieveColumnFamilyObject(env, argv[1]));
+        if (auto cfo = cfs.back().get())
+            cf_handles.push_back(cfo->m_ColumnFamily);
+        else
+            return enif_make_badarg(env);
     }
     else
     {
-        delete opts;
-        opts = NULL;
         return enif_make_badarg(env);
     }
 
-    delete opts;
-    opts = NULL;
-
-    if (!status.ok())
-        return error_tuple(env, ATOM_ERROR, status);
-
-    return ATOM_OK;
+    if (cfs.size() > 0)
+    {
+        status = db_ptr->m_Db->Flush(opts, cf_handles);
+    }
+    
+    return status_to_term(env, status);
 
 }   // erocksdb::Flush
 
