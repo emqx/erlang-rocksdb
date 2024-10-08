@@ -18,13 +18,22 @@
 #include <mutex>
 #include <memory>
 
+#include "rocksdb/version.h"
+#if ROCKSDB_MAJOR < 8
+#include "rocksdb/cache.h"
+#else
+#include "rocksdb/advanced_cache.h"
+#endif
+
 #include "erl_nif.h"
 
-namespace rocksdb {
-    class Cache;
-}
-
 namespace erocksdb {
+
+#if ROCKSDB_MAJOR < 8
+  typedef std::shared_ptr<rocksdb::Cache> RocksDBCachePtr;
+#else
+  typedef std::shared_ptr<rocksdb::BlockCache> RocksDBCachePtr;
+#endif
 
   class Cache {
     protected:
@@ -33,20 +42,20 @@ namespace erocksdb {
     public:
       std::mutex mu;
 
-      explicit Cache(std::shared_ptr<rocksdb::Cache> cache);
+      explicit Cache(RocksDBCachePtr cache);
 
       ~Cache();
 
-      std::shared_ptr<rocksdb::Cache> cache();
+      RocksDBCachePtr cache();
 
       static void CreateCacheType(ErlNifEnv * Env);
       static void CacheResourceCleanup(ErlNifEnv *Env, void * Arg);
 
-      static Cache * CreateCacheResource(std::shared_ptr<rocksdb::Cache> cache);
+      static Cache * CreateCacheResource(RocksDBCachePtr cache);
       static Cache * RetrieveCacheResource(ErlNifEnv * Env, const ERL_NIF_TERM & CacheTerm);
 
     private:
-      std::shared_ptr<rocksdb::Cache> cache_;
+      RocksDBCachePtr cache_;
   };
 
 }
