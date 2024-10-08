@@ -19,10 +19,7 @@
 #include <memory>
 
 #include "erl_nif.h"
-
-namespace rocksdb {
-    class Cache;
-}
+#include "rocksdb/advanced_cache.h"
 
 namespace erocksdb {
 
@@ -33,20 +30,20 @@ namespace erocksdb {
     public:
       std::mutex mu;
 
-      explicit Cache(std::shared_ptr<rocksdb::Cache> cache);
+      explicit Cache(std::shared_ptr<rocksdb::BlockCache> cache);
 
       ~Cache();
 
-      std::shared_ptr<rocksdb::Cache> cache();
+      std::shared_ptr<rocksdb::BlockCache> cache();
 
       static void CreateCacheType(ErlNifEnv * Env);
       static void CacheResourceCleanup(ErlNifEnv *Env, void * Arg);
 
-      static Cache * CreateCacheResource(std::shared_ptr<rocksdb::Cache> cache);
+      static Cache * CreateCacheResource(std::shared_ptr<rocksdb::BlockCache> cache);
       static Cache * RetrieveCacheResource(ErlNifEnv * Env, const ERL_NIF_TERM & CacheTerm);
 
     private:
-      std::shared_ptr<rocksdb::Cache> cache_;
+      std::shared_ptr<rocksdb::BlockCache> cache_;
   };
 
 }
