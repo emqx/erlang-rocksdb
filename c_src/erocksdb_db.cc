@@ -433,7 +433,7 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         else if (option[0] == erocksdb::ATOM_COMPRESSION ||
                  option[0] == erocksdb::ATOM_BOTTOMMOST_COMPRESSION)
         {
-            rocksdb::CompressionType compression;
+            rocksdb::CompressionType compression = rocksdb::CompressionType::kNoCompression;
             if (option[1] == erocksdb::ATOM_COMPRESSION_TYPE_SNAPPY) {
                 compression = rocksdb::CompressionType::kSnappyCompression;
             }

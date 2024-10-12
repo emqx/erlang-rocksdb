@@ -62,7 +62,7 @@ RateLimiter::RetrieveRateLimiterResource(ErlNifEnv * Env, const ERL_NIF_TERM & R
     return ret_ptr;
 }
 
-RateLimiter::RateLimiter(std::shared_ptr<rocksdb::RateLimiter> RateLimiter) : rate_limiter_(RateLimiter) {}
+RateLimiter::RateLimiter(std::shared_ptr<rocksdb::RateLimiter> ratelimiter) : rate_limiter_(ratelimiter) {}
 
 RateLimiter::~RateLimiter()
 {

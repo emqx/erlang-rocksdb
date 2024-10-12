@@ -17,7 +17,6 @@
 #include <array>
 
 #include "atoms.h"
-#include "rocksdb/cache.h"
 #include "cache.h"
 #include "util.h"
 
@@ -47,7 +46,7 @@ Cache::CacheResourceCleanup(ErlNifEnv * /*env*/, void * arg)
 
 
 Cache *
-Cache::CreateCacheResource(std::shared_ptr<rocksdb::Cache> cache)
+Cache::CreateCacheResource(RocksDBCachePtr cache)
 {
     Cache * ret_ptr;
     void * alloc_ptr;
@@ -66,7 +65,7 @@ Cache::RetrieveCacheResource(ErlNifEnv * Env, const ERL_NIF_TERM & CacheTerm)
     return ret_ptr;
 }
 
-Cache::Cache(std::shared_ptr<rocksdb::Cache> Cache) : cache_(Cache) {}
+Cache::Cache(RocksDBCachePtr cache) : cache_(cache) {}
 
 Cache::~Cache()
 {
@@ -77,7 +76,7 @@ Cache::~Cache()
     return;
 }
 
-std::shared_ptr<rocksdb::Cache> Cache::cache() {
+RocksDBCachePtr Cache::cache() {
     auto c = cache_;
     return c;
 }
@@ -90,7 +89,7 @@ NewCache(
 {
     ErlNifUInt64 capacity;
     Cache *cache_ptr;
-    std::shared_ptr<rocksdb::Cache> cache;
+    RocksDBCachePtr cache;
 
     if (!enif_is_atom(env, argv[0]) || !enif_get_uint64(env, argv[1], &capacity))
         return enif_make_badarg(env);
@@ -117,7 +116,7 @@ ERL_NIF_TERM
 ReleaseCache(ErlNifEnv *env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     Cache *cache_ptr;
-    std::shared_ptr<rocksdb::Cache> cache;
+    RocksDBCachePtr cache;
 
     cache_ptr = erocksdb::Cache::RetrieveCacheResource(env, argv[0]);
     if (nullptr == cache_ptr)
@@ -132,7 +131,7 @@ ReleaseCache(ErlNifEnv *env, int /*argc*/, const ERL_NIF_TERM argv[])
 ERL_NIF_TERM
 cache_info_1(
     ErlNifEnv *env,
-    std::shared_ptr<rocksdb::Cache> cache,
+    RocksDBCachePtr cache,
     ERL_NIF_TERM item)
 {
     if (item == erocksdb::ATOM_USAGE) {
@@ -157,7 +156,7 @@ CacheInfo(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
 
     Cache *cache_ptr;
-    std::shared_ptr<rocksdb::Cache> cache;
+    RocksDBCachePtr cache;
 
     cache_ptr = erocksdb::Cache::RetrieveCacheResource(env, argv[0]);
     if (nullptr == cache_ptr)
@@ -192,7 +191,7 @@ ERL_NIF_TERM
 SetCapacity(ErlNifEnv * env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     Cache *cache_ptr;
-    std::shared_ptr<rocksdb::Cache> cache;
+    RocksDBCachePtr cache;
     ErlNifUInt64 capacity;
 
     cache_ptr = erocksdb::Cache::RetrieveCacheResource(env, argv[0]);
@@ -212,7 +211,7 @@ ERL_NIF_TERM
 SetStrictCapacityLimit(ErlNifEnv * env, int /*argc*/, const ERL_NIF_TERM argv[])
 {
     Cache *cache_ptr;
-    std::shared_ptr<rocksdb::Cache> cache;
+    RocksDBCachePtr cache;
     bool strict_capacity_limit;
     cache_ptr = erocksdb::Cache::RetrieveCacheResource(env, argv[0]);
     if (nullptr == cache_ptr)
