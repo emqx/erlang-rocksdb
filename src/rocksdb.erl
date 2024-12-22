@@ -298,6 +298,7 @@
                        {enable_blob_files, boolean()} |
                        {min_blob_size, non_neg_integer()} |
                        {blob_file_size, non_neg_integer()} |
+                       {ttl, non_neg_integer()} |
                        {blob_compression_type, compression_type()} |
                        {enable_blob_garbage_collection, boolean()} |
                        {blob_garbage_collection_age_cutoff, float()} |

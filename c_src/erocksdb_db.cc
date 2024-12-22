@@ -515,6 +515,12 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             else
                 opts.bottommost_compression_opts = compression_opts;
         }
+        else if (option[0] == erocksdb::ATOM_TTL)
+        {
+            ErlNifUInt64 ttl;
+            if (enif_get_uint64(env, option[1], &ttl))
+                opts.ttl = ttl;
+        }
         else if (option[0] == erocksdb::ATOM_NUM_LEVELS)
         {
             int num_levels;
