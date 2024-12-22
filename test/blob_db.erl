@@ -7,9 +7,9 @@
 
 basic_test() ->
   ?rm_rf("test_blobdb"),
-  {ok, Db} = 
+  {ok, Db} =
     rocksdb:open(
-      "test_blobdb", 
+      "test_blobdb",
       [{create_if_missing, true}
       ,{enable_blob_files, true}
       ,{min_blob_size, 0}
@@ -28,9 +28,9 @@ basic_test() ->
 cache_test() ->
   ?rm_rf("test_cacheblobdb"),
   {ok, CHandle} = rocksdb:new_cache(lru, 2097152),
-  {ok, Db} = 
+  {ok, Db} =
     rocksdb:open(
-      "test_cacheblobdb", 
+      "test_cacheblobdb",
       [{create_if_missing, true}
       ,{enable_blob_files, true}
       ,{blob_cache, CHandle}]
@@ -41,13 +41,6 @@ cache_test() ->
     {ok, <<"blob_value">>} = rocksdb:get(Db, <<"key">>, [])
   after
     ok = rocksdb:close(Db),
-    ?rm_rf("test_blobdb")
+    ?rm_rf("test_cacheblobdb")
   end,
   ok.
-
-
-
-
-  
-
-
