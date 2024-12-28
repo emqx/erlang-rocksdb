@@ -78,6 +78,22 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
         else if (option[0] == erocksdb::ATOM_CACHE_INDEX_AND_FILTER_BLOCKS) {
             opts.cache_index_and_filter_blocks = (option[1] == erocksdb::ATOM_TRUE);
         }
+        else if (option[0] == erocksdb::ATOM_PARTITION_FILTERS) {
+            opts.partition_filters = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_INDEX_TYPE)
+        {
+            if (option[1] == erocksdb::ATOM_PARTITIONED_INDEX) {
+				opts.index_type = rocksdb::BlockBasedTableOptions::kTwoLevelIndexSearch;
+            }
+            else if (option[1] == erocksdb::ATOM_BINARY_SEARCH) {
+				opts.index_type = rocksdb::BlockBasedTableOptions::kBinarySearch;
+            }
+            else
+            {
+                opts.index_type = rocksdb::BlockBasedTableOptions::kBinarySearch;
+            }
+        }
     }
 
     return erocksdb::ATOM_OK;
