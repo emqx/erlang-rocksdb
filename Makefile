@@ -3,7 +3,7 @@ REBAR ?= $(shell which rebar3 2>/dev/null)
 TEST_DIR=$(CURDIR)/test
 
 
-TEST_MODULES="db,db_range,iterators,batch,snapshot,column_family,batch,cache,blob_db,checkpoint,db_backup,cleanup,in_mem,merge,rate_limiter,sst_file_manager,transaction,transaction_log,ttl,write_buffer_manager,statistics,fifo_compaction"
+TEST_MODULES="db,db_range,iterators,batch,snapshot,column_family,batch,cache,blob_db,checkpoint,db_backup,cleanup,in_mem,merge,rate_limiter,sst_file_manager,transaction,transaction_log,ttl,write_buffer_manager,statistics,fifo_compaction,bbt"
 
 TEST_ALL_MODULES="${TEST_MODULES},compression"
 
