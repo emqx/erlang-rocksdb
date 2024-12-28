@@ -270,15 +270,12 @@
 -opaque env() :: env_type() | env_handle().
 -type env_priority() :: priority_high | priority_low.
 
--type block_based_index_type() :: partitioned_index | binary_search.
-
 -type block_based_table_options() :: [{no_block_cache, boolean()} |
                                       {block_size, pos_integer()} |
                                       {block_cache, cache_handle()} |
                                       {block_cache_size, pos_integer()} |
                                       {bloom_filter_policy, BitsPerKey :: pos_integer()} |
                                       {format_version, 0 | 1 | 2 | 3 | 4 | 5} |
-                                      {index_type, block_based_index_type()} |
                                       {partition_filters, boolean()} |
                                       {cache_index_and_filter_blocks, boolean()}].
 
