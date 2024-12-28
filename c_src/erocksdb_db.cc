@@ -45,59 +45,6 @@
 #include "bitset_merge_operator.h"
 #include "counter_merge_operator.h"
 
-ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
-    int arity;
-    const ERL_NIF_TERM* option;
-    if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
-    {
-        if (option[0] == erocksdb::ATOM_NO_BLOCK_CACHE) {
-            opts.no_block_cache = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        else if (option[0] == erocksdb::ATOM_BLOCK_SIZE) {
-            int block_size;
-            if (enif_get_int(env, option[1], &block_size))
-                opts.block_size = block_size;
-        }
-        else if (option[0] == erocksdb::ATOM_BLOCK_CACHE) {
-            erocksdb::Cache* cache_ptr = erocksdb::Cache::RetrieveCacheResource(env,option[1]);
-            if(NULL!=cache_ptr) {
-                auto cache = cache_ptr->cache();
-                opts.block_cache = cache;
-            }
-        }
-        else if (option[0] == erocksdb::ATOM_BLOOM_FILTER_POLICY) {
-            int bits_per_key;
-            if (enif_get_int(env, option[1], &bits_per_key))
-                opts.filter_policy = std::shared_ptr<const rocksdb::FilterPolicy>(rocksdb::NewBloomFilterPolicy(bits_per_key));
-        }
-        else if (option[0] == erocksdb::ATOM_FORMAT_VERSION) {
-            int format_version;
-            if (enif_get_int(env, option[1], &format_version))
-                opts.format_version = format_version;
-        }
-        else if (option[0] == erocksdb::ATOM_CACHE_INDEX_AND_FILTER_BLOCKS) {
-            opts.cache_index_and_filter_blocks = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        else if (option[0] == erocksdb::ATOM_PARTITION_FILTERS) {
-            opts.partition_filters = (option[1] == erocksdb::ATOM_TRUE);
-        }
-        else if (option[0] == erocksdb::ATOM_INDEX_TYPE)
-        {
-            if (option[1] == erocksdb::ATOM_PARTITIONED_INDEX) {
-				opts.index_type = rocksdb::BlockBasedTableOptions::kTwoLevelIndexSearch;
-            }
-            else if (option[1] == erocksdb::ATOM_BINARY_SEARCH) {
-				opts.index_type = rocksdb::BlockBasedTableOptions::kBinarySearch;
-            }
-            else
-            {
-                opts.index_type = rocksdb::BlockBasedTableOptions::kBinarySearch;
-            }
-        }
-    }
-
-    return erocksdb::ATOM_OK;
-}
 
 ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptions& opts)
 {
@@ -641,6 +588,16 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         else if (option[0] == erocksdb::ATOM_BLOCK_BASED_TABLE_OPTIONS) {
             rocksdb::BlockBasedTableOptions bbtOpts;
             fold(env, option[1], parse_bbt_option, bbtOpts);
+
+		    const char* debug_filename = "/tmp/erocksdb_bbt_debug.log";  // or another path
+		    FILE* debug_file = fopen(debug_filename, "a");
+		    fprintf(
+		        "[DEBUG] BlockBasedTableOptions:\n"
+		        "  partition_filters=%d\n"
+		        (int)bbtOpts.partition_filters
+		    );
+		    fclose(debug_file);
+
             opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewBlockBasedTableFactory(bbtOpts));
         }
         else if (option[0] == erocksdb::ATOM_IN_MEMORY_MODE)
