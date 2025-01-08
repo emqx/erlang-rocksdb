@@ -45,6 +45,38 @@
 #include "bitset_merge_operator.h"
 #include "counter_merge_operator.h"
 
+ERL_NIF_TERM parse_fifo_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::CompactionOptionsFIFO& fifo_opts)
+{
+    int arity;
+    const ERL_NIF_TERM* tuple;
+
+    if (enif_get_tuple(env, item, &arity, &tuple) && arity == 2)
+    {
+        if (tuple[0] == erocksdb::ATOM_MAX_TABLE_FILES_SIZE)
+        {
+            ErlNifUInt64 max_size;
+            if (enif_get_uint64(env, tuple[1], &max_size))
+            {
+                fifo_opts.max_table_files_size = max_size;
+            }
+        }
+        else if (tuple[0] == erocksdb::ATOM_ALLOW_COMPACTION)
+        {
+            fifo_opts.allow_compaction = (tuple[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (tuple[0] == erocksdb::ATOM_AGE_FOR_WARM)
+        {
+            ErlNifUInt64 age_for_warm;
+            if (enif_get_uint64(env, tuple[1], &age_for_warm))
+            {
+                fifo_opts.age_for_warm = static_cast<int64_t>(age_for_warm);
+            }
+        }
+    }
+
+    return erocksdb::ATOM_OK;
+}
+
 ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockBasedTableOptions& opts) {
     int arity;
     const ERL_NIF_TERM* option;
@@ -522,6 +554,12 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             else
                 opts.bottommost_compression_opts = compression_opts;
         }
+        else if (option[0] == erocksdb::ATOM_TTL)
+        {
+            ErlNifUInt64 ttl;
+            if (enif_get_uint64(env, option[1], &ttl))
+                opts.ttl = ttl;
+        }
         else if (option[0] == erocksdb::ATOM_NUM_LEVELS)
         {
             int num_levels;
@@ -633,6 +671,11 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
             rocksdb::BlockBasedTableOptions bbtOpts;
             fold(env, option[1], parse_bbt_option, bbtOpts);
             opts.table_factory = std::shared_ptr<rocksdb::TableFactory>(rocksdb::NewBlockBasedTableFactory(bbtOpts));
+        }
+        else if (option[0] == erocksdb::ATOM_COMPACTION_OPTIONS_FIFO) {
+            rocksdb::CompactionOptionsFIFO fifo_opts;
+            fold(env, option[1], parse_fifo_option, fifo_opts);
+            opts.compaction_options_fifo = fifo_opts;
         }
         else if (option[0] == erocksdb::ATOM_IN_MEMORY_MODE)
         {
