@@ -15,52 +15,33 @@ jobs:
       fail-fast: false
       matrix:
         otp:
-          - 25.3.2-2
-          - 26.2.1-2
+          - "25.3"
+          - "26.2"
+        rebar3:
+          - "3.20.0"
         os:
           - macos-14
           - macos-13
     runs-on: ${{ matrix.os }}
     steps:
-      - name: prepare
-        run: |
-          brew install curl zip unzip gnu-sed kerl wget
-          git config --global credential.helper store
-      - uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
-        id: cache
-        with:
-          path: ~/.kerl/${{ matrix.otp }}
-          key: otp-install-${{ matrix.otp }}-${{ matrix.os }}
-
-      - name: build erlang
-        if: steps.cache.outputs.cache-hit != 'true'
-        timeout-minutes: 60
+      - name: prepare erlang
         env:
-          OTP: ${{ matrix.otp }}
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
         run: |
-          set -eux
-          if [ ! -d $HOME/.kerl/$OTP ]; then
-            kerl build git https://github.com/emqx/otp.git OTP-$OTP $OTP
-            kerl install $OTP $HOME/.kerl/$OTP
-          fi
+          brew install erlang@${{ matrix.otp }}
+          echo "$(brew --prefix erlang@${{ matrix.otp }})/bin" >> $GITHUB_PATH
+
+      - name: install rebar3
+        run: |
+          wget https://github.com/erlang/rebar3/releases/download/${{ matrix.rebar3 }}/rebar3 && chmod +x rebar3
+          sudo mv rebar3 /usr/local/bin/ && sudo chmod +x /usr/local/bin/rebar3
 
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
           ref: ${{ github.event.inputs.ref }}
 
-      - name: install rebar3
-        run: |
-          set -eux
-          REBAR=$(brew --prefix)/bin/rebar3
-          if [ ! -f $REBAR ]; then
-            wget https://s3.amazonaws.com/rebar3/rebar3 -O $REBAR
-            chmod +x $REBAR
-          fi
-
       - name: build
-        run: |
-          . $HOME/.kerl/${{ matrix.otp }}/activate
-          BUILD_RELEASE=1 make
+        run: env BUILD_RELEASE=1 make
 
       - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:

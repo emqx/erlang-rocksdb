@@ -4,9 +4,33 @@ on:
   pull_request:
 
 jobs:
+  macos:
+    strategy:
+      matrix:
+        otp:
+          - "26.2"
+        rebar3:
+          - "3.20.0"
+    runs-on: macos-14
+    steps:
+      - name: prepare
+        env:
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+        run: |
+          brew install erlang@${{ matrix.otp }}
+          echo "$(brew --prefix erlang@${{ matrix.otp }})/bin" >> $GITHUB_PATH
+      - name: install rebar3
+        run: |
+          wget https://github.com/erlang/rebar3/releases/download/${{ matrix.rebar3 }}/rebar3 && chmod +x rebar3
+          sudo mv rebar3 /usr/local/bin/ && sudo chmod +x /usr/local/bin/rebar3
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        with:
+          submodules: recursive
+      - name: test build
+        run: make
+
   linux:
     strategy:
-      fail-fast: false
       matrix:
         builder:
           - 5.3-5:1.15.7-26.2.1-2
