@@ -87,6 +87,9 @@ extern ERL_NIF_TERM ATOM_STRATEGY;
 extern ERL_NIF_TERM ATOM_MAX_DICT_BYTES;
 extern ERL_NIF_TERM ATOM_ZSTD_MAX_TRAIN_BYTES;
 
+// Related to FIFO compaction with TTL
+extern ERL_NIF_TERM ATOM_TTL;
+
 extern ERL_NIF_TERM ATOM_NUM_LEVELS;
 extern ERL_NIF_TERM ATOM_LEVEL0_FILE_NUM_COMPACTION_TRIGGER;
 extern ERL_NIF_TERM ATOM_LEVEL0_SLOWDOWN_WRITES_TRIGGER;
@@ -108,11 +111,17 @@ extern ERL_NIF_TERM ATOM_TABLE_FACTORY_BLOCK_CACHE_SIZE;
 extern ERL_NIF_TERM ATOM_IN_MEMORY_MODE;
 extern ERL_NIF_TERM ATOM_IN_MEMORY;
 extern ERL_NIF_TERM ATOM_BLOCK_BASED_TABLE_OPTIONS;
+extern ERL_NIF_TERM ATOM_COMPACTION_OPTIONS_FIFO;
 extern ERL_NIF_TERM ATOM_ALLOW_CONCURRENT_MEMTABLE_WRITE;
 extern ERL_NIF_TERM ATOM_ENABLE_WRITE_THREAD_ADAPTATIVE_YIELD;
 extern ERL_NIF_TERM ATOM_LEVEL_COMPACTION_DYNAMIC_LEVEL_BYTES;
 extern ERL_NIF_TERM ATOM_OPTIMIZE_FILTERS_FOR_HITS;
 extern ERL_NIF_TERM ATOM_PREFIX_EXTRACTOR;
+
+// Related to COMPACTION_OPTIONS_FIFO                                                                                   
+extern ERL_NIF_TERM ATOM_ALLOW_COMPACTION;                                                                                     
+extern ERL_NIF_TERM ATOM_AGE_FOR_WARM;                                                                                         
+extern ERL_NIF_TERM ATOM_MAX_TABLE_FILES_SIZE;                                                                                 
 
 // Related to DBOptions
 extern ERL_NIF_TERM ATOM_TOTAL_THREADS;

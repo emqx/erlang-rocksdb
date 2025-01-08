@@ -278,6 +278,10 @@
                                       {format_version, 0 | 1 | 2 | 3 | 4 | 5} |
                                       {cache_index_and_filter_blocks, boolean()}].
 
+-type compaction_options_fifo() :: [{allow_compaction, boolean()} |
+                                    {age_for_warm, non_neg_integer()} |
+                                    {max_table_files_size, pos_integer()}].
+
 -type merge_operator() :: erlang_merge_operator |
                           bitset_merge_operator |
                           {bitset_merge_operator, non_neg_integer()} |
@@ -298,6 +302,7 @@
                        {enable_blob_files, boolean()} |
                        {min_blob_size, non_neg_integer()} |
                        {blob_file_size, non_neg_integer()} |
+                       {ttl, non_neg_integer()} |
                        {blob_compression_type, compression_type()} |
                        {enable_blob_garbage_collection, boolean()} |
                        {blob_garbage_collection_age_cutoff, float()} |
@@ -330,6 +335,7 @@
                        {table_factory_block_cache_size, pos_integer()} |
                        {in_memory_mode, boolean()} |
                        {block_based_table_options, block_based_table_options()} |
+                       {compaction_options_fifo, compaction_options_fifo()} |
                        {level_compaction_dynamic_level_bytes, boolean()} |
                        {optimize_filters_for_hits, boolean()} |
                        {prefix_extractor, {fixed_prefix_transform, integer()} | 
