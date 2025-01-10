@@ -31,6 +31,7 @@ bbt_partion_filters_false_test() ->
   %% Check LOG file for check partition_filters set to 0
   {ok, Log0} = file:read_file(lists:concat([DbName, "/LOG"])),
   ?assertMatch({match, _}, re:run(Log0, "partition_filters: 0")),
+  ?assertMatch({match, _}, re:run(Log0, "index_type: 0")),
 
   ok = rocksdb:close(Db),
   ?rm_rf(DbName).
@@ -51,6 +52,6 @@ bbt_partion_filters_true_test() ->
   %% Check LOG file for check partition_filters set to 0
   {ok, Log0} = file:read_file(lists:concat([DbName, "/LOG"])),
   ?assertMatch({match, _}, re:run(Log0, "partition_filters: 1")),
-
+  ?assertMatch({match, _}, re:run(Log0, "index_type: 2")),
   ok = rocksdb:close(Db),
   ?rm_rf(DbName).
