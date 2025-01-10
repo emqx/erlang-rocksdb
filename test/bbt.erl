@@ -55,3 +55,54 @@ bbt_partion_filters_true_test() ->
   ?assertMatch({match, _}, re:run(Log0, "index_type: 2")),
   ok = rocksdb:close(Db),
   ?rm_rf(DbName).
+
+bbt_pin_l0_filter_and_index_blocks_in_cache_default_test() ->
+  DbName = "erocksdb.bbt.pin_l0_filter_and_index_blocks_in_cache.default",
+  ?rm_rf(DbName),
+  {ok, Db} = rocksdb:open(
+    DbName,
+    [
+        {create_if_missing, true}
+    ]
+  ),
+  %% Check LOG file for check pin_l0_filter_and_index_blocks_in_cache set to 0
+  {ok, Log0} = file:read_file(lists:concat([DbName, "/LOG"])),
+  ?assertMatch({match, _}, re:run(Log0, "pin_l0_filter_and_index_blocks_in_cache: 0")),
+  ok = rocksdb:close(Db),
+  ?rm_rf(DbName).
+
+bbt_pin_l0_filter_and_index_blocks_in_cache_false_test() ->
+  DbName = "erocksdb.bbt.pin_l0_filter_and_index_blocks_in_cache.false",
+  ?rm_rf(DbName),
+  {ok, Db} = rocksdb:open(
+    DbName,
+    [
+        {create_if_missing, true},
+        {block_based_table_options, [
+            {pin_l0_filter_and_index_blocks_in_cache, false}
+        ]}
+    ]
+  ),
+  %% Check LOG file for check pin_l0_filter_and_index_blocks_in_cache set to 0
+  {ok, Log0} = file:read_file(lists:concat([DbName, "/LOG"])),
+  ?assertMatch({match, _}, re:run(Log0, "pin_l0_filter_and_index_blocks_in_cache: 0")),
+  ok = rocksdb:close(Db),
+  ?rm_rf(DbName).
+
+bbt_pin_l0_filter_and_index_blocks_in_cache_true_test() ->
+  DbName = "erocksdb.bbt.pin_l0_filter_and_index_blocks_in_cache.true",
+  ?rm_rf(DbName),
+  {ok, Db} = rocksdb:open(
+    DbName,
+    [
+        {create_if_missing, true},
+        {block_based_table_options, [
+            {pin_l0_filter_and_index_blocks_in_cache, true}
+        ]}
+    ]
+  ),
+  %% Check LOG file for check pin_l0_filter_and_index_blocks_in_cache set to 1
+  {ok, Log0} = file:read_file(lists:concat([DbName, "/LOG"])),
+  ?assertMatch({match, _}, re:run(Log0, "pin_l0_filter_and_index_blocks_in_cache: 1")),
+  ok = rocksdb:close(Db),
+  ?rm_rf(DbName).
