@@ -22,6 +22,7 @@ jobs:
         rebar3:
           - "3.22.0"
         os:
+          - macos-13
           - macos-14
           - macos-15
     runs-on: ${{ matrix.os }}
