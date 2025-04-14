@@ -15,7 +15,13 @@ if [ ! -f "_packages/${PKGNAME}.sha256" ]; then
     curl -f -L --no-progress-meter -o "_packages/${PKGNAME}.sha256" "${URL}.sha256"
 fi
 
-echo "$(cat "_packages/${PKGNAME}.sha256") _packages/${PKGNAME}" | sha256sum -c || exit 1
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    # macOS
+    echo "$(cat "_packages/${PKGNAME}.sha256")  _packages/${PKGNAME}" | shasum -a 256 -c || exit 1
+else
+    # Linux and other Unix-like systems
+    echo "$(cat "_packages/${PKGNAME}.sha256")  _packages/${PKGNAME}" | sha256sum -c || exit 1
+fi
 
 mkdir -p priv
 gzip -c -d "_packages/${PKGNAME}" > priv/liberocksdb.so
