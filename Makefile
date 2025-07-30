@@ -7,19 +7,25 @@ TEST_MODULES="db,db_range,iterators,batch,snapshot,column_family,batch,cache,blo
 
 TEST_ALL_MODULES="${TEST_MODULES},compression"
 
+.PHONY: all
 all: compile test
 
+.PHONY: compile
 compile:
 	@${REBAR} compile
 
+.PHONY: test
 test: compile
 	@${REBAR} eunit --module=${TEST_MODULES}
 
+.PHONY: test_all
 test_all: compile
 	@${REBAR} eunit --module=${TEST_ALL_MODULES}
 
+.PHONY: clean
 clean:
 	@${REBAR} clean
 
+.PHONY: distclean
 distclean: clean
 	@git clean -fdx
