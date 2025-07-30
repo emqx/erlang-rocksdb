@@ -17,8 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         otp:
-          - "26"
-          - "27"
+          - "26.2.5.14-1"
+          - "27.3.4.2-1"
         rebar3:
           - "3.22.0"
         os:
@@ -27,18 +27,10 @@ jobs:
           - macos-15
     runs-on: ${{ matrix.os }}
     steps:
-      - name: prepare erlang
-        env:
-          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
-        run: |
-          brew update
-          brew install erlang@${{ matrix.otp }}
-          echo "$(brew --prefix erlang@${{ matrix.otp }})/bin" >> $GITHUB_PATH
-
-      - name: install rebar3
-        run: |
-          wget https://github.com/erlang/rebar3/releases/download/${{ matrix.rebar3 }}/rebar3 && chmod +x rebar3
-          sudo mv rebar3 /usr/local/bin/ && sudo chmod +x /usr/local/bin/rebar3
+      - uses: emqx/macos-erlang@f744c98139c0db83a10619587d4bae4fc49765a8 # v1.0.0
+        with:
+          otp-version: ${{ matrix.otp }}
+          rebar3-version: ${{ matrix.rebar3 }}
 
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
         with:
@@ -59,10 +51,10 @@ jobs:
       fail-fast: false
       matrix:
         erlang:
-          - otp: "26.2.5.2"
-            builder: "5.4-3:1.15.7-26.2.5.2-2"
-          - otp: "27.2"
-            builder: "5.5-1:1.17.3-27.2-2"
+          - otp: "26.2.5.14-1"
+            builder: "5.5-5:1.15.7-26.2.5.14-1"
+          - otp: "27.3.4.2-1"
+            builder: "5.5-5:1.18.3-27.3.4.2-1"
         arch:
           - amd64
           - arm64
