@@ -15,7 +15,7 @@ if [ ! -f "_packages/${PKGNAME}.sha256" ]; then
     curl -f -L --no-progress-meter -o "_packages/${PKGNAME}.sha256" "${URL}.sha256"
 fi
 
-if [[ "$(uname -s)" == "Darwin" ]]; then
+if [ "$(uname -s)" = "Darwin" ]; then
     # macOS
     echo "$(cat "_packages/${PKGNAME}.sha256")  _packages/${PKGNAME}" | shasum -a 256 -c || exit 1
 else
