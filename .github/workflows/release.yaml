@@ -77,6 +77,10 @@ jobs:
               otp: "26.2.5.14-1"
               builder: "5.5-5:1.15.7-26.2.5.14-1"
             os: debian13
+          - erlang:
+              otp: "27.3.4.2-4"
+              builder: "5.6-3:1.18.3-27.3.4.2-4"
+            os: debian10
 
     runs-on: "aws-${{ matrix.arch }}"
 
