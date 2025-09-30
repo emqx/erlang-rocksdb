@@ -72,7 +72,7 @@ jobs:
           - amzn2023
           - alpine3.15.1
 
-    runs-on: "aws-${{ matrix.arch }}"
+    runs-on: ubuntu-24.04${{ matrix.arch == 'arm64' && '-arm' || '' }}
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
