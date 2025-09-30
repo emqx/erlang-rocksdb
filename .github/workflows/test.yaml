@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         otp:
-          - "27.3.4.2-1"
+          - "27.3.4.2-4"
         rebar3:
           - "3.22.0"
     runs-on: macos-15
@@ -29,7 +29,7 @@ jobs:
     strategy:
       matrix:
         builder:
-          - 5.5-5:1.18.3-27.3.4.2-1
+          - 5.6-3:1.18.3-27.3.4.2-4
         os:
           - ubuntu24.04
 
