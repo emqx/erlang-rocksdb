@@ -52,9 +52,9 @@ jobs:
       matrix:
         erlang:
           - otp: "26.2.5.14-1"
-            builder: "5.5-5:1.15.7-26.2.5.14-1"
-          - otp: "27.3.4.2-1"
-            builder: "5.5-5:1.18.3-27.3.4.2-1"
+            builder: "5.6-3:1.15.7-26.2.5.14-1"
+          - otp: "27.3.4.2-4"
+            builder: "5.6-3:1.18.3-27.3.4.2-4"
         arch:
           - amd64
           - arm64
@@ -65,7 +65,6 @@ jobs:
           - debian13
           - debian12
           - debian11
-          - debian10
           - el9
           - el8
           - el7

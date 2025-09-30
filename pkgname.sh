@@ -34,7 +34,7 @@ ARCH="$(uname -m)"
 VSN="$(git describe --tags --exact-match | head -1)"
 
 if [ -z "$VSN" ]; then
-    exit 0
+    VSN="debug"
 fi
 
 OTP="$(erl -noshell -eval 'io:format(erlang:system_info(otp_release)).' -s init stop)"
