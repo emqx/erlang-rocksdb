@@ -45,7 +45,7 @@ endif()
 #    set(CMAKE_FIND_LIBRARY_SUFFIXES .a .so .dylib)
 #endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
@@ -142,6 +142,8 @@ if(WITH_TBB)
   find_package(TBB REQUIRED)
 endif()
 
+find_package(OpenSSL REQUIRED)
+
 # Use RocksDB provided by host system
 # (for users with extra requirements)
 option(WITH_SYSTEM_ROCKSDB "require and build with system rocksdb" OFF)
@@ -170,11 +172,12 @@ include_directories(${BZIP2_INCLUDE_DIR})
 include_directories(${ZLIB_INCLUDE_DIR})
 include_directories(${SNAPPY_INCLUDE_DIR})
 include_directories(${ROCKSDB_INCLUDE_DIRS})
+include_directories(${OPENSSL_INCLUDE_DIR})
 #include_directories(${LIBGFLAGS_INCLUDE_DIR})
 
 #--------------------------------------------------------------------------------
 
-set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_STANDARD 17)
+set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_STANDARD 20)
 set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_STANDARD_REQUIRED ON)
 set_property(TARGET ${ErlangRocksDBNIF_TARGET} PROPERTY CXX_EXTENSIONS OFF)
 
@@ -249,6 +252,7 @@ target_link_libraries(
     ${ErlangRocksDBNIF_TARGET}
     PRIVATE
     ${TARGET_LINKER_OPTIONS}
+    "-u encfs_reg"
     ${ROCKSDB_LIBRARIES}
     ${ZSTD_LIBRARY}
     ${LZ4_LIBRARY}
@@ -256,6 +260,7 @@ target_link_libraries(
     ${BZIP2_LIBRARIES}
     ${ZLIB_LIBRARY}
     ${TBB_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
 )
 
 if(MSVC)

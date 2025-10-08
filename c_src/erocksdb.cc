@@ -210,6 +210,7 @@ ERL_NIF_TERM ATOM_UNDEFINED;
 // related to envs
 ERL_NIF_TERM ATOM_DEFAULT;
 ERL_NIF_TERM ATOM_MEMENV;
+ERL_NIF_TERM ATOM_FS_URI;
 
 // related to cache
 ERL_NIF_TERM ATOM_LRU;
@@ -575,6 +576,7 @@ try
 
   ATOM(erocksdb::ATOM_DEFAULT, "default");
   ATOM(erocksdb::ATOM_MEMENV, "memenv");
+  ATOM(erocksdb::ATOM_FS_URI, "fs_uri");
 
   ATOM(erocksdb::ATOM_LRU, "lru");
   ATOM(erocksdb::ATOM_CLOCK, "clock");
