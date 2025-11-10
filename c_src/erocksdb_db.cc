@@ -110,6 +110,16 @@ ERL_NIF_TERM parse_bbt_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::BlockB
         else if (option[0] == erocksdb::ATOM_CACHE_INDEX_AND_FILTER_BLOCKS) {
             opts.cache_index_and_filter_blocks = (option[1] == erocksdb::ATOM_TRUE);
         }
+        else if (option[0] == erocksdb::ATOM_PIN_L0_FILTER_AND_INDEX_BLOCKS_IN_CACHE) {
+            opts.pin_l0_filter_and_index_blocks_in_cache = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_PARTITION_FILTERS) {
+            bool val = (option[1] == erocksdb::ATOM_TRUE);
+            opts.partition_filters = val;
+            if (val) {
+                opts.index_type = rocksdb::BlockBasedTableOptions::kTwoLevelIndexSearch;
+            }
+        }
     }
 
     return erocksdb::ATOM_OK;
@@ -700,6 +710,7 @@ ERL_NIF_TERM parse_cf_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::ColumnF
         {
             opts.optimize_filters_for_hits = (option[1] == erocksdb::ATOM_TRUE);
         }
+
         else if (option[0] == erocksdb::ATOM_MERGE_OPERATOR)
         {
             int a;
