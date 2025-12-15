@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <cstddef>
 
 #include "rocksdb/attribute_groups.h"
