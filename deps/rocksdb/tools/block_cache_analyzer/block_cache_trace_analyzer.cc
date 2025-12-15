@@ -3,7 +3,6 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#ifndef ROCKSDB_LITE
 #ifdef GFLAGS
 #include "tools/block_cache_analyzer/block_cache_trace_analyzer.h"
 
@@ -578,7 +577,7 @@ void BlockCacheTraceAnalyzer::WriteSkewness(
   std::map<std::string, std::map<uint64_t, uint64_t>> label_bucket_naccesses;
   std::vector<std::pair<std::string, uint64_t>> pairs;
   for (auto const& itr : label_naccesses) {
-    pairs.push_back(itr);
+    pairs.emplace_back(itr);
   }
   // Sort in descending order.
   sort(pairs.begin(), pairs.end(),
@@ -1175,7 +1174,8 @@ void BlockCacheTraceAnalyzer::WriteReuseLifetime(
 }
 
 void BlockCacheTraceAnalyzer::WriteBlockReuseTimeline(
-    const uint64_t reuse_window, bool user_access_only, TraceType block_type) const {
+    const uint64_t reuse_window, bool user_access_only,
+    TraceType block_type) const {
   // A map from block key to an array of bools that states whether a block is
   // accessed in a time window.
   std::map<uint64_t, std::vector<bool>> block_accessed;
@@ -1214,7 +1214,8 @@ void BlockCacheTraceAnalyzer::WriteBlockReuseTimeline(
   TraverseBlocks(block_callback);
 
   // A cell is the number of blocks accessed in a reuse window.
-  std::unique_ptr<uint64_t[]> reuse_table(new uint64_t[reuse_vector_size * reuse_vector_size]);
+  std::unique_ptr<uint64_t[]> reuse_table(
+      new uint64_t[reuse_vector_size * reuse_vector_size]);
   for (uint64_t start_time = 0; start_time < reuse_vector_size; start_time++) {
     // Initialize the reuse_table.
     for (uint64_t i = 0; i < reuse_vector_size; i++) {
@@ -1255,8 +1256,9 @@ void BlockCacheTraceAnalyzer::WriteBlockReuseTimeline(
       if (j < start_time) {
         row += "100.0";
       } else {
-        row += std::to_string(percent(reuse_table[start_time * reuse_vector_size + j],
-                                      reuse_table[start_time * reuse_vector_size + start_time]));
+        row += std::to_string(
+            percent(reuse_table[start_time * reuse_vector_size + j],
+                    reuse_table[start_time * reuse_vector_size + start_time]));
       }
     }
     out << row << std::endl;
@@ -1568,7 +1570,11 @@ Status BlockCacheTraceAnalyzer::Analyze() {
     trace_end_timestamp_in_seconds_ = access.access_timestamp / kMicrosInSecond;
     miss_ratio_stats_.UpdateMetrics(access.access_timestamp,
                                     is_user_access(access.caller),
-                                    access.is_cache_hit == Boolean::kFalse);
+                                    !access.is_cache_hit);
+    caller_miss_ratio_stats_map_[access.caller].UpdateMetrics(
+        access.access_timestamp, is_user_access(access.caller),
+        !access.is_cache_hit);
+
     if (cache_simulator_) {
       cache_simulator_->Access(access);
     }
@@ -1584,6 +1590,14 @@ Status BlockCacheTraceAnalyzer::Analyze() {
               " seconds. Observed miss ratio %.2f\n",
               duration, duration > 0 ? access_sequence_number_ / duration : 0,
               trace_duration, miss_ratio_stats_.miss_ratio());
+
+      for (const auto& caller : caller_miss_ratio_stats_map_) {
+        fprintf(stdout, "Caller %s: Observed miss ratio %.2f\n",
+                caller_to_string(caller.first).c_str(),
+                caller.second.miss_ratio());
+      }
+      print_break_lines(/*num_break_lines=*/1);
+
       time_interval++;
     }
   }
@@ -1597,6 +1611,11 @@ Status BlockCacheTraceAnalyzer::Analyze() {
           " seconds. Observed miss ratio %.2f\n",
           duration, duration > 0 ? access_sequence_number_ / duration : 0,
           trace_duration, miss_ratio_stats_.miss_ratio());
+  for (const auto& caller : caller_miss_ratio_stats_map_) {
+    fprintf(stdout, "Caller %s: Observed miss ratio %.2f\n",
+            caller_to_string(caller.first).c_str(), caller.second.miss_ratio());
+  }
+  print_break_lines(/*num_break_lines=*/1);
   return s;
 }
 
@@ -1811,9 +1830,10 @@ void BlockCacheTraceAnalyzer::PrintDataBlockAccessStats() const {
           return;
         }
         // Use four decimal points.
-        uint64_t percent_referenced_for_existing_keys = (uint64_t)(
-            ((double)block.key_num_access_map.size() / (double)block.num_keys) *
-            10000.0);
+        uint64_t percent_referenced_for_existing_keys =
+            (uint64_t)(((double)block.key_num_access_map.size() /
+                        (double)block.num_keys) *
+                       10000.0);
         uint64_t percent_referenced_for_non_existing_keys =
             (uint64_t)(((double)block.non_exist_key_num_access_map.size() /
                         (double)block.num_keys) *
@@ -2309,4 +2329,3 @@ int block_cache_trace_analyzer_tool(int argc, char** argv) {
 }  // namespace ROCKSDB_NAMESPACE
 
 #endif  // GFLAGS
-#endif  // ROCKSDB_LITE

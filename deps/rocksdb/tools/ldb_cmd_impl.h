@@ -5,12 +5,12 @@
 
 #pragma once
 
-#include "rocksdb/utilities/ldb_cmd.h"
-
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "rocksdb/utilities/ldb_cmd.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -85,7 +85,7 @@ class DBDumperCommand : public LDBCommand {
   /**
    * Extract file name from the full path. We handle both the forward slash (/)
    * and backslash (\) to make sure that different OS-s are supported.
-  */
+   */
   static std::string GetFileNameFromPath(const std::string& s) {
     std::size_t n = s.find_last_of("/\\");
 
@@ -208,9 +208,9 @@ class UpdateManifestCommand : public LDBCommand {
                         const std::vector<std::string>& flags);
 
   static void Help(std::string& ret);
-  virtual void DoCommand() override;
+  void DoCommand() override;
 
-  virtual bool NoDBOpen() override { return true; }
+  bool NoDBOpen() override { return true; }
 
  private:
   bool verbose_;
@@ -369,7 +369,7 @@ class WALDumperCommand : public LDBCommand {
                    const std::map<std::string, std::string>& options,
                    const std::vector<std::string>& flags);
 
-  bool NoDBOpen() override { return true; }
+  bool NoDBOpen() override { return no_db_open_; }
 
   static void Help(std::string& ret);
 
@@ -379,12 +379,15 @@ class WALDumperCommand : public LDBCommand {
   bool print_header_;
   std::string wal_file_;
   bool print_values_;
+  bool only_print_seqno_gaps_;
   bool is_write_committed_;  // default will be set to true
+  bool no_db_open_ = true;
 
   static const std::string ARG_WAL_FILE;
   static const std::string ARG_WRITE_COMMITTED;
   static const std::string ARG_PRINT_HEADER;
   static const std::string ARG_PRINT_VALUE;
+  static const std::string ARG_ONLY_PRINT_SEQNO_GAPS;
 };
 
 class GetCommand : public LDBCommand {
@@ -401,6 +404,54 @@ class GetCommand : public LDBCommand {
 
  private:
   std::string key_;
+};
+
+class MultiGetCommand : public LDBCommand {
+ public:
+  static std::string Name() { return "multi_get"; }
+
+  MultiGetCommand(const std::vector<std::string>& params,
+                  const std::map<std::string, std::string>& options,
+                  const std::vector<std::string>& flags);
+
+  void DoCommand() override;
+
+  static void Help(std::string& ret);
+
+ private:
+  std::vector<std::string> keys_;
+};
+
+class GetEntityCommand : public LDBCommand {
+ public:
+  static std::string Name() { return "get_entity"; }
+
+  GetEntityCommand(const std::vector<std::string>& params,
+                   const std::map<std::string, std::string>& options,
+                   const std::vector<std::string>& flags);
+
+  void DoCommand() override;
+
+  static void Help(std::string& ret);
+
+ private:
+  std::string key_;
+};
+
+class MultiGetEntityCommand : public LDBCommand {
+ public:
+  static std::string Name() { return "multi_get_entity"; }
+
+  MultiGetEntityCommand(const std::vector<std::string>& params,
+                        const std::map<std::string, std::string>& options,
+                        const std::vector<std::string>& flags);
+
+  void DoCommand() override;
+
+  static void Help(std::string& ret);
+
+ private:
+  std::vector<std::string> keys_;
 };
 
 class ApproxSizeCommand : public LDBCommand {
@@ -460,6 +511,7 @@ class ScanCommand : public LDBCommand {
   bool end_key_specified_;
   int max_keys_scanned_;
   bool no_value_;
+  bool get_write_unix_time_;
 };
 
 class DeleteCommand : public LDBCommand {
@@ -530,6 +582,26 @@ class PutCommand : public LDBCommand {
   std::string value_;
 };
 
+class PutEntityCommand : public LDBCommand {
+ public:
+  static std::string Name() { return "put_entity"; }
+
+  PutEntityCommand(const std::vector<std::string>& params,
+                   const std::map<std::string, std::string>& options,
+                   const std::vector<std::string>& flags);
+
+  void DoCommand() override;
+
+  static void Help(std::string& ret);
+
+  void OverrideBaseOptions() override;
+
+ private:
+  std::string key_;
+  std::vector<std::string> column_names_;
+  std::vector<std::string> column_values_;
+};
+
 /**
  * Command that starts up a REPL shell that allows
  * get/put/delete.
@@ -551,6 +623,7 @@ class DBQuerierCommand : public LDBCommand {
   static const char* GET_CMD;
   static const char* PUT_CMD;
   static const char* DELETE_CMD;
+  static const char* COUNT_CMD;
 };
 
 class CheckConsistencyCommand : public LDBCommand {
@@ -573,14 +646,15 @@ class CheckPointCommand : public LDBCommand {
   static std::string Name() { return "checkpoint"; }
 
   CheckPointCommand(const std::vector<std::string>& params,
-                const std::map<std::string, std::string>& options,
-                const std::vector<std::string>& flags);
+                    const std::map<std::string, std::string>& options,
+                    const std::vector<std::string>& flags);
 
   void DoCommand() override;
 
   static void Help(std::string& ret);
 
   std::string checkpoint_dir_;
+
  private:
   static const std::string ARG_CHECKPOINT_DIR;
 };

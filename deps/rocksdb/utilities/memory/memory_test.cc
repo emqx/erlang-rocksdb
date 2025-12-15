@@ -3,7 +3,6 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#ifndef ROCKSDB_LITE
 
 #include "db/db_impl/db_impl.h"
 #include "rocksdb/cache.h"
@@ -35,16 +34,6 @@ class MemoryTest : public testing::Test {
     }
   }
 
-  void GetCachePointersFromTableFactory(
-      const TableFactory* factory,
-      std::unordered_set<const Cache*>* cache_set) {
-    const auto bbto = factory->GetOptions<BlockBasedTableOptions>();
-    if (bbto != nullptr) {
-      cache_set->insert(bbto->block_cache.get());
-      cache_set->insert(bbto->block_cache_compressed.get());
-    }
-  }
-
   void GetCachePointers(const std::vector<DB*>& dbs,
                         std::unordered_set<const Cache*>* cache_set) {
     cache_set->clear();
@@ -63,13 +52,8 @@ class MemoryTest : public testing::Test {
       cache_set->insert(db->GetDBOptions().row_cache.get());
 
       // Cache from table factories
-      std::unordered_map<std::string, const ImmutableCFOptions*> iopts_map;
       if (db_impl != nullptr) {
-        ASSERT_OK(db_impl->TEST_GetAllImmutableCFOptions(&iopts_map));
-      }
-      for (auto pair : iopts_map) {
-        GetCachePointersFromTableFactory(pair.second->table_factory.get(),
-                                         cache_set);
+        db_impl->TEST_GetAllBlockCaches(cache_set);
       }
     }
   }
@@ -261,18 +245,10 @@ TEST_F(MemoryTest, MemTableAndTableReadersTotal) {
 
 int main(int argc, char** argv) {
 #if !(defined NDEBUG) || !defined(OS_WIN)
+  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 #else
   return 0;
 #endif
 }
-
-#else
-#include <cstdio>
-
-int main(int /*argc*/, char** /*argv*/) {
-  printf("Skipped in RocksDBLite as utilities are not supported.\n");
-  return 0;
-}
-#endif  // !ROCKSDB_LITE

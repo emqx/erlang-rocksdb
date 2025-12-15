@@ -8,15 +8,16 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #include "db/db_impl/db_impl.h"
 
-#include <stdint.h>
+#include <cstdint>
 #ifdef OS_SOLARIS
 #include <alloca.h>
 #endif
 
-#include <algorithm>
 #include <cinttypes>
 #include <cstdio>
 #include <map>
+#include <memory>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -26,8 +27,11 @@
 #include <vector>
 
 #include "db/arena_wrapped_db_iter.h"
+#include "db/attribute_group_iterator_impl.h"
 #include "db/builder.h"
+#include "db/coalescing_iterator.h"
 #include "db/compaction/compaction_job.h"
+#include "db/convenience_impl.h"
 #include "db/db_info_dumper.h"
 #include "db/db_iter.h"
 #include "db/dbformat.h"
@@ -44,7 +48,6 @@
 #include "db/memtable.h"
 #include "db/memtable_list.h"
 #include "db/merge_context.h"
-#include "db/merge_helper.h"
 #include "db/periodic_task_scheduler.h"
 #include "db/range_tombstone_fragmenter.h"
 #include "db/table_cache.h"
@@ -71,10 +74,12 @@
 #include "options/cf_options.h"
 #include "options/options_helper.h"
 #include "options/options_parser.h"
+#ifdef ROCKSDB_JEMALLOC
+#include "port/jemalloc_helper.h"
+#endif
 #include "port/port.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/compaction_filter.h"
-#include "rocksdb/convenience.h"
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
 #include "rocksdb/merge_operator.h"
@@ -106,6 +111,7 @@
 #include "util/mutexlock.h"
 #include "util/stop_watch.h"
 #include "util/string_util.h"
+#include "util/udt_util.h"
 #include "utilities/trace/replayer_impl.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -148,6 +154,12 @@ void DumpSupportInfo(Logger* logger) {
                    crc32c::IsFastCrc32Supported().c_str());
 
   ROCKS_LOG_HEADER(logger, "DMutex implementation: %s", DMutex::kName());
+
+  bool jemalloc_supported = false;
+#ifdef ROCKSDB_JEMALLOC
+  jemalloc_supported = HasJemalloc();
+#endif
+  ROCKS_LOG_HEADER(logger, "Jemalloc supported: %d", jemalloc_supported);
 }
 }  // namespace
 
@@ -183,6 +195,7 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
       batch_per_txn_(batch_per_txn),
       next_job_id_(1),
       shutting_down_(false),
+      reject_new_background_jobs_(false),
       db_lock_(nullptr),
       manual_compaction_paused_(false),
       bg_cv_(&mutex_),
@@ -209,21 +222,16 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
       disable_delete_obsolete_files_(0),
       pending_purge_obsolete_files_(0),
       delete_obsolete_files_last_run_(immutable_db_options_.clock->NowMicros()),
-      last_stats_dump_time_microsec_(0),
       has_unpersisted_data_(false),
       unable_to_release_oldest_log_(false),
       num_running_ingest_file_(0),
-#ifndef ROCKSDB_LITE
       wal_manager_(immutable_db_options_, file_options_, io_tracer_,
                    seq_per_batch),
-#endif  // ROCKSDB_LITE
       bg_work_paused_(0),
       bg_compaction_paused_(0),
       refitting_level_(false),
       opened_successfully_(false),
-#ifndef ROCKSDB_LITE
       periodic_task_scheduler_(),
-#endif  // ROCKSDB_LITE
       two_write_queues_(options.two_write_queues),
       manual_wal_flush_(options.manual_wal_flush),
       // last_sequencee_ is always maintained by the main queue that also writes
@@ -247,7 +255,8 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
       atomic_flush_install_cv_(&mutex_),
       blob_callback_(immutable_db_options_.sst_file_manager.get(), &mutex_,
                      &error_handler_, &event_logger_,
-                     immutable_db_options_.listeners, dbname_) {
+                     immutable_db_options_.listeners, dbname_),
+      lock_wal_count_(0) {
   // !batch_per_trx_ implies seq_per_batch_ because it is only unset for
   // WriteUnprepared, which should use seq_per_batch_.
   assert(batch_per_txn_ || seq_per_batch_);
@@ -261,11 +270,13 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
   co.capacity = table_cache_size;
   co.num_shard_bits = immutable_db_options_.table_cache_numshardbits;
   co.metadata_charge_policy = kDontChargeCacheMetadata;
+  // TODO: Consider a non-fixed seed once test fallout (prefetch_test) is
+  // dealt with
+  co.hash_seed = 0;
   table_cache_ = NewLRUCache(co);
   SetDbSessionId();
   assert(!db_session_id_.empty());
 
-#ifndef ROCKSDB_LITE
   periodic_task_functions_.emplace(PeriodicTaskType::kDumpStats,
                                    [this]() { this->DumpStats(); });
   periodic_task_functions_.emplace(PeriodicTaskType::kPersistStats,
@@ -273,14 +284,15 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
   periodic_task_functions_.emplace(PeriodicTaskType::kFlushInfoLog,
                                    [this]() { this->FlushInfoLog(); });
   periodic_task_functions_.emplace(
-      PeriodicTaskType::kRecordSeqnoTime,
-      [this]() { this->RecordSeqnoToTimeMapping(); });
-#endif  // ROCKSDB_LITE
+      PeriodicTaskType::kRecordSeqnoTime, [this]() {
+        this->RecordSeqnoToTimeMapping(/*populate_historical_seconds=*/0);
+      });
 
-  versions_.reset(new VersionSet(dbname_, &immutable_db_options_, file_options_,
-                                 table_cache_.get(), write_buffer_manager_,
-                                 &write_controller_, &block_cache_tracer_,
-                                 io_tracer_, db_id_, db_session_id_));
+  versions_.reset(new VersionSet(
+      dbname_, &immutable_db_options_, file_options_, table_cache_.get(),
+      write_buffer_manager_, &write_controller_, &block_cache_tracer_,
+      io_tracer_, db_id_, db_session_id_, options.daily_offpeak_time_utc,
+      &error_handler_, read_only));
   column_family_memtables_.reset(
       new ColumnFamilyMemTablesImpl(versions_->GetColumnFamilySet()));
 
@@ -309,7 +321,7 @@ Status DBImpl::Resume() {
 
   if (error_handler_.IsRecoveryInProgress()) {
     // Don't allow a mix of manual and automatic recovery
-    return Status::Busy();
+    return Status::Busy("Recovery in progress");
   }
 
   mutex_.Unlock();
@@ -332,6 +344,11 @@ Status DBImpl::Resume() {
 //    means a new super version wouldn't have been installed
 Status DBImpl::ResumeImpl(DBRecoverContext context) {
   mutex_.AssertHeld();
+
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  const WriteOptions write_options;
+
   WaitForBackgroundWork();
 
   Status s;
@@ -352,16 +369,13 @@ Status DBImpl::ResumeImpl(DBRecoverContext context) {
   }
 
   // Make sure the IO Status stored in version set is set to OK.
-  bool file_deletion_disabled = !IsFileDeletionsEnabled();
   if (s.ok()) {
     IOStatus io_s = versions_->io_status();
     if (io_s.IsIOError()) {
       // If resuming from IOError resulted from MANIFEST write, then assert
       // that we must have already set the MANIFEST writer to nullptr during
-      // clean-up phase MANIFEST writing. We must have also disabled file
-      // deletions.
+      // clean-up phase MANIFEST writing.
       assert(!versions_->descriptor_log_);
-      assert(file_deletion_disabled);
       // Since we are trying to recover from MANIFEST write error, we need to
       // switch to a new MANIFEST anyway. The old MANIFEST can be corrupted.
       // Therefore, force writing a dummy version edit because we do not know
@@ -373,41 +387,29 @@ Status DBImpl::ResumeImpl(DBRecoverContext context) {
       assert(cfh);
       ColumnFamilyData* cfd = cfh->cfd();
       const MutableCFOptions& cf_opts = *cfd->GetLatestMutableCFOptions();
-      s = versions_->LogAndApply(cfd, cf_opts, &edit, &mutex_,
-                                 directories_.GetDbDir());
+      s = versions_->LogAndApply(cfd, cf_opts, read_options, write_options,
+                                 &edit, &mutex_, directories_.GetDbDir());
       if (!s.ok()) {
         io_s = versions_->io_status();
         if (!io_s.ok()) {
-          s = error_handler_.SetBGError(io_s,
-                                        BackgroundErrorReason::kManifestWrite);
+          error_handler_.SetBGError(io_s,
+                                    BackgroundErrorReason::kManifestWrite);
         }
       }
     }
   }
 
-  // We cannot guarantee consistency of the WAL. So force flush Memtables of
-  // all the column families
   if (s.ok()) {
-    FlushOptions flush_opts;
-    // We allow flush to stall write since we are trying to resume from error.
-    flush_opts.allow_write_stall = true;
-    if (immutable_db_options_.atomic_flush) {
-      autovector<ColumnFamilyData*> cfds;
-      SelectColumnFamiliesForAtomicFlush(&cfds);
-      mutex_.Unlock();
-      s = AtomicFlushMemTables(cfds, flush_opts, context.flush_reason);
-      mutex_.Lock();
+    if (context.flush_reason == FlushReason::kErrorRecoveryRetryFlush) {
+      s = RetryFlushesForErrorRecovery(FlushReason::kErrorRecoveryRetryFlush,
+                                       true /* wait */);
     } else {
-      for (auto cfd : versions_->GetRefedColumnFamilySet()) {
-        if (cfd->IsDropped()) {
-          continue;
-        }
-        InstrumentedMutexUnlock u(&mutex_);
-        s = FlushMemTable(cfd, flush_opts, context.flush_reason);
-        if (!s.ok()) {
-          break;
-        }
-      }
+      // We cannot guarantee consistency of the WAL. So force flush Memtables of
+      // all the column families
+      FlushOptions flush_opts;
+      // We allow flush to stall write since we are trying to resume from error.
+      flush_opts.allow_write_stall = true;
+      s = FlushAllColumnFamilies(flush_opts, context.flush_reason);
     }
     if (!s.ok()) {
       ROCKS_LOG_INFO(immutable_db_options_.info_log,
@@ -416,34 +418,6 @@ Status DBImpl::ResumeImpl(DBRecoverContext context) {
     }
   }
 
-  JobContext job_context(0);
-  FindObsoleteFiles(&job_context, true);
-  mutex_.Unlock();
-
-  job_context.manifest_file_number = 1;
-  if (job_context.HaveSomethingToDelete()) {
-    PurgeObsoleteFiles(job_context);
-  }
-  job_context.Clean();
-
-  if (s.ok()) {
-    assert(versions_->io_status().ok());
-    // If we reach here, we should re-enable file deletions if it was disabled
-    // during previous error handling.
-    if (file_deletion_disabled) {
-      // Always return ok
-      s = EnableFileDeletions(/*force=*/true);
-      if (!s.ok()) {
-        ROCKS_LOG_INFO(
-            immutable_db_options_.info_log,
-            "DB resume requested but could not enable file deletions [%s]",
-            s.ToString().c_str());
-        assert(false);
-      }
-    }
-  }
-
-  mutex_.Lock();
   if (s.ok()) {
     // This will notify and unblock threads waiting for error recovery to
     // finish. Those previouly waiting threads can now proceed, which may
@@ -456,6 +430,15 @@ Status DBImpl::ResumeImpl(DBRecoverContext context) {
     error_handler_.GetRecoveryError().PermitUncheckedError();
   }
 
+  JobContext job_context(0);
+  FindObsoleteFiles(&job_context, true);
+  mutex_.Unlock();
+  job_context.manifest_file_number = 1;
+  if (job_context.HaveSomethingToDelete()) {
+    PurgeObsoleteFiles(job_context);
+  }
+  job_context.Clean();
+
   if (s.ok()) {
     ROCKS_LOG_INFO(immutable_db_options_.info_log, "Successfully resumed DB");
   } else {
@@ -463,14 +446,34 @@ Status DBImpl::ResumeImpl(DBRecoverContext context) {
                    s.ToString().c_str());
   }
 
+  mutex_.Lock();
   // Check for shutdown again before scheduling further compactions,
   // since we released and re-acquired the lock above
   if (shutdown_initiated_) {
     s = Status::ShutdownInProgress();
   }
+  if (s.ok() && context.flush_after_recovery) {
+    // Since we drop all non-recovery flush requests during recovery,
+    // and new memtable may fill up during recovery,
+    // schedule one more round of flush.
+    Status status = RetryFlushesForErrorRecovery(
+        FlushReason::kCatchUpAfterErrorRecovery, false /* wait */);
+    if (!status.ok()) {
+      // FlushAllColumnFamilies internally should take care of setting
+      // background error if needed.
+      ROCKS_LOG_INFO(immutable_db_options_.info_log,
+                     "The catch up flush after successful recovery failed [%s]",
+                     s.ToString().c_str());
+    }
+    // FlushAllColumnFamilies releases and re-acquires mutex.
+    if (shutdown_initiated_) {
+      s = Status::ShutdownInProgress();
+    }
+  }
+
   if (s.ok()) {
     for (auto cfd : *versions_->GetColumnFamilySet()) {
-      SchedulePendingCompaction(cfd);
+      EnqueuePendingCompaction(cfd);
     }
     MaybeScheduleFlushOrCompaction();
   }
@@ -495,41 +498,15 @@ void DBImpl::WaitForBackgroundWork() {
 void DBImpl::CancelAllBackgroundWork(bool wait) {
   ROCKS_LOG_INFO(immutable_db_options_.info_log,
                  "Shutdown: canceling all background work");
-
-#ifndef ROCKSDB_LITE
-  for (uint8_t task_type = 0;
-       task_type < static_cast<uint8_t>(PeriodicTaskType::kMax); task_type++) {
-    Status s = periodic_task_scheduler_.Unregister(
-        static_cast<PeriodicTaskType>(task_type));
-    if (!s.ok()) {
-      ROCKS_LOG_WARN(immutable_db_options_.info_log,
-                     "Failed to unregister periodic task %d, status: %s",
-                     task_type, s.ToString().c_str());
-    }
-  }
-#endif  // !ROCKSDB_LITE
+  Status s = CancelPeriodicTaskScheduler();
+  s.PermitUncheckedError();
 
   InstrumentedMutexLock l(&mutex_);
   if (!shutting_down_.load(std::memory_order_acquire) &&
       has_unpersisted_data_.load(std::memory_order_relaxed) &&
       !mutable_db_options_.avoid_flush_during_shutdown) {
-    if (immutable_db_options_.atomic_flush) {
-      autovector<ColumnFamilyData*> cfds;
-      SelectColumnFamiliesForAtomicFlush(&cfds);
-      mutex_.Unlock();
-      Status s =
-          AtomicFlushMemTables(cfds, FlushOptions(), FlushReason::kShutDown);
-      s.PermitUncheckedError();  //**TODO: What to do on error?
-      mutex_.Lock();
-    } else {
-      for (auto cfd : versions_->GetRefedColumnFamilySet()) {
-        if (!cfd->IsDropped() && cfd->initialized() && !cfd->mem()->IsEmpty()) {
-          InstrumentedMutexUnlock u(&mutex_);
-          Status s = FlushMemTable(cfd, FlushOptions(), FlushReason::kShutDown);
-          s.PermitUncheckedError();  //**TODO: What to do on error?
-        }
-      }
-    }
+    s = DBImpl::FlushAllColumnFamilies(FlushOptions(), FlushReason::kShutDown);
+    s.PermitUncheckedError();  //**TODO: What to do on error?
   }
 
   shutting_down_.store(true, std::memory_order_release);
@@ -551,6 +528,11 @@ Status DBImpl::MaybeReleaseTimestampedSnapshotsAndCheck() {
   }
 
   return Status::OK();
+}
+
+void DBImpl::UntrackDataFiles() {
+  TrackOrUntrackFiles(/*existing_data_files=*/{},
+                      /*track=*/false);
 }
 
 Status DBImpl::CloseHelper() {
@@ -604,7 +586,7 @@ Status DBImpl::CloseHelper() {
 
   while (!flush_queue_.empty()) {
     const FlushRequest& flush_req = PopFirstFromFlushQueue();
-    for (const auto& iter : flush_req) {
+    for (const auto& iter : flush_req.cfd_to_max_mem_id_to_persist) {
       iter.first->UnrefAndTryDelete();
     }
   }
@@ -661,7 +643,7 @@ Status DBImpl::CloseHelper() {
       if (!s.ok()) {
         ROCKS_LOG_WARN(
             immutable_db_options_.info_log,
-            "Unable to Sync WAL file %s with error -- %s",
+            "Unable to clear writer for WAL %s with error -- %s",
             LogFileName(immutable_db_options_.GetWalDir(), log_number).c_str(),
             s.ToString().c_str());
         // Retain the first error
@@ -677,8 +659,9 @@ Status DBImpl::CloseHelper() {
   // We need to release them before the block cache is destroyed. The block
   // cache may be destroyed inside versions_.reset(), when column family data
   // list is destroyed, so leaving handles in table cache after
-  // versions_.reset() may cause issues.
-  // Here we clean all unreferenced handles in table cache.
+  // versions_.reset() may cause issues. Here we clean all unreferenced handles
+  // in table cache, and (for certain builds/conditions) assert that no obsolete
+  // files are hanging around unreferenced (leak) in the table/blob file cache.
   // Now we assume all user queries have finished, so only version set itself
   // can possibly hold the blocks from block cache. After releasing unreferenced
   // handles here, only handles held by version set left and inside
@@ -686,14 +669,36 @@ Status DBImpl::CloseHelper() {
   // time a handle is released, we erase it from the cache too. By doing that,
   // we can guarantee that after versions_.reset(), table cache is empty
   // so the cache can be safely destroyed.
+#ifndef NDEBUG
+  TEST_VerifyNoObsoleteFilesCached(/*db_mutex_already_held=*/true);
+#endif  // !NDEBUG
   table_cache_->EraseUnRefEntries();
 
   for (auto& txn_entry : recovered_transactions_) {
     delete txn_entry.second;
   }
 
+  // Return an unowned SstFileManager to a consistent state
+  if (immutable_db_options_.sst_file_manager && !own_sfm_) {
+    mutex_.Unlock();
+    UntrackDataFiles();
+    mutex_.Lock();
+  }
+
   // versions need to be destroyed before table_cache since it can hold
   // references to table_cache.
+  {
+    Status s = versions_->Close(directories_.GetDbDir(), &mutex_);
+    if (!s.ok()) {
+      ROCKS_LOG_ERROR(immutable_db_options_.info_log,
+                      "Unable to close MANIFEST with error -- %s",
+                      s.ToString().c_str());
+      if (ret.ok()) {
+        ret = s;
+      }
+    }
+  }
+
   versions_.reset();
   mutex_.Unlock();
   if (db_lock_ != nullptr) {
@@ -704,7 +709,6 @@ Status DBImpl::CloseHelper() {
   ROCKS_LOG_INFO(immutable_db_options_.info_log, "Shutdown complete");
   LogFlush(immutable_db_options_.info_log);
 
-#ifndef ROCKSDB_LITE
   // If the sst_file_manager was allocated by us during DB::Open(), ccall
   // Close() on it before closing the info_log. Otherwise, background thread
   // in SstFileManagerImpl might try to log something
@@ -713,7 +717,6 @@ Status DBImpl::CloseHelper() {
         immutable_db_options_.sst_file_manager.get());
     sfm->Close();
   }
-#endif  // ROCKSDB_LITE
 
   if (immutable_db_options_.info_log && own_info_log_) {
     Status s = immutable_db_options_.info_log->Close();
@@ -743,23 +746,26 @@ Status DBImpl::CloseHelper() {
 Status DBImpl::CloseImpl() { return CloseHelper(); }
 
 DBImpl::~DBImpl() {
+  ThreadStatus::OperationType cur_op_type =
+      ThreadStatusUtil::GetThreadOperation();
+  ThreadStatusUtil::SetThreadOperation(ThreadStatus::OperationType::OP_UNKNOWN);
+
   // TODO: remove this.
   init_logger_creation_s_.PermitUncheckedError();
 
   InstrumentedMutexLock closing_lock_guard(&closing_mutex_);
-  if (closed_) {
-    return;
+  if (!closed_) {
+    closed_ = true;
+
+    {
+      const Status s = MaybeReleaseTimestampedSnapshotsAndCheck();
+      s.PermitUncheckedError();
+    }
+
+    closing_status_ = CloseImpl();
+    closing_status_.PermitUncheckedError();
   }
-
-  closed_ = true;
-
-  {
-    const Status s = MaybeReleaseTimestampedSnapshotsAndCheck();
-    s.PermitUncheckedError();
-  }
-
-  closing_status_ = CloseImpl();
-  closing_status_.PermitUncheckedError();
+  ThreadStatusUtil::SetThreadOperation(cur_op_type);
 }
 
 void DBImpl::MaybeIgnoreError(Status* s) const {
@@ -791,8 +797,6 @@ void DBImpl::PrintStatistics() {
 }
 
 Status DBImpl::StartPeriodicTaskScheduler() {
-#ifndef ROCKSDB_LITE
-
 #ifndef NDEBUG
   // It only used by test to disable scheduler
   bool disable_scheduler = false;
@@ -834,43 +838,126 @@ Status DBImpl::StartPeriodicTaskScheduler() {
       periodic_task_functions_.at(PeriodicTaskType::kFlushInfoLog));
 
   return s;
-#else
-  return Status::OK();
-#endif  // !ROCKSDB_LITE
 }
 
-Status DBImpl::RegisterRecordSeqnoTimeWorker() {
-#ifndef ROCKSDB_LITE
-  uint64_t min_time_duration = std::numeric_limits<uint64_t>::max();
-  uint64_t max_time_duration = std::numeric_limits<uint64_t>::min();
+Status DBImpl::RegisterRecordSeqnoTimeWorker(const ReadOptions& read_options,
+                                             const WriteOptions& write_options,
+                                             bool is_new_db) {
+  options_mutex_.AssertHeld();
+
+  uint64_t min_preserve_seconds = std::numeric_limits<uint64_t>::max();
+  uint64_t max_preserve_seconds = std::numeric_limits<uint64_t>::min();
+  std::vector<SuperVersionContext> sv_contexts;
   {
     InstrumentedMutexLock l(&mutex_);
 
     for (auto cfd : *versions_->GetColumnFamilySet()) {
-      uint64_t preclude_last_option =
-          cfd->ioptions()->preclude_last_level_data_seconds;
-      if (!cfd->IsDropped() && preclude_last_option > 0) {
-        min_time_duration = std::min(preclude_last_option, min_time_duration);
-        max_time_duration = std::max(preclude_last_option, max_time_duration);
+      auto& mopts = *cfd->GetLatestMutableCFOptions();
+      // preserve time is the max of 2 options.
+      uint64_t preserve_seconds =
+          std::max(mopts.preserve_internal_time_seconds,
+                   mopts.preclude_last_level_data_seconds);
+      if (!cfd->IsDropped() && preserve_seconds > 0) {
+        min_preserve_seconds = std::min(preserve_seconds, min_preserve_seconds);
+        max_preserve_seconds = std::max(preserve_seconds, max_preserve_seconds);
       }
     }
-    if (min_time_duration == std::numeric_limits<uint64_t>::max()) {
-      seqno_time_mapping_.Resize(0, 0);
+    size_t old_mapping_size = seqno_to_time_mapping_.Size();
+    if (min_preserve_seconds == std::numeric_limits<uint64_t>::max()) {
+      // Don't track
+      seqno_to_time_mapping_.SetCapacity(0);
+      seqno_to_time_mapping_.SetMaxTimeSpan(UINT64_MAX);
     } else {
-      seqno_time_mapping_.Resize(min_time_duration, max_time_duration);
+      uint64_t cap = std::min(kMaxSeqnoToTimeEntries,
+                              max_preserve_seconds * kMaxSeqnoTimePairsPerCF /
+                                  min_preserve_seconds);
+      seqno_to_time_mapping_.SetCapacity(cap);
+      seqno_to_time_mapping_.SetMaxTimeSpan(max_preserve_seconds);
+    }
+    if (old_mapping_size != seqno_to_time_mapping_.Size()) {
+      InstallSeqnoToTimeMappingInSV(&sv_contexts);
     }
   }
 
-  uint64_t seqno_time_cadence = 0;
-  if (min_time_duration != std::numeric_limits<uint64_t>::max()) {
-    seqno_time_cadence =
-        min_time_duration / SeqnoToTimeMapping::kMaxSeqnoTimePairsPerCF;
+  // clean up outside db mutex
+  for (SuperVersionContext& sv_context : sv_contexts) {
+    sv_context.Clean();
   }
+  sv_contexts.clear();
+
+  uint64_t seqno_time_cadence = 0;
+  if (min_preserve_seconds != std::numeric_limits<uint64_t>::max()) {
+    // round up to 1 when the time_duration is smaller than
+    // kMaxSeqnoTimePairsPerCF
+    seqno_time_cadence = (min_preserve_seconds + kMaxSeqnoTimePairsPerCF - 1) /
+                         kMaxSeqnoTimePairsPerCF;
+  }
+
+  TEST_SYNC_POINT_CALLBACK(
+      "DBImpl::RegisterRecordSeqnoTimeWorker:BeforePeriodicTaskType", nullptr);
 
   Status s;
   if (seqno_time_cadence == 0) {
     s = periodic_task_scheduler_.Unregister(PeriodicTaskType::kRecordSeqnoTime);
   } else {
+    // Before registering the periodic task, we need to be sure to fulfill two
+    // promises:
+    // 1) Any DB created with preserve/preclude options set from the beginning
+    // will get pre-allocated seqnos with pre-populated time mappings back to
+    // the times we are interested in. (This will enable future import of data
+    // while preserving rough write time. We can only do this reliably from
+    // DB::Open, as otherwise there could be a race between CreateColumnFamily
+    // and the first Write to the DB, and seqno-to-time mappings need to be
+    // monotonic.
+    // 2) In any DB, any data written after setting preserve/preclude options
+    // must have a reasonable time estimate (so that we can accurately place
+    // the data), which means at least one entry in seqno_to_time_mapping_.
+    //
+    // FIXME: We don't currently guarantee that if the first column family with
+    // that setting is added or configured after initial DB::Open but before
+    // the first user Write. Fixing this causes complications with the crash
+    // test because if DB starts without preserve/preclude option, does some
+    // user writes but all those writes are lost in crash, then re-opens with
+    // preserve/preclude option, it sees seqno==1 which looks like one of the
+    // user writes was recovered, when actually it was not.
+    bool last_seqno_zero = GetLatestSequenceNumber() == 0;
+    assert(!is_new_db || last_seqno_zero);
+    if (is_new_db && last_seqno_zero) {
+      // Pre-allocate seqnos and pre-populate historical mapping
+      // We can simply modify these, before writes are allowed
+      constexpr uint64_t kMax = kMaxSeqnoTimePairsPerSST;
+      versions_->SetLastAllocatedSequence(kMax);
+      versions_->SetLastPublishedSequence(kMax);
+      versions_->SetLastSequence(kMax);
+
+      // And record in manifest, to avoid going backwards in seqno on re-open
+      // (potentially with different options). Concurrency is simple because we
+      // are in DB::Open
+      {
+        InstrumentedMutexLock l(&mutex_);
+        VersionEdit edit;
+        edit.SetLastSequence(kMax);
+        s = versions_->LogAndApplyToDefaultColumnFamily(
+            read_options, write_options, &edit, &mutex_,
+            directories_.GetDbDir());
+        if (!s.ok() && versions_->io_status().IsIOError()) {
+          error_handler_.SetBGError(versions_->io_status(),
+                                    BackgroundErrorReason::kManifestWrite);
+        }
+      }
+
+      // Pre-populate mappings for reserved sequence numbers.
+      RecordSeqnoToTimeMapping(max_preserve_seconds);
+    } else {
+      if (!last_seqno_zero) {
+        // Ensure at least one mapping (or log a warning), and
+        // an updated entry whenever relevant SetOptions is called
+        RecordSeqnoToTimeMapping(/*populate_historical_seconds=*/0);
+      } else {
+        // FIXME (see limitation described above)
+      }
+    }
+
     s = periodic_task_scheduler_.Register(
         PeriodicTaskType::kRecordSeqnoTime,
         periodic_task_functions_.at(PeriodicTaskType::kRecordSeqnoTime),
@@ -878,16 +965,31 @@ Status DBImpl::RegisterRecordSeqnoTimeWorker() {
   }
 
   return s;
-#else
-  return Status::OK();
-#endif  // !ROCKSDB_LITE
+}
+
+Status DBImpl::CancelPeriodicTaskScheduler() {
+  Status s = Status::OK();
+  for (uint8_t task_type = 0;
+       task_type < static_cast<uint8_t>(PeriodicTaskType::kMax); task_type++) {
+    s = periodic_task_scheduler_.Unregister(
+        static_cast<PeriodicTaskType>(task_type));
+    if (!s.ok()) {
+      ROCKS_LOG_WARN(immutable_db_options_.info_log,
+                     "Failed to unregister periodic task %d, status: %s",
+                     task_type, s.ToString().c_str());
+    }
+  }
+  return s;
 }
 
 // esitmate the total size of stats_history_
 size_t DBImpl::EstimateInMemoryStatsHistorySize() const {
+  stats_history_mutex_.AssertHeld();
   size_t size_total =
       sizeof(std::map<uint64_t, std::map<std::string, uint64_t>>);
-  if (stats_history_.size() == 0) return size_total;
+  if (stats_history_.size() == 0) {
+    return size_total;
+  }
   size_t size_per_slice =
       sizeof(uint64_t) + sizeof(std::map<std::string, uint64_t>);
   // non-empty map, stats_history_.begin() guaranteed to exist
@@ -901,7 +1003,6 @@ size_t DBImpl::EstimateInMemoryStatsHistorySize() const {
 
 void DBImpl::PersistStats() {
   TEST_SYNC_POINT("DBImpl::PersistStats:Entry");
-#ifndef ROCKSDB_LITE
   if (shutdown_initiated_) {
     return;
   }
@@ -951,6 +1052,7 @@ void DBImpl::PersistStats() {
     stats_slice_initialized_ = true;
     std::swap(stats_slice_, stats_map);
     if (s.ok()) {
+      // TODO: plumb Env::IOActivity, Env::IOPriority
       WriteOptions wo;
       wo.low_pri = true;
       wo.no_slowdown = true;
@@ -982,7 +1084,7 @@ void DBImpl::PersistStats() {
                      "Storing %" ROCKSDB_PRIszt " stats with timestamp %" PRIu64
                      " to in-memory stats history",
                      stats_slice_.size(), now_seconds);
-      stats_history_[now_seconds] = stats_delta;
+      stats_history_[now_seconds] = std::move(stats_delta);
     }
     stats_slice_initialized_ = true;
     std::swap(stats_slice_, stats_map);
@@ -1006,7 +1108,6 @@ void DBImpl::PersistStats() {
                    stats_history_size, stats_history_.size());
   }
   TEST_SYNC_POINT("DBImpl::PersistStats:End");
-#endif  // !ROCKSDB_LITE
 }
 
 bool DBImpl::FindStatsByTime(uint64_t start_time, uint64_t end_time,
@@ -1014,7 +1115,9 @@ bool DBImpl::FindStatsByTime(uint64_t start_time, uint64_t end_time,
                              std::map<std::string, uint64_t>* stats_map) {
   assert(new_time);
   assert(stats_map);
-  if (!new_time || !stats_map) return false;
+  if (!new_time || !stats_map) {
+    return false;
+  }
   // lock when search for start_time
   {
     InstrumentedMutexLock l(&stats_history_mutex_);
@@ -1048,22 +1151,39 @@ Status DBImpl::GetStatsHistory(
 
 void DBImpl::DumpStats() {
   TEST_SYNC_POINT("DBImpl::DumpStats:1");
-#ifndef ROCKSDB_LITE
   std::string stats;
   if (shutdown_initiated_) {
     return;
   }
 
+  // Also probe block cache(s) for problems, dump to info log
+  UnorderedSet<Cache*> probed_caches;
   TEST_SYNC_POINT("DBImpl::DumpStats:StartRunning");
   {
     InstrumentedMutexLock l(&mutex_);
     for (auto cfd : versions_->GetRefedColumnFamilySet()) {
-      if (cfd->initialized()) {
-        // Release DB mutex for gathering cache entry stats. Pass over all
-        // column families for this first so that other stats are dumped
-        // near-atomically.
-        InstrumentedMutexUnlock u(&mutex_);
-        cfd->internal_stats()->CollectCacheEntryStats(/*foreground=*/false);
+      if (!cfd->initialized()) {
+        continue;
+      }
+
+      auto* table_factory =
+          cfd->GetCurrentMutableCFOptions()->table_factory.get();
+      assert(table_factory != nullptr);
+      // FIXME: need to a shared_ptr if/when block_cache is going to be mutable
+      Cache* cache =
+          table_factory->GetOptions<Cache>(TableFactory::kBlockCacheOpts());
+
+      // Release DB mutex for gathering cache entry stats. Pass over all
+      // column families for this first so that other stats are dumped
+      // near-atomically.
+      InstrumentedMutexUnlock u(&mutex_);
+      cfd->internal_stats()->CollectCacheEntryStats(/*foreground=*/false);
+
+      // Probe block cache for problems (if not already via another CF)
+      if (immutable_db_options_.info_log) {
+        if (cache && probed_caches.insert(cache).second) {
+          cache->ReportProblems(immutable_db_options_.info_log);
+        }
       }
     }
 
@@ -1074,18 +1194,7 @@ void DBImpl::DumpStats() {
     default_cf_internal_stats_->GetStringProperty(*property_info, *property,
                                                   &stats);
 
-    property = &DB::Properties::kCFStatsNoFileHistogram;
-    property_info = GetPropertyInfo(*property);
-    assert(property_info != nullptr);
-    assert(!property_info->need_out_of_mutex);
-    for (auto cfd : *versions_->GetColumnFamilySet()) {
-      if (cfd->initialized()) {
-        cfd->internal_stats()->GetStringProperty(*property_info, *property,
-                                                 &stats);
-      }
-    }
-
-    property = &DB::Properties::kCFFileHistogram;
+    property = &InternalStats::kPeriodicCFStats;
     property_info = GetPropertyInfo(*property);
     assert(property_info != nullptr);
     assert(!property_info->need_out_of_mutex);
@@ -1109,7 +1218,6 @@ void DBImpl::DumpStats() {
       ROCKS_LOG_INFO(immutable_db_options_.info_log, "%s", stats.c_str());
     }
   }
-#endif  // !ROCKSDB_LITE
 
   PrintStatistics();
 }
@@ -1164,11 +1272,10 @@ FSDirectory* DBImpl::GetDataDir(ColumnFamilyData* cfd, size_t path_id) const {
 Status DBImpl::SetOptions(
     ColumnFamilyHandle* column_family,
     const std::unordered_map<std::string, std::string>& options_map) {
-#ifdef ROCKSDB_LITE
-  (void)column_family;
-  (void)options_map;
-  return Status::NotSupported("Not supported in ROCKSDB LITE");
-#else
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  const WriteOptions write_options;
+
   auto* cfd =
       static_cast_with_check<ColumnFamilyHandleImpl>(column_family)->cfd();
   if (options_map.empty()) {
@@ -1178,6 +1285,7 @@ Status DBImpl::SetOptions(
     return Status::InvalidArgument("empty input");
   }
 
+  InstrumentedMutexLock ol(&options_mutex_);
   MutableCFOptions new_options;
   Status s;
   Status persist_options_status;
@@ -1190,19 +1298,25 @@ Status DBImpl::SetOptions(
       new_options = *cfd->GetLatestMutableCFOptions();
       // Append new version to recompute compaction score.
       VersionEdit dummy_edit;
-      s = versions_->LogAndApply(cfd, new_options, &dummy_edit, &mutex_,
-                                 directories_.GetDbDir());
+      s = versions_->LogAndApply(cfd, new_options, read_options, write_options,
+                                 &dummy_edit, &mutex_, directories_.GetDbDir());
       // Trigger possible flush/compactions. This has to be before we persist
       // options to file, otherwise there will be a deadlock with writer
       // thread.
       InstallSuperVersionAndScheduleWork(cfd, &sv_context, new_options);
 
-      persist_options_status = WriteOptionsFile(
-          false /*need_mutex_lock*/, true /*need_enter_write_thread*/);
+      persist_options_status =
+          WriteOptionsFile(write_options, true /*db_mutex_already_held*/);
       bg_cv_.SignalAll();
     }
   }
   sv_context.Clean();
+
+  if (s.ok() && (options_map.count("preserve_internal_time_seconds") > 0 ||
+                 options_map.count("preclude_last_level_data_seconds") > 0)) {
+    s = RegisterRecordSeqnoTimeWorker(read_options, write_options,
+                                      false /* is_new_db*/);
+  }
 
   ROCKS_LOG_INFO(
       immutable_db_options_.info_log,
@@ -1226,25 +1340,22 @@ Status DBImpl::SetOptions(
   }
   LogFlush(immutable_db_options_.info_log);
   return s;
-#endif  // ROCKSDB_LITE
 }
 
 Status DBImpl::SetDBOptions(
     const std::unordered_map<std::string, std::string>& options_map) {
-#ifdef ROCKSDB_LITE
-  (void)options_map;
-  return Status::NotSupported("Not supported in ROCKSDB LITE");
-#else
   if (options_map.empty()) {
     ROCKS_LOG_WARN(immutable_db_options_.info_log,
                    "SetDBOptions(), empty input.");
     return Status::InvalidArgument("empty input");
   }
 
+  InstrumentedMutexLock ol(&options_mutex_);
   MutableDBOptions new_options;
   Status s;
   Status persist_options_status = Status::OK();
-  bool wal_changed = false;
+  bool wal_size_option_changed = false;
+  bool wal_other_option_changed = false;
   WriteContext write_context;
   {
     InstrumentedMutexLock l(&mutex_);
@@ -1295,16 +1406,23 @@ Status DBImpl::SetDBOptions(
       const bool max_compactions_increased =
           new_bg_job_limits.max_compactions >
           current_bg_job_limits.max_compactions;
+      const bool offpeak_time_changed =
+          versions_->offpeak_time_option().daily_offpeak_time_utc !=
+          new_db_options.daily_offpeak_time_utc;
 
-      if (max_flushes_increased || max_compactions_increased) {
+      if (max_flushes_increased || max_compactions_increased ||
+          offpeak_time_changed) {
         if (max_flushes_increased) {
           env_->IncBackgroundThreadsIfNeeded(new_bg_job_limits.max_flushes,
                                              Env::Priority::HIGH);
         }
-
         if (max_compactions_increased) {
           env_->IncBackgroundThreadsIfNeeded(new_bg_job_limits.max_compactions,
                                              Env::Priority::LOW);
+        }
+        if (offpeak_time_changed) {
+          versions_->ChangeOffpeakTimeOption(
+              new_db_options.daily_offpeak_time_utc);
         }
 
         MaybeScheduleFlushOrCompaction();
@@ -1345,31 +1463,34 @@ Status DBImpl::SetDBOptions(
       table_cache_.get()->SetCapacity(new_options.max_open_files == -1
                                           ? TableCache::kInfiniteCapacity
                                           : new_options.max_open_files - 10);
-      wal_changed = mutable_db_options_.wal_bytes_per_sync !=
-                    new_options.wal_bytes_per_sync;
+      wal_other_option_changed = mutable_db_options_.wal_bytes_per_sync !=
+                                 new_options.wal_bytes_per_sync;
+      wal_size_option_changed = mutable_db_options_.max_total_wal_size !=
+                                new_options.max_total_wal_size;
       mutable_db_options_ = new_options;
       file_options_for_compaction_ = FileOptions(new_db_options);
       file_options_for_compaction_ = fs_->OptimizeForCompactionTableWrite(
           file_options_for_compaction_, immutable_db_options_);
       versions_->ChangeFileOptions(mutable_db_options_);
-      //TODO(xiez): clarify why apply optimize for read to write options
+      // TODO(xiez): clarify why apply optimize for read to write options
       file_options_for_compaction_ = fs_->OptimizeForCompactionTableRead(
           file_options_for_compaction_, immutable_db_options_);
-      file_options_for_compaction_.compaction_readahead_size =
-          mutable_db_options_.compaction_readahead_size;
-      WriteThread::Writer w;
-      write_thread_.EnterUnbatched(&w, &mutex_);
-      if (total_log_size_ > GetMaxTotalWalSize() || wal_changed) {
-        Status purge_wal_status = SwitchWAL(&write_context);
-        if (!purge_wal_status.ok()) {
-          ROCKS_LOG_WARN(immutable_db_options_.info_log,
-                         "Unable to purge WAL files in SetDBOptions() -- %s",
-                         purge_wal_status.ToString().c_str());
+      if (wal_other_option_changed || wal_size_option_changed) {
+        WriteThread::Writer w;
+        write_thread_.EnterUnbatched(&w, &mutex_);
+        if (wal_other_option_changed ||
+            total_log_size_ > GetMaxTotalWalSize()) {
+          Status purge_wal_status = SwitchWAL(&write_context);
+          if (!purge_wal_status.ok()) {
+            ROCKS_LOG_WARN(immutable_db_options_.info_log,
+                           "Unable to purge WAL files in SetDBOptions() -- %s",
+                           purge_wal_status.ToString().c_str());
+          }
         }
+        write_thread_.ExitUnbatched(&w);
       }
-      persist_options_status = WriteOptionsFile(
-          false /*need_mutex_lock*/, false /*need_enter_write_thread*/);
-      write_thread_.ExitUnbatched(&w);
+      persist_options_status =
+          WriteOptionsFile(WriteOptions(), true /*db_mutex_already_held*/);
     } else {
       // To get here, we must have had invalid options and will not attempt to
       // persist the options, which means the status is "OK/Uninitialized.
@@ -1399,7 +1520,6 @@ Status DBImpl::SetDBOptions(
   }
   LogFlush(immutable_db_options_.info_log);
   return s;
-#endif  // ROCKSDB_LITE
 }
 
 // return the same level if it cannot be moved
@@ -1411,7 +1531,9 @@ int DBImpl::FindMinimumEmptyLevelFitting(
   int minimum_level = level;
   for (int i = level - 1; i > 0; --i) {
     // stop if level i is not empty
-    if (vstorage->NumLevelFiles(i) > 0) break;
+    if (vstorage->NumLevelFiles(i) > 0) {
+      break;
+    }
     // stop if level i is too small (cannot fit the level files)
     if (vstorage->MaxBytesForLevel(i) < vstorage->NumLevelBytes(level)) {
       break;
@@ -1422,27 +1544,27 @@ int DBImpl::FindMinimumEmptyLevelFitting(
   return minimum_level;
 }
 
-Status DBImpl::FlushWAL(bool sync) {
+Status DBImpl::FlushWAL(const WriteOptions& write_options, bool sync) {
   if (manual_wal_flush_) {
     IOStatus io_s;
     {
       // We need to lock log_write_mutex_ since logs_ might change concurrently
       InstrumentedMutexLock wl(&log_write_mutex_);
       log::Writer* cur_log_writer = logs_.back().writer;
-      io_s = cur_log_writer->WriteBuffer();
+      io_s = cur_log_writer->WriteBuffer(write_options);
     }
     if (!io_s.ok()) {
       ROCKS_LOG_ERROR(immutable_db_options_.info_log, "WAL flush error %s",
                       io_s.ToString().c_str());
       // In case there is a fs error we should set it globally to prevent the
       // future writes
-      IOStatusCheck(io_s);
+      WALIOStatusCheck(io_s);
       // whether sync or not, we should abort the rest of function upon error
-      return std::move(io_s);
+      return static_cast<Status>(io_s);
     }
     if (!sync) {
       ROCKS_LOG_DEBUG(immutable_db_options_.info_log, "FlushWAL sync=false");
-      return std::move(io_s);
+      return static_cast<Status>(io_s);
     }
   }
   if (!sync) {
@@ -1453,53 +1575,139 @@ Status DBImpl::FlushWAL(bool sync) {
   return SyncWAL();
 }
 
+bool DBImpl::WALBufferIsEmpty() {
+  InstrumentedMutexLock l(&log_write_mutex_);
+  log::Writer* cur_log_writer = logs_.back().writer;
+  auto res = cur_log_writer->BufferIsEmpty();
+  return res;
+}
+
+Status DBImpl::GetOpenWalSizes(std::map<uint64_t, uint64_t>& number_to_size) {
+  assert(number_to_size.empty());
+  InstrumentedMutexLock l(&log_write_mutex_);
+  for (auto& log : logs_) {
+    auto* open_file = log.writer->file();
+    if (open_file) {
+      number_to_size[log.number] = open_file->GetFlushedSize();
+    }
+  }
+  return Status::OK();
+}
+
 Status DBImpl::SyncWAL() {
   TEST_SYNC_POINT("DBImpl::SyncWAL:Begin");
-  autovector<log::Writer*, 1> logs_to_sync;
-  bool need_log_dir_sync;
-  uint64_t current_log_number;
+  WriteOptions write_options;
+  VersionEdit synced_wals;
+  Status s = SyncWalImpl(/*include_current_wal=*/true, write_options,
+                         /*job_context=*/nullptr, &synced_wals,
+                         /*error_recovery_in_prog=*/false);
+
+  if (s.ok() && synced_wals.IsWalAddition()) {
+    InstrumentedMutexLock l(&mutex_);
+    // TODO: plumb Env::IOActivity, Env::IOPriority
+    const ReadOptions read_options;
+    s = ApplyWALToManifest(read_options, write_options, &synced_wals);
+  }
+
+  TEST_SYNC_POINT("DBImpl::SyncWAL:BeforeMarkLogsSynced:2");
+  return s;
+}
+
+IOStatus DBImpl::SyncWalImpl(bool include_current_wal,
+                             const WriteOptions& write_options,
+                             JobContext* job_context, VersionEdit* synced_wals,
+                             bool error_recovery_in_prog) {
+  autovector<log::Writer*, 1> wals_to_sync;
+  bool need_wal_dir_sync;
+  // Number of a WAL that was active at the start of call and maybe is by
+  // the end of the call.
+  uint64_t maybe_active_number;
+  // Sync WALs up to this number
+  uint64_t up_to_number;
 
   {
     InstrumentedMutexLock l(&log_write_mutex_);
     assert(!logs_.empty());
 
-    // This SyncWAL() call only cares about logs up to this number.
-    current_log_number = logfile_number_;
+    maybe_active_number = logfile_number_;
+    up_to_number =
+        include_current_wal ? maybe_active_number : maybe_active_number - 1;
 
-    while (logs_.front().number <= current_log_number &&
-           logs_.front().IsSyncing()) {
+    while (logs_.front().number <= up_to_number && logs_.front().IsSyncing()) {
       log_sync_cv_.Wait();
     }
     // First check that logs are safe to sync in background.
+    if (include_current_wal &&
+        !logs_.back().writer->file()->writable_file()->IsSyncThreadSafe()) {
+      return IOStatus::NotSupported(
+          "SyncWAL() is not supported for this implementation of WAL file",
+          immutable_db_options_.allow_mmap_writes
+              ? "try setting Options::allow_mmap_writes to false"
+              : Slice());
+    }
     for (auto it = logs_.begin();
-         it != logs_.end() && it->number <= current_log_number; ++it) {
-      if (!it->writer->file()->writable_file()->IsSyncThreadSafe()) {
-        return Status::NotSupported(
-            "SyncWAL() is not supported for this implementation of WAL file",
-            immutable_db_options_.allow_mmap_writes
-                ? "try setting Options::allow_mmap_writes to false"
-                : Slice());
+         it != logs_.end() && it->number <= up_to_number; ++it) {
+      auto& log = *it;
+      // Ensure the head of logs_ is marked as getting_synced if any is.
+      log.PrepareForSync();
+      // If last sync failed on a later WAL, this could be a fully synced
+      // and closed WAL that just needs to be recorded as synced in the
+      // manifest.
+      if (log.writer->file()) {
+        wals_to_sync.push_back(log.writer);
       }
     }
-    for (auto it = logs_.begin();
-         it != logs_.end() && it->number <= current_log_number; ++it) {
-      auto& log = *it;
-      log.PrepareForSync();
-      logs_to_sync.push_back(log.writer);
-    }
 
-    need_log_dir_sync = !log_dir_synced_;
+    need_wal_dir_sync = !log_dir_synced_;
   }
 
-  TEST_SYNC_POINT("DBWALTest::SyncWALNotWaitWrite:1");
+  if (include_current_wal) {
+    TEST_SYNC_POINT("DBWALTest::SyncWALNotWaitWrite:1");
+  }
   RecordTick(stats_, WAL_FILE_SYNCED);
-  Status status;
-  IOStatus io_s;
-  for (log::Writer* log : logs_to_sync) {
-    io_s = log->file()->SyncWithoutFlush(immutable_db_options_.use_fsync);
-    if (!io_s.ok()) {
-      status = io_s;
-      break;
+  IOOptions opts;
+  IOStatus io_s = WritableFileWriter::PrepareIOOptions(write_options, opts);
+  std::list<log::Writer*> wals_internally_closed;
+  if (io_s.ok()) {
+    for (log::Writer* log : wals_to_sync) {
+      if (job_context) {
+        ROCKS_LOG_INFO(immutable_db_options_.info_log,
+                       "[JOB %d] Syncing log #%" PRIu64, job_context->job_id,
+                       log->get_log_number());
+      }
+      if (error_recovery_in_prog) {
+        log->file()->reset_seen_error();
+      }
+      if (log->get_log_number() >= maybe_active_number) {
+        assert(log->get_log_number() == maybe_active_number);
+        io_s = log->file()->SyncWithoutFlush(opts,
+                                             immutable_db_options_.use_fsync);
+      } else {
+        io_s = log->file()->Sync(opts, immutable_db_options_.use_fsync);
+      }
+      if (!io_s.ok()) {
+        break;
+      }
+      // WALs can be closed when purging obsolete files, but if recycling is
+      // enabled, the log file is closed here so that it can be reused. And
+      // immediate closure here upon final sync makes it easier to guarantee
+      // that Checkpoint doesn't LinkFile on a WAL still open for write, which
+      // might be unsupported for some FileSystem implementations. Close here
+      // should be inexpensive because flush and sync are done, so the kill
+      // switch background_close_inactive_wals is expected to be removed in
+      // the future.
+      if (log->get_log_number() < maybe_active_number &&
+          (immutable_db_options_.recycle_log_file_num > 0 ||
+           !immutable_db_options_.background_close_inactive_wals)) {
+        if (error_recovery_in_prog) {
+          log->file()->reset_seen_error();
+        }
+        io_s = log->file()->Close(opts);
+        wals_internally_closed.push_back(log);
+        if (!io_s.ok()) {
+          break;
+        }
+      }
     }
   }
   if (!io_s.ok()) {
@@ -1507,63 +1715,134 @@ Status DBImpl::SyncWAL() {
                     io_s.ToString().c_str());
     // In case there is a fs error we should set it globally to prevent the
     // future writes
-    IOStatusCheck(io_s);
+    WALIOStatusCheck(io_s);
   }
-  if (status.ok() && need_log_dir_sync) {
-    status = directories_.GetWalDir()->FsyncWithDirOptions(
+  if (io_s.ok() && need_wal_dir_sync) {
+    io_s = directories_.GetWalDir()->FsyncWithDirOptions(
         IOOptions(), nullptr,
         DirFsyncOptions(DirFsyncOptions::FsyncReason::kNewFileSynced));
   }
-  TEST_SYNC_POINT("DBWALTest::SyncWALNotWaitWrite:2");
+  if (include_current_wal) {
+    TEST_SYNC_POINT("DBWALTest::SyncWALNotWaitWrite:2");
 
-  TEST_SYNC_POINT("DBImpl::SyncWAL:BeforeMarkLogsSynced:1");
-  VersionEdit synced_wals;
+    TEST_SYNC_POINT("DBImpl::SyncWAL:BeforeMarkLogsSynced:1");
+  } else {
+    TEST_SYNC_POINT_CALLBACK("DBImpl::SyncClosedWals:BeforeReLock",
+                             /*arg=*/nullptr);
+  }
   {
     InstrumentedMutexLock l(&log_write_mutex_);
-    if (status.ok()) {
-      MarkLogsSynced(current_log_number, need_log_dir_sync, &synced_wals);
+    for (auto* wal : wals_internally_closed) {
+      // We can only modify the state of log::Writer under the mutex
+      bool was_closed = wal->PublishIfClosed();
+      assert(was_closed);
+      (void)was_closed;
+    }
+    if (io_s.ok()) {
+      MarkLogsSynced(up_to_number, need_wal_dir_sync, synced_wals);
     } else {
-      MarkLogsNotSynced(current_log_number);
+      MarkLogsNotSynced(up_to_number);
     }
   }
-  if (status.ok() && synced_wals.IsWalAddition()) {
-    InstrumentedMutexLock l(&mutex_);
-    status = ApplyWALToManifest(&synced_wals);
-  }
-
-  TEST_SYNC_POINT("DBImpl::SyncWAL:BeforeMarkLogsSynced:2");
-
-  return status;
+  return io_s;
 }
 
-Status DBImpl::ApplyWALToManifest(VersionEdit* synced_wals) {
+Status DBImpl::ApplyWALToManifest(const ReadOptions& read_options,
+                                  const WriteOptions& write_options,
+                                  VersionEdit* synced_wals) {
   // not empty, write to MANIFEST.
   mutex_.AssertHeld();
+
   Status status = versions_->LogAndApplyToDefaultColumnFamily(
-      synced_wals, &mutex_, directories_.GetDbDir());
+      read_options, write_options, synced_wals, &mutex_,
+      directories_.GetDbDir());
   if (!status.ok() && versions_->io_status().IsIOError()) {
-    status = error_handler_.SetBGError(versions_->io_status(),
-                                       BackgroundErrorReason::kManifestWrite);
+    error_handler_.SetBGError(versions_->io_status(),
+                              BackgroundErrorReason::kManifestWrite);
   }
   return status;
 }
 
 Status DBImpl::LockWAL() {
-  log_write_mutex_.Lock();
-  auto cur_log_writer = logs_.back().writer;
-  auto status = cur_log_writer->WriteBuffer();
-  if (!status.ok()) {
-    ROCKS_LOG_ERROR(immutable_db_options_.info_log, "WAL flush error %s",
-                    status.ToString().c_str());
-    // In case there is a fs error we should set it globally to prevent the
-    // future writes
-    WriteStatusCheck(status);
+  {
+    InstrumentedMutexLock lock(&mutex_);
+    if (lock_wal_count_ > 0) {
+      assert(lock_wal_write_token_);
+      ++lock_wal_count_;
+    } else {
+      // NOTE: this will "unnecessarily" wait for other non-LockWAL() write
+      // stalls to clear before LockWAL returns, however fixing that would
+      // not be simple because if we notice the primary queue is already
+      // stalled, that stall might clear while we release DB mutex in
+      // EnterUnbatched() for the nonmem queue. And if we work around that in
+      // the naive way, we could deadlock by locking the two queues in different
+      // orders.
+
+      WriteThread::Writer w;
+      write_thread_.EnterUnbatched(&w, &mutex_);
+      WriteThread::Writer nonmem_w;
+      if (two_write_queues_) {
+        nonmem_write_thread_.EnterUnbatched(&nonmem_w, &mutex_);
+      }
+
+      // NOTE: releasing mutex in EnterUnbatched might mean we are actually
+      // now lock_wal_count > 0
+      if (lock_wal_count_ == 0) {
+        assert(!lock_wal_write_token_);
+        lock_wal_write_token_ = write_controller_.GetStopToken();
+      }
+      ++lock_wal_count_;
+
+      if (two_write_queues_) {
+        nonmem_write_thread_.ExitUnbatched(&nonmem_w);
+      }
+      write_thread_.ExitUnbatched(&w);
+    }
   }
-  return std::move(status);
+  // NOTE: avoid I/O holding DB mutex
+  Status s = FlushWAL(/*sync=*/false);
+  if (!s.ok()) {
+    // Non-OK return should not be in locked state
+    UnlockWAL().PermitUncheckedError();
+  }
+  return s;
 }
 
 Status DBImpl::UnlockWAL() {
-  log_write_mutex_.Unlock();
+  bool signal = false;
+  uint64_t maybe_stall_begun_count = 0;
+  uint64_t nonmem_maybe_stall_begun_count = 0;
+  {
+    InstrumentedMutexLock lock(&mutex_);
+    if (lock_wal_count_ == 0) {
+      return Status::Aborted("No LockWAL() in effect");
+    }
+    --lock_wal_count_;
+    if (lock_wal_count_ == 0) {
+      lock_wal_write_token_.reset();
+      signal = true;
+      // For the last UnlockWAL, we don't want to return from UnlockWAL()
+      // until the thread(s) that called BeginWriteStall() have had a chance to
+      // call EndWriteStall(), so that no_slowdown writes after UnlockWAL() are
+      // guaranteed to succeed if there's no other source of stall.
+      maybe_stall_begun_count = write_thread_.GetBegunCountOfOutstandingStall();
+      if (two_write_queues_) {
+        nonmem_maybe_stall_begun_count =
+            nonmem_write_thread_.GetBegunCountOfOutstandingStall();
+      }
+    }
+  }
+  if (signal) {
+    // SignalAll outside of mutex for efficiency
+    bg_cv_.SignalAll();
+  }
+  // Ensure stalls have cleared
+  if (maybe_stall_begun_count) {
+    write_thread_.WaitForStallEndedCount(maybe_stall_begun_count);
+  }
+  if (nonmem_maybe_stall_begun_count) {
+    nonmem_write_thread_.WaitForStallEndedCount(nonmem_maybe_stall_begun_count);
+  }
   return Status::OK();
 }
 
@@ -1583,12 +1862,19 @@ void DBImpl::MarkLogsSynced(uint64_t up_to, bool synced_dir,
           wal.GetPreSyncSize() > 0) {
         synced_wals->AddWal(wal.number, WalMetadata(wal.GetPreSyncSize()));
       }
-      if (wal.GetPreSyncSize() == wal.writer->file()->GetFlushedSize()) {
+      // Reclaim closed WALs (wal.writer->file() == nullptr), and if we don't
+      // need to close before that (background_close_inactive_wals) we can
+      // opportunistically reclaim WALs that happen to be fully synced.
+      // (Probably not worth extra code and mutex release to opportunistically
+      // close WALs that became eligible since last holding the mutex.
+      // FindObsoleteFiles can take care of it.)
+      if (wal.writer->file() == nullptr ||
+          (immutable_db_options_.background_close_inactive_wals &&
+           wal.GetPreSyncSize() == wal.writer->file()->GetFlushedSize())) {
         // Fully synced
         logs_to_free_.push_back(wal.ReleaseWriter());
         it = logs_.erase(it);
       } else {
-        assert(wal.GetPreSyncSize() < wal.writer->file()->GetFlushedSize());
         wal.FinishSync();
         ++it;
       }
@@ -1640,7 +1926,8 @@ Status DBImpl::GetFullHistoryTsLow(ColumnFamilyHandle* column_family,
   }
   InstrumentedMutexLock l(&mutex_);
   *ts_low = cfd->GetFullHistoryTsLow();
-  assert(cfd->user_comparator()->timestamp_size() == ts_low->size());
+  assert(ts_low->empty() ||
+         cfd->user_comparator()->timestamp_size() == ts_low->size());
   return Status::OK();
 }
 
@@ -1674,6 +1961,7 @@ void DBImpl::SchedulePurge() {
 }
 
 void DBImpl::BackgroundCallPurge() {
+  TEST_SYNC_POINT("DBImpl::BackgroundCallPurge:beforeMutexLock");
   mutex_.Lock();
 
   while (!logs_to_free_queue_.empty()) {
@@ -1748,7 +2036,7 @@ struct SuperVersionHandle {
 };
 
 static void CleanupSuperVersionHandle(void* arg1, void* /*arg2*/) {
-  SuperVersionHandle* sv_handle = reinterpret_cast<SuperVersionHandle*>(arg1);
+  SuperVersionHandle* sv_handle = static_cast<SuperVersionHandle*>(arg1);
 
   if (sv_handle->super_version->Unref()) {
     // Job id == 0 means that this is not our background process, but rather
@@ -1798,36 +2086,45 @@ InternalIterator* DBImpl::NewInternalIterator(
     bool allow_unprepared_value, ArenaWrappedDBIter* db_iter) {
   InternalIterator* internal_iter;
   assert(arena != nullptr);
+  auto prefix_extractor =
+      super_version->mutable_cf_options.prefix_extractor.get();
   // Need to create internal iterator from the arena.
   MergeIteratorBuilder merge_iter_builder(
       &cfd->internal_comparator(), arena,
-      !read_options.total_order_seek &&
-          super_version->mutable_cf_options.prefix_extractor != nullptr);
+      // FIXME? It's not clear what interpretation of prefix seek is needed
+      // here, and no unit test cares about the value provided here.
+      !read_options.total_order_seek && prefix_extractor != nullptr,
+      read_options.iterate_upper_bound);
   // Collect iterator for mutable memtable
-  auto mem_iter = super_version->mem->NewIterator(read_options, arena);
+  auto mem_iter = super_version->mem->NewIterator(
+      read_options, super_version->GetSeqnoToTimeMapping(), arena,
+      super_version->mutable_cf_options.prefix_extractor.get(),
+      /*for_flush=*/false);
   Status s;
   if (!read_options.ignore_range_deletions) {
-    TruncatedRangeDelIterator* mem_tombstone_iter = nullptr;
+    std::unique_ptr<TruncatedRangeDelIterator> mem_tombstone_iter;
     auto range_del_iter = super_version->mem->NewRangeTombstoneIterator(
         read_options, sequence, false /* immutable_memtable */);
     if (range_del_iter == nullptr || range_del_iter->empty()) {
       delete range_del_iter;
     } else {
-      mem_tombstone_iter = new TruncatedRangeDelIterator(
+      mem_tombstone_iter = std::make_unique<TruncatedRangeDelIterator>(
           std::unique_ptr<FragmentedRangeTombstoneIterator>(range_del_iter),
           &cfd->ioptions()->internal_comparator, nullptr /* smallest */,
           nullptr /* largest */);
     }
-    merge_iter_builder.AddPointAndTombstoneIterator(mem_iter,
-                                                    mem_tombstone_iter);
+    merge_iter_builder.AddPointAndTombstoneIterator(
+        mem_iter, std::move(mem_tombstone_iter));
   } else {
     merge_iter_builder.AddIterator(mem_iter);
   }
 
   // Collect all needed child iterators for immutable memtables
   if (s.ok()) {
-    super_version->imm->AddIterators(read_options, &merge_iter_builder,
-                                     !read_options.ignore_range_deletions);
+    super_version->imm->AddIterators(
+        read_options, super_version->GetSeqnoToTimeMapping(),
+        super_version->mutable_cf_options.prefix_extractor.get(),
+        &merge_iter_builder, !read_options.ignore_range_deletions);
   }
   TEST_SYNC_POINT_CALLBACK("DBImpl::NewInternalIterator:StatusCallback", &s);
   if (s.ok()) {
@@ -1860,38 +2157,68 @@ ColumnFamilyHandle* DBImpl::PersistentStatsColumnFamily() const {
   return persist_stats_cf_handle_;
 }
 
-Status DBImpl::Get(const ReadOptions& read_options,
-                   ColumnFamilyHandle* column_family, const Slice& key,
-                   PinnableSlice* value) {
-  return Get(read_options, column_family, key, value, /*timestamp=*/nullptr);
+Status DBImpl::GetImpl(const ReadOptions& read_options,
+                       ColumnFamilyHandle* column_family, const Slice& key,
+                       PinnableSlice* value) {
+  return GetImpl(read_options, column_family, key, value,
+                 /*timestamp=*/nullptr);
 }
 
-Status DBImpl::Get(const ReadOptions& read_options,
+Status DBImpl::Get(const ReadOptions& _read_options,
                    ColumnFamilyHandle* column_family, const Slice& key,
                    PinnableSlice* value, std::string* timestamp) {
   assert(value != nullptr);
   value->Reset();
+
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kGet) {
+    return Status::InvalidArgument(
+        "Can only call Get with `ReadOptions::io_activity` is "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kGet`");
+  }
+
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kGet;
+  }
+
+  Status s = GetImpl(read_options, column_family, key, value, timestamp);
+  return s;
+}
+
+Status DBImpl::GetImpl(const ReadOptions& read_options,
+                       ColumnFamilyHandle* column_family, const Slice& key,
+                       PinnableSlice* value, std::string* timestamp) {
   GetImplOptions get_impl_options;
   get_impl_options.column_family = column_family;
   get_impl_options.value = value;
   get_impl_options.timestamp = timestamp;
+
   Status s = GetImpl(read_options, key, get_impl_options);
   return s;
 }
 
-Status DBImpl::GetEntity(const ReadOptions& read_options,
+Status DBImpl::GetEntity(const ReadOptions& _read_options,
                          ColumnFamilyHandle* column_family, const Slice& key,
                          PinnableWideColumns* columns) {
   if (!column_family) {
     return Status::InvalidArgument(
         "Cannot call GetEntity without a column family handle");
   }
-
   if (!columns) {
     return Status::InvalidArgument(
         "Cannot call GetEntity without a PinnableWideColumns object");
   }
-
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kGetEntity) {
+    return Status::InvalidArgument(
+        "Can only call GetEntity with `ReadOptions::io_activity` set to "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kGetEntity`");
+  }
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kGetEntity;
+  }
   columns->Reset();
 
   GetImplOptions get_impl_options;
@@ -1899,6 +2226,73 @@ Status DBImpl::GetEntity(const ReadOptions& read_options,
   get_impl_options.columns = columns;
 
   return GetImpl(read_options, key, get_impl_options);
+}
+
+Status DBImpl::GetEntity(const ReadOptions& _read_options, const Slice& key,
+                         PinnableAttributeGroups* result) {
+  if (!result) {
+    return Status::InvalidArgument(
+        "Cannot call GetEntity without PinnableAttributeGroups object");
+  }
+  Status s;
+  const size_t num_column_families = result->size();
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kGetEntity) {
+    s = Status::InvalidArgument(
+        "Can only call GetEntity with `ReadOptions::io_activity` set to "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kGetEntity`");
+    for (size_t i = 0; i < num_column_families; ++i) {
+      (*result)[i].SetStatus(s);
+    }
+    return s;
+  }
+  // return early if no CF was passed in
+  if (num_column_families == 0) {
+    return s;
+  }
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kGetEntity;
+  }
+  std::vector<Slice> keys;
+  std::vector<ColumnFamilyHandle*> column_families;
+  for (size_t i = 0; i < num_column_families; ++i) {
+    // If any of the CFH is null, break early since the entire query will fail
+    if (!(*result)[i].column_family()) {
+      s = Status::InvalidArgument(
+          "DB failed to query because one or more group(s) have null column "
+          "family handle");
+      (*result)[i].SetStatus(
+          Status::InvalidArgument("Column family handle cannot be null"));
+      break;
+    }
+    // Adding the same key slice for different CFs
+    keys.emplace_back(key);
+    column_families.emplace_back((*result)[i].column_family());
+  }
+  if (!s.ok()) {
+    for (size_t i = 0; i < num_column_families; ++i) {
+      if ((*result)[i].status().ok()) {
+        (*result)[i].SetStatus(
+            Status::Incomplete("DB not queried due to invalid argument(s) in "
+                               "one or more of the attribute groups"));
+      }
+    }
+    return s;
+  }
+  std::vector<PinnableWideColumns> columns(num_column_families);
+  std::vector<Status> statuses(num_column_families);
+  MultiGetCommon(
+      read_options, num_column_families, column_families.data(), keys.data(),
+      /* values */ nullptr, columns.data(),
+      /* timestamps */ nullptr, statuses.data(), /* sorted_input */ false);
+  // Set results
+  for (size_t i = 0; i < num_column_families; ++i) {
+    (*result)[i].Reset();
+    (*result)[i].SetStatus(statuses[i]);
+    (*result)[i].SetColumns(std::move(columns[i]));
+  }
+  return s;
 }
 
 bool DBImpl::ShouldReferenceSuperVersion(const MergeContext& merge_context) {
@@ -1939,8 +2333,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
 
   if (read_options.timestamp) {
     const Status s = FailIfTsMismatchCf(get_impl_options.column_family,
-                                        *(read_options.timestamp),
-                                        /*ts_for_read=*/true);
+                                        *(read_options.timestamp));
     if (!s.ok()) {
       return s;
     }
@@ -1987,7 +2380,16 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
 
   // Acquire SuperVersion
   SuperVersion* sv = GetAndRefSuperVersion(cfd);
+  if (read_options.timestamp && read_options.timestamp->size() > 0) {
+    const Status s =
+        FailIfReadCollapsedHistory(cfd, sv, *(read_options.timestamp));
+    if (!s.ok()) {
+      ReturnAndCleanupSuperVersion(cfd, sv);
+      return s;
+    }
+  }
 
+  TEST_SYNC_POINT_CALLBACK("DBImpl::GetImpl:AfterAcquireSv", nullptr);
   TEST_SYNC_POINT("DBImpl::GetImpl:1");
   TEST_SYNC_POINT("DBImpl::GetImpl:2");
 
@@ -1998,7 +2400,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
       snapshot = get_impl_options.callback->max_visible_seq();
     } else {
       snapshot =
-          reinterpret_cast<const SnapshotImpl*>(read_options.snapshot)->number_;
+          static_cast<const SnapshotImpl*>(read_options.snapshot)->number_;
     }
   } else {
     // Note that the snapshot is assigned AFTER referencing the super
@@ -2043,6 +2445,8 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
 
   // Prepare to store a list of merge operations if merge occurs.
   MergeContext merge_context;
+  merge_context.get_merge_operands_options =
+      get_impl_options.get_merge_operands_options;
   SequenceNumber max_covering_tombstone_seq = 0;
 
   Status s;
@@ -2110,7 +2514,8 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
         RecordTick(stats_, MEMTABLE_HIT);
       }
     }
-    if (!done && !s.ok() && !s.IsMergeInProgress()) {
+    if (!s.ok() && !s.IsMergeInProgress() && !s.IsNotFound()) {
+      assert(done);
       ReturnAndCleanupSuperVersion(cfd, sv);
       return s;
     }
@@ -2138,6 +2543,12 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
     RecordTick(stats_, NUMBER_KEYS_READ);
     size_t size = 0;
     if (s.ok()) {
+      const auto& merge_threshold = read_options.merge_operand_count_threshold;
+      if (merge_threshold.has_value() &&
+          merge_context.GetNumOperands() > merge_threshold.value()) {
+        s = Status::OkMergeOperandThresholdExceeded();
+      }
+
       if (get_impl_options.get_value) {
         if (get_impl_options.value) {
           size = get_impl_options.value->size();
@@ -2220,233 +2631,54 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
   return s;
 }
 
-std::vector<Status> DBImpl::MultiGet(
-    const ReadOptions& read_options,
-    const std::vector<ColumnFamilyHandle*>& column_family,
-    const std::vector<Slice>& keys, std::vector<std::string>* values) {
-  return MultiGet(read_options, column_family, keys, values,
-                  /*timestamps=*/nullptr);
-}
-
-std::vector<Status> DBImpl::MultiGet(
-    const ReadOptions& read_options,
-    const std::vector<ColumnFamilyHandle*>& column_family,
-    const std::vector<Slice>& keys, std::vector<std::string>* values,
-    std::vector<std::string>* timestamps) {
-  PERF_CPU_TIMER_GUARD(get_cpu_nanos, immutable_db_options_.clock);
-  StopWatch sw(immutable_db_options_.clock, stats_, DB_MULTIGET);
+template <class T, typename IterDerefFuncType>
+Status DBImpl::MultiCFSnapshot(const ReadOptions& read_options,
+                               ReadCallback* callback,
+                               IterDerefFuncType iter_deref_func, T* cf_list,
+                               bool extra_sv_ref, SequenceNumber* snapshot,
+                               bool* sv_from_thread_local) {
   PERF_TIMER_GUARD(get_snapshot_time);
 
-  size_t num_keys = keys.size();
-  assert(column_family.size() == num_keys);
-  std::vector<Status> stat_list(num_keys);
-
-  bool should_fail = false;
-  for (size_t i = 0; i < num_keys; ++i) {
-    assert(column_family[i]);
-    if (read_options.timestamp) {
-      stat_list[i] = FailIfTsMismatchCf(
-          column_family[i], *(read_options.timestamp), /*ts_for_read=*/true);
-      if (!stat_list[i].ok()) {
-        should_fail = true;
-      }
-    } else {
-      stat_list[i] = FailIfCfHasTs(column_family[i]);
-      if (!stat_list[i].ok()) {
-        should_fail = true;
-      }
-    }
-  }
-
-  if (should_fail) {
-    for (auto& s : stat_list) {
-      if (s.ok()) {
-        s = Status::Incomplete(
-            "DB not queried due to invalid argument(s) in the same MultiGet");
-      }
-    }
-    return stat_list;
-  }
-
-  if (tracer_) {
-    // TODO: This mutex should be removed later, to improve performance when
-    // tracing is enabled.
-    InstrumentedMutexLock lock(&trace_mutex_);
-    if (tracer_) {
-      // TODO: maybe handle the tracing status?
-      tracer_->MultiGet(column_family, keys).PermitUncheckedError();
-    }
-  }
-
-  SequenceNumber consistent_seqnum;
-
-  UnorderedMap<uint32_t, MultiGetColumnFamilyData> multiget_cf_data(
-      column_family.size());
-  for (auto cf : column_family) {
-    auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(cf);
-    auto cfd = cfh->cfd();
-    if (multiget_cf_data.find(cfd->GetID()) == multiget_cf_data.end()) {
-      multiget_cf_data.emplace(cfd->GetID(),
-                               MultiGetColumnFamilyData(cfh, nullptr));
-    }
-  }
-
-  std::function<MultiGetColumnFamilyData*(
-      UnorderedMap<uint32_t, MultiGetColumnFamilyData>::iterator&)>
-      iter_deref_lambda =
-          [](UnorderedMap<uint32_t, MultiGetColumnFamilyData>::iterator&
-                 cf_iter) { return &cf_iter->second; };
-
-  bool unref_only =
-      MultiCFSnapshot<UnorderedMap<uint32_t, MultiGetColumnFamilyData>>(
-          read_options, nullptr, iter_deref_lambda, &multiget_cf_data,
-          &consistent_seqnum);
-
-  TEST_SYNC_POINT("DBImpl::MultiGet:AfterGetSeqNum1");
-  TEST_SYNC_POINT("DBImpl::MultiGet:AfterGetSeqNum2");
-
-  // Contain a list of merge operations if merge occurs.
-  MergeContext merge_context;
-
-  // Note: this always resizes the values array
-  values->resize(num_keys);
-  if (timestamps) {
-    timestamps->resize(num_keys);
-  }
-
-  // Keep track of bytes that we read for statistics-recording later
-  uint64_t bytes_read = 0;
-  PERF_TIMER_STOP(get_snapshot_time);
-
-  // For each of the given keys, apply the entire "get" process as follows:
-  // First look in the memtable, then in the immutable memtable (if any).
-  // s is both in/out. When in, s could either be OK or MergeInProgress.
-  // merge_operands will contain the sequence of merges in the latter case.
-  size_t num_found = 0;
-  size_t keys_read;
-  uint64_t curr_value_size = 0;
-
-  GetWithTimestampReadCallback timestamp_read_callback(0);
-  ReadCallback* read_callback = nullptr;
-  if (read_options.timestamp && read_options.timestamp->size() > 0) {
-    timestamp_read_callback.Refresh(consistent_seqnum);
-    read_callback = &timestamp_read_callback;
-  }
-
-  for (keys_read = 0; keys_read < num_keys; ++keys_read) {
-    merge_context.Clear();
-    Status& s = stat_list[keys_read];
-    std::string* value = &(*values)[keys_read];
-    std::string* timestamp = timestamps ? &(*timestamps)[keys_read] : nullptr;
-
-    LookupKey lkey(keys[keys_read], consistent_seqnum, read_options.timestamp);
-    auto cfh =
-        static_cast_with_check<ColumnFamilyHandleImpl>(column_family[keys_read]);
-    SequenceNumber max_covering_tombstone_seq = 0;
-    auto mgd_iter = multiget_cf_data.find(cfh->cfd()->GetID());
-    assert(mgd_iter != multiget_cf_data.end());
-    auto mgd = mgd_iter->second;
-    auto super_version = mgd.super_version;
-    bool skip_memtable =
-        (read_options.read_tier == kPersistedTier &&
-         has_unpersisted_data_.load(std::memory_order_relaxed));
-    bool done = false;
-    if (!skip_memtable) {
-      if (super_version->mem->Get(
-              lkey, value, /*columns=*/nullptr, timestamp, &s, &merge_context,
-              &max_covering_tombstone_seq, read_options,
-              false /* immutable_memtable */, read_callback)) {
-        done = true;
-        RecordTick(stats_, MEMTABLE_HIT);
-      } else if (super_version->imm->Get(lkey, value, /*columns=*/nullptr,
-                                         timestamp, &s, &merge_context,
-                                         &max_covering_tombstone_seq,
-                                         read_options, read_callback)) {
-        done = true;
-        RecordTick(stats_, MEMTABLE_HIT);
-      }
-    }
-    if (!done) {
-      PinnableSlice pinnable_val;
-      PERF_TIMER_GUARD(get_from_output_files_time);
-      PinnedIteratorsManager pinned_iters_mgr;
-      super_version->current->Get(read_options, lkey, &pinnable_val,
-                                  /*columns=*/nullptr, timestamp, &s,
-                                  &merge_context, &max_covering_tombstone_seq,
-                                  &pinned_iters_mgr, /*value_found=*/nullptr,
-                                  /*key_exists=*/nullptr,
-                                  /*seq=*/nullptr, read_callback);
-      value->assign(pinnable_val.data(), pinnable_val.size());
-      RecordTick(stats_, MEMTABLE_MISS);
-    }
-
-    if (s.ok()) {
-      bytes_read += value->size();
-      num_found++;
-      curr_value_size += value->size();
-      if (curr_value_size > read_options.value_size_soft_limit) {
-        while (++keys_read < num_keys) {
-          stat_list[keys_read] = Status::Aborted();
+  assert(sv_from_thread_local);
+  *sv_from_thread_local = true;
+  Status s = Status::OK();
+  const bool check_read_ts =
+      read_options.timestamp && read_options.timestamp->size() > 0;
+  // sv_from_thread_local set to false means the SuperVersion to be cleaned up
+  // is acquired directly via ColumnFamilyData instead of thread local.
+  const auto sv_cleanup_func = [&]() -> void {
+    for (auto cf_iter = cf_list->begin(); cf_iter != cf_list->end();
+         ++cf_iter) {
+      auto node = iter_deref_func(cf_iter);
+      SuperVersion* super_version = node->super_version;
+      ColumnFamilyData* cfd = node->cfd;
+      if (super_version != nullptr) {
+        if (*sv_from_thread_local && !extra_sv_ref) {
+          ReturnAndCleanupSuperVersion(cfd, super_version);
+        } else {
+          CleanupSuperVersion(super_version);
         }
-        break;
       }
+      node->super_version = nullptr;
     }
-    if (read_options.deadline.count() &&
-        immutable_db_options_.clock->NowMicros() >
-            static_cast<uint64_t>(read_options.deadline.count())) {
-      break;
-    }
-  }
-
-  if (keys_read < num_keys) {
-    // The only reason to break out of the loop is when the deadline is
-    // exceeded
-    assert(immutable_db_options_.clock->NowMicros() >
-           static_cast<uint64_t>(read_options.deadline.count()));
-    for (++keys_read; keys_read < num_keys; ++keys_read) {
-      stat_list[keys_read] = Status::TimedOut();
-    }
-  }
-
-  // Post processing (decrement reference counts and record statistics)
-  PERF_TIMER_GUARD(get_post_process_time);
-  autovector<SuperVersion*> superversions_to_delete;
-
-  for (auto mgd_iter : multiget_cf_data) {
-    auto mgd = mgd_iter.second;
-    if (!unref_only) {
-      ReturnAndCleanupSuperVersion(mgd.cfd, mgd.super_version);
-    } else {
-      mgd.cfd->GetSuperVersion()->Unref();
-    }
-  }
-  RecordTick(stats_, NUMBER_MULTIGET_CALLS);
-  RecordTick(stats_, NUMBER_MULTIGET_KEYS_READ, num_keys);
-  RecordTick(stats_, NUMBER_MULTIGET_KEYS_FOUND, num_found);
-  RecordTick(stats_, NUMBER_MULTIGET_BYTES_READ, bytes_read);
-  RecordInHistogram(stats_, BYTES_PER_MULTIGET, bytes_read);
-  PERF_COUNTER_ADD(multiget_read_bytes, bytes_read);
-  PERF_TIMER_STOP(get_post_process_time);
-
-  return stat_list;
-}
-
-template <class T>
-bool DBImpl::MultiCFSnapshot(
-    const ReadOptions& read_options, ReadCallback* callback,
-    std::function<MultiGetColumnFamilyData*(typename T::iterator&)>&
-        iter_deref_func,
-    T* cf_list, SequenceNumber* snapshot) {
-  PERF_TIMER_GUARD(get_snapshot_time);
+  };
 
   bool last_try = false;
   if (cf_list->size() == 1) {
-    // Fast path for a single column family. We can simply get the thread loca
+    // Fast path for a single column family. We can simply get the thread local
     // super version
     auto cf_iter = cf_list->begin();
     auto node = iter_deref_func(cf_iter);
-    node->super_version = GetAndRefSuperVersion(node->cfd);
-    if (read_options.snapshot != nullptr) {
+    if (extra_sv_ref) {
+      node->super_version = node->cfd->GetReferencedSuperVersion(this);
+    } else {
+      node->super_version = GetAndRefSuperVersion(node->cfd);
+    }
+    if (check_read_ts) {
+      s = FailIfReadCollapsedHistory(node->cfd, node->super_version,
+                                     *(read_options.timestamp));
+    }
+    if (s.ok() && read_options.snapshot != nullptr) {
       // Note: In WritePrepared txns this is not necessary but not harmful
       // either.  Because prep_seq > snapshot => commit_seq > snapshot so if
       // a snapshot is specified we should be fine with skipping seq numbers
@@ -2460,7 +2692,7 @@ bool DBImpl::MultiCFSnapshot(
       if (callback) {
         *snapshot = std::max(*snapshot, callback->max_visible_seq());
       }
-    } else {
+    } else if (s.ok()) {
       // Since we get and reference the super version before getting
       // the snapshot number, without a mutex protection, it is possible
       // that a memtable switch happened in the middle and not all the
@@ -2474,30 +2706,21 @@ bool DBImpl::MultiCFSnapshot(
       *snapshot = GetLastPublishedSequence();
     }
   } else {
-    // If we end up with the same issue of memtable geting sealed during 2
+    // If we end up with the same issue of memtable getting sealed during 2
     // consecutive retries, it means the write rate is very high. In that case
-    // its probably ok to take the mutex on the 3rd try so we can succeed for
-    // sure
+    // it's probably ok to take the mutex on the 3rd try so we can succeed for
+    // sure.
     constexpr int num_retries = 3;
     for (int i = 0; i < num_retries; ++i) {
       last_try = (i == num_retries - 1);
       bool retry = false;
 
       if (i > 0) {
-        for (auto cf_iter = cf_list->begin(); cf_iter != cf_list->end();
-             ++cf_iter) {
-          auto node = iter_deref_func(cf_iter);
-          SuperVersion* super_version = node->super_version;
-          ColumnFamilyData* cfd = node->cfd;
-          if (super_version != nullptr) {
-            ReturnAndCleanupSuperVersion(cfd, super_version);
-          }
-          node->super_version = nullptr;
-        }
+        sv_cleanup_func();
       }
       if (read_options.snapshot == nullptr) {
         if (last_try) {
-          TEST_SYNC_POINT("DBImpl::MultiGet::LastTry");
+          TEST_SYNC_POINT("DBImpl::MultiCFSnapshot::LastTry");
           // We're close to max number of retries. For the last retry,
           // acquire the lock so we're sure to succeed
           mutex_.Lock();
@@ -2512,11 +2735,29 @@ bool DBImpl::MultiCFSnapshot(
            ++cf_iter) {
         auto node = iter_deref_func(cf_iter);
         if (!last_try) {
-          node->super_version = GetAndRefSuperVersion(node->cfd);
+          if (extra_sv_ref) {
+            node->super_version = node->cfd->GetReferencedSuperVersion(this);
+          } else {
+            node->super_version = GetAndRefSuperVersion(node->cfd);
+          }
         } else {
           node->super_version = node->cfd->GetSuperVersion()->Ref();
         }
-        TEST_SYNC_POINT("DBImpl::MultiGet::AfterRefSV");
+        TEST_SYNC_POINT("DBImpl::MultiCFSnapshot::AfterRefSV");
+        if (check_read_ts) {
+          s = FailIfReadCollapsedHistory(node->cfd, node->super_version,
+                                         *(read_options.timestamp));
+          if (!s.ok()) {
+            // If read timestamp check failed, a.k.a ReadOptions.timestamp <
+            // super_version.full_history_ts_low. There is no need to continue
+            // because this check will keep failing for the same and newer
+            // SuperVersions, instead we fail fast and ask user to provide
+            // a higher read timestamp.
+            retry = false;
+            break;
+          }
+        }
+        TEST_SYNC_POINT("DBImpl::MultiCFSnapshot::BeforeCheckingSnapshot");
         if (read_options.snapshot != nullptr || last_try) {
           // If user passed a snapshot, then we don't care if a memtable is
           // sealed or compaction happens because the snapshot would ensure
@@ -2540,41 +2781,62 @@ bool DBImpl::MultiCFSnapshot(
       if (!retry) {
         if (last_try) {
           mutex_.Unlock();
+          TEST_SYNC_POINT("DBImpl::MultiCFSnapshot::AfterLastTryRefSV");
         }
         break;
       }
     }
   }
 
-  // Keep track of bytes that we read for statistics-recording later
+  TEST_SYNC_POINT("DBImpl::MultiCFSnapshot:AfterGetSeqNum1");
+  TEST_SYNC_POINT("DBImpl::MultiCFSnapshot:AfterGetSeqNum2");
   PERF_TIMER_STOP(get_snapshot_time);
-
-  return last_try;
+  *sv_from_thread_local = !last_try;
+  if (!s.ok()) {
+    sv_cleanup_func();
+  }
+  return s;
 }
 
-void DBImpl::MultiGet(const ReadOptions& read_options, const size_t num_keys,
-                      ColumnFamilyHandle** column_families, const Slice* keys,
-                      PinnableSlice* values, Status* statuses,
-                      const bool sorted_input) {
-  return MultiGet(read_options, num_keys, column_families, keys, values,
-                  /*timestamps=*/nullptr, statuses, sorted_input);
-}
-
-void DBImpl::MultiGet(const ReadOptions& read_options, const size_t num_keys,
+void DBImpl::MultiGet(const ReadOptions& _read_options, const size_t num_keys,
                       ColumnFamilyHandle** column_families, const Slice* keys,
                       PinnableSlice* values, std::string* timestamps,
                       Status* statuses, const bool sorted_input) {
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kMultiGet) {
+    Status s = Status::InvalidArgument(
+        "Can only call MultiGet with `ReadOptions::io_activity` is "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kMultiGet`");
+    for (size_t i = 0; i < num_keys; ++i) {
+      if (statuses[i].ok()) {
+        statuses[i] = s;
+      }
+    }
+    return;
+  }
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kMultiGet;
+  }
+  MultiGetCommon(read_options, num_keys, column_families, keys, values,
+                 /* columns */ nullptr, timestamps, statuses, sorted_input);
+}
+
+void DBImpl::MultiGetCommon(const ReadOptions& read_options,
+                            const size_t num_keys,
+                            ColumnFamilyHandle** column_families,
+                            const Slice* keys, PinnableSlice* values,
+                            PinnableWideColumns* columns,
+                            std::string* timestamps, Status* statuses,
+                            const bool sorted_input) {
   if (num_keys == 0) {
     return;
   }
-
   bool should_fail = false;
   for (size_t i = 0; i < num_keys; ++i) {
     ColumnFamilyHandle* cfh = column_families[i];
-    assert(cfh);
     if (read_options.timestamp) {
-      statuses[i] = FailIfTsMismatchCf(cfh, *(read_options.timestamp),
-                                       /*ts_for_read=*/true);
+      statuses[i] = FailIfTsMismatchCf(cfh, *(read_options.timestamp));
       if (!statuses[i].ok()) {
         should_fail = true;
       }
@@ -2609,8 +2871,20 @@ void DBImpl::MultiGet(const ReadOptions& read_options, const size_t num_keys,
   autovector<KeyContext*, MultiGetContext::MAX_BATCH_SIZE> sorted_keys;
   sorted_keys.resize(num_keys);
   for (size_t i = 0; i < num_keys; ++i) {
-    values[i].Reset();
-    key_context.emplace_back(column_families[i], keys[i], &values[i],
+    PinnableSlice* val = nullptr;
+    PinnableWideColumns* col = nullptr;
+
+    if (values) {
+      val = &values[i];
+      val->Reset();
+    } else {
+      assert(columns);
+
+      col = &columns[i];
+      col->Reset();
+    }
+
+    key_context.emplace_back(column_families[i], keys[i], val, col,
                              timestamps ? &timestamps[i] : nullptr,
                              &statuses[i]);
   }
@@ -2619,36 +2893,46 @@ void DBImpl::MultiGet(const ReadOptions& read_options, const size_t num_keys,
   }
   PrepareMultiGetKeys(num_keys, sorted_input, &sorted_keys);
 
-  autovector<MultiGetColumnFamilyData, MultiGetContext::MAX_BATCH_SIZE>
-      multiget_cf_data;
+  autovector<MultiGetKeyRangePerCf, MultiGetContext::MAX_BATCH_SIZE>
+      key_range_per_cf;
+  autovector<ColumnFamilySuperVersionPair, MultiGetContext::MAX_BATCH_SIZE>
+      cf_sv_pairs;
   size_t cf_start = 0;
   ColumnFamilyHandle* cf = sorted_keys[0]->column_family;
 
   for (size_t i = 0; i < num_keys; ++i) {
     KeyContext* key_ctx = sorted_keys[i];
     if (key_ctx->column_family != cf) {
-      multiget_cf_data.emplace_back(cf, cf_start, i - cf_start, nullptr);
+      key_range_per_cf.emplace_back(cf_start, i - cf_start);
+      cf_sv_pairs.emplace_back(cf, nullptr);
       cf_start = i;
       cf = key_ctx->column_family;
     }
   }
 
-  multiget_cf_data.emplace_back(cf, cf_start, num_keys - cf_start, nullptr);
+  key_range_per_cf.emplace_back(cf_start, num_keys - cf_start);
+  cf_sv_pairs.emplace_back(cf, nullptr);
 
-  std::function<MultiGetColumnFamilyData*(
-      autovector<MultiGetColumnFamilyData,
-                 MultiGetContext::MAX_BATCH_SIZE>::iterator&)>
-      iter_deref_lambda =
-          [](autovector<MultiGetColumnFamilyData,
-                        MultiGetContext::MAX_BATCH_SIZE>::iterator& cf_iter) {
-            return &(*cf_iter);
-          };
+  SequenceNumber consistent_seqnum = kMaxSequenceNumber;
+  bool sv_from_thread_local = false;
+  Status s = MultiCFSnapshot<autovector<ColumnFamilySuperVersionPair,
+                                        MultiGetContext::MAX_BATCH_SIZE>>(
+      read_options, nullptr,
+      [](autovector<ColumnFamilySuperVersionPair,
+                    MultiGetContext::MAX_BATCH_SIZE>::iterator& cf_iter) {
+        return &(*cf_iter);
+      },
+      &cf_sv_pairs,
+      /* extra_sv_ref */ false, &consistent_seqnum, &sv_from_thread_local);
 
-  SequenceNumber consistent_seqnum;
-  bool unref_only = MultiCFSnapshot<
-      autovector<MultiGetColumnFamilyData, MultiGetContext::MAX_BATCH_SIZE>>(
-      read_options, nullptr, iter_deref_lambda, &multiget_cf_data,
-      &consistent_seqnum);
+  if (!s.ok()) {
+    for (size_t i = 0; i < num_keys; ++i) {
+      if (statuses[i].ok()) {
+        statuses[i] = s;
+      }
+    }
+    return;
+  }
 
   GetWithTimestampReadCallback timestamp_read_callback(0);
   ReadCallback* read_callback = nullptr;
@@ -2657,31 +2941,40 @@ void DBImpl::MultiGet(const ReadOptions& read_options, const size_t num_keys,
     read_callback = &timestamp_read_callback;
   }
 
-  Status s;
-  auto cf_iter = multiget_cf_data.begin();
-  for (; cf_iter != multiget_cf_data.end(); ++cf_iter) {
-    s = MultiGetImpl(read_options, cf_iter->start, cf_iter->num_keys,
-                     &sorted_keys, cf_iter->super_version, consistent_seqnum,
+  assert(key_range_per_cf.size() == cf_sv_pairs.size());
+  auto key_range_per_cf_iter = key_range_per_cf.begin();
+  auto cf_sv_pair_iter = cf_sv_pairs.begin();
+  while (key_range_per_cf_iter != key_range_per_cf.end() &&
+         cf_sv_pair_iter != cf_sv_pairs.end()) {
+    s = MultiGetImpl(read_options, key_range_per_cf_iter->start,
+                     key_range_per_cf_iter->num_keys, &sorted_keys,
+                     cf_sv_pair_iter->super_version, consistent_seqnum,
                      read_callback);
     if (!s.ok()) {
       break;
     }
+    ++key_range_per_cf_iter;
+    ++cf_sv_pair_iter;
   }
   if (!s.ok()) {
     assert(s.IsTimedOut() || s.IsAborted());
-    for (++cf_iter; cf_iter != multiget_cf_data.end(); ++cf_iter) {
-      for (size_t i = cf_iter->start; i < cf_iter->start + cf_iter->num_keys;
+    for (++key_range_per_cf_iter;
+         key_range_per_cf_iter != key_range_per_cf.end();
+         ++key_range_per_cf_iter) {
+      for (size_t i = key_range_per_cf_iter->start;
+           i < key_range_per_cf_iter->start + key_range_per_cf_iter->num_keys;
            ++i) {
         *sorted_keys[i]->s = s;
       }
     }
   }
 
-  for (const auto& iter : multiget_cf_data) {
-    if (!unref_only) {
-      ReturnAndCleanupSuperVersion(iter.cfd, iter.super_version);
+  for (const auto& cf_sv_pair : cf_sv_pairs) {
+    if (sv_from_thread_local) {
+      ReturnAndCleanupSuperVersion(cf_sv_pair.cfd, cf_sv_pair.super_version);
     } else {
-      iter.cfd->GetSuperVersion()->Unref();
+      TEST_SYNC_POINT("DBImpl::MultiCFSnapshot::BeforeLastTryUnRefSV");
+      CleanupSuperVersion(cf_sv_pair.super_version);
     }
   }
 }
@@ -2730,19 +3023,31 @@ void DBImpl::PrepareMultiGetKeys(
             CompareKeyContext());
 }
 
-void DBImpl::MultiGet(const ReadOptions& read_options,
-                      ColumnFamilyHandle* column_family, const size_t num_keys,
-                      const Slice* keys, PinnableSlice* values,
-                      Status* statuses, const bool sorted_input) {
-  return MultiGet(read_options, column_family, num_keys, keys, values,
-                  /*timestamp=*/nullptr, statuses, sorted_input);
+void DB::MultiGet(const ReadOptions& options, ColumnFamilyHandle* column_family,
+                  const size_t num_keys, const Slice* keys,
+                  PinnableSlice* values, std::string* timestamps,
+                  Status* statuses, const bool sorted_input) {
+  // Use std::array, if possible, to avoid memory allocation overhead
+  if (num_keys > MultiGetContext::MAX_BATCH_SIZE) {
+    std::vector<ColumnFamilyHandle*> column_families(num_keys, column_family);
+    MultiGet(options, num_keys, column_families.data(), keys, values,
+             timestamps, statuses, sorted_input);
+  } else {
+    std::array<ColumnFamilyHandle*, MultiGetContext::MAX_BATCH_SIZE>
+        column_families;
+    std::fill(column_families.begin(), column_families.begin() + num_keys,
+              column_family);
+    MultiGet(options, num_keys, column_families.data(), keys, values,
+             timestamps, statuses, sorted_input);
+  }
 }
 
-void DBImpl::MultiGet(const ReadOptions& read_options,
-                      ColumnFamilyHandle* column_family, const size_t num_keys,
-                      const Slice* keys, PinnableSlice* values,
-                      std::string* timestamps, Status* statuses,
-                      const bool sorted_input) {
+void DBImpl::MultiGetCommon(const ReadOptions& read_options,
+                            ColumnFamilyHandle* column_family,
+                            const size_t num_keys, const Slice* keys,
+                            PinnableSlice* values, PinnableWideColumns* columns,
+                            std::string* timestamps, Status* statuses,
+                            bool sorted_input) {
   if (tracer_) {
     // TODO: This mutex should be removed later, to improve performance when
     // tracing is enabled.
@@ -2756,8 +3061,20 @@ void DBImpl::MultiGet(const ReadOptions& read_options,
   autovector<KeyContext*, MultiGetContext::MAX_BATCH_SIZE> sorted_keys;
   sorted_keys.resize(num_keys);
   for (size_t i = 0; i < num_keys; ++i) {
-    values[i].Reset();
-    key_context.emplace_back(column_family, keys[i], &values[i],
+    PinnableSlice* val = nullptr;
+    PinnableWideColumns* col = nullptr;
+
+    if (values) {
+      val = &values[i];
+      val->Reset();
+    } else {
+      assert(columns);
+
+      col = &columns[i];
+      col->Reset();
+    }
+
+    key_context.emplace_back(column_family, keys[i], val, col,
                              timestamps ? &timestamps[i] : nullptr,
                              &statuses[i]);
   }
@@ -2765,32 +3082,50 @@ void DBImpl::MultiGet(const ReadOptions& read_options,
     sorted_keys[i] = &key_context[i];
   }
   PrepareMultiGetKeys(num_keys, sorted_input, &sorted_keys);
-  MultiGetWithCallback(read_options, column_family, nullptr, &sorted_keys);
+  MultiGetWithCallbackImpl(read_options, column_family, nullptr, &sorted_keys);
 }
 
 void DBImpl::MultiGetWithCallback(
+    const ReadOptions& _read_options, ColumnFamilyHandle* column_family,
+    ReadCallback* callback,
+    autovector<KeyContext*, MultiGetContext::MAX_BATCH_SIZE>* sorted_keys) {
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kMultiGet) {
+    assert(false);
+    return;
+  }
+
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kMultiGet;
+  }
+  MultiGetWithCallbackImpl(read_options, column_family, callback, sorted_keys);
+}
+
+void DBImpl::MultiGetWithCallbackImpl(
     const ReadOptions& read_options, ColumnFamilyHandle* column_family,
     ReadCallback* callback,
     autovector<KeyContext*, MultiGetContext::MAX_BATCH_SIZE>* sorted_keys) {
-  std::array<MultiGetColumnFamilyData, 1> multiget_cf_data;
-  multiget_cf_data[0] = MultiGetColumnFamilyData(column_family, nullptr);
-  std::function<MultiGetColumnFamilyData*(
-      std::array<MultiGetColumnFamilyData, 1>::iterator&)>
-      iter_deref_lambda =
-          [](std::array<MultiGetColumnFamilyData, 1>::iterator& cf_iter) {
-            return &(*cf_iter);
-          };
-
+  std::array<ColumnFamilySuperVersionPair, 1> cf_sv_pairs;
+  cf_sv_pairs[0] = ColumnFamilySuperVersionPair(column_family, nullptr);
   size_t num_keys = sorted_keys->size();
-  SequenceNumber consistent_seqnum;
-  bool unref_only = MultiCFSnapshot<std::array<MultiGetColumnFamilyData, 1>>(
-      read_options, callback, iter_deref_lambda, &multiget_cf_data,
-      &consistent_seqnum);
+  SequenceNumber consistent_seqnum = kMaxSequenceNumber;
+  bool sv_from_thread_local = false;
+  Status s = MultiCFSnapshot<std::array<ColumnFamilySuperVersionPair, 1>>(
+      read_options, callback,
+      [](std::array<ColumnFamilySuperVersionPair, 1>::iterator& cf_iter) {
+        return &(*cf_iter);
+      },
+      &cf_sv_pairs,
+      /* extra_sv_ref */ false, &consistent_seqnum, &sv_from_thread_local);
+  if (!s.ok()) {
+    return;
+  }
 #ifndef NDEBUG
-  assert(!unref_only);
+  assert(sv_from_thread_local);
 #else
   // Silence unused variable warning
-  (void)unref_only;
+  (void)sv_from_thread_local;
 #endif  // NDEBUG
 
   if (callback && read_options.snapshot == nullptr) {
@@ -2820,12 +3155,12 @@ void DBImpl::MultiGetWithCallback(
     read_callback = &timestamp_read_callback;
   }
 
-  Status s = MultiGetImpl(read_options, 0, num_keys, sorted_keys,
-                          multiget_cf_data[0].super_version, consistent_seqnum,
-                          read_callback);
+  s = MultiGetImpl(read_options, 0, num_keys, sorted_keys,
+                   cf_sv_pairs[0].super_version, consistent_seqnum,
+                   read_callback);
   assert(s.ok() || s.IsTimedOut() || s.IsAborted());
-  ReturnAndCleanupSuperVersion(multiget_cf_data[0].cfd,
-                               multiget_cf_data[0].super_version);
+  ReturnAndCleanupSuperVersion(cf_sv_pairs[0].cfd,
+                               cf_sv_pairs[0].super_version);
 }
 
 // The actual implementation of batched MultiGet. Parameters -
@@ -2846,10 +3181,11 @@ Status DBImpl::MultiGetImpl(
   StopWatch sw(immutable_db_options_.clock, stats_, DB_MULTIGET);
 
   assert(sorted_keys);
+  assert(start_key + num_keys <= sorted_keys->size());
   // Clear the timestamps for returning results so that we can distinguish
   // between tombstone or key that has never been written
-  for (auto* kctx : *sorted_keys) {
-    assert(kctx);
+  for (size_t i = start_key; i < start_key + num_keys; ++i) {
+    KeyContext* kctx = (*sorted_keys)[i];
     if (kctx->timestamp) {
       kctx->timestamp->clear();
     }
@@ -2878,7 +3214,7 @@ Status DBImpl::MultiGetImpl(
                         stats_);
     MultiGetRange range = ctx.GetMultiGetRange();
     range.AddValueSize(curr_value_size);
-    bool lookup_current = false;
+    bool lookup_current = true;
 
     keys_left -= batch_size;
     for (auto mget_iter = range.begin(); mget_iter != range.end();
@@ -2897,9 +3233,10 @@ Status DBImpl::MultiGetImpl(
         super_version->imm->MultiGet(read_options, &range, callback);
       }
       if (!range.empty()) {
-        lookup_current = true;
         uint64_t left = range.KeysLeft();
         RecordTick(stats_, MEMTABLE_MISS, left);
+      } else {
+        lookup_current = false;
       }
     }
     if (lookup_current) {
@@ -2911,6 +3248,13 @@ Status DBImpl::MultiGetImpl(
       s = Status::Aborted();
       break;
     }
+
+    // This could be a long-running operation
+    bool aborted = ROCKSDB_THREAD_YIELD_CHECK_ABORT();
+    if (aborted) {
+      s = Status::Aborted("Query abort.");
+      break;
+    }
   }
 
   // Post processing (decrement reference counts and record statistics)
@@ -2919,8 +3263,23 @@ Status DBImpl::MultiGetImpl(
   uint64_t bytes_read = 0;
   for (size_t i = start_key; i < start_key + num_keys - keys_left; ++i) {
     KeyContext* key = (*sorted_keys)[i];
+    assert(key);
+    assert(key->s);
+
     if (key->s->ok()) {
-      bytes_read += key->value->size();
+      const auto& merge_threshold = read_options.merge_operand_count_threshold;
+      if (merge_threshold.has_value() &&
+          key->merge_context.GetNumOperands() > merge_threshold) {
+        *(key->s) = Status::OkMergeOperandThresholdExceeded();
+      }
+
+      if (key->value) {
+        bytes_read += key->value->size();
+      } else {
+        assert(key->columns);
+        bytes_read += key->columns->serialized_size();
+      }
+
       num_found++;
     }
   }
@@ -2944,30 +3303,254 @@ Status DBImpl::MultiGetImpl(
   return s;
 }
 
-Status DBImpl::CreateColumnFamily(const ColumnFamilyOptions& cf_options,
+void DBImpl::MultiGetEntity(const ReadOptions& _read_options, size_t num_keys,
+                            ColumnFamilyHandle** column_families,
+                            const Slice* keys, PinnableWideColumns* results,
+                            Status* statuses, bool sorted_input) {
+  assert(statuses);
+
+  if (!column_families) {
+    const Status s = Status::InvalidArgument(
+        "Cannot call MultiGetEntity without column families");
+    for (size_t i = 0; i < num_keys; ++i) {
+      statuses[i] = s;
+    }
+
+    return;
+  }
+
+  if (!keys) {
+    const Status s =
+        Status::InvalidArgument("Cannot call MultiGetEntity without keys");
+    for (size_t i = 0; i < num_keys; ++i) {
+      statuses[i] = s;
+    }
+
+    return;
+  }
+
+  if (!results) {
+    const Status s = Status::InvalidArgument(
+        "Cannot call MultiGetEntity without PinnableWideColumns objects");
+    for (size_t i = 0; i < num_keys; ++i) {
+      statuses[i] = s;
+    }
+
+    return;
+  }
+
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kMultiGetEntity) {
+    const Status s = Status::InvalidArgument(
+        "Can only call MultiGetEntity with `ReadOptions::io_activity` set to "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kMultiGetEntity`");
+    for (size_t i = 0; i < num_keys; ++i) {
+      statuses[i] = s;
+    }
+
+    return;
+  }
+
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kMultiGetEntity;
+  }
+
+  MultiGetCommon(read_options, num_keys, column_families, keys,
+                 /* values */ nullptr, results, /* timestamps */ nullptr,
+                 statuses, sorted_input);
+}
+
+void DBImpl::MultiGetEntity(const ReadOptions& _read_options,
+                            ColumnFamilyHandle* column_family, size_t num_keys,
+                            const Slice* keys, PinnableWideColumns* results,
+                            Status* statuses, bool sorted_input) {
+  assert(statuses);
+
+  if (!column_family) {
+    const Status s = Status::InvalidArgument(
+        "Cannot call MultiGetEntity without a column family handle");
+    for (size_t i = 0; i < num_keys; ++i) {
+      statuses[i] = s;
+    }
+
+    return;
+  }
+
+  if (!keys) {
+    const Status s =
+        Status::InvalidArgument("Cannot call MultiGetEntity without keys");
+    for (size_t i = 0; i < num_keys; ++i) {
+      statuses[i] = s;
+    }
+
+    return;
+  }
+
+  if (!results) {
+    const Status s = Status::InvalidArgument(
+        "Cannot call MultiGetEntity without PinnableWideColumns objects");
+    for (size_t i = 0; i < num_keys; ++i) {
+      statuses[i] = s;
+    }
+
+    return;
+  }
+
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kMultiGetEntity) {
+    const Status s = Status::InvalidArgument(
+        "Can only call MultiGetEntity with `ReadOptions::io_activity` set to "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kMultiGetEntity`");
+    for (size_t i = 0; i < num_keys; ++i) {
+      statuses[i] = s;
+    }
+    return;
+  }
+
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kMultiGetEntity;
+  }
+
+  MultiGetCommon(read_options, column_family, num_keys, keys,
+                 /* values */ nullptr, results, /* timestamps */ nullptr,
+                 statuses, sorted_input);
+}
+
+void DBImpl::MultiGetEntity(const ReadOptions& _read_options, size_t num_keys,
+                            const Slice* keys,
+                            PinnableAttributeGroups* results) {
+  assert(results);
+
+  if (!keys) {
+    const Status s =
+        Status::InvalidArgument("Cannot call MultiGetEntity without keys");
+    for (size_t i = 0; i < num_keys; ++i) {
+      for (size_t j = 0; j < results[i].size(); ++j) {
+        results[i][j].SetStatus(s);
+      }
+    }
+
+    return;
+  }
+
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kMultiGetEntity) {
+    const Status s = Status::InvalidArgument(
+        "Can only call MultiGetEntity with `ReadOptions::io_activity` set to "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kMultiGetEntity`");
+    for (size_t i = 0; i < num_keys; ++i) {
+      for (size_t j = 0; j < results[i].size(); ++j) {
+        results[i][j].SetStatus(s);
+      }
+    }
+
+    return;
+  }
+
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kMultiGetEntity;
+  }
+
+  std::vector<ColumnFamilyHandle*> column_families;
+  std::vector<Slice> all_keys;
+  size_t total_count = 0;
+
+  for (size_t i = 0; i < num_keys; ++i) {
+    for (size_t j = 0; j < results[i].size(); ++j) {
+      // Adding the same key slice for different CFs
+      all_keys.emplace_back(keys[i]);
+      column_families.emplace_back(results[i][j].column_family());
+      ++total_count;
+    }
+  }
+
+  std::vector<Status> statuses(total_count);
+  std::vector<PinnableWideColumns> columns(total_count);
+  MultiGetCommon(read_options, total_count, column_families.data(),
+                 all_keys.data(),
+                 /* values */ nullptr, columns.data(),
+                 /* timestamps */ nullptr, statuses.data(),
+                 /* sorted_input */ false);
+
+  // Set results
+  size_t index = 0;
+  for (size_t i = 0; i < num_keys; ++i) {
+    for (size_t j = 0; j < results[i].size(); ++j) {
+      results[i][j].Reset();
+      results[i][j].SetStatus(std::move(statuses[index]));
+      results[i][j].SetColumns(std::move(columns[index]));
+      ++index;
+    }
+  }
+}
+
+void DBImpl::MultiGetEntityWithCallback(
+    const ReadOptions& read_options, ColumnFamilyHandle* column_family,
+    ReadCallback* callback,
+    autovector<KeyContext*, MultiGetContext::MAX_BATCH_SIZE>* sorted_keys) {
+  assert(read_options.io_activity == Env::IOActivity::kMultiGetEntity);
+
+  MultiGetWithCallbackImpl(read_options, column_family, callback, sorted_keys);
+}
+
+Status DBImpl::WrapUpCreateColumnFamilies(
+    const ReadOptions& read_options, const WriteOptions& write_options,
+    const std::vector<const ColumnFamilyOptions*>& cf_options) {
+  options_mutex_.AssertHeld();
+
+  // NOTE: this function is skipped for create_missing_column_families and
+  // DB::Open, so new functionality here might need to go into Open also.
+  bool register_worker = false;
+  for (auto* opts_ptr : cf_options) {
+    if (opts_ptr->preserve_internal_time_seconds > 0 ||
+        opts_ptr->preclude_last_level_data_seconds > 0) {
+      register_worker = true;
+      break;
+    }
+  }
+  // Attempt both follow-up actions even if one fails
+  Status s = WriteOptionsFile(write_options, false /*db_mutex_already_held*/);
+  if (register_worker) {
+    s.UpdateIfOk(RegisterRecordSeqnoTimeWorker(read_options, write_options,
+                                               /* is_new_db */ false));
+  }
+  return s;
+}
+
+Status DBImpl::CreateColumnFamily(const ReadOptions& read_options,
+                                  const WriteOptions& write_options,
+                                  const ColumnFamilyOptions& cf_options,
                                   const std::string& column_family,
                                   ColumnFamilyHandle** handle) {
   assert(handle != nullptr);
-  Status s = CreateColumnFamilyImpl(cf_options, column_family, handle);
+  InstrumentedMutexLock ol(&options_mutex_);
+  Status s = CreateColumnFamilyImpl(read_options, write_options, cf_options,
+                                    column_family, handle);
   if (s.ok()) {
-    s = WriteOptionsFile(true /*need_mutex_lock*/,
-                         true /*need_enter_write_thread*/);
+    s.UpdateIfOk(
+        WrapUpCreateColumnFamilies(read_options, write_options, {&cf_options}));
   }
   return s;
 }
 
 Status DBImpl::CreateColumnFamilies(
+    const ReadOptions& read_options, const WriteOptions& write_options,
     const ColumnFamilyOptions& cf_options,
     const std::vector<std::string>& column_family_names,
     std::vector<ColumnFamilyHandle*>* handles) {
   assert(handles != nullptr);
+  InstrumentedMutexLock ol(&options_mutex_);
   handles->clear();
   size_t num_cf = column_family_names.size();
   Status s;
   bool success_once = false;
   for (size_t i = 0; i < num_cf; i++) {
     ColumnFamilyHandle* handle;
-    s = CreateColumnFamilyImpl(cf_options, column_family_names[i], &handle);
+    s = CreateColumnFamilyImpl(read_options, write_options, cf_options,
+                               column_family_names[i], &handle);
     if (!s.ok()) {
       break;
     }
@@ -2975,46 +3558,49 @@ Status DBImpl::CreateColumnFamilies(
     success_once = true;
   }
   if (success_once) {
-    Status persist_options_status = WriteOptionsFile(
-        true /*need_mutex_lock*/, true /*need_enter_write_thread*/);
-    if (s.ok() && !persist_options_status.ok()) {
-      s = persist_options_status;
-    }
+    s.UpdateIfOk(
+        WrapUpCreateColumnFamilies(read_options, write_options, {&cf_options}));
   }
   return s;
 }
 
 Status DBImpl::CreateColumnFamilies(
+    const ReadOptions& read_options, const WriteOptions& write_options,
     const std::vector<ColumnFamilyDescriptor>& column_families,
     std::vector<ColumnFamilyHandle*>* handles) {
   assert(handles != nullptr);
+  InstrumentedMutexLock ol(&options_mutex_);
   handles->clear();
   size_t num_cf = column_families.size();
   Status s;
   bool success_once = false;
+  std::vector<const ColumnFamilyOptions*> cf_opts;
+  cf_opts.reserve(num_cf);
   for (size_t i = 0; i < num_cf; i++) {
     ColumnFamilyHandle* handle;
-    s = CreateColumnFamilyImpl(column_families[i].options,
+    s = CreateColumnFamilyImpl(read_options, write_options,
+                               column_families[i].options,
                                column_families[i].name, &handle);
     if (!s.ok()) {
       break;
     }
     handles->push_back(handle);
     success_once = true;
+    cf_opts.push_back(&column_families[i].options);
   }
   if (success_once) {
-    Status persist_options_status = WriteOptionsFile(
-        true /*need_mutex_lock*/, true /*need_enter_write_thread*/);
-    if (s.ok() && !persist_options_status.ok()) {
-      s = persist_options_status;
-    }
+    s.UpdateIfOk(
+        WrapUpCreateColumnFamilies(read_options, write_options, cf_opts));
   }
   return s;
 }
 
-Status DBImpl::CreateColumnFamilyImpl(const ColumnFamilyOptions& cf_options,
+Status DBImpl::CreateColumnFamilyImpl(const ReadOptions& read_options,
+                                      const WriteOptions& write_options,
+                                      const ColumnFamilyOptions& cf_options,
                                       const std::string& column_family_name,
                                       ColumnFamilyHandle** handle) {
+  options_mutex_.AssertHeld();
   Status s;
   *handle = nullptr;
 
@@ -3047,6 +3633,8 @@ Status DBImpl::CreateColumnFamilyImpl(const ColumnFamilyOptions& cf_options,
     edit.SetColumnFamily(new_id);
     edit.SetLogNumber(logfile_number_);
     edit.SetComparatorName(cf_options.comparator->Name());
+    edit.SetPersistUserDefinedTimestamps(
+        cf_options.persist_user_defined_timestamps);
 
     // LogAndApply will both write the creation in MANIFEST and create
     // ColumnFamilyData object
@@ -3055,9 +3643,9 @@ Status DBImpl::CreateColumnFamilyImpl(const ColumnFamilyOptions& cf_options,
       write_thread_.EnterUnbatched(&w, &mutex_);
       // LogAndApply will both write the creation in MANIFEST and create
       // ColumnFamilyData object
-      s = versions_->LogAndApply(nullptr, MutableCFOptions(cf_options), &edit,
-                                 &mutex_, directories_.GetDbDir(), false,
-                                 &cf_options);
+      s = versions_->LogAndApply(nullptr, MutableCFOptions(cf_options),
+                                 read_options, write_options, &edit, &mutex_,
+                                 directories_.GetDbDir(), false, &cf_options);
       write_thread_.ExitUnbatched(&w);
     }
     if (s.ok()) {
@@ -3091,9 +3679,6 @@ Status DBImpl::CreateColumnFamilyImpl(const ColumnFamilyOptions& cf_options,
     }
   }  // InstrumentedMutexLock l(&mutex_)
 
-  if (cf_options.preclude_last_level_data_seconds > 0) {
-    s = RegisterRecordSeqnoTimeWorker();
-  }
   sv_context.Clean();
   // this is outside the mutex
   if (s.ok()) {
@@ -3105,16 +3690,18 @@ Status DBImpl::CreateColumnFamilyImpl(const ColumnFamilyOptions& cf_options,
 
 Status DBImpl::DropColumnFamily(ColumnFamilyHandle* column_family) {
   assert(column_family != nullptr);
+  InstrumentedMutexLock ol(&options_mutex_);
   Status s = DropColumnFamilyImpl(column_family);
   if (s.ok()) {
-    s = WriteOptionsFile(true /*need_mutex_lock*/,
-                         true /*need_enter_write_thread*/);
+    // TODO: plumb Env::IOActivity, Env::IOPriority
+    s = WriteOptionsFile(WriteOptions(), false /*db_mutex_already_held*/);
   }
   return s;
 }
 
 Status DBImpl::DropColumnFamilies(
     const std::vector<ColumnFamilyHandle*>& column_families) {
+  InstrumentedMutexLock ol(&options_mutex_);
   Status s;
   bool success_once = false;
   for (auto* handle : column_families) {
@@ -3125,8 +3712,9 @@ Status DBImpl::DropColumnFamilies(
     success_once = true;
   }
   if (success_once) {
-    Status persist_options_status = WriteOptionsFile(
-        true /*need_mutex_lock*/, true /*need_enter_write_thread*/);
+    // TODO: plumb Env::IOActivity, Env::IOPriority
+    Status persist_options_status =
+        WriteOptionsFile(WriteOptions(), false /*db_mutex_already_held*/);
     if (s.ok() && !persist_options_status.ok()) {
       s = persist_options_status;
     }
@@ -3135,6 +3723,12 @@ Status DBImpl::DropColumnFamilies(
 }
 
 Status DBImpl::DropColumnFamilyImpl(ColumnFamilyHandle* column_family) {
+  options_mutex_.AssertHeld();
+
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  const WriteOptions write_options;
+
   auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
   auto cfd = cfh->cfd();
   if (cfd->GetID() == 0) {
@@ -3148,6 +3742,9 @@ Status DBImpl::DropColumnFamilyImpl(ColumnFamilyHandle* column_family) {
   edit.SetColumnFamily(cfd->GetID());
 
   Status s;
+  // Save re-aquiring lock for RegisterRecordSeqnoTimeWorker when not
+  // applicable
+  bool used_preserve_preclude = false;
   {
     InstrumentedMutexLock l(&mutex_);
     if (cfd->IsDropped()) {
@@ -3157,14 +3754,17 @@ Status DBImpl::DropColumnFamilyImpl(ColumnFamilyHandle* column_family) {
       // we drop column family from a single write thread
       WriteThread::Writer w;
       write_thread_.EnterUnbatched(&w, &mutex_);
-      s = versions_->LogAndApply(cfd, *cfd->GetLatestMutableCFOptions(), &edit,
-                                 &mutex_, directories_.GetDbDir());
+      s = versions_->LogAndApply(cfd, *cfd->GetLatestMutableCFOptions(),
+                                 read_options, write_options, &edit, &mutex_,
+                                 directories_.GetDbDir());
       write_thread_.ExitUnbatched(&w);
     }
     if (s.ok()) {
-      auto* mutable_cf_options = cfd->GetLatestMutableCFOptions();
-      max_total_in_memory_state_ -= mutable_cf_options->write_buffer_size *
-                                    mutable_cf_options->max_write_buffer_number;
+      auto& moptions = *cfd->GetLatestMutableCFOptions();
+      max_total_in_memory_state_ -=
+          moptions.write_buffer_size * moptions.max_write_buffer_number;
+      used_preserve_preclude = moptions.preserve_internal_time_seconds > 0 ||
+                               moptions.preclude_last_level_data_seconds > 0;
     }
 
     if (!cf_support_snapshot) {
@@ -3182,8 +3782,9 @@ Status DBImpl::DropColumnFamilyImpl(ColumnFamilyHandle* column_family) {
     bg_cv_.SignalAll();
   }
 
-  if (cfd->ioptions()->preclude_last_level_data_seconds > 0) {
-    s = RegisterRecordSeqnoTimeWorker();
+  if (used_preserve_preclude) {
+    s = RegisterRecordSeqnoTimeWorker(read_options, write_options,
+                                      /* is_new_db */ false);
   }
 
   if (s.ok()) {
@@ -3207,11 +3808,13 @@ bool DBImpl::KeyMayExist(const ReadOptions& read_options,
                          ColumnFamilyHandle* column_family, const Slice& key,
                          std::string* value, std::string* timestamp,
                          bool* value_found) {
-  assert(value != nullptr);
+  assert(read_options.io_activity == Env::IOActivity::kUnknown);
+
   if (value_found != nullptr) {
     // falsify later if key-may-exist but can't fetch value
     *value_found = true;
   }
+  // TODO: plumb Env::IOActivity, Env::IOPriority
   ReadOptions roptions = read_options;
   roptions.read_tier = kBlockCacheTier;  // read from block cache only
   PinnableSlice pinnable_val;
@@ -3221,7 +3824,9 @@ bool DBImpl::KeyMayExist(const ReadOptions& read_options,
   get_impl_options.value_found = value_found;
   get_impl_options.timestamp = timestamp;
   auto s = GetImpl(roptions, key, get_impl_options);
-  value->assign(pinnable_val.data(), pinnable_val.size());
+  if (value_found && *value_found && value) {
+    value->assign(pinnable_val.data(), pinnable_val.size());
+  }
 
   // If block_cache is enabled and the index block of the table didn't
   // not present in block_cache, the return value will be Status::Incomplete.
@@ -3229,8 +3834,19 @@ bool DBImpl::KeyMayExist(const ReadOptions& read_options,
   return s.ok() || s.IsIncomplete();
 }
 
-Iterator* DBImpl::NewIterator(const ReadOptions& read_options,
+Iterator* DBImpl::NewIterator(const ReadOptions& _read_options,
                               ColumnFamilyHandle* column_family) {
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kDBIterator) {
+    return NewErrorIterator(Status::InvalidArgument(
+        "Can only call NewIterator with `ReadOptions::io_activity` is "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kDBIterator`"));
+  }
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kDBIterator;
+  }
+
   if (read_options.managed) {
     return NewErrorIterator(
         Status::NotSupported("Managed iterator is not supported anymore."));
@@ -3240,12 +3856,11 @@ Iterator* DBImpl::NewIterator(const ReadOptions& read_options,
     return NewErrorIterator(Status::NotSupported(
         "ReadTier::kPersistedData is not yet supported in iterators."));
   }
-
   assert(column_family);
 
   if (read_options.timestamp) {
-    const Status s = FailIfTsMismatchCf(
-        column_family, *(read_options.timestamp), /*ts_for_read=*/true);
+    const Status s =
+        FailIfTsMismatchCf(column_family, *(read_options.timestamp));
     if (!s.ok()) {
       return NewErrorIterator(s);
     }
@@ -3257,45 +3872,46 @@ Iterator* DBImpl::NewIterator(const ReadOptions& read_options,
   }
 
   auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
+  assert(cfh != nullptr);
   ColumnFamilyData* cfd = cfh->cfd();
   assert(cfd != nullptr);
-  ReadCallback* read_callback = nullptr;  // No read callback provided.
+  SuperVersion* sv = cfd->GetReferencedSuperVersion(this);
+  if (read_options.timestamp && read_options.timestamp->size() > 0) {
+    const Status s =
+        FailIfReadCollapsedHistory(cfd, sv, *(read_options.timestamp));
+    if (!s.ok()) {
+      CleanupSuperVersion(sv);
+      return NewErrorIterator(s);
+    }
+  }
   if (read_options.tailing) {
-#ifdef ROCKSDB_LITE
-    // not supported in lite version
-    result = nullptr;
+    read_options.total_order_seek |=
+        immutable_db_options_.prefix_seek_opt_in_only;
 
-#else
-    SuperVersion* sv = cfd->GetReferencedSuperVersion(this);
     auto iter = new ForwardIterator(this, read_options, cfd, sv,
                                     /* allow_unprepared_value */ true);
     result = NewDBIterator(
         env_, read_options, *cfd->ioptions(), sv->mutable_cf_options,
         cfd->user_comparator(), iter, sv->current, kMaxSequenceNumber,
-        sv->mutable_cf_options.max_sequential_skip_in_iterations, read_callback,
-        this, cfd);
-#endif
+        sv->mutable_cf_options.max_sequential_skip_in_iterations,
+        nullptr /* read_callback */, cfh);
   } else {
     // Note: no need to consider the special case of
     // last_seq_same_as_publish_seq_==false since NewIterator is overridden in
     // WritePreparedTxnDB
-    result = NewIteratorImpl(read_options, cfd,
+    result = NewIteratorImpl(read_options, cfh, sv,
                              (read_options.snapshot != nullptr)
                                  ? read_options.snapshot->GetSequenceNumber()
                                  : kMaxSequenceNumber,
-                             read_callback);
+                             nullptr /* read_callback */);
   }
   return result;
 }
 
-ArenaWrappedDBIter* DBImpl::NewIteratorImpl(const ReadOptions& read_options,
-                                            ColumnFamilyData* cfd,
-                                            SequenceNumber snapshot,
-                                            ReadCallback* read_callback,
-                                            bool expose_blob_index,
-                                            bool allow_refresh) {
-  SuperVersion* sv = cfd->GetReferencedSuperVersion(this);
-
+ArenaWrappedDBIter* DBImpl::NewIteratorImpl(
+    const ReadOptions& read_options, ColumnFamilyHandleImpl* cfh,
+    SuperVersion* sv, SequenceNumber snapshot, ReadCallback* read_callback,
+    bool expose_blob_index, bool allow_refresh) {
   TEST_SYNC_POINT("DBImpl::NewIterator:1");
   TEST_SYNC_POINT("DBImpl::NewIterator:2");
 
@@ -3357,23 +3973,89 @@ ArenaWrappedDBIter* DBImpl::NewIteratorImpl(const ReadOptions& read_options,
   // likely that any iterator pointer is close to the iterator it points to so
   // that they are likely to be in the same cache line and/or page.
   ArenaWrappedDBIter* db_iter = NewArenaWrappedDbIterator(
-      env_, read_options, *cfd->ioptions(), sv->mutable_cf_options, sv->current,
-      snapshot, sv->mutable_cf_options.max_sequential_skip_in_iterations,
-      sv->version_number, read_callback, this, cfd, expose_blob_index,
-      read_options.snapshot != nullptr ? false : allow_refresh);
+      env_, read_options, *cfh->cfd()->ioptions(), sv->mutable_cf_options,
+      sv->current, snapshot,
+      sv->mutable_cf_options.max_sequential_skip_in_iterations,
+      sv->version_number, read_callback, cfh, expose_blob_index, allow_refresh);
 
   InternalIterator* internal_iter = NewInternalIterator(
-      db_iter->GetReadOptions(), cfd, sv, db_iter->GetArena(), snapshot,
+      db_iter->GetReadOptions(), cfh->cfd(), sv, db_iter->GetArena(), snapshot,
       /* allow_unprepared_value */ true, db_iter);
   db_iter->SetIterUnderDBIter(internal_iter);
 
   return db_iter;
 }
 
+std::unique_ptr<Iterator> DBImpl::NewCoalescingIterator(
+    const ReadOptions& _read_options,
+    const std::vector<ColumnFamilyHandle*>& column_families) {
+  return NewMultiCfIterator<Iterator, CoalescingIterator>(
+      _read_options, column_families, [](const Status& s) {
+        return std::unique_ptr<Iterator>(NewErrorIterator(s));
+      });
+}
+
+std::unique_ptr<AttributeGroupIterator> DBImpl::NewAttributeGroupIterator(
+    const ReadOptions& _read_options,
+    const std::vector<ColumnFamilyHandle*>& column_families) {
+  return NewMultiCfIterator<AttributeGroupIterator, AttributeGroupIteratorImpl>(
+      _read_options, column_families,
+      [](const Status& s) { return NewAttributeGroupErrorIterator(s); });
+}
+
+template <typename IterType, typename ImplType, typename ErrorIteratorFuncType>
+std::unique_ptr<IterType> DBImpl::NewMultiCfIterator(
+    const ReadOptions& _read_options,
+    const std::vector<ColumnFamilyHandle*>& column_families,
+    ErrorIteratorFuncType error_iterator_func) {
+  if (column_families.size() == 0) {
+    return error_iterator_func(
+        Status::InvalidArgument("No Column Family was provided"));
+  }
+  const Comparator* first_comparator = column_families[0]->GetComparator();
+  for (size_t i = 1; i < column_families.size(); ++i) {
+    const Comparator* cf_comparator = column_families[i]->GetComparator();
+    if (first_comparator != cf_comparator &&
+        first_comparator->GetId().compare(cf_comparator->GetId()) != 0) {
+      return error_iterator_func(Status::InvalidArgument(
+          "Different comparators are being used across CFs"));
+    }
+  }
+
+  std::vector<Iterator*> child_iterators;
+  Status s = NewIterators(_read_options, column_families, &child_iterators);
+  if (!s.ok()) {
+    return error_iterator_func(s);
+  }
+
+  assert(column_families.size() == child_iterators.size());
+
+  std::vector<std::pair<ColumnFamilyHandle*, std::unique_ptr<Iterator>>>
+      cfh_iter_pairs;
+  cfh_iter_pairs.reserve(column_families.size());
+  for (size_t i = 0; i < column_families.size(); ++i) {
+    cfh_iter_pairs.emplace_back(column_families[i], child_iterators[i]);
+  }
+
+  return std::make_unique<ImplType>(_read_options,
+                                    column_families[0]->GetComparator(),
+                                    std::move(cfh_iter_pairs));
+}
+
 Status DBImpl::NewIterators(
-    const ReadOptions& read_options,
+    const ReadOptions& _read_options,
     const std::vector<ColumnFamilyHandle*>& column_families,
     std::vector<Iterator*>* iterators) {
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kDBIterator) {
+    return Status::InvalidArgument(
+        "Can only call NewIterators with `ReadOptions::io_activity` is "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kDBIterator`");
+  }
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kDBIterator;
+  }
   if (read_options.managed) {
     return Status::NotSupported("Managed iterator is not supported anymore.");
   }
@@ -3382,71 +4064,73 @@ Status DBImpl::NewIterators(
         "ReadTier::kPersistedData is not yet supported in iterators.");
   }
 
-  if (read_options.timestamp) {
-    for (auto* cf : column_families) {
-      assert(cf);
-      const Status s = FailIfTsMismatchCf(cf, *(read_options.timestamp),
-                                          /*ts_for_read=*/true);
-      if (!s.ok()) {
-        return s;
-      }
-    }
-  } else {
-    for (auto* cf : column_families) {
-      assert(cf);
-      const Status s = FailIfCfHasTs(cf);
-      if (!s.ok()) {
-        return s;
-      }
-    }
-  }
+  autovector<ColumnFamilySuperVersionPair, MultiGetContext::MAX_BATCH_SIZE>
+      cf_sv_pairs;
 
-  ReadCallback* read_callback = nullptr;  // No read callback provided.
+  Status s;
+  for (auto* cf : column_families) {
+    assert(cf);
+    if (read_options.timestamp) {
+      s = FailIfTsMismatchCf(cf, *(read_options.timestamp));
+    } else {
+      s = FailIfCfHasTs(cf);
+    }
+    if (!s.ok()) {
+      return s;
+    }
+    cf_sv_pairs.emplace_back(cf, nullptr);
+  }
   iterators->clear();
   iterators->reserve(column_families.size());
-  if (read_options.tailing) {
-#ifdef ROCKSDB_LITE
-    return Status::InvalidArgument(
-        "Tailing iterator not supported in RocksDB lite");
-#else
-    for (auto cfh : column_families) {
-      auto cfd = static_cast_with_check<ColumnFamilyHandleImpl>(cfh)->cfd();
-      SuperVersion* sv = cfd->GetReferencedSuperVersion(this);
-      auto iter = new ForwardIterator(this, read_options, cfd, sv,
-                                      /* allow_unprepared_value */ true);
-      iterators->push_back(NewDBIterator(
-          env_, read_options, *cfd->ioptions(), sv->mutable_cf_options,
-          cfd->user_comparator(), iter, sv->current, kMaxSequenceNumber,
-          sv->mutable_cf_options.max_sequential_skip_in_iterations,
-          read_callback, this, cfd));
-    }
-#endif
-  } else {
-    // Note: no need to consider the special case of
-    // last_seq_same_as_publish_seq_==false since NewIterators is overridden in
-    // WritePreparedTxnDB
-    auto snapshot = read_options.snapshot != nullptr
-                        ? read_options.snapshot->GetSequenceNumber()
-                        : versions_->LastSequence();
-    for (size_t i = 0; i < column_families.size(); ++i) {
-      auto* cfd =
-          static_cast_with_check<ColumnFamilyHandleImpl>(column_families[i])
-              ->cfd();
-      iterators->push_back(
-          NewIteratorImpl(read_options, cfd, snapshot, read_callback));
-    }
+
+  SequenceNumber consistent_seqnum = kMaxSequenceNumber;
+  bool sv_from_thread_local = false;
+  s = MultiCFSnapshot<autovector<ColumnFamilySuperVersionPair,
+                                 MultiGetContext::MAX_BATCH_SIZE>>(
+      read_options, nullptr /* read_callback*/,
+      [](autovector<ColumnFamilySuperVersionPair,
+                    MultiGetContext::MAX_BATCH_SIZE>::iterator& cf_iter) {
+        return &(*cf_iter);
+      },
+      &cf_sv_pairs,
+      /* extra_sv_ref */ true, &consistent_seqnum, &sv_from_thread_local);
+  if (!s.ok()) {
+    return s;
   }
 
+  assert(cf_sv_pairs.size() == column_families.size());
+  if (read_options.tailing) {
+    read_options.total_order_seek |=
+        immutable_db_options_.prefix_seek_opt_in_only;
+
+    for (const auto& cf_sv_pair : cf_sv_pairs) {
+      auto iter = new ForwardIterator(this, read_options, cf_sv_pair.cfd,
+                                      cf_sv_pair.super_version,
+                                      /* allow_unprepared_value */ true);
+      iterators->push_back(
+          NewDBIterator(env_, read_options, *cf_sv_pair.cfd->ioptions(),
+                        cf_sv_pair.super_version->mutable_cf_options,
+                        cf_sv_pair.cfd->user_comparator(), iter,
+                        cf_sv_pair.super_version->current, kMaxSequenceNumber,
+                        cf_sv_pair.super_version->mutable_cf_options
+                            .max_sequential_skip_in_iterations,
+                        nullptr /*read_callback*/, cf_sv_pair.cfh));
+    }
+  } else {
+    for (const auto& cf_sv_pair : cf_sv_pairs) {
+      iterators->push_back(NewIteratorImpl(
+          read_options, cf_sv_pair.cfh, cf_sv_pair.super_version,
+          consistent_seqnum, nullptr /*read_callback*/));
+    }
+  }
   return Status::OK();
 }
 
 const Snapshot* DBImpl::GetSnapshot() { return GetSnapshotImpl(false); }
 
-#ifndef ROCKSDB_LITE
 const Snapshot* DBImpl::GetSnapshotForWriteConflictBoundary() {
   return GetSnapshotImpl(true);
 }
-#endif  // ROCKSDB_LITE
 
 std::pair<Status, std::shared_ptr<const Snapshot>>
 DBImpl::CreateTimestampedSnapshot(SequenceNumber snapshot_seq, uint64_t ts) {
@@ -3553,8 +4237,8 @@ DBImpl::CreateTimestampedSnapshotImpl(SequenceNumber snapshot_seq, uint64_t ts,
   std::shared_ptr<const SnapshotImpl> latest =
       timestamped_snapshots_.GetSnapshot(std::numeric_limits<uint64_t>::max());
 
-  // If there is already a latest timestamped snapshot, then we need to do some
-  // checks.
+  // If there is already a latest timestamped snapshot, then we need to do
+  // some checks.
   if (latest) {
     uint64_t latest_snap_ts = latest->GetTimestamp();
     SequenceNumber latest_snap_seq = latest->GetSequenceNumber();
@@ -3563,8 +4247,8 @@ DBImpl::CreateTimestampedSnapshotImpl(SequenceNumber snapshot_seq, uint64_t ts,
     Status status;
     std::shared_ptr<const SnapshotImpl> ret;
     if (latest_snap_ts > ts) {
-      // A snapshot created later cannot have smaller timestamp than a previous
-      // timestamped snapshot.
+      // A snapshot created later cannot have smaller timestamp than a
+      // previous timestamped snapshot.
       needs_create_snap = false;
       std::ostringstream oss;
       oss << "snapshot exists with larger timestamp " << latest_snap_ts << " > "
@@ -3647,7 +4331,7 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
     // inplace_update_support enabled.
     return;
   }
-  const SnapshotImpl* casted_s = reinterpret_cast<const SnapshotImpl*>(s);
+  const SnapshotImpl* casted_s = static_cast<const SnapshotImpl*>(s);
   {
     InstrumentedMutexLock l(&mutex_);
     snapshots_.Delete(casted_s);
@@ -3659,16 +4343,17 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
     }
     // Avoid to go through every column family by checking a global threshold
     // first.
+    CfdList cf_scheduled;
     if (oldest_snapshot > bottommost_files_mark_threshold_) {
-      CfdList cf_scheduled;
       for (auto* cfd : *versions_->GetColumnFamilySet()) {
         if (!cfd->ioptions()->allow_ingest_behind) {
-          cfd->current()->storage_info()->UpdateOldestSnapshot(oldest_snapshot);
+          cfd->current()->storage_info()->UpdateOldestSnapshot(
+              oldest_snapshot, /*allow_ingest_behind=*/false);
           if (!cfd->current()
                    ->storage_info()
                    ->BottommostFilesMarkedForCompaction()
                    .empty()) {
-            SchedulePendingCompaction(cfd);
+            EnqueuePendingCompaction(cfd);
             MaybeScheduleFlushOrCompaction();
             cf_scheduled.push_back(cfd);
           }
@@ -3677,7 +4362,8 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
 
       // Calculate a new threshold, skipping those CFs where compactions are
       // scheduled. We do not do the same pass as the previous loop because
-      // mutex might be unlocked during the loop, making the result inaccurate.
+      // mutex might be unlocked during the loop, making the result
+      // inaccurate.
       SequenceNumber new_bottommost_files_mark_threshold = kMaxSequenceNumber;
       for (auto* cfd : *versions_->GetColumnFamilySet()) {
         if (CfdListContains(cf_scheduled, cfd) ||
@@ -3690,11 +4376,28 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
       }
       bottommost_files_mark_threshold_ = new_bottommost_files_mark_threshold;
     }
+
+    // Avoid to go through every column family by checking a global threshold
+    // first.
+    if (oldest_snapshot >= standalone_range_deletion_files_mark_threshold_) {
+      for (auto* cfd : *versions_->GetColumnFamilySet()) {
+        if (cfd->IsDropped() || CfdListContains(cf_scheduled, cfd)) {
+          continue;
+        }
+        if (oldest_snapshot >=
+            cfd->current()
+                ->storage_info()
+                ->standalone_range_tombstone_files_mark_threshold()) {
+          EnqueuePendingCompaction(cfd);
+          MaybeScheduleFlushOrCompaction();
+          cf_scheduled.push_back(cfd);
+        }
+      }
+    }
   }
   delete casted_s;
 }
 
-#ifndef ROCKSDB_LITE
 Status DBImpl::GetPropertiesOfAllTables(ColumnFamilyHandle* column_family,
                                         TablePropertiesCollection* props) {
   auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
@@ -3706,7 +4409,9 @@ Status DBImpl::GetPropertiesOfAllTables(ColumnFamilyHandle* column_family,
   version->Ref();
   mutex_.Unlock();
 
-  auto s = version->GetPropertiesOfAllTables(props);
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  auto s = version->GetPropertiesOfAllTables(read_options, props);
 
   // Decrement the ref count
   mutex_.Lock();
@@ -3728,7 +4433,27 @@ Status DBImpl::GetPropertiesOfTablesInRange(ColumnFamilyHandle* column_family,
   version->Ref();
   mutex_.Unlock();
 
-  auto s = version->GetPropertiesOfTablesInRange(range, n, props);
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  const Comparator* const ucmp = cfd->user_comparator();
+  assert(ucmp);
+  size_t ts_sz = ucmp->timestamp_size();
+
+  autovector<UserKeyRange> ukey_ranges;
+  std::vector<std::string> keys;
+  ukey_ranges.reserve(n);
+  keys.reserve(2 * n);
+  // Add timestamp if needed
+  for (size_t i = 0; i < n; i++) {
+    auto [start, limit] = MaybeAddTimestampsToRange(
+        &range[i].start, &range[i].limit, ts_sz, &keys.emplace_back(),
+        &keys.emplace_back(), /*exclusive_end=*/false);
+    assert(start.has_value());
+    assert(limit.has_value());
+    ukey_ranges.emplace_back(start.value(), limit.value());
+  }
+  auto s =
+      version->GetPropertiesOfTablesInRange(read_options, ukey_ranges, props);
 
   // Decrement the ref count
   mutex_.Lock();
@@ -3737,8 +4462,6 @@ Status DBImpl::GetPropertiesOfTablesInRange(ColumnFamilyHandle* column_family,
 
   return s;
 }
-
-#endif  // ROCKSDB_LITE
 
 const std::string& DBImpl::GetName() const { return dbname_; }
 
@@ -3757,8 +4480,6 @@ SystemClock* DBImpl::GetSystemClock() const {
   return immutable_db_options_.clock;
 }
 
-#ifndef ROCKSDB_LITE
-
 Status DBImpl::StartIOTrace(const TraceOptions& trace_options,
                             std::unique_ptr<TraceWriter>&& trace_writer) {
   assert(trace_writer != nullptr);
@@ -3770,8 +4491,6 @@ Status DBImpl::EndIOTrace() {
   io_tracer_->EndIOTrace();
   return Status::OK();
 }
-
-#endif  // ROCKSDB_LITE
 
 Options DBImpl::GetOptions(ColumnFamilyHandle* column_family) const {
   InstrumentedMutexLock l(&mutex_);
@@ -3900,7 +4619,6 @@ bool DBImpl::GetPropertyHandleOptionsStatistics(std::string* value) {
   return true;
 }
 
-#ifndef ROCKSDB_LITE
 Status DBImpl::ResetStats() {
   InstrumentedMutexLock l(&mutex_);
   for (auto* cfd : *versions_->GetColumnFamilySet()) {
@@ -3910,7 +4628,6 @@ Status DBImpl::ResetStats() {
   }
   return Status::OK();
 }
-#endif  // ROCKSDB_LITE
 
 bool DBImpl::GetAggregatedIntProperty(const Slice& property,
                                       uint64_t* aggregated_value) {
@@ -3918,8 +4635,11 @@ bool DBImpl::GetAggregatedIntProperty(const Slice& property,
   if (property_info == nullptr || property_info->handle_int == nullptr) {
     return false;
   }
+  auto aggregator = CreateIntPropertyAggregator(property);
+  if (aggregator == nullptr) {
+    return false;
+  }
 
-  uint64_t sum = 0;
   bool ret = true;
   {
     // Needs mutex to protect the list of column families.
@@ -3933,14 +4653,14 @@ bool DBImpl::GetAggregatedIntProperty(const Slice& property,
       // GetIntPropertyInternal may release db mutex and re-acquire it.
       mutex_.AssertHeld();
       if (ret) {
-        sum += value;
+        aggregator->Add(cfd, value);
       } else {
         ret = false;
         break;
       }
     }
   }
-  *aggregated_value = sum;
+  *aggregated_value = aggregator->Aggregate();
   return ret;
 }
 
@@ -3964,8 +4684,7 @@ SuperVersion* DBImpl::GetAndRefSuperVersion(uint32_t column_family_id) {
 void DBImpl::CleanupSuperVersion(SuperVersion* sv) {
   // Release SuperVersion
   if (sv->Unref()) {
-    bool defer_purge =
-            immutable_db_options().avoid_unnecessary_blocking_io;
+    bool defer_purge = immutable_db_options().avoid_unnecessary_blocking_io;
     {
       InstrumentedMutexLock l(&mutex_);
       sv->Cleanup();
@@ -4037,12 +4756,22 @@ void DBImpl::GetApproximateMemTableStats(ColumnFamilyHandle* column_family,
   ColumnFamilyData* cfd = cfh->cfd();
   SuperVersion* sv = GetAndRefSuperVersion(cfd);
 
+  const Comparator* const ucmp = column_family->GetComparator();
+  assert(ucmp);
+  size_t ts_sz = ucmp->timestamp_size();
+
+  // Add timestamp if needed
+  std::string start_with_ts, limit_with_ts;
+  auto [start, limit] = MaybeAddTimestampsToRange(
+      &range.start, &range.limit, ts_sz, &start_with_ts, &limit_with_ts);
+  assert(start.has_value());
+  assert(limit.has_value());
   // Convert user_key into a corresponding internal key.
-  InternalKey k1(range.start, kMaxSequenceNumber, kValueTypeForSeek);
-  InternalKey k2(range.limit, kMaxSequenceNumber, kValueTypeForSeek);
-  MemTable::MemTableStats memStats =
+  InternalKey k1(start.value(), kMaxSequenceNumber, kValueTypeForSeek);
+  InternalKey k2(limit.value(), kMaxSequenceNumber, kValueTypeForSeek);
+  ReadOnlyMemTable::MemTableStats memStats =
       sv->mem->ApproximateStats(k1.Encode(), k2.Encode());
-  MemTable::MemTableStats immStats =
+  ReadOnlyMemTable::MemTableStats immStats =
       sv->imm->ApproximateStats(k1.Encode(), k2.Encode());
   *count = memStats.count + immStats.count;
   *size = memStats.size + immStats.size;
@@ -4067,28 +4796,24 @@ Status DBImpl::GetApproximateSizes(const SizeApproximationOptions& options,
   SuperVersion* sv = GetAndRefSuperVersion(cfd);
   v = sv->current;
 
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
   for (int i = 0; i < n; i++) {
-    Slice start = range[i].start;
-    Slice limit = range[i].limit;
-
     // Add timestamp if needed
     std::string start_with_ts, limit_with_ts;
-    if (ts_sz > 0) {
-      // Maximum timestamp means including all key with any timestamp
-      AppendKeyWithMaxTimestamp(&start_with_ts, start, ts_sz);
-      // Append a maximum timestamp as the range limit is exclusive:
-      // [start, limit)
-      AppendKeyWithMaxTimestamp(&limit_with_ts, limit, ts_sz);
-      start = start_with_ts;
-      limit = limit_with_ts;
-    }
+    auto [start, limit] =
+        MaybeAddTimestampsToRange(&range[i].start, &range[i].limit, ts_sz,
+                                  &start_with_ts, &limit_with_ts);
+    assert(start.has_value());
+    assert(limit.has_value());
     // Convert user_key into a corresponding internal key.
-    InternalKey k1(start, kMaxSequenceNumber, kValueTypeForSeek);
-    InternalKey k2(limit, kMaxSequenceNumber, kValueTypeForSeek);
+    InternalKey k1(start.value(), kMaxSequenceNumber, kValueTypeForSeek);
+    InternalKey k2(limit.value(), kMaxSequenceNumber, kValueTypeForSeek);
     sizes[i] = 0;
     if (options.include_files) {
       sizes[i] += versions_->ApproximateSize(
-          options, v, k1.Encode(), k2.Encode(), /*start_level=*/0,
+          options, read_options, v, k1.Encode(), k2.Encode(),
+          /*start_level=*/0,
           /*end_level=*/-1, TableReaderCaller::kUserApproximateSize);
     }
     if (options.include_memtables) {
@@ -4120,7 +4845,24 @@ void DBImpl::ReleaseFileNumberFromPendingOutputs(
   }
 }
 
-#ifndef ROCKSDB_LITE
+std::list<uint64_t>::iterator DBImpl::CaptureOptionsFileNumber() {
+  // We need to remember the iterator of our insert, because after the
+  // compaction is done, we need to remove that element from
+  // min_options_file_numbers_.
+  min_options_file_numbers_.push_back(versions_->options_file_number());
+  auto min_options_file_numbers_inserted_elem = min_options_file_numbers_.end();
+  --min_options_file_numbers_inserted_elem;
+  return min_options_file_numbers_inserted_elem;
+}
+
+void DBImpl::ReleaseOptionsFileNumber(
+    std::unique_ptr<std::list<uint64_t>::iterator>& v) {
+  if (v.get() != nullptr) {
+    min_options_file_numbers_.erase(*v.get());
+    v.reset();
+  }
+}
+
 Status DBImpl::GetUpdatesSince(
     SequenceNumber seq, std::unique_ptr<TransactionLogIterator>* iter,
     const TransactionLogIterator::ReadOptions& read_options) {
@@ -4137,6 +4879,10 @@ Status DBImpl::GetUpdatesSince(
 }
 
 Status DBImpl::DeleteFile(std::string name) {
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  const WriteOptions write_options;
+
   uint64_t number;
   FileType type;
   WalFileType log_type;
@@ -4216,11 +4962,12 @@ Status DBImpl::DeleteFile(std::string name) {
     edit.SetColumnFamily(cfd->GetID());
     edit.DeleteFile(level, number);
     status = versions_->LogAndApply(cfd, *cfd->GetLatestMutableCFOptions(),
-                                    &edit, &mutex_, directories_.GetDbDir());
+                                    read_options, write_options, &edit, &mutex_,
+                                    directories_.GetDbDir());
     if (status.ok()) {
-      InstallSuperVersionAndScheduleWork(cfd,
-                                         &job_context.superversion_contexts[0],
-                                         *cfd->GetLatestMutableCFOptions());
+      InstallSuperVersionAndScheduleWork(
+          cfd, job_context.superversion_contexts.data(),
+          *cfd->GetLatestMutableCFOptions());
     }
     FindObsoleteFiles(&job_context, false);
   }  // lock released here
@@ -4238,9 +4985,31 @@ Status DBImpl::DeleteFile(std::string name) {
 Status DBImpl::DeleteFilesInRanges(ColumnFamilyHandle* column_family,
                                    const RangePtr* ranges, size_t n,
                                    bool include_end) {
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  const WriteOptions write_options;
+
   Status status = Status::OK();
   auto cfh = static_cast_with_check<ColumnFamilyHandleImpl>(column_family);
   ColumnFamilyData* cfd = cfh->cfd();
+  const Comparator* ucmp = cfd->user_comparator();
+  assert(ucmp);
+  const size_t ts_sz = ucmp->timestamp_size();
+  autovector<UserKeyRangePtr> ukey_ranges;
+  std::vector<std::string> keys;
+  std::vector<Slice> key_slices;
+  ukey_ranges.reserve(n);
+  keys.reserve(2 * n);
+  key_slices.reserve(2 * n);
+  for (size_t i = 0; i < n; i++) {
+    auto [start, limit] = MaybeAddTimestampsToRange(
+        ranges[i].start, ranges[i].limit, ts_sz, &keys.emplace_back(),
+        &keys.emplace_back(), !include_end);
+    assert((ranges[i].start != nullptr) == start.has_value());
+    assert((ranges[i].limit != nullptr) == limit.has_value());
+    ukey_ranges.emplace_back(start, limit);
+  }
+
   VersionEdit edit;
   std::set<FileMetaData*> deleted_files;
   JobContext job_context(next_job_id_.fetch_add(1), true);
@@ -4249,8 +5018,9 @@ Status DBImpl::DeleteFilesInRanges(ColumnFamilyHandle* column_family,
     Version* input_version = cfd->current();
 
     auto* vstorage = input_version->storage_info();
-    for (size_t r = 0; r < n; r++) {
-      auto begin = ranges[r].start, end = ranges[r].limit;
+    for (const auto& range : ukey_ranges) {
+      auto begin = range.start.has_value() ? &range.start.value() : nullptr;
+      auto end = range.limit.has_value() ? &range.limit.value() : nullptr;
       for (int i = 1; i < cfd->NumberLevels(); i++) {
         if (vstorage->LevelFiles(i).empty() ||
             !vstorage->OverlapInLevel(i, begin, end)) {
@@ -4284,8 +5054,8 @@ Status DBImpl::DeleteFilesInRanges(ColumnFamilyHandle* column_family,
             continue;
           }
           if (!include_end && end != nullptr &&
-              cfd->user_comparator()->Compare(level_file->largest.user_key(),
-                                              *end) == 0) {
+              (ucmp->CompareWithoutTimestamp(level_file->largest.user_key(),
+                                             *end) == 0)) {
             continue;
           }
           edit.SetColumnFamily(cfd->GetID());
@@ -4293,9 +5063,11 @@ Status DBImpl::DeleteFilesInRanges(ColumnFamilyHandle* column_family,
           deleted_files.insert(level_file);
           level_file->being_compacted = true;
         }
-        vstorage->ComputeCompactionScore(*cfd->ioptions(),
-                                         *cfd->GetLatestMutableCFOptions());
       }
+    }
+    if (!deleted_files.empty()) {
+      vstorage->ComputeCompactionScore(*cfd->ioptions(),
+                                       *cfd->GetLatestMutableCFOptions());
     }
     if (edit.GetDeletedFiles().empty()) {
       job_context.Clean();
@@ -4303,11 +5075,12 @@ Status DBImpl::DeleteFilesInRanges(ColumnFamilyHandle* column_family,
     }
     input_version->Ref();
     status = versions_->LogAndApply(cfd, *cfd->GetLatestMutableCFOptions(),
-                                    &edit, &mutex_, directories_.GetDbDir());
+                                    read_options, write_options, &edit, &mutex_,
+                                    directories_.GetDbDir());
     if (status.ok()) {
-      InstallSuperVersionAndScheduleWork(cfd,
-                                         &job_context.superversion_contexts[0],
-                                         *cfd->GetLatestMutableCFOptions());
+      InstallSuperVersionAndScheduleWork(
+          cfd, job_context.superversion_contexts.data(),
+          *cfd->GetLatestMutableCFOptions());
     }
     for (auto* deleted_file : deleted_files) {
       deleted_file->being_compacted = false;
@@ -4343,9 +5116,9 @@ void DBImpl::GetColumnFamilyMetaData(ColumnFamilyHandle* column_family,
       static_cast_with_check<ColumnFamilyHandleImpl>(column_family)->cfd();
   auto* sv = GetAndRefSuperVersion(cfd);
   {
-    // Without mutex, Version::GetColumnFamilyMetaData will have data race with
-    // Compaction::MarkFilesBeingCompacted. One solution is to use mutex, but
-    // this may cause regression. An alternative is to make
+    // Without mutex, Version::GetColumnFamilyMetaData will have data race
+    // with Compaction::MarkFilesBeingCompacted. One solution is to use mutex,
+    // but this may cause regression. An alternative is to make
     // FileMetaData::being_compacted atomic, but it will make FileMetaData
     // non-copy-able. Another option is to separate these variables from
     // original FileMetaData struct, and this requires re-organization of data
@@ -4368,8 +5141,6 @@ void DBImpl::GetAllColumnFamilyMetaData(
     }
   }
 }
-
-#endif  // ROCKSDB_LITE
 
 Status DBImpl::CheckConsistency() {
   mutex_.AssertHeld();
@@ -4394,10 +5165,14 @@ Status DBImpl::CheckConsistency() {
       }
       files_by_directory[md.db_path].push_back(fname);
     }
+
+    IOOptions io_opts;
+    io_opts.do_not_recurse = true;
     for (const auto& dir_files : files_by_directory) {
       std::string directory = dir_files.first;
       std::vector<std::string> existing_files;
-      Status s = env_->GetChildren(directory, &existing_files);
+      Status s = fs_->GetChildren(directory, io_opts, &existing_files,
+                                  /*IODebugContext*=*/nullptr);
       if (!s.ok()) {
         corruption_messages +=
             "Can't list files in " + directory + ": " + s.ToString() + "\n";
@@ -4451,11 +5226,12 @@ Status DBImpl::GetDbIdentity(std::string& identity) const {
   return Status::OK();
 }
 
-Status DBImpl::GetDbIdentityFromIdentityFile(std::string* identity) const {
+Status DBImpl::GetDbIdentityFromIdentityFile(const IOOptions& opts,
+                                             std::string* identity) const {
   std::string idfilename = IdentityFileName(dbname_);
   const FileOptions soptions;
 
-  Status s = ReadFileToString(fs_.get(), idfilename, identity);
+  Status s = ReadFileToString(fs_.get(), idfilename, opts, identity);
   if (!s.ok()) {
     return s;
   }
@@ -4540,7 +5316,7 @@ Status DB::DestroyColumnFamilyHandle(ColumnFamilyHandle* column_family) {
   return Status::OK();
 }
 
-DB::~DB() {}
+DB::~DB() = default;
 
 Status DBImpl::Close() {
   InstrumentedMutexLock closing_lock_guard(&closing_mutex_);
@@ -4567,7 +5343,7 @@ Status DB::ListColumnFamilies(const DBOptions& db_options,
   return VersionSet::ListColumnFamilies(column_families, name, fs.get());
 }
 
-Snapshot::~Snapshot() {}
+Snapshot::~Snapshot() = default;
 
 Status DestroyDB(const std::string& dbname, const Options& options,
                  const std::vector<ColumnFamilyDescriptor>& column_families) {
@@ -4575,13 +5351,26 @@ Status DestroyDB(const std::string& dbname, const Options& options,
   Env* env = soptions.env;
   std::vector<std::string> filenames;
   bool wal_in_db_path = soptions.IsWalDirSameAsDBPath();
+  auto sfm = static_cast_with_check<SstFileManagerImpl>(
+      options.sst_file_manager.get());
+  // Allocate a separate trash bucket to be used by all the to be deleted
+  // files, so we can later wait for this bucket to be empty before return.
+  std::optional<int32_t> bucket;
+  if (sfm) {
+    bucket = sfm->NewTrashBucket();
+  }
 
   // Reset the logger because it holds a handle to the
   // log file and prevents cleanup and directory removal
   soptions.info_log.reset();
+  IOOptions io_opts;
   // Ignore error in case directory does not exist
-  env->GetChildren(dbname, &filenames).PermitUncheckedError();
+  soptions.fs
+      ->GetChildren(dbname, io_opts, &filenames,
+                    /*IODebugContext*=*/nullptr)
+      .PermitUncheckedError();
 
+  std::set<std::string> paths_to_delete;
   FileLock* lock;
   const std::string lockname = LockFileName(dbname);
   Status result = env->LockFile(lockname, &lock);
@@ -4598,10 +5387,9 @@ Status DestroyDB(const std::string& dbname, const Options& options,
           del = DestroyDB(path_to_delete, options);
         } else if (type == kTableFile || type == kWalFile ||
                    type == kBlobFile) {
-          del = DeleteDBFile(
-              &soptions, path_to_delete, dbname,
-              /*force_bg=*/false,
-              /*force_fg=*/(type == kWalFile) ? !wal_in_db_path : false);
+          del = DeleteUnaccountedDBFile(&soptions, path_to_delete, dbname,
+                                        /*force_bg=*/false,
+                                        /*force_fg=*/false, bucket);
         } else {
           del = env->DeleteFile(path_to_delete);
         }
@@ -4610,6 +5398,7 @@ Status DestroyDB(const std::string& dbname, const Options& options,
         }
       }
     }
+    paths_to_delete.insert(dbname);
 
     std::set<std::string> paths;
     for (const DbPath& db_path : options.db_paths) {
@@ -4620,30 +5409,39 @@ Status DestroyDB(const std::string& dbname, const Options& options,
         paths.insert(cf_path.path);
       }
     }
+
     for (const auto& path : paths) {
-      if (env->GetChildren(path, &filenames).ok()) {
+      if (soptions.fs
+              ->GetChildren(path, io_opts, &filenames,
+                            /*IODebugContext*=*/nullptr)
+              .ok()) {
         for (const auto& fname : filenames) {
           if (ParseFileName(fname, &number, &type) &&
               (type == kTableFile ||
                type == kBlobFile)) {  // Lock file will be deleted at end
             std::string file_path = path + "/" + fname;
-            Status del = DeleteDBFile(&soptions, file_path, dbname,
-                                      /*force_bg=*/false, /*force_fg=*/false);
+            Status del = DeleteUnaccountedDBFile(&soptions, file_path, dbname,
+                                                 /*force_bg=*/false,
+                                                 /*force_fg=*/false, bucket);
             if (!del.ok() && result.ok()) {
               result = del;
             }
           }
         }
-        // TODO: Should we return an error if we cannot delete the directory?
-        env->DeleteDir(path).PermitUncheckedError();
       }
     }
+
+    paths_to_delete.merge(paths);
 
     std::vector<std::string> walDirFiles;
     std::string archivedir = ArchivalDirectory(dbname);
     bool wal_dir_exists = false;
     if (!soptions.IsWalDirSameAsDBPath(dbname)) {
-      wal_dir_exists = env->GetChildren(soptions.wal_dir, &walDirFiles).ok();
+      wal_dir_exists =
+          soptions.fs
+              ->GetChildren(soptions.wal_dir, io_opts, &walDirFiles,
+                            /*IODebugContext*=*/nullptr)
+              .ok();
       archivedir = ArchivalDirectory(soptions.wal_dir);
     }
 
@@ -4651,65 +5449,68 @@ Status DestroyDB(const std::string& dbname, const Options& options,
     // processed and removed before those otherwise we have issues
     // removing them
     std::vector<std::string> archiveFiles;
-    if (env->GetChildren(archivedir, &archiveFiles).ok()) {
+    if (soptions.fs
+            ->GetChildren(archivedir, io_opts, &archiveFiles,
+                          /*IODebugContext*=*/nullptr)
+            .ok()) {
       // Delete archival files.
       for (const auto& file : archiveFiles) {
         if (ParseFileName(file, &number, &type) && type == kWalFile) {
-          Status del =
-              DeleteDBFile(&soptions, archivedir + "/" + file, archivedir,
-                           /*force_bg=*/false, /*force_fg=*/!wal_in_db_path);
+          Status del = DeleteUnaccountedDBFile(
+              &soptions, archivedir + "/" + file, archivedir,
+              /*force_bg=*/false, /*force_fg=*/!wal_in_db_path, bucket);
           if (!del.ok() && result.ok()) {
             result = del;
           }
         }
       }
-      // Ignore error in case dir contains other files
-      env->DeleteDir(archivedir).PermitUncheckedError();
+      paths_to_delete.insert(archivedir);
     }
 
     // Delete log files in the WAL dir
     if (wal_dir_exists) {
       for (const auto& file : walDirFiles) {
         if (ParseFileName(file, &number, &type) && type == kWalFile) {
-          Status del =
-              DeleteDBFile(&soptions, LogFileName(soptions.wal_dir, number),
-                           soptions.wal_dir, /*force_bg=*/false,
-                           /*force_fg=*/!wal_in_db_path);
+          Status del = DeleteUnaccountedDBFile(
+              &soptions, LogFileName(soptions.wal_dir, number),
+              soptions.wal_dir, /*force_bg=*/false,
+              /*force_fg=*/!wal_in_db_path, bucket);
           if (!del.ok() && result.ok()) {
             result = del;
           }
         }
       }
-      // Ignore error in case dir contains other files
-      env->DeleteDir(soptions.wal_dir).PermitUncheckedError();
+      paths_to_delete.insert(soptions.wal_dir);
     }
 
     // Ignore error since state is already gone
     env->UnlockFile(lock).PermitUncheckedError();
     env->DeleteFile(lockname).PermitUncheckedError();
 
+    // Make sure trash files are all cleared before return.
+    if (sfm && bucket.has_value()) {
+      sfm->WaitForEmptyTrashBucket(bucket.value());
+    }
     // sst_file_manager holds a ref to the logger. Make sure the logger is
     // gone before trying to remove the directory.
     soptions.sst_file_manager.reset();
 
     // Ignore error in case dir contains other files
-    env->DeleteDir(dbname).PermitUncheckedError();
-    ;
+    for (const auto& path_to_delete : paths_to_delete) {
+      env->DeleteDir(path_to_delete).PermitUncheckedError();
+    }
   }
   return result;
 }
 
-Status DBImpl::WriteOptionsFile(bool need_mutex_lock,
-                                bool need_enter_write_thread) {
-#ifndef ROCKSDB_LITE
-  WriteThread::Writer w;
-  if (need_mutex_lock) {
-    mutex_.Lock();
-  } else {
+Status DBImpl::WriteOptionsFile(const WriteOptions& write_options,
+                                bool db_mutex_already_held) {
+  options_mutex_.AssertHeld();
+
+  if (db_mutex_already_held) {
     mutex_.AssertHeld();
-  }
-  if (need_enter_write_thread) {
-    write_thread_.EnterUnbatched(&w, &mutex_);
+  } else {
+    mutex_.Lock();
   }
 
   std::vector<std::string> cf_names;
@@ -4724,10 +5525,10 @@ Status DBImpl::WriteOptionsFile(bool need_mutex_lock,
     cf_opts.push_back(cfd->GetLatestCFOptions());
   }
 
-  // Unlock during expensive operations.  New writes cannot get here
-  // because the single write thread ensures all new writes get queued.
   DBOptions db_options =
       BuildDBOptions(immutable_db_options_, mutable_db_options_);
+
+  // Unlock during expensive operations.
   mutex_.Unlock();
 
   TEST_SYNC_POINT("DBImpl::WriteOptionsFile:1");
@@ -4737,35 +5538,40 @@ Status DBImpl::WriteOptionsFile(bool need_mutex_lock,
 
   std::string file_name =
       TempOptionsFileName(GetName(), versions_->NewFileNumber());
-  Status s = PersistRocksDBOptions(db_options, cf_names, cf_opts, file_name,
-                                   fs_.get());
+  Status s = PersistRocksDBOptions(write_options, db_options, cf_names, cf_opts,
+                                   file_name, fs_.get());
 
   if (s.ok()) {
-    s = RenameTempFileToOptionsFile(file_name);
+    s = RenameTempFileToOptionsFile(file_name,
+                                    db_options.compaction_service != nullptr);
   }
-  // restore lock
-  if (!need_mutex_lock) {
-    mutex_.Lock();
+
+  if (!s.ok() && GetEnv()->FileExists(file_name).ok()) {
+    if (!GetEnv()->DeleteFile(file_name).ok()) {
+      ROCKS_LOG_WARN(immutable_db_options_.info_log,
+                     "Unable to delete temp options file %s",
+                     file_name.c_str());
+    }
   }
-  if (need_enter_write_thread) {
-    write_thread_.ExitUnbatched(&w);
-  }
+
   if (!s.ok()) {
     ROCKS_LOG_WARN(immutable_db_options_.info_log,
                    "Unnable to persist options -- %s", s.ToString().c_str());
     if (immutable_db_options_.fail_if_options_file_error) {
-      return Status::IOError("Unable to persist options.",
-                             s.ToString().c_str());
+      s = Status::IOError("Unable to persist options.", s.ToString().c_str());
+    } else {
+      // Ignore error
+      s = Status::OK();
     }
   }
-#else
-  (void)need_mutex_lock;
-  (void)need_enter_write_thread;
-#endif  // !ROCKSDB_LITE
-  return Status::OK();
+
+  // Restore lock if appropriate
+  if (db_mutex_already_held) {
+    mutex_.Lock();
+  }
+  return s;
 }
 
-#ifndef ROCKSDB_LITE
 namespace {
 void DeleteOptionsFilesHelper(const std::map<uint64_t, std::string>& filenames,
                               const size_t num_files_to_keep,
@@ -4783,16 +5589,17 @@ void DeleteOptionsFilesHelper(const std::map<uint64_t, std::string>& filenames,
   }
 }
 }  // namespace
-#endif  // !ROCKSDB_LITE
 
 Status DBImpl::DeleteObsoleteOptionsFiles() {
-#ifndef ROCKSDB_LITE
   std::vector<std::string> filenames;
   // use ordered map to store keep the filenames sorted from the newest
   // to the oldest.
   std::map<uint64_t, std::string> options_filenames;
   Status s;
-  s = GetEnv()->GetChildren(GetName(), &filenames);
+  IOOptions io_opts;
+  io_opts.do_not_recurse = true;
+  s = fs_->GetChildren(GetName(), io_opts, &filenames,
+                       /*IODebugContext*=*/nullptr);
   if (!s.ok()) {
     return s;
   }
@@ -4811,13 +5618,10 @@ Status DBImpl::DeleteObsoleteOptionsFiles() {
   DeleteOptionsFilesHelper(options_filenames, kNumOptionsFilesKept,
                            immutable_db_options_.info_log, GetEnv());
   return Status::OK();
-#else
-  return Status::OK();
-#endif  // !ROCKSDB_LITE
 }
 
-Status DBImpl::RenameTempFileToOptionsFile(const std::string& file_name) {
-#ifndef ROCKSDB_LITE
+Status DBImpl::RenameTempFileToOptionsFile(const std::string& file_name,
+                                           bool is_remote_compaction_enabled) {
   Status s;
 
   uint64_t options_file_number = versions_->NewFileNumber();
@@ -4850,21 +5654,24 @@ Status DBImpl::RenameTempFileToOptionsFile(const std::string& file_name) {
       }
     }
   }
+
   if (s.ok()) {
-    InstrumentedMutexLock l(&mutex_);
-    versions_->options_file_number_ = options_file_number;
-    versions_->options_file_size_ = options_file_size;
+    int my_disable_delete_obsolete_files;
+
+    {
+      InstrumentedMutexLock l(&mutex_);
+      versions_->options_file_number_ = options_file_number;
+      versions_->options_file_size_ = options_file_size;
+      my_disable_delete_obsolete_files = disable_delete_obsolete_files_;
+    }
+
+    if (!my_disable_delete_obsolete_files && !is_remote_compaction_enabled) {
+      // TODO: Should we check for errors here?
+      DeleteObsoleteOptionsFiles().PermitUncheckedError();
+    }
   }
 
-  if (0 == disable_delete_obsolete_files_) {
-    // TODO: Should we check for errors here?
-    DeleteObsoleteOptionsFiles().PermitUncheckedError();
-  }
   return s;
-#else
-  (void)file_name;
-  return Status::OK();
-#endif  // !ROCKSDB_LITE
 }
 
 #ifdef ROCKSDB_USING_THREAD_STATUS
@@ -4912,7 +5719,6 @@ void DumpRocksDBBuildVersion(Logger* log) {
   }
 }
 
-#ifndef ROCKSDB_LITE
 SequenceNumber DBImpl::GetEarliestMemTableSequenceNumber(SuperVersion* sv,
                                                          bool include_history) {
   // Find the earliest sequence number that we know we can rely on reading
@@ -4935,6 +5741,7 @@ Status DBImpl::GetLatestSequenceForKey(
   MergeContext merge_context;
   SequenceNumber max_covering_tombstone_seq = 0;
 
+  // TODO: plumb Env::IOActivity, Env::IOPriority
   ReadOptions read_options;
   SequenceNumber current_seq = versions_->LastSequence();
 
@@ -5090,6 +5897,9 @@ Status DBImpl::IngestExternalFile(
 
 Status DBImpl::IngestExternalFiles(
     const std::vector<IngestExternalFileArg>& args) {
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const WriteOptions write_options;
+
   if (args.empty()) {
     return Status::InvalidArgument("ingestion arg list is empty");
   }
@@ -5109,17 +5919,40 @@ Status DBImpl::IngestExternalFiles(
   const size_t num_cfs = args.size();
   for (size_t i = 0; i != num_cfs; ++i) {
     if (args[i].external_files.empty()) {
-      char err_msg[128] = {0};
-      snprintf(err_msg, 128, "external_files[%zu] is empty", i);
+      std::string err_msg =
+          "external_files[" + std::to_string(i) + "] is empty";
       return Status::InvalidArgument(err_msg);
+    }
+    if (i && args[i].options.fill_cache != args[i - 1].options.fill_cache) {
+      return Status::InvalidArgument(
+          "fill_cache should be the same across ingestion options.");
     }
   }
   for (const auto& arg : args) {
     const IngestExternalFileOptions& ingest_opts = arg.options;
-    if (ingest_opts.ingest_behind &&
-        !immutable_db_options_.allow_ingest_behind) {
+    if (ingest_opts.ingest_behind) {
+      if (!immutable_db_options_.allow_ingest_behind) {
+        return Status::InvalidArgument(
+            "can't ingest_behind file in DB with allow_ingest_behind=false");
+      }
+      auto ucmp = arg.column_family->GetComparator();
+      assert(ucmp);
+      if (ucmp->timestamp_size() > 0) {
+        return Status::NotSupported(
+            "Column family with user-defined "
+            "timestamps enabled doesn't support ingest behind.");
+      }
+    }
+    if (ingest_opts.allow_db_generated_files) {
+      if (ingest_opts.write_global_seqno) {
+        return Status::NotSupported(
+            "write_global_seqno is deprecated and does not work with "
+            "allow_db_generated_files.");
+      }
+    }
+    if (ingest_opts.move_files && ingest_opts.link_files) {
       return Status::InvalidArgument(
-          "can't ingest_behind file in DB with allow_ingest_behind=false");
+          "`move_files` and `link_files` can not both be true.");
     }
   }
 
@@ -5144,17 +5977,18 @@ Status DBImpl::IngestExternalFiles(
   for (const auto& arg : args) {
     auto* cfd = static_cast<ColumnFamilyHandleImpl*>(arg.column_family)->cfd();
     ingestion_jobs.emplace_back(versions_.get(), cfd, immutable_db_options_,
-                                file_options_, &snapshots_, arg.options,
-                                &directories_, &event_logger_, io_tracer_);
+                                mutable_db_options_, file_options_, &snapshots_,
+                                arg.options, &directories_, &event_logger_,
+                                io_tracer_);
   }
 
   // TODO(yanqin) maybe make jobs run in parallel
   uint64_t start_file_number = next_file_number;
   for (size_t i = 1; i != num_cfs; ++i) {
     start_file_number += args[i - 1].external_files.size();
-    auto* cfd =
-        static_cast<ColumnFamilyHandleImpl*>(args[i].column_family)->cfd();
-    SuperVersion* super_version = cfd->GetReferencedSuperVersion(this);
+    SuperVersion* super_version =
+        ingestion_jobs[i].GetColumnFamilyData()->GetReferencedSuperVersion(
+            this);
     Status es = ingestion_jobs[i].Prepare(
         args[i].external_files, args[i].files_checksums,
         args[i].files_checksum_func_names, args[i].file_temperature,
@@ -5168,9 +6002,9 @@ Status DBImpl::IngestExternalFiles(
   TEST_SYNC_POINT("DBImpl::IngestExternalFiles:BeforeLastJobPrepare:0");
   TEST_SYNC_POINT("DBImpl::IngestExternalFiles:BeforeLastJobPrepare:1");
   {
-    auto* cfd =
-        static_cast<ColumnFamilyHandleImpl*>(args[0].column_family)->cfd();
-    SuperVersion* super_version = cfd->GetReferencedSuperVersion(this);
+    SuperVersion* super_version =
+        ingestion_jobs[0].GetColumnFamilyData()->GetReferencedSuperVersion(
+            this);
     Status es = ingestion_jobs[0].Prepare(
         args[0].external_files, args[0].files_checksums,
         args[0].files_checksum_func_names, args[0].file_temperature,
@@ -5221,8 +6055,7 @@ Status DBImpl::IngestExternalFiles(
     bool at_least_one_cf_need_flush = false;
     std::vector<bool> need_flush(num_cfs, false);
     for (size_t i = 0; i != num_cfs; ++i) {
-      auto* cfd =
-          static_cast<ColumnFamilyHandleImpl*>(args[i].column_family)->cfd();
+      auto* cfd = ingestion_jobs[i].GetColumnFamilyData();
       if (cfd->IsDropped()) {
         // TODO (yanqin) investigate whether we should abort ingestion or
         // proceed with other non-dropped column families.
@@ -5245,23 +6078,19 @@ Status DBImpl::IngestExternalFiles(
       FlushOptions flush_opts;
       flush_opts.allow_write_stall = true;
       if (immutable_db_options_.atomic_flush) {
-        autovector<ColumnFamilyData*> cfds_to_flush;
-        SelectColumnFamiliesForAtomicFlush(&cfds_to_flush);
         mutex_.Unlock();
-        status = AtomicFlushMemTables(cfds_to_flush, flush_opts,
-                                      FlushReason::kExternalFileIngestion,
-                                      true /* writes_stopped */);
+        status = AtomicFlushMemTables(
+            flush_opts, FlushReason::kExternalFileIngestion,
+            {} /* provided_candidate_cfds */, true /* entered_write_thread */);
         mutex_.Lock();
       } else {
         for (size_t i = 0; i != num_cfs; ++i) {
           if (need_flush[i]) {
             mutex_.Unlock();
-            auto* cfd =
-                static_cast<ColumnFamilyHandleImpl*>(args[i].column_family)
-                    ->cfd();
-            status = FlushMemTable(cfd, flush_opts,
-                                   FlushReason::kExternalFileIngestion,
-                                   true /* writes_stopped */);
+            status =
+                FlushMemTable(ingestion_jobs[i].GetColumnFamilyData(),
+                              flush_opts, FlushReason::kExternalFileIngestion,
+                              true /* entered_write_thread */);
             mutex_.Lock();
             if (!status.ok()) {
               break;
@@ -5269,27 +6098,35 @@ Status DBImpl::IngestExternalFiles(
           }
         }
       }
+      if (status.ok()) {
+        for (size_t i = 0; i != num_cfs; ++i) {
+          if (immutable_db_options_.atomic_flush || need_flush[i]) {
+            ingestion_jobs[i].SetFlushedBeforeRun();
+          }
+        }
+      }
     }
     // Run ingestion jobs.
     if (status.ok()) {
       for (size_t i = 0; i != num_cfs; ++i) {
+        mutex_.AssertHeld();
         status = ingestion_jobs[i].Run();
         if (!status.ok()) {
           break;
         }
+        ingestion_jobs[i].RegisterRange();
       }
     }
     if (status.ok()) {
+      ReadOptions read_options;
+      read_options.fill_cache = args[0].options.fill_cache;
       autovector<ColumnFamilyData*> cfds_to_commit;
       autovector<const MutableCFOptions*> mutable_cf_options_list;
       autovector<autovector<VersionEdit*>> edit_lists;
       uint32_t num_entries = 0;
       for (size_t i = 0; i != num_cfs; ++i) {
-        auto* cfd =
-            static_cast<ColumnFamilyHandleImpl*>(args[i].column_family)->cfd();
-        if (cfd->IsDropped()) {
-          continue;
-        }
+        auto* cfd = ingestion_jobs[i].GetColumnFamilyData();
+        assert(!cfd->IsDropped());
         cfds_to_commit.push_back(cfd);
         mutable_cf_options_list.push_back(cfd->GetLatestMutableCFOptions());
         autovector<VersionEdit*> edit_list;
@@ -5306,9 +6143,10 @@ Status DBImpl::IngestExternalFiles(
         }
         assert(0 == num_entries);
       }
-      status =
-          versions_->LogAndApply(cfds_to_commit, mutable_cf_options_list,
-                                 edit_lists, &mutex_, directories_.GetDbDir());
+      status = versions_->LogAndApply(
+          cfds_to_commit, mutable_cf_options_list, read_options, write_options,
+
+          edit_lists, &mutex_, directories_.GetDbDir());
       // It is safe to update VersionSet last seqno here after LogAndApply since
       // LogAndApply persists last sequence number from VersionEdits,
       // which are from file's largest seqno and not from VersionSet.
@@ -5332,22 +6170,22 @@ Status DBImpl::IngestExternalFiles(
       }
     }
 
+    for (auto& job : ingestion_jobs) {
+      job.UnregisterRange();
+    }
+
     if (status.ok()) {
       for (size_t i = 0; i != num_cfs; ++i) {
-        auto* cfd =
-            static_cast<ColumnFamilyHandleImpl*>(args[i].column_family)->cfd();
-        if (!cfd->IsDropped()) {
-          InstallSuperVersionAndScheduleWork(cfd, &sv_ctxs[i],
-                                             *cfd->GetLatestMutableCFOptions());
+        auto* cfd = ingestion_jobs[i].GetColumnFamilyData();
+        assert(!cfd->IsDropped());
+        InstallSuperVersionAndScheduleWork(cfd, &sv_ctxs[i],
+                                           *cfd->GetLatestMutableCFOptions());
 #ifndef NDEBUG
-          if (0 == i && num_cfs > 1) {
-            TEST_SYNC_POINT(
-                "DBImpl::IngestExternalFiles:InstallSVForFirstCF:0");
-            TEST_SYNC_POINT(
-                "DBImpl::IngestExternalFiles:InstallSVForFirstCF:1");
-          }
-#endif  // !NDEBUG
+        if (0 == i && num_cfs > 1) {
+          TEST_SYNC_POINT("DBImpl::IngestExternalFiles:InstallSVForFirstCF:0");
+          TEST_SYNC_POINT("DBImpl::IngestExternalFiles:InstallSVForFirstCF:1");
         }
+#endif  // !NDEBUG
       }
     } else if (versions_->io_status().IsIOError()) {
       // Error while writing to MANIFEST.
@@ -5389,8 +6227,7 @@ Status DBImpl::IngestExternalFiles(
   }
   if (status.ok()) {
     for (size_t i = 0; i != num_cfs; ++i) {
-      auto* cfd =
-          static_cast<ColumnFamilyHandleImpl*>(args[i].column_family)->cfd();
+      auto* cfd = ingestion_jobs[i].GetColumnFamilyData();
       if (!cfd->IsDropped()) {
         NotifyOnExternalFileIngested(cfd, ingestion_jobs[i]);
       }
@@ -5402,16 +6239,31 @@ Status DBImpl::IngestExternalFiles(
 Status DBImpl::CreateColumnFamilyWithImport(
     const ColumnFamilyOptions& options, const std::string& column_family_name,
     const ImportColumnFamilyOptions& import_options,
-    const ExportImportFilesMetaData& metadata, ColumnFamilyHandle** handle) {
+    const std::vector<const ExportImportFilesMetaData*>& metadatas,
+    ColumnFamilyHandle** handle) {
   assert(handle != nullptr);
   assert(*handle == nullptr);
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  const WriteOptions write_options;
+
   std::string cf_comparator_name = options.comparator->Name();
-  if (cf_comparator_name != metadata.db_comparator_name) {
-    return Status::InvalidArgument("Comparator name mismatch");
+
+  size_t total_file_num = 0;
+  std::vector<std::vector<LiveFileMetaData*>> metadata_files(metadatas.size());
+  for (size_t i = 0; i < metadatas.size(); i++) {
+    if (cf_comparator_name != metadatas[i]->db_comparator_name) {
+      return Status::InvalidArgument("Comparator name mismatch");
+    }
+    for (auto& file : metadatas[i]->files) {
+      metadata_files[i].push_back((LiveFileMetaData*)&file);
+    }
+    total_file_num += metadatas[i]->files.size();
   }
 
   // Create column family.
-  auto status = CreateColumnFamily(options, column_family_name, handle);
+  auto status = CreateColumnFamily(read_options, write_options, options,
+                                   column_family_name, handle);
   if (!status.ok()) {
     return status;
   }
@@ -5421,7 +6273,7 @@ Status DBImpl::CreateColumnFamilyWithImport(
   auto cfd = cfh->cfd();
   ImportColumnFamilyJob import_job(versions_.get(), cfd, immutable_db_options_,
                                    file_options_, import_options,
-                                   metadata.files, io_tracer_);
+                                   metadata_files, io_tracer_);
 
   SuperVersionContext dummy_sv_ctx(/* create_superversion */ true);
   VersionEdit dummy_edit;
@@ -5444,10 +6296,11 @@ Status DBImpl::CreateColumnFamilyWithImport(
       // reuse the file number that has already assigned to the internal file,
       // and this will overwrite the external file. To protect the external
       // file, we have to make sure the file number will never being reused.
-      next_file_number = versions_->FetchAddFileNumber(metadata.files.size());
+      next_file_number = versions_->FetchAddFileNumber(total_file_num);
       auto cf_options = cfd->GetLatestMutableCFOptions();
-      status = versions_->LogAndApply(cfd, *cf_options, &dummy_edit, &mutex_,
-                                      directories_.GetDbDir());
+      status =
+          versions_->LogAndApply(cfd, *cf_options, read_options, write_options,
+                                 &dummy_edit, &mutex_, directories_.GetDbDir());
       if (status.ok()) {
         InstallSuperVersionAndScheduleWork(cfd, &dummy_sv_ctx, *cf_options);
       }
@@ -5477,12 +6330,14 @@ Status DBImpl::CreateColumnFamilyWithImport(
 
       num_running_ingest_file_++;
       assert(!cfd->IsDropped());
+      mutex_.AssertHeld();
       status = import_job.Run();
 
       // Install job edit [Mutex will be unlocked here]
       if (status.ok()) {
         auto cf_options = cfd->GetLatestMutableCFOptions();
-        status = versions_->LogAndApply(cfd, *cf_options, import_job.edit(),
+        status = versions_->LogAndApply(cfd, *cf_options, read_options,
+                                        write_options, import_job.edit(),
                                         &mutex_, directories_.GetDbDir());
         if (status.ok()) {
           InstallSuperVersionAndScheduleWork(cfd, &sv_context, *cf_options);
@@ -5526,12 +6381,111 @@ Status DBImpl::CreateColumnFamilyWithImport(
   return status;
 }
 
-Status DBImpl::VerifyFileChecksums(const ReadOptions& read_options) {
-  return VerifyChecksumInternal(read_options, /*use_file_checksum=*/true);
+Status DBImpl::ClipColumnFamily(ColumnFamilyHandle* column_family,
+                                const Slice& begin_key, const Slice& end_key) {
+  assert(column_family);
+  Status status;
+  // Flush memtable
+  FlushOptions flush_opts;
+  flush_opts.allow_write_stall = true;
+  auto* cfd =
+      static_cast_with_check<ColumnFamilyHandleImpl>(column_family)->cfd();
+  if (immutable_db_options_.atomic_flush) {
+    status = AtomicFlushMemTables(flush_opts, FlushReason::kDeleteFiles,
+                                  {} /* provided_candidate_cfds */,
+                                  false /* entered_write_thread */);
+  } else {
+    status = FlushMemTable(cfd, flush_opts, FlushReason::kDeleteFiles,
+                           false /* entered_write_thread */);
+  }
+
+  if (status.ok()) {
+    // DeleteFilesInRanges non-overlap files except L0
+    std::vector<RangePtr> ranges;
+    ranges.emplace_back(nullptr, &begin_key);
+    ranges.emplace_back(&end_key, nullptr);
+    status = DeleteFilesInRanges(column_family, ranges.data(), ranges.size());
+  }
+
+  // DeleteRange the remaining overlapping keys
+  bool empty_after_delete = false;
+  if (status.ok()) {
+    Slice smallest_user_key, largest_user_key;
+    {
+      // Lock db mutex
+      InstrumentedMutexLock l(&mutex_);
+      cfd->current()->GetSstFilesBoundaryKeys(&smallest_user_key,
+                                              &largest_user_key);
+    }
+    // all the files has been deleted after DeleteFilesInRanges;
+    if (smallest_user_key.empty() && largest_user_key.empty()) {
+      empty_after_delete = true;
+    } else {
+      const Comparator* const ucmp = column_family->GetComparator();
+      // TODO: plumb Env::IOActivity, Env::IOPriority
+      WriteOptions wo;
+      // Delete [smallest_user_key, clip_begin_key)
+      if (ucmp->Compare(smallest_user_key, begin_key) < 0) {
+        status = DeleteRange(wo, column_family, smallest_user_key, begin_key);
+      }
+
+      if (status.ok()) {
+        // Delete [clip_end_key, largest_use_key]
+        if (ucmp->Compare(end_key, largest_user_key) <= 0) {
+          status = DeleteRange(wo, column_family, end_key, largest_user_key);
+          if (status.ok()) {
+            status = Delete(wo, column_family, largest_user_key);
+          }
+        }
+      }
+    }
+  }
+
+  if (status.ok() && !empty_after_delete) {
+    // CompactRange delete all the tombstones
+    CompactRangeOptions compact_options;
+    compact_options.exclusive_manual_compaction = true;
+    compact_options.bottommost_level_compaction =
+        BottommostLevelCompaction::kForceOptimized;
+    // We could just compact the ranges [null, clip_begin_key] and
+    // [clip_end_key, null]. But due to how manual compaction calculates the
+    // last level to compact to and that range tombstones are not dropped
+    // during non-bottommost compactions, calling CompactRange() on these two
+    // ranges may not clear all range tombstones.
+    status = CompactRange(compact_options, column_family, nullptr, nullptr);
+  }
+  return status;
 }
 
-Status DBImpl::VerifyChecksum(const ReadOptions& read_options) {
-  return VerifyChecksumInternal(read_options, /*use_file_checksum=*/false);
+Status DBImpl::VerifyFileChecksums(const ReadOptions& _read_options) {
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kVerifyFileChecksums) {
+    return Status::InvalidArgument(
+        "Can only call VerifyFileChecksums with `ReadOptions::io_activity` is "
+        "`Env::IOActivity::kUnknown` or "
+        "`Env::IOActivity::kVerifyFileChecksums`");
+  }
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kVerifyFileChecksums;
+  }
+  return VerifyChecksumInternal(read_options,
+                                /*use_file_checksum=*/true);
+}
+
+Status DBImpl::VerifyChecksum(const ReadOptions& _read_options) {
+  if (_read_options.io_activity != Env::IOActivity::kUnknown &&
+      _read_options.io_activity != Env::IOActivity::kVerifyDBChecksum) {
+    return Status::InvalidArgument(
+        "Can only call VerifyChecksum with `ReadOptions::io_activity` is "
+        "`Env::IOActivity::kUnknown` or `Env::IOActivity::kVerifyDBChecksum`");
+  }
+  ReadOptions read_options(_read_options);
+  if (read_options.io_activity == Env::IOActivity::kUnknown) {
+    read_options.io_activity = Env::IOActivity::kVerifyDBChecksum;
+  }
+  return VerifyChecksumInternal(read_options,
+                                /*use_file_checksum=*/false);
 }
 
 Status DBImpl::VerifyChecksumInternal(const ReadOptions& read_options,
@@ -5553,6 +6507,7 @@ Status DBImpl::VerifyChecksumInternal(const ReadOptions& read_options,
       return s;
     }
   }
+  // FIXME? What does it mean if read_options.verify_checksums == false?
 
   // TODO: simplify using GetRefedColumnFamilySet?
   std::vector<ColumnFamilyData*> cfd_list;
@@ -5593,7 +6548,7 @@ Status DBImpl::VerifyChecksumInternal(const ReadOptions& read_options,
                                      fmeta->file_checksum_func_name, fname,
                                      read_options);
         } else {
-          s = ROCKSDB_NAMESPACE::VerifySstFileChecksum(
+          s = ROCKSDB_NAMESPACE::VerifySstFileChecksumInternal(
               opts, file_options_, read_options, fname, fd.largest_seqno);
         }
         RecordTick(stats_, VERIFY_CHECKSUM_READ_BYTES,
@@ -5627,8 +6582,7 @@ Status DBImpl::VerifyChecksumInternal(const ReadOptions& read_options,
     }
   }
 
-  bool defer_purge =
-          immutable_db_options().avoid_unnecessary_blocking_io;
+  bool defer_purge = immutable_db_options().avoid_unnecessary_blocking_io;
   {
     InstrumentedMutexLock l(&mutex_);
     for (auto sv : sv_list) {
@@ -5667,8 +6621,8 @@ Status DBImpl::VerifyFullFileChecksum(const std::string& file_checksum_expected,
       fs_.get(), fname, immutable_db_options_.file_checksum_gen_factory.get(),
       func_name_expected, &file_checksum, &func_name,
       read_options.readahead_size, immutable_db_options_.allow_mmap_reads,
-      io_tracer_, immutable_db_options_.rate_limiter.get(),
-      read_options.rate_limiter_priority);
+      io_tracer_, immutable_db_options_.rate_limiter.get(), read_options,
+      immutable_db_options_.stats, immutable_db_options_.clock);
   if (s.ok()) {
     assert(func_name_expected == func_name);
     if (file_checksum != file_checksum_expected) {
@@ -5697,16 +6651,9 @@ void DBImpl::NotifyOnExternalFileIngested(
     info.internal_file_path = f.internal_file_path;
     info.global_seqno = f.assigned_seqno;
     info.table_properties = f.table_properties;
-    for (auto listener : immutable_db_options_.listeners) {
+    for (const auto& listener : immutable_db_options_.listeners) {
       listener->OnExternalFileIngested(this, info);
     }
-  }
-}
-
-void DBImpl::WaitForIngestFile() {
-  mutex_.AssertHeld();
-  while (num_running_ingest_file_ > 0) {
-    bg_cv_.Wait();
   }
 }
 
@@ -5741,8 +6688,24 @@ Status DBImpl::NewDefaultReplayer(
 Status DBImpl::StartBlockCacheTrace(
     const TraceOptions& trace_options,
     std::unique_ptr<TraceWriter>&& trace_writer) {
-  return block_cache_tracer_.StartTrace(immutable_db_options_.clock,
-                                        trace_options, std::move(trace_writer));
+  BlockCacheTraceOptions block_trace_opts;
+  block_trace_opts.sampling_frequency = trace_options.sampling_frequency;
+
+  BlockCacheTraceWriterOptions trace_writer_opt;
+  trace_writer_opt.max_trace_file_size = trace_options.max_trace_file_size;
+
+  std::unique_ptr<BlockCacheTraceWriter> block_cache_trace_writer =
+      NewBlockCacheTraceWriter(env_->GetSystemClock().get(), trace_writer_opt,
+                               std::move(trace_writer));
+
+  return block_cache_tracer_.StartTrace(block_trace_opts,
+                                        std::move(block_cache_trace_writer));
+}
+
+Status DBImpl::StartBlockCacheTrace(
+    const BlockCacheTraceOptions& trace_options,
+    std::unique_ptr<BlockCacheTraceWriter>&& trace_writer) {
+  return block_cache_tracer_.StartTrace(trace_options, std::move(trace_writer));
 }
 
 Status DBImpl::EndBlockCacheTrace() {
@@ -5780,6 +6743,10 @@ Status DBImpl::ReserveFileNumbersBeforeIngestion(
     ColumnFamilyData* cfd, uint64_t num,
     std::unique_ptr<std::list<uint64_t>::iterator>& pending_output_elem,
     uint64_t* next_file_number) {
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  const WriteOptions write_options;
+
   Status s;
   SuperVersionContext dummy_sv_ctx(true /* create_superversion */);
   assert(nullptr != next_file_number);
@@ -5797,8 +6764,8 @@ Status DBImpl::ReserveFileNumbersBeforeIngestion(
   // reuse the file number that has already assigned to the internal file,
   // and this will overwrite the external file. To protect the external
   // file, we have to make sure the file number will never being reused.
-  s = versions_->LogAndApply(cfd, *cf_options, &dummy_edit, &mutex_,
-                             directories_.GetDbDir());
+  s = versions_->LogAndApply(cfd, *cf_options, read_options, write_options,
+                             &dummy_edit, &mutex_, directories_.GetDbDir());
   if (s.ok()) {
     InstallSuperVersionAndScheduleWork(cfd, &dummy_sv_ctx, *cf_options);
   }
@@ -5834,25 +6801,135 @@ Status DBImpl::GetCreationTimeOfOldestFile(uint64_t* creation_time) {
   }
 }
 
-void DBImpl::RecordSeqnoToTimeMapping() {
-  // Get time first then sequence number, so the actual time of seqno is <=
-  // unix_time recorded
-  int64_t unix_time = 0;
-  immutable_db_options_.clock->GetCurrentTime(&unix_time)
-      .PermitUncheckedError();  // Ignore error
+void DBImpl::RecordSeqnoToTimeMapping(uint64_t populate_historical_seconds) {
+  // TECHNICALITY: Sample last sequence number *before* time, as prescribed
+  // for SeqnoToTimeMapping. We don't know how long it has been since the last
+  // sequence number was written, so we at least have a one-sided bound by
+  // sampling in this order.
   SequenceNumber seqno = GetLatestSequenceNumber();
-  bool appended = false;
-  {
+  int64_t unix_time_signed = 0;
+  immutable_db_options_.clock->GetCurrentTime(&unix_time_signed)
+      .PermitUncheckedError();  // Ignore error
+  uint64_t unix_time = static_cast<uint64_t>(unix_time_signed);
+
+  std::vector<SuperVersionContext> sv_contexts;
+  if (populate_historical_seconds > 0) {
+    bool success = true;
+    {
+      InstrumentedMutexLock l(&mutex_);
+      if (seqno > 1 && unix_time > populate_historical_seconds) {
+        // seqno=0 is reserved
+        SequenceNumber from_seqno = 1;
+        success = seqno_to_time_mapping_.PrePopulate(
+            from_seqno, seqno, unix_time - populate_historical_seconds,
+            unix_time);
+        InstallSeqnoToTimeMappingInSV(&sv_contexts);
+      } else {
+        // One of these will fail
+        assert(seqno > 1);
+        assert(unix_time > populate_historical_seconds);
+        success = false;
+      }
+    }
+    if (success) {
+      ROCKS_LOG_INFO(
+          immutable_db_options_.info_log,
+          "Pre-populated sequence number to time entries: [1,%" PRIu64
+          "] -> [%" PRIu64 ",%" PRIu64 "]",
+          seqno, unix_time - populate_historical_seconds, unix_time);
+    } else {
+      ROCKS_LOG_WARN(
+          immutable_db_options_.info_log,
+          "Failed to pre-populate sequence number to time entries: [1,%" PRIu64
+          "] -> [%" PRIu64 ",%" PRIu64 "]",
+          seqno, unix_time - populate_historical_seconds, unix_time);
+    }
+  } else {
     InstrumentedMutexLock l(&mutex_);
-    appended = seqno_time_mapping_.Append(seqno, unix_time);
+    // FIXME: assert(seqno > 0);
+    // Always successful assuming seqno never go backwards
+    seqno_to_time_mapping_.Append(seqno, unix_time);
+    InstallSeqnoToTimeMappingInSV(&sv_contexts);
   }
-  if (!appended) {
-    ROCKS_LOG_WARN(immutable_db_options_.info_log,
-                   "Failed to insert sequence number to time entry: %" PRIu64
-                   " -> %" PRIu64,
-                   seqno, unix_time);
+
+  // clean up outside db mutex
+  for (SuperVersionContext& sv_context : sv_contexts) {
+    sv_context.Clean();
   }
 }
-#endif  // ROCKSDB_LITE
+
+void DBImpl::TrackOrUntrackFiles(
+    const std::vector<std::string>& existing_data_files, bool track) {
+  auto sfm = static_cast_with_check<SstFileManagerImpl>(
+      immutable_db_options_.sst_file_manager.get());
+  assert(sfm);
+  std::vector<ColumnFamilyMetaData> metadata;
+  GetAllColumnFamilyMetaData(&metadata);
+  auto action = [&](const std::string& file_path,
+                    std::optional<uint64_t> size) {
+    if (track) {
+      if (size) {
+        sfm->OnAddFile(file_path, *size).PermitUncheckedError();
+      } else {
+        sfm->OnAddFile(file_path).PermitUncheckedError();
+      }
+    } else {
+      sfm->OnUntrackFile(file_path).PermitUncheckedError();
+    }
+  };
+
+  std::unordered_set<std::string> referenced_files;
+  for (const auto& md : metadata) {
+    for (const auto& lmd : md.levels) {
+      for (const auto& fmd : lmd.files) {
+        // We're assuming that each sst file name exists in at most one of
+        // the paths.
+        std::string file_path =
+            fmd.directory + kFilePathSeparator + fmd.relative_filename;
+        action(file_path, fmd.size);
+        referenced_files.insert(file_path);
+      }
+    }
+    for (const auto& bmd : md.blob_files) {
+      std::string name = bmd.blob_file_name;
+      // The BlobMetaData.blob_file_name may start with "/".
+      if (!name.empty() && name[0] == kFilePathSeparator) {
+        name = name.substr(1);
+      }
+      // We're assuming that each blob file name exists in at most one of
+      // the paths.
+      std::string file_path = bmd.blob_file_path + kFilePathSeparator + name;
+      action(file_path, bmd.blob_file_size);
+      referenced_files.insert(file_path);
+    }
+  }
+
+  for (const auto& file_path : existing_data_files) {
+    if (referenced_files.find(file_path) != referenced_files.end()) {
+      continue;
+    }
+    // There shouldn't be any duplicated files. In case there is, SstFileManager
+    // will take care of deduping it.
+    action(file_path, /*size=*/std::nullopt);
+  }
+}
+
+void DBImpl::InstallSeqnoToTimeMappingInSV(
+    std::vector<SuperVersionContext>* sv_contexts) {
+  mutex_.AssertHeld();
+  std::shared_ptr<SeqnoToTimeMapping> new_seqno_to_time_mapping =
+      std::make_shared<SeqnoToTimeMapping>();
+  new_seqno_to_time_mapping->CopyFrom(seqno_to_time_mapping_);
+  for (ColumnFamilyData* cfd : *versions_->GetColumnFamilySet()) {
+    if (cfd->IsDropped()) {
+      continue;
+    }
+    sv_contexts->emplace_back(/*create_superversion=*/true);
+    sv_contexts->back().new_seqno_to_time_mapping = new_seqno_to_time_mapping;
+    cfd->InstallSuperVersion(&sv_contexts->back(),
+                             *(cfd->GetLatestMutableCFOptions()));
+  }
+  bg_cv_.SignalAll();
+}
 
 }  // namespace ROCKSDB_NAMESPACE

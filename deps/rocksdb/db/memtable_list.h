@@ -34,11 +34,11 @@ class MemTableList;
 
 struct FlushJobInfo;
 
-// keeps a list of immutable memtables in a vector. the list is immutable
-// if refcount is bigger than one. It is used as a state for Get() and
-// Iterator code paths
+// keeps a list of immutable memtables (ReadOnlyMemtable*) in a vector.
+// The list is immutable if refcount is bigger than one. It is used as
+// a state for Get() and iterator code paths.
 //
-// This class is not thread-safe.  External synchronization is required
+// This class is not thread-safe. External synchronization is required
 // (such as holding the db mutex or being on the write thread).
 class MemTableListVersion {
  public:
@@ -49,7 +49,7 @@ class MemTableListVersion {
                                int64_t max_write_buffer_size_to_maintain);
 
   void Ref();
-  void Unref(autovector<MemTable*>* to_delete = nullptr);
+  void Unref(autovector<ReadOnlyMemTable*>* to_delete = nullptr);
 
   // Search all the memtables starting from the most recent one.
   // Return the most recent value found, if any.
@@ -112,10 +112,14 @@ class MemTableListVersion {
                                     RangeDelAggregator* range_del_agg);
 
   void AddIterators(const ReadOptions& options,
+                    UnownedPtr<const SeqnoToTimeMapping> seqno_to_time_mapping,
+                    const SliceTransform* prefix_extractor,
                     std::vector<InternalIterator*>* iterator_list,
                     Arena* arena);
 
   void AddIterators(const ReadOptions& options,
+                    UnownedPtr<const SeqnoToTimeMapping> seqno_to_time_mapping,
+                    const SliceTransform* prefix_extractor,
                     MergeIteratorBuilder* merge_iter_builder,
                     bool add_range_tombstone_iter);
 
@@ -123,8 +127,8 @@ class MemTableListVersion {
 
   uint64_t GetTotalNumDeletes() const;
 
-  MemTable::MemTableStats ApproximateStats(const Slice& start_ikey,
-                                           const Slice& end_ikey);
+  ReadOnlyMemTable::MemTableStats ApproximateStats(const Slice& start_ikey,
+                                                   const Slice& end_ikey) const;
 
   // Returns the value of MemTable::GetEarliestSequenceNumber() on the most
   // recent MemTable in this list or kMaxSequenceNumber if the list is empty.
@@ -137,6 +141,15 @@ class MemTableListVersion {
   // Return kMaxSequenceNumber if the list is empty.
   SequenceNumber GetFirstSequenceNumber() const;
 
+  // REQUIRES: db_mutex held.
+  void SetID(uint64_t id) { id_ = id; }
+
+  uint64_t GetID() const { return id_; }
+
+  int NumNotFlushed() const { return static_cast<int>(memlist_.size()); }
+
+  int NumFlushed() const { return static_cast<int>(memlist_history_.size()); }
+
  private:
   friend class MemTableList;
 
@@ -144,23 +157,27 @@ class MemTableListVersion {
       const autovector<MemTableList*>* imm_lists,
       const autovector<ColumnFamilyData*>& cfds,
       const autovector<const MutableCFOptions*>& mutable_cf_options_list,
-      const autovector<const autovector<MemTable*>*>& mems_list,
+      const autovector<const autovector<ReadOnlyMemTable*>*>& mems_list,
       VersionSet* vset, LogsWithPrepTracker* prep_tracker,
       InstrumentedMutex* mu, const autovector<FileMetaData*>& file_meta,
       const autovector<std::list<std::unique_ptr<FlushJobInfo>>*>&
           committed_flush_jobs_info,
-      autovector<MemTable*>* to_delete, FSDirectory* db_directory,
+      autovector<ReadOnlyMemTable*>* to_delete, FSDirectory* db_directory,
       LogBuffer* log_buffer);
 
   // REQUIRE: m is an immutable memtable
-  void Add(MemTable* m, autovector<MemTable*>* to_delete);
+  void Add(ReadOnlyMemTable* m, autovector<ReadOnlyMemTable*>* to_delete);
   // REQUIRE: m is an immutable memtable
-  void Remove(MemTable* m, autovector<MemTable*>* to_delete);
+  void Remove(ReadOnlyMemTable* m, autovector<ReadOnlyMemTable*>* to_delete);
 
-  // Return true if memtable is trimmed
-  bool TrimHistory(autovector<MemTable*>* to_delete, size_t usage);
+  // Return true if the memtable list should be trimmed to get memory usage
+  // under budget.
+  bool HistoryShouldBeTrimmed(size_t usage);
 
-  bool GetFromList(std::list<MemTable*>* list, const LookupKey& key,
+  // Trim history, Return true if memtable is trimmed
+  bool TrimHistory(autovector<ReadOnlyMemTable*>* to_delete, size_t usage);
+
+  bool GetFromList(std::list<ReadOnlyMemTable*>* list, const LookupKey& key,
                    std::string* value, PinnableWideColumns* columns,
                    std::string* timestamp, Status* s,
                    MergeContext* merge_context,
@@ -169,9 +186,10 @@ class MemTableListVersion {
                    ReadCallback* callback = nullptr,
                    bool* is_blob_index = nullptr);
 
-  void AddMemTable(MemTable* m);
+  void AddMemTable(ReadOnlyMemTable* m);
 
-  void UnrefMemTable(autovector<MemTable*>* to_delete, MemTable* m);
+  void UnrefMemTable(autovector<ReadOnlyMemTable*>* to_delete,
+                     ReadOnlyMemTable* m);
 
   // Calculate the total amount of memory used by memlist_ and memlist_history_
   // excluding the last MemTable in memlist_history_. The reason for excluding
@@ -186,11 +204,11 @@ class MemTableListVersion {
   bool MemtableLimitExceeded(size_t usage);
 
   // Immutable MemTables that have not yet been flushed.
-  std::list<MemTable*> memlist_;
+  std::list<ReadOnlyMemTable*> memlist_;
 
   // MemTables that have already been flushed
   // (used during Transaction validation)
-  std::list<MemTable*> memlist_history_;
+  std::list<ReadOnlyMemTable*> memlist_history_;
 
   // Maximum number of MemTables to keep in memory (including both flushed
   const int max_write_buffer_number_to_maintain_;
@@ -201,6 +219,9 @@ class MemTableListVersion {
   int refs_ = 0;
 
   size_t* parent_memtable_list_memory_usage_;
+
+  // MemtableListVersion id to track for flush results checking.
+  uint64_t id_ = 0;
 };
 
 // This class stores references to all the immutable memtables.
@@ -231,7 +252,8 @@ class MemTableList {
         flush_requested_(false),
         current_memory_usage_(0),
         current_memory_allocted_bytes_excluding_last_(0),
-        current_has_history_(false) {
+        current_has_history_(false),
+        last_memtable_list_version_id_(0) {
     current_->Ref();
   }
 
@@ -266,21 +288,33 @@ class MemTableList {
   // Returns the earliest memtables that needs to be flushed. The returned
   // memtables are guaranteed to be in the ascending order of created time.
   void PickMemtablesToFlush(uint64_t max_memtable_id,
-                            autovector<MemTable*>* mems,
+                            autovector<ReadOnlyMemTable*>* mems,
                             uint64_t* max_next_log_number = nullptr);
 
   // Reset status of the given memtable list back to pending state so that
   // they can get picked up again on the next round of flush.
-  void RollbackMemtableFlush(const autovector<MemTable*>& mems,
-                             uint64_t file_number);
+  //
+  // @param rollback_succeeding_memtables If true, will rollback adjacent
+  // younger memtables whose flush is completed. Specifically, suppose the
+  // current immutable memtables are M_0,M_1...M_N ordered from youngest to
+  // oldest. Suppose that the youngest memtable in `mems` is M_K. We will try to
+  // rollback M_K-1, M_K-2... until the first memtable whose flush is
+  // not completed. These are the memtables that would have been installed
+  // by this flush job if it were to succeed. This flag is currently used
+  // by non atomic_flush rollback.
+  // Note that we also do rollback in `write_manifest_cb` by calling
+  // `RemoveMemTablesOrRestoreFlags()`. There we rollback the entire batch so
+  // it is similar to what we do here with rollback_succeeding_memtables=true.
+  void RollbackMemtableFlush(const autovector<ReadOnlyMemTable*>& mems,
+                             bool rollback_succeeding_memtables);
 
   // Try commit a successful flush in the manifest file. It might just return
   // Status::OK letting a concurrent flush to do the actual the recording.
   Status TryInstallMemtableFlushResults(
       ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options,
-      const autovector<MemTable*>& m, LogsWithPrepTracker* prep_tracker,
+      const autovector<ReadOnlyMemTable*>& m, LogsWithPrepTracker* prep_tracker,
       VersionSet* vset, InstrumentedMutex* mu, uint64_t file_number,
-      autovector<MemTable*>* to_delete, FSDirectory* db_directory,
+      autovector<ReadOnlyMemTable*>* to_delete, FSDirectory* db_directory,
       LogBuffer* log_buffer,
       std::list<std::unique_ptr<FlushJobInfo>>* committed_flush_jobs_info,
       bool write_edits = true);
@@ -290,7 +324,7 @@ class MemTableList {
   // By default, adding memtables will flag that the memtable list needs to be
   // flushed, but in certain situations, like after a mempurge, we may want to
   // avoid flushing the memtable list upon addition of a memtable.
-  void Add(MemTable* m, autovector<MemTable*>* to_delete);
+  void Add(ReadOnlyMemTable* m, autovector<ReadOnlyMemTable*>* to_delete);
 
   // Returns an estimate of the number of bytes of data in use.
   size_t ApproximateMemoryUsage();
@@ -312,7 +346,7 @@ class MemTableList {
   // memtable list.
   //
   // Return true if memtable is trimmed
-  bool TrimHistory(autovector<MemTable*>* to_delete, size_t usage);
+  bool TrimHistory(autovector<ReadOnlyMemTable*>* to_delete, size_t usage);
 
   // Returns an estimate of the number of bytes of data used by
   // the unflushed mem-tables.
@@ -361,10 +395,13 @@ class MemTableList {
 
   size_t* current_memory_usage() { return &current_memory_usage_; }
 
-  // Returns the min log containing the prep section after memtables listsed in
-  // `memtables_to_flush` are flushed and their status is persisted in manifest.
+  // Returns the WAL number of the oldest WAL that contains a prepared
+  // transaction that corresponds to the content in this MemTableList,
+  // after memtables listed in `memtables_to_flush` are flushed and their
+  // status is persisted in manifest.
   uint64_t PrecomputeMinLogContainingPrepSection(
-      const std::unordered_set<MemTable*>* memtables_to_flush = nullptr);
+      const std::unordered_set<ReadOnlyMemTable*>* memtables_to_flush =
+          nullptr) const;
 
   uint64_t GetEarliestMemTableID() const {
     auto& memlist = current_->memlist_;
@@ -374,19 +411,48 @@ class MemTableList {
     return memlist.back()->GetID();
   }
 
-  uint64_t GetLatestMemTableID() const {
+  uint64_t GetLatestMemTableID(bool for_atomic_flush) const {
     auto& memlist = current_->memlist_;
     if (memlist.empty()) {
       return 0;
     }
+    if (for_atomic_flush) {
+      // Scan the memtable list from new to old
+      for (auto it = memlist.begin(); it != memlist.end(); ++it) {
+        ReadOnlyMemTable* m = *it;
+        if (m->atomic_flush_seqno_ != kMaxSequenceNumber) {
+          return m->GetID();
+        }
+      }
+      return 0;
+    }
     return memlist.front()->GetID();
+  }
+
+  // DB mutex held.
+  // Gets the newest user-defined timestamp for the Memtables in ascending ID
+  // order, up to the `max_memtable_id`. Used by background flush job
+  // to check Memtables' eligibility for flush w.r.t retaining UDTs.
+  std::vector<Slice> GetTablesNewestUDT(uint64_t max_memtable_id) {
+    std::vector<Slice> newest_udts;
+    auto& memlist = current_->memlist_;
+    // Iterating through the memlist starting at the end, the vector<MemTable*>
+    // ret is filled with memtables already sorted in increasing MemTable ID.
+    for (auto it = memlist.rbegin(); it != memlist.rend(); ++it) {
+      ReadOnlyMemTable* m = *it;
+      if (m->GetID() > max_memtable_id) {
+        break;
+      }
+      newest_udts.push_back(m->GetNewestUDT());
+    }
+    return newest_udts;
   }
 
   void AssignAtomicFlushSeq(const SequenceNumber& seq) {
     const auto& memlist = current_->memlist_;
     // Scan the memtable list from new to old
     for (auto it = memlist.begin(); it != memlist.end(); ++it) {
-      MemTable* mem = *it;
+      ReadOnlyMemTable* mem = *it;
       if (mem->atomic_flush_seqno_ == kMaxSequenceNumber) {
         mem->atomic_flush_seqno_ = seq;
       } else {
@@ -402,19 +468,25 @@ class MemTableList {
   // was created, i.e. mem->GetNextLogNumber() <= log_number. The memtables are
   // not freed, but put into a vector for future deref and reclamation.
   void RemoveOldMemTables(uint64_t log_number,
-                          autovector<MemTable*>* to_delete);
+                          autovector<ReadOnlyMemTable*>* to_delete);
+
+  // This API is only used by atomic date replacement. To get an edit for
+  // dropping the current `MemTableListVersion`.
+  VersionEdit GetEditForDroppingCurrentVersion(
+      const ColumnFamilyData* cfd, VersionSet* vset,
+      LogsWithPrepTracker* prep_tracker) const;
 
  private:
   friend Status InstallMemtableAtomicFlushResults(
       const autovector<MemTableList*>* imm_lists,
       const autovector<ColumnFamilyData*>& cfds,
       const autovector<const MutableCFOptions*>& mutable_cf_options_list,
-      const autovector<const autovector<MemTable*>*>& mems_list,
+      const autovector<const autovector<ReadOnlyMemTable*>*>& mems_list,
       VersionSet* vset, LogsWithPrepTracker* prep_tracker,
       InstrumentedMutex* mu, const autovector<FileMetaData*>& file_meta,
       const autovector<std::list<std::unique_ptr<FlushJobInfo>>*>&
           committed_flush_jobs_info,
-      autovector<MemTable*>* to_delete, FSDirectory* db_directory,
+      autovector<ReadOnlyMemTable*>* to_delete, FSDirectory* db_directory,
       LogBuffer* log_buffer);
 
   // DB mutex held
@@ -424,7 +496,7 @@ class MemTableList {
   // Called after writing to MANIFEST
   void RemoveMemTablesOrRestoreFlags(const Status& s, ColumnFamilyData* cfd,
                                      size_t batch_count, LogBuffer* log_buffer,
-                                     autovector<MemTable*>* to_delete,
+                                     autovector<ReadOnlyMemTable*>* to_delete,
                                      InstrumentedMutex* mu);
 
   const int min_write_buffer_number_to_merge_;
@@ -449,6 +521,10 @@ class MemTableList {
 
   // Cached value of current_->HasHistory().
   std::atomic<bool> current_has_history_;
+
+  // Last memtabe list version id, increase by 1 each time a new
+  // MemtableListVersion is installed.
+  uint64_t last_memtable_list_version_id_;
 };
 
 // Installs memtable atomic flush results.
@@ -457,15 +533,15 @@ class MemTableList {
 // installs flush results for external immutable memtable lists other than the
 // cfds' own immutable memtable lists, e.g. MemTableLIstTest. In this case,
 // imm_lists parameter is not nullptr.
-extern Status InstallMemtableAtomicFlushResults(
+Status InstallMemtableAtomicFlushResults(
     const autovector<MemTableList*>* imm_lists,
     const autovector<ColumnFamilyData*>& cfds,
     const autovector<const MutableCFOptions*>& mutable_cf_options_list,
-    const autovector<const autovector<MemTable*>*>& mems_list, VersionSet* vset,
-    LogsWithPrepTracker* prep_tracker, InstrumentedMutex* mu,
+    const autovector<const autovector<ReadOnlyMemTable*>*>& mems_list,
+    VersionSet* vset, LogsWithPrepTracker* prep_tracker, InstrumentedMutex* mu,
     const autovector<FileMetaData*>& file_meta,
     const autovector<std::list<std::unique_ptr<FlushJobInfo>>*>&
         committed_flush_jobs_info,
-    autovector<MemTable*>* to_delete, FSDirectory* db_directory,
+    autovector<ReadOnlyMemTable*>* to_delete, FSDirectory* db_directory,
     LogBuffer* log_buffer);
 }  // namespace ROCKSDB_NAMESPACE

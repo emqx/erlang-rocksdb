@@ -16,6 +16,7 @@
 
 #include "cache/cache_reservation_manager.h"
 #include "db/memtable_list.h"
+#include "db/snapshot_checker.h"
 #include "db/table_cache.h"
 #include "db/table_properties_collector.h"
 #include "db/write_batch_internal.h"
@@ -26,6 +27,7 @@
 #include "rocksdb/env.h"
 #include "rocksdb/options.h"
 #include "trace_replay/block_cache_tracer.h"
+#include "util/cast_util.h"
 #include "util/hash_containers.h"
 #include "util/thread_local.h"
 
@@ -163,16 +165,17 @@ extern const double kIncSlowdownRatio;
 class ColumnFamilyHandleImpl : public ColumnFamilyHandle {
  public:
   // create while holding the mutex
-  ColumnFamilyHandleImpl(
-      ColumnFamilyData* cfd, DBImpl* db, InstrumentedMutex* mutex);
+  ColumnFamilyHandleImpl(ColumnFamilyData* cfd, DBImpl* db,
+                         InstrumentedMutex* mutex);
   // destroy without mutex
   virtual ~ColumnFamilyHandleImpl();
   virtual ColumnFamilyData* cfd() const { return cfd_; }
+  virtual DBImpl* db() const { return db_; }
 
-  virtual uint32_t GetID() const override;
-  virtual const std::string& GetName() const override;
-  virtual Status GetDescriptor(ColumnFamilyDescriptor* desc) override;
-  virtual const Comparator* GetComparator() const override;
+  uint32_t GetID() const override;
+  const std::string& GetName() const override;
+  Status GetDescriptor(ColumnFamilyDescriptor* desc) override;
+  const Comparator* GetComparator() const override;
 
  private:
   ColumnFamilyData* cfd_;
@@ -189,10 +192,11 @@ class ColumnFamilyHandleImpl : public ColumnFamilyHandle {
 class ColumnFamilyHandleInternal : public ColumnFamilyHandleImpl {
  public:
   ColumnFamilyHandleInternal()
-      : ColumnFamilyHandleImpl(nullptr, nullptr, nullptr), internal_cfd_(nullptr) {}
+      : ColumnFamilyHandleImpl(nullptr, nullptr, nullptr),
+        internal_cfd_(nullptr) {}
 
   void SetCFD(ColumnFamilyData* _cfd) { internal_cfd_ = _cfd; }
-  virtual ColumnFamilyData* cfd() const override { return internal_cfd_; }
+  ColumnFamilyData* cfd() const override { return internal_cfd_; }
 
  private:
   ColumnFamilyData* internal_cfd_;
@@ -203,13 +207,22 @@ struct SuperVersion {
   // Accessing members of this class is not thread-safe and requires external
   // synchronization (ie db mutex held or on write thread).
   ColumnFamilyData* cfd;
-  MemTable* mem;
+  ReadOnlyMemTable* mem;
   MemTableListVersion* imm;
   Version* current;
   MutableCFOptions mutable_cf_options;
   // Version number of the current SuperVersion
   uint64_t version_number;
   WriteStallCondition write_stall_condition;
+  // Each time `full_history_ts_low` collapses history, a new SuperVersion is
+  // installed. This field tracks the effective `full_history_ts_low` for that
+  // SuperVersion, to be used by read APIs for sanity checks. This field is
+  // immutable once SuperVersion is installed. For column family that doesn't
+  // enable UDT feature, this is an empty string.
+  std::string full_history_ts_low;
+
+  // A shared copy of the DB's seqno to time mapping.
+  std::shared_ptr<const SeqnoToTimeMapping> seqno_to_time_mapping{nullptr};
 
   // should be called outside the mutex
   SuperVersion() = default;
@@ -224,8 +237,23 @@ struct SuperVersion {
   // that needs to be deleted in to_delete vector. Unrefing those
   // objects needs to be done in the mutex
   void Cleanup();
-  void Init(ColumnFamilyData* new_cfd, MemTable* new_mem,
-            MemTableListVersion* new_imm, Version* new_current);
+  void Init(
+      ColumnFamilyData* new_cfd, MemTable* new_mem,
+      MemTableListVersion* new_imm, Version* new_current,
+      std::shared_ptr<const SeqnoToTimeMapping> new_seqno_to_time_mapping);
+
+  // Share the ownership of the seqno to time mapping object referred to in this
+  // SuperVersion. To be used by the new SuperVersion to be installed after this
+  // one if seqno to time mapping does not change in between these two
+  // SuperVersions. Or to share the ownership of the mapping with a FlushJob.
+  std::shared_ptr<const SeqnoToTimeMapping> ShareSeqnoToTimeMapping() {
+    return seqno_to_time_mapping;
+  }
+
+  // Access the seqno to time mapping object in this SuperVersion.
+  UnownedPtr<const SeqnoToTimeMapping> GetSeqnoToTimeMapping() const {
+    return seqno_to_time_mapping.get();
+  }
 
   // The value of dummy is not actually used. kSVInUse takes its address as a
   // mark in the thread local storage to indicate the SuperVersion is in use
@@ -241,25 +269,24 @@ struct SuperVersion {
   // We need to_delete because during Cleanup(), imm->Unref() returns
   // all memtables that we need to free through this vector. We then
   // delete all those memtables outside of mutex, during destruction
-  autovector<MemTable*> to_delete;
+  autovector<ReadOnlyMemTable*> to_delete;
 };
 
-extern Status CheckCompressionSupported(const ColumnFamilyOptions& cf_options);
+Status CheckCompressionSupported(const ColumnFamilyOptions& cf_options);
 
-extern Status CheckConcurrentWritesSupported(
-    const ColumnFamilyOptions& cf_options);
+Status CheckConcurrentWritesSupported(const ColumnFamilyOptions& cf_options);
 
-extern Status CheckCFPathsSupported(const DBOptions& db_options,
-                                    const ColumnFamilyOptions& cf_options);
+Status CheckCFPathsSupported(const DBOptions& db_options,
+                             const ColumnFamilyOptions& cf_options);
 
-extern ColumnFamilyOptions SanitizeOptions(const ImmutableDBOptions& db_options,
-                                           const ColumnFamilyOptions& src);
+ColumnFamilyOptions SanitizeOptions(const ImmutableDBOptions& db_options,
+                                    const ColumnFamilyOptions& src);
 // Wrap user defined table properties collector factories `from cf_options`
-// into internal ones in int_tbl_prop_collector_factories. Add a system internal
+// into internal ones in internal_tbl_prop_coll_factories. Add a system internal
 // one too.
-extern void GetIntTblPropCollectorFactory(
+void GetInternalTblPropCollFactory(
     const ImmutableCFOptions& ioptions,
-    IntTblPropCollectorFactories* int_tbl_prop_collector_factories);
+    InternalTblPropCollFactories* internal_tbl_prop_coll_factories);
 
 class ColumnFamilySet;
 
@@ -303,16 +330,16 @@ class ColumnFamilyData {
   void SetDropped();
   bool IsDropped() const { return dropped_.load(std::memory_order_relaxed); }
 
+  void SetFlushSkipReschedule();
+
+  bool GetAndClearFlushSkipReschedule();
+
   // thread-safe
   int NumberLevels() const { return ioptions_.num_levels; }
 
   void SetLogNumber(uint64_t log_number) { log_number_ = log_number; }
   uint64_t GetLogNumber() const { return log_number_; }
 
-  void SetFlushReason(FlushReason flush_reason) {
-    flush_reason_ = flush_reason;
-  }
-  FlushReason GetFlushReason() const { return flush_reason_; }
   // thread-safe
   const FileOptions* soptions() const;
   const ImmutableOptions* ioptions() const { return &ioptions_; }
@@ -338,12 +365,10 @@ class ColumnFamilyData {
   // Validate CF options against DB options
   static Status ValidateOptions(const DBOptions& db_options,
                                 const ColumnFamilyOptions& cf_options);
-#ifndef ROCKSDB_LITE
   // REQUIRES: DB mutex held
   Status SetOptions(
       const DBOptions& db_options,
       const std::unordered_map<std::string, std::string>& options_map);
-#endif  // ROCKSDB_LITE
 
   InternalStats* internal_stats() { return internal_stats_.get(); }
 
@@ -357,14 +382,18 @@ class ColumnFamilyData {
   Version* current() { return current_; }
   Version* dummy_versions() { return dummy_versions_; }
   void SetCurrent(Version* _current);
-  uint64_t GetNumLiveVersions() const;  // REQUIRE: DB mutex held
+  uint64_t GetNumLiveVersions() const;    // REQUIRE: DB mutex held
   uint64_t GetTotalSstFilesSize() const;  // REQUIRE: DB mutex held
   uint64_t GetLiveSstFilesSize() const;   // REQUIRE: DB mutex held
   uint64_t GetTotalBlobFileSize() const;  // REQUIRE: DB mutex held
+  // REQUIRE: DB mutex held
   void SetMemtable(MemTable* new_mem) {
-    uint64_t memtable_id = last_memtable_id_.fetch_add(1) + 1;
-    new_mem->SetID(memtable_id);
+    AssignMemtableID(new_mem);
     mem_ = new_mem;
+  }
+
+  void AssignMemtableID(ReadOnlyMemTable* new_imm) {
+    new_imm->SetID(++last_memtable_id_);
   }
 
   // calculate the oldest log needed for the durability of this column family
@@ -377,15 +406,18 @@ class ColumnFamilyData {
                          SequenceNumber earliest_seq);
 
   TableCache* table_cache() const { return table_cache_.get(); }
+  BlobFileCache* blob_file_cache() const { return blob_file_cache_.get(); }
   BlobSource* blob_source() const { return blob_source_.get(); }
 
   // See documentation in compaction_picker.h
   // REQUIRES: DB mutex held
   bool NeedsCompaction() const;
   // REQUIRES: DB mutex held
-  Compaction* PickCompaction(const MutableCFOptions& mutable_options,
-                             const MutableDBOptions& mutable_db_options,
-                             LogBuffer* log_buffer);
+  Compaction* PickCompaction(
+      const MutableCFOptions& mutable_options,
+      const MutableDBOptions& mutable_db_options,
+      const std::vector<SequenceNumber>& existing_snapshots,
+      const SnapshotChecker* snapshot_checker, LogBuffer* log_buffer);
 
   // Check if the passed range overlap with any running compactions.
   // REQUIRES: DB mutex held
@@ -400,7 +432,7 @@ class ColumnFamilyData {
   //    duration of this function.
   //
   // Thread-safe
-  Status RangesOverlapWithMemtables(const autovector<Range>& ranges,
+  Status RangesOverlapWithMemtables(const autovector<UserKeyRange>& ranges,
                                     SuperVersion* super_version,
                                     bool allow_data_in_errors, bool* overlap);
 
@@ -429,8 +461,8 @@ class ColumnFamilyData {
     return internal_comparator_;
   }
 
-  const IntTblPropCollectorFactories* int_tbl_prop_collector_factories() const {
-    return &int_tbl_prop_collector_factories_;
+  const InternalTblPropCollFactories* internal_tbl_prop_coll_factories() const {
+    return &internal_tbl_prop_coll_factories_;
   }
 
   SuperVersion* GetSuperVersion() { return super_version_; }
@@ -467,12 +499,6 @@ class ColumnFamilyData {
   bool queued_for_flush() { return queued_for_flush_; }
   bool queued_for_compaction() { return queued_for_compaction_; }
 
-  enum class WriteStallCause {
-    kNone,
-    kMemtableLimit,
-    kL0FileCountLimit,
-    kPendingCompactionBytes,
-  };
   static std::pair<WriteStallCondition, WriteStallCause>
   GetWriteStallConditionAndCause(
       int num_unflushed_memtables, int num_l0_files,
@@ -492,8 +518,6 @@ class ColumnFamilyData {
   const ColumnFamilyOptions& initial_cf_options() {
     return initial_cf_options_;
   }
-
-  Env::WriteLifeTimeHint CalculateSSTWriteHint(int level);
 
   // created_dirs remembers directory created, so that we don't need to call
   // the same data creation operation again.
@@ -517,6 +541,12 @@ class ColumnFamilyData {
     return full_history_ts_low_;
   }
 
+  // REQUIRES: DB mutex held.
+  // Return true if flushing up to MemTables with ID `max_memtable_id`
+  // should be postponed to retain user-defined timestamps according to the
+  // user's setting. Called by background flush job.
+  bool ShouldPostponeFlushToRetainUDT(uint64_t max_memtable_id);
+
   ThreadLocalPtr* TEST_GetLocalSV() { return local_sv_.get(); }
   WriteBufferManager* write_buffer_mgr() { return write_buffer_manager_; }
   std::shared_ptr<CacheReservationManager>
@@ -524,13 +554,33 @@ class ColumnFamilyData {
     return file_metadata_cache_res_mgr_;
   }
 
-  SequenceNumber GetFirstMemtableSequenceNumber() const;
-
   static const uint32_t kDummyColumnFamilyDataId;
 
   // Keep track of whether the mempurge feature was ever used.
   void SetMempurgeUsed() { mempurge_used_ = true; }
   bool GetMempurgeUsed() { return mempurge_used_; }
+
+  // Allocate and return a new epoch number
+  uint64_t NewEpochNumber() { return next_epoch_number_.fetch_add(1); }
+
+  // Get the next epoch number to be assigned
+  uint64_t GetNextEpochNumber() const { return next_epoch_number_.load(); }
+
+  // Set the next epoch number to be assigned
+  void SetNextEpochNumber(uint64_t next_epoch_number) {
+    next_epoch_number_.store(next_epoch_number);
+  }
+
+  // Reset the next epoch number to be assigned
+  void ResetNextEpochNumber() { next_epoch_number_.store(1); }
+
+  // Recover the next epoch number of this CF and epoch number
+  // of its files (if missing)
+  void RecoverEpochNumbers();
+
+  int GetUnflushedMemTableCountForWriteStallCheck() const {
+    return (mem_->IsEmpty() ? 0 : 1) + imm_.NumNotFlushed();
+  }
 
  private:
   friend class ColumnFamilySet;
@@ -552,12 +602,21 @@ class ColumnFamilyData {
   Version* dummy_versions_;  // Head of circular doubly-linked list of versions.
   Version* current_;         // == dummy_versions->prev_
 
-  std::atomic<int> refs_;      // outstanding references to ColumnFamilyData
+  std::atomic<int> refs_;  // outstanding references to ColumnFamilyData
   std::atomic<bool> initialized_;
   std::atomic<bool> dropped_;  // true if client dropped it
 
+  // When user-defined timestamps in memtable only feature is enabled, this
+  // flag indicates a successfully requested flush that should
+  // skip being rescheduled and haven't undergone the rescheduling check yet.
+  // This flag is cleared when a check skips rescheduling a FlushRequest.
+  // With this flag, automatic flushes in regular cases can continue to
+  // retain UDTs by getting rescheduled as usual while manual flushes and
+  // error recovery flushes will proceed without getting rescheduled.
+  std::atomic<bool> flush_skip_reschedule_;
+
   const InternalKeyComparator internal_comparator_;
-  IntTblPropCollectorFactories int_tbl_prop_collector_factories_;
+  InternalTblPropCollFactories internal_tbl_prop_coll_factories_;
 
   const ColumnFamilyOptions initial_cf_options_;
   const ImmutableOptions ioptions_;
@@ -597,8 +656,6 @@ class ColumnFamilyData {
   // recovered from
   uint64_t log_number_;
 
-  std::atomic<FlushReason> flush_reason_;
-
   // An object that keeps all the compaction stats
   // and picks the next compaction
   std::unique_ptr<CompactionPicker> compaction_picker_;
@@ -620,7 +677,7 @@ class ColumnFamilyData {
   bool allow_2pc_;
 
   // Memtable id to track flush.
-  std::atomic<uint64_t> last_memtable_id_;
+  uint64_t last_memtable_id_;
 
   // Directories corresponding to cf_paths.
   std::vector<std::shared_ptr<FSDirectory>> data_dirs_;
@@ -633,6 +690,8 @@ class ColumnFamilyData {
   // a Version associated with this CFD
   std::shared_ptr<CacheReservationManager> file_metadata_cache_res_mgr_;
   bool mempurge_used_;
+
+  std::atomic<uint64_t> next_epoch_number_;
 };
 
 // ColumnFamilySet has interesting thread-safety requirements
@@ -656,8 +715,7 @@ class ColumnFamilySet {
   // ColumnFamilySet supports iteration
   class iterator {
    public:
-    explicit iterator(ColumnFamilyData* cfd)
-        : current_(cfd) {}
+    explicit iterator(ColumnFamilyData* cfd) : current_(cfd) {}
     // NOTE: minimum operators for for-loop iteration
     iterator& operator++() {
       current_ = current_->next_;
@@ -699,6 +757,16 @@ class ColumnFamilySet {
                                        Version* dummy_version,
                                        const ColumnFamilyOptions& options);
 
+  const UnorderedMap<uint32_t, size_t>& GetRunningColumnFamiliesTimestampSize()
+      const {
+    return running_ts_sz_;
+  }
+
+  const UnorderedMap<uint32_t, size_t>&
+  GetColumnFamiliesTimestampSizeForRecord() const {
+    return ts_sz_for_record_;
+  }
+
   iterator begin() { return iterator(dummy_cfd_->next_); }
   iterator end() { return iterator(dummy_cfd_); }
 
@@ -723,6 +791,15 @@ class ColumnFamilySet {
   // 2. accessed from a single-threaded write thread
   UnorderedMap<std::string, uint32_t> column_families_;
   UnorderedMap<uint32_t, ColumnFamilyData*> column_family_data_;
+
+  // Mutating / reading `running_ts_sz_` and `ts_sz_for_record_` follow
+  // the same requirements as `column_families_` and `column_family_data_`.
+  // Mapping from column family id to user-defined timestamp size for all
+  // running column families.
+  UnorderedMap<uint32_t, size_t> running_ts_sz_;
+  // Mapping from column family id to user-defined timestamp size for
+  // column families with non-zero user-defined timestamp size.
+  UnorderedMap<uint32_t, size_t> ts_sz_for_record_;
 
   uint32_t max_column_family_;
   const FileOptions file_options_;
@@ -819,17 +896,17 @@ class ColumnFamilyMemTablesImpl : public ColumnFamilyMemTables {
   // REQUIRES: Seek() called first
   // REQUIRES: use this function of DBImpl::column_family_memtables_ should be
   //           under a DB mutex OR from a write thread
-  virtual MemTable* GetMemTable() const override;
+  MemTable* GetMemTable() const override;
 
   // Returns column family handle for the selected column family
   // REQUIRES: use this function of DBImpl::column_family_memtables_ should be
   //           under a DB mutex OR from a write thread
-  virtual ColumnFamilyHandle* GetColumnFamilyHandle() override;
+  ColumnFamilyHandle* GetColumnFamilyHandle() override;
 
   // Cannot be called while another thread is calling Seek().
   // REQUIRES: use this function of DBImpl::column_family_memtables_ should be
   //           under a DB mutex OR from a write thread
-  virtual ColumnFamilyData* current() override { return current_; }
+  ColumnFamilyData* current() override { return current_; }
 
  private:
   ColumnFamilySet* column_family_set_;
@@ -837,9 +914,11 @@ class ColumnFamilyMemTablesImpl : public ColumnFamilyMemTables {
   ColumnFamilyHandleInternal handle_;
 };
 
-extern uint32_t GetColumnFamilyID(ColumnFamilyHandle* column_family);
+uint32_t GetColumnFamilyID(ColumnFamilyHandle* column_family);
 
-extern const Comparator* GetColumnFamilyUserComparator(
+const Comparator* GetColumnFamilyUserComparator(
     ColumnFamilyHandle* column_family);
+
+const ImmutableOptions& GetImmutableOptions(ColumnFamilyHandle* column_family);
 
 }  // namespace ROCKSDB_NAMESPACE

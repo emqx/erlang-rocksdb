@@ -30,7 +30,7 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <vector>
+#include <unordered_map>
 
 #include "rocksdb/status.h"
 #include "rocksdb/write_batch_base.h"
@@ -43,13 +43,13 @@ struct SavePoints;
 struct SliceParts;
 
 struct SavePoint {
-  size_t size;  // size of rep_
-  int count;    // count of elements in rep_
+  size_t size;     // size of rep_
+  uint32_t count;  // count of elements in rep_
   uint32_t content_flags;
 
   SavePoint() : size(0), count(0), content_flags(0) {}
 
-  SavePoint(size_t _size, int _count, uint32_t _flags)
+  SavePoint(size_t _size, uint32_t _count, uint32_t _flags)
       : size(_size), count(_count), content_flags(_flags) {}
 
   void clear() {
@@ -100,11 +100,24 @@ class WriteBatch : public WriteBatchBase {
     return Put(nullptr, key, value);
   }
 
+  using WriteBatchBase::TimedPut;
+  // EXPERIMENTAL
+  // Stores the mapping "key->value" in the database with the specified write
+  // time in the column family. Also see documentation in
+  // `WriteBatchBase::TimedPut` for the API's usage and limitations.
+  Status TimedPut(ColumnFamilyHandle* column_family, const Slice& key,
+                  const Slice& value, uint64_t write_unix_time) override;
+
   // Store the mapping "key->{column1:value1, column2:value2, ...}" in the
   // column family specified by "column_family".
   using WriteBatchBase::PutEntity;
   Status PutEntity(ColumnFamilyHandle* column_family, const Slice& key,
                    const WideColumns& columns) override;
+
+  // Split and store wide column entities in multiple column families (a.k.a.
+  // AttributeGroups)
+  Status PutEntity(const Slice& key,
+                   const AttributeGroups& attribute_groups) override;
 
   using WriteBatchBase::Delete;
   // If the database contains a mapping for "key", erase it.  Else do nothing.
@@ -150,12 +163,9 @@ class WriteBatch : public WriteBatchBase {
   Status DeleteRange(const Slice& begin_key, const Slice& end_key) override {
     return DeleteRange(nullptr, begin_key, end_key);
   }
-  Status DeleteRange(ColumnFamilyHandle* /*column_family*/,
-                     const Slice& /*begin_key*/, const Slice& /*end_key*/,
-                     const Slice& /*ts*/) override {
-    return Status::NotSupported(
-        "DeleteRange does not support user-defined timestamp");
-  }
+  // begin_key and end_key should be user keys without timestamp.
+  Status DeleteRange(ColumnFamilyHandle* column_family, const Slice& begin_key,
+                     const Slice& end_key, const Slice& ts) override;
 
   // variant that takes SliceParts
   Status DeleteRange(ColumnFamilyHandle* column_family,
@@ -175,10 +185,7 @@ class WriteBatch : public WriteBatchBase {
     return Merge(nullptr, key, value);
   }
   Status Merge(ColumnFamilyHandle* /*column_family*/, const Slice& /*key*/,
-               const Slice& /*ts*/, const Slice& /*value*/) override {
-    return Status::NotSupported(
-        "Merge does not support user-defined timestamp");
-  }
+               const Slice& /*ts*/, const Slice& /*value*/) override;
 
   // variant that takes SliceParts
   Status Merge(ColumnFamilyHandle* column_family, const SliceParts& key,
@@ -202,6 +209,8 @@ class WriteBatch : public WriteBatchBase {
 
   using WriteBatchBase::Clear;
   // Clear all updates buffered in this batch.
+  // Internally, it calls resize() on the string buffer. So allocated memory
+  // capacity may not be freed.
   void Clear() override;
 
   // Records the state of the batch for future calls to RollbackToSavePoint().
@@ -222,6 +231,7 @@ class WriteBatch : public WriteBatchBase {
   Status PopSavePoint() override;
 
   // Support for iterating over the contents of a batch.
+  // Objects of subclasses of Handler will be used by WriteBatch::Iterate().
   class Handler {
    public:
     virtual ~Handler();
@@ -232,6 +242,7 @@ class WriteBatch : public WriteBatchBase {
     // default implementation will just call Put without column family for
     // backwards compatibility. If the column family is not default,
     // the function is noop
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual Status PutCF(uint32_t column_family_id, const Slice& key,
                          const Slice& value) {
       if (column_family_id == 0) {
@@ -244,14 +255,24 @@ class WriteBatch : public WriteBatchBase {
       return Status::InvalidArgument(
           "non-default column family and PutCF not implemented");
     }
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual void Put(const Slice& /*key*/, const Slice& /*value*/) {}
 
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
+    virtual Status TimedPutCF(uint32_t /*column_family_id*/,
+                              const Slice& /*key*/, const Slice& /*value*/,
+                              uint64_t /*write_time*/) {
+      return Status::InvalidArgument("TimedPutCF not implemented");
+    }
+
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual Status PutEntityCF(uint32_t /* column_family_id */,
                                const Slice& /* key */,
                                const Slice& /* entity */) {
       return Status::NotSupported("PutEntityCF not implemented");
     }
 
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual Status DeleteCF(uint32_t column_family_id, const Slice& key) {
       if (column_family_id == 0) {
         Delete(key);
@@ -260,8 +281,10 @@ class WriteBatch : public WriteBatchBase {
       return Status::InvalidArgument(
           "non-default column family and DeleteCF not implemented");
     }
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual void Delete(const Slice& /*key*/) {}
 
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual Status SingleDeleteCF(uint32_t column_family_id, const Slice& key) {
       if (column_family_id == 0) {
         SingleDelete(key);
@@ -270,14 +293,18 @@ class WriteBatch : public WriteBatchBase {
       return Status::InvalidArgument(
           "non-default column family and SingleDeleteCF not implemented");
     }
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual void SingleDelete(const Slice& /*key*/) {}
 
+    // If user-defined timestamp is enabled, then `begin_key` and `end_key`
+    // both include timestamp.
     virtual Status DeleteRangeCF(uint32_t /*column_family_id*/,
                                  const Slice& /*begin_key*/,
                                  const Slice& /*end_key*/) {
       return Status::InvalidArgument("DeleteRangeCF not implemented");
     }
 
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual Status MergeCF(uint32_t column_family_id, const Slice& key,
                            const Slice& value) {
       if (column_family_id == 0) {
@@ -287,8 +314,10 @@ class WriteBatch : public WriteBatchBase {
       return Status::InvalidArgument(
           "non-default column family and MergeCF not implemented");
     }
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual void Merge(const Slice& /*key*/, const Slice& /*value*/) {}
 
+    // If user-defined timestamp is enabled, then `key` includes timestamp.
     virtual Status PutBlobIndexCF(uint32_t /*column_family_id*/,
                                   const Slice& /*key*/,
                                   const Slice& /*value*/) {
@@ -349,6 +378,9 @@ class WriteBatch : public WriteBatchBase {
   // Retrieve the serialized version of this batch.
   const std::string& Data() const { return rep_; }
 
+  // Release the serialized data and clear this batch.
+  std::string Release();
+
   // Retrieve data size of the batch.
   size_t GetDataSize() const { return rep_.size(); }
 
@@ -357,6 +389,9 @@ class WriteBatch : public WriteBatchBase {
 
   // Returns true if PutCF will be called during Iterate
   bool HasPut() const;
+
+  // Returns true if TimedPutCF will be called during Iterate
+  bool HasTimedPut() const;
 
   // Returns true if PutEntityCF will be called during Iterate
   bool HasPutEntity() const;
@@ -385,8 +420,6 @@ class WriteBatch : public WriteBatchBase {
   // Returns true if MarkRollback will be called during Iterate
   bool HasRollback() const;
 
-  // Experimental.
-  //
   // Update timestamps of existing entries in the write batch if
   // applicable. If a key is intended for a column family that disables
   // timestamp, then this API won't set the timestamp for this key.
@@ -405,6 +438,30 @@ class WriteBatch : public WriteBatchBase {
   // size_t ts_sz_func(uint32_t cf);
   Status UpdateTimestamps(const Slice& ts,
                           std::function<size_t(uint32_t /*cf*/)> ts_sz_func);
+
+  // TODO: remove these internal APIs after MyRocks refactor to not directly
+  // write to a `WriteBatch` retrieved from `Transaction` via
+  // `Transaction::GetWriteBatch`.
+
+  void SetTrackTimestampSize(bool track_timestamp_size) {
+    track_timestamp_size_ = track_timestamp_size;
+  }
+
+  inline void MaybeTrackTimestampSize(uint32_t column_family_id, size_t ts_sz) {
+    if (!track_timestamp_size_) {
+      return;
+    }
+    auto iter = cf_id_to_ts_sz_.find(column_family_id);
+    if (iter == cf_id_to_ts_sz_.end()) {
+      cf_id_to_ts_sz_.emplace(column_family_id, ts_sz);
+    }
+  }
+
+  // Return a mapping from column family id to timestamp size of all the column
+  // families involved in this WriteBatch.
+  const std::unordered_map<uint32_t, size_t>& GetColumnFamilyToTimestampSize() {
+    return cf_id_to_ts_sz_;
+  }
 
   // Verify the per-key-value checksums of this write batch.
   // Corruption status will be returned if the verification fails.
@@ -479,6 +536,10 @@ class WriteBatch : public WriteBatchBase {
   std::unique_ptr<ProtectionInfo> prot_info_;
 
   size_t default_cf_ts_sz_ = 0;
+
+  bool track_timestamp_size_ = false;
+
+  std::unordered_map<uint32_t, size_t> cf_id_to_ts_sz_;
 
  protected:
   std::string rep_;  // See comment in write_batch.cc for the format of rep_

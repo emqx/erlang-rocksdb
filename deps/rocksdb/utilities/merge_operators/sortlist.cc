@@ -3,10 +3,10 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 #include "utilities/merge_operators/sortlist.h"
+
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/slice.h"
 #include "utilities/merge_operators.h"
-
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -52,7 +52,9 @@ bool SortList::PartialMergeMulti(const Slice& /*key*/,
 void SortList::MakeVector(std::vector<int>& operand, Slice slice) const {
   do {
     const char* begin = slice.data_;
-    while (*slice.data_ != ',' && *slice.data_) slice.data_++;
+    while (*slice.data_ != ',' && *slice.data_) {
+      slice.data_++;
+    }
     operand.push_back(std::stoi(std::string(begin, slice.data_)));
   } while (0 != *slice.data_++);
 }

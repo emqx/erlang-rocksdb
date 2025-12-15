@@ -9,26 +9,26 @@
 #include <cassert>
 #include <limits>
 
+#include "db/wide/wide_columns_helper.h"
 #include "rocksdb/slice.h"
 #include "util/autovector.h"
 #include "util/coding.h"
 
 namespace ROCKSDB_NAMESPACE {
 
-const Slice kDefaultWideColumnName;
-
-const WideColumns kNoWideColumns;
-
 Status WideColumnSerialization::Serialize(const WideColumns& columns,
                                           std::string& output) {
-  if (columns.size() >
-      static_cast<size_t>(std::numeric_limits<uint32_t>::max())) {
+  const size_t num_columns = columns.size();
+
+  if (num_columns > static_cast<size_t>(std::numeric_limits<uint32_t>::max())) {
     return Status::InvalidArgument("Too many wide columns");
   }
 
   PutVarint32(&output, kCurrentVersion);
 
-  PutVarint32(&output, static_cast<uint32_t>(columns.size()));
+  PutVarint32(&output, static_cast<uint32_t>(num_columns));
+
+  const Slice* prev_name = nullptr;
 
   for (size_t i = 0; i < columns.size(); ++i) {
     const WideColumn& column = columns[i];
@@ -38,7 +38,8 @@ Status WideColumnSerialization::Serialize(const WideColumns& columns,
         static_cast<size_t>(std::numeric_limits<uint32_t>::max())) {
       return Status::InvalidArgument("Wide column name too long");
     }
-    if (i > 0 && columns[i - 1].name().compare(name) >= 0) {
+
+    if (prev_name && prev_name->compare(name) >= 0) {
       return Status::Corruption("Wide columns out of order");
     }
 
@@ -50,6 +51,8 @@ Status WideColumnSerialization::Serialize(const WideColumns& columns,
 
     PutLengthPrefixedSlice(&output, name);
     PutVarint32(&output, static_cast<uint32_t>(value.size()));
+
+    prev_name = &name;
   }
 
   for (const auto& column : columns) {
@@ -126,21 +129,6 @@ Status WideColumnSerialization::Deserialize(Slice& input,
   return Status::OK();
 }
 
-WideColumns::const_iterator WideColumnSerialization::Find(
-    const WideColumns& columns, const Slice& column_name) {
-  const auto it =
-      std::lower_bound(columns.cbegin(), columns.cend(), column_name,
-                       [](const WideColumn& lhs, const Slice& rhs) {
-                         return lhs.name().compare(rhs) < 0;
-                       });
-
-  if (it == columns.cend() || it->name() != column_name) {
-    return columns.cend();
-  }
-
-  return it;
-}
-
 Status WideColumnSerialization::GetValueOfDefaultColumn(Slice& input,
                                                         Slice& value) {
   WideColumns columns;
@@ -150,12 +138,12 @@ Status WideColumnSerialization::GetValueOfDefaultColumn(Slice& input,
     return s;
   }
 
-  if (columns.empty() || columns[0].name() != kDefaultWideColumnName) {
+  if (!WideColumnsHelper::HasDefaultColumn(columns)) {
     value.clear();
     return Status::OK();
   }
 
-  value = columns[0].value();
+  value = WideColumnsHelper::GetDefaultColumn(columns);
 
   return Status::OK();
 }

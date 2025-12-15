@@ -1,9 +1,9 @@
 This directory contains all Barrel dependencies, except for the libc and utilities that should be provided by the operating system.
 
 
-- **lz4** 1.8.3 : compression library
-- **snappy** 1.1.10 : compression library
-- **rocksdb** 5.18.3: db backend to store the data
+- **lz4** 1.10.0-r1 : compression library
+- **snappy** 1.2.2-r1 : compression library
+- **rocksdb** 9.10.0: db backend to store the data
 
 ## How to upgrade dependencies:
 

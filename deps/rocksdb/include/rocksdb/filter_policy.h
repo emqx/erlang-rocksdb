@@ -47,7 +47,8 @@ class FilterBitsReader;
 // structs because this is expected to be a temporary, stack-allocated object.
 struct FilterBuildingContext {
   // This constructor is for internal use only and subject to change.
-  FilterBuildingContext(const BlockBasedTableOptions& table_options);
+  // Keeps a reference to table_options.
+  explicit FilterBuildingContext(const BlockBasedTableOptions& table_options);
 
   // Options for the table being built
   const BlockBasedTableOptions& table_options;
@@ -162,7 +163,7 @@ class FilterPolicy : public Customizable {
 // ignores trailing spaces, it would be incorrect to use a
 // FilterPolicy (like NewBloomFilterPolicy) that does not ignore
 // trailing spaces in keys.
-extern const FilterPolicy* NewBloomFilterPolicy(
+const FilterPolicy* NewBloomFilterPolicy(
     double bits_per_key, bool IGNORED_use_block_based_builder = false);
 
 // A new Bloom alternative that saves about 30% space compared to
@@ -184,6 +185,11 @@ extern const FilterPolicy* NewBloomFilterPolicy(
 // flushes under Level and Universal compaction styles.
 // bloom_before_level=-1 -> Always generate Ribbon filters (except in
 // some extreme or exceptional cases).
+// bloom_before_level=INT_MAX -> Always generate Bloom filters.
+//
+// The bloom_before_level option is mutable in the Configurable interface
+// and through the SetOptions() API, as in
+// db->SetOptions({{"table_factory.filter_policy.bloom_before_level", "3"}});
 //
 // Ribbon filters are compatible with RocksDB >= 6.15.0. Earlier
 // versions reading the data will behave as if no filter was used
@@ -200,7 +206,7 @@ extern const FilterPolicy* NewBloomFilterPolicy(
 //
 // Also consider using optimize_filters_for_memory to save filter
 // memory.
-extern const FilterPolicy* NewRibbonFilterPolicy(
-    double bloom_equivalent_bits_per_key, int bloom_before_level = 0);
+FilterPolicy* NewRibbonFilterPolicy(double bloom_equivalent_bits_per_key,
+                                    int bloom_before_level = 0);
 
 }  // namespace ROCKSDB_NAMESPACE

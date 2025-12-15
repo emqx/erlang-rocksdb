@@ -13,16 +13,17 @@
 #ifndef ROCKSDB_NO_DYNAMIC_EXTENSION
 #include <dlfcn.h>
 #endif
-#include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+
+#include <cerrno>
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #if defined(OS_LINUX) || defined(OS_SOLARIS) || defined(OS_ANDROID)
 #include <sys/statfs.h>
 #include <sys/sysmacros.h>
@@ -30,9 +31,9 @@
 #include <sys/statvfs.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <time.h>
 
 #include <algorithm>
+#include <ctime>
 // Get nano time includes
 #if defined(OS_LINUX) || defined(OS_FREEBSD)
 #elif defined(__MACH__)
@@ -50,6 +51,7 @@
 #include "env/io_posix.h"
 #include "monitoring/iostats_context_imp.h"
 #include "monitoring/thread_status_updater.h"
+#include "options/db_options.h"
 #include "port/lang.h"
 #include "port/port.h"
 #include "rocksdb/options.h"
@@ -115,7 +117,7 @@ class PosixFileLock : public FileLock {
     filename.clear();
   }
 
-  virtual ~PosixFileLock() override {
+  ~PosixFileLock() override {
     // Check for destruction without UnlockFile
     assert(fd_ == -1);
   }
@@ -143,7 +145,7 @@ class PosixFileSystem : public FileSystem {
   const char* Name() const override { return kClassName(); }
   const char* NickName() const override { return kDefaultName(); }
 
-  ~PosixFileSystem() override {}
+  ~PosixFileSystem() override = default;
   bool IsInstanceOf(const std::string& name) const override {
     if (name == "posix") {
       return true;
@@ -168,10 +170,6 @@ class PosixFileSystem : public FileSystem {
     FILE* file = nullptr;
 
     if (options.use_direct_reads && !options.use_mmap_reads) {
-#ifdef ROCKSDB_LITE
-      return IOStatus::IOError(fname,
-                               "Direct I/O not supported in RocksDB lite");
-#endif  // !ROCKSDB_LITE
 #if !defined(OS_MACOSX) && !defined(OS_OPENBSD) && !defined(OS_SOLARIS)
       flags |= O_DIRECT;
       TEST_SYNC_POINT_CALLBACK("NewSequentialFile:O_DIRECT", &flags);
@@ -223,10 +221,6 @@ class PosixFileSystem : public FileSystem {
     int flags = cloexec_flags(O_RDONLY, &options);
 
     if (options.use_direct_reads && !options.use_mmap_reads) {
-#ifdef ROCKSDB_LITE
-      return IOStatus::IOError(fname,
-                               "Direct I/O not supported in RocksDB lite");
-#endif  // !ROCKSDB_LITE
 #if !defined(OS_MACOSX) && !defined(OS_OPENBSD) && !defined(OS_SOLARIS)
       flags |= O_DIRECT;
       TEST_SYNC_POINT_CALLBACK("NewRandomAccessFile:O_DIRECT", &flags);
@@ -300,10 +294,6 @@ class PosixFileSystem : public FileSystem {
       // appends data to the end of the file, regardless of the value of
       // offset.
       // More info here: https://linux.die.net/man/2/pwrite
-#ifdef ROCKSDB_LITE
-      return IOStatus::IOError(fname,
-                               "Direct I/O not supported in RocksDB lite");
-#endif  // ROCKSDB_LITE
       flags |= O_WRONLY;
 #if !defined(OS_MACOSX) && !defined(OS_OPENBSD) && !defined(OS_SOLARIS)
       flags |= O_DIRECT;
@@ -392,10 +382,6 @@ class PosixFileSystem : public FileSystem {
     int flags = 0;
     // Direct IO mode with O_DIRECT flag or F_NOCAHCE (MAC OSX)
     if (options.use_direct_writes && !options.use_mmap_writes) {
-#ifdef ROCKSDB_LITE
-      return IOStatus::IOError(fname,
-                               "Direct I/O not supported in RocksDB lite");
-#endif  // !ROCKSDB_LITE
       flags |= O_WRONLY;
 #if !defined(OS_MACOSX) && !defined(OS_OPENBSD) && !defined(OS_SOLARIS)
       flags |= O_DIRECT;
@@ -575,7 +561,7 @@ class PosixFileSystem : public FileSystem {
     }
   }
 
-  IOStatus GetChildren(const std::string& dir, const IOOptions& /*opts*/,
+  IOStatus GetChildren(const std::string& dir, const IOOptions& opts,
                        std::vector<std::string>* result,
                        IODebugContext* /*dbg*/) override {
     result->clear();
@@ -595,12 +581,20 @@ class PosixFileSystem : public FileSystem {
     // reset errno before calling readdir()
     errno = 0;
     struct dirent* entry;
+
     while ((entry = readdir(d)) != nullptr) {
       // filter out '.' and '..' directory entries
       // which appear only on some platforms
       const bool ignore =
           entry->d_type == DT_DIR &&
-          (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0);
+          (strcmp(entry->d_name, ".") == 0 ||
+           strcmp(entry->d_name, "..") == 0
+#ifndef ASSERT_STATUS_CHECKED
+           // In case of ASSERT_STATUS_CHECKED, GetChildren support older
+           // version of API for debugging purpose.
+           || opts.do_not_recurse
+#endif
+          );
       if (!ignore) {
         result->push_back(entry->d_name);
       }
@@ -813,7 +807,7 @@ class PosixFileSystem : public FileSystem {
 
   IOStatus UnlockFile(FileLock* lock, const IOOptions& /*opts*/,
                       IODebugContext* /*dbg*/) override {
-    PosixFileLock* my_lock = reinterpret_cast<PosixFileLock*>(lock);
+    PosixFileLock* my_lock = static_cast<PosixFileLock*>(lock);
     IOStatus result;
     mutex_locked_files.Lock();
     // If we are unlocking, then verify that we had locked it earlier,
@@ -937,6 +931,28 @@ class PosixFileSystem : public FileSystem {
     optimized.fallocate_with_keep_size = true;
     return optimized;
   }
+
+  FileOptions OptimizeForCompactionTableRead(
+      const FileOptions& file_options,
+      const ImmutableDBOptions& db_options) const override {
+    FileOptions fo = FileOptions(file_options);
+#ifdef OS_LINUX
+    // To fix https://github.com/facebook/rocksdb/issues/12038
+    if (!file_options.use_direct_reads &&
+        file_options.compaction_readahead_size > 0) {
+      size_t system_limit =
+          GetCompactionReadaheadSizeSystemLimit(db_options.db_paths);
+      if (system_limit > 0 &&
+          file_options.compaction_readahead_size > system_limit) {
+        fo.compaction_readahead_size = system_limit;
+      }
+    }
+#else
+    (void)db_options;
+#endif
+    return fo;
+  }
+
 #ifdef OS_LINUX
   Status RegisterDbPaths(const std::vector<std::string>& paths) override {
     return logical_block_size_cache_.RefAndCacheLogicalBlockSize(paths);
@@ -949,6 +965,36 @@ class PosixFileSystem : public FileSystem {
  private:
   bool forceMmapOff_ = false;  // do we override Env options?
 
+#ifdef OS_LINUX
+  // Get the minimum "linux system limit" (i.e, the largest I/O size that the OS
+  // can issue to block devices under a directory, also known as
+  // "max_sectors_kb" ) among `db_paths`.
+  // Return 0 if no limit can be found or there is an error in
+  // retrieving such limit.
+  static size_t GetCompactionReadaheadSizeSystemLimit(
+      const std::vector<DbPath>& db_paths) {
+    Status s;
+    size_t limit_kb = 0;
+
+    for (const auto& db_path : db_paths) {
+      size_t dir_max_sectors_kb = 0;
+      s = PosixHelper::GetMaxSectorsKBOfDirectory(db_path.path,
+                                                  &dir_max_sectors_kb);
+      if (!s.ok()) {
+        break;
+      }
+
+      limit_kb = (limit_kb == 0) ? dir_max_sectors_kb
+                                 : std::min(limit_kb, dir_max_sectors_kb);
+    }
+
+    if (s.ok()) {
+      return limit_kb * 1024;
+    } else {
+      return 0;
+    }
+  }
+#endif
   // Returns true iff the named directory exists and is a directory.
   virtual bool DirExists(const std::string& dname) {
     struct stat statbuf;
@@ -1005,16 +1051,14 @@ class PosixFileSystem : public FileSystem {
   }
 #endif  // ROCKSDB_IOURING_PRESENT
 
-  // EXPERIMENTAL
-  //
-  // TODO akankshamahajan:
+  // TODO:
   // 1. Update Poll API to take into account min_completions
   // and returns if number of handles in io_handles (any order) completed is
   // equal to atleast min_completions.
   // 2. Currently in case of direct_io, Read API is called because of which call
   // to Poll API fails as it expects IOHandle to be populated.
-  virtual IOStatus Poll(std::vector<void*>& io_handles,
-                        size_t /*min_completions*/) override {
+  IOStatus Poll(std::vector<void*>& io_handles,
+                size_t /*min_completions*/) override {
 #if defined(ROCKSDB_IOURING_PRESENT)
     // io_uring_queue_init.
     struct io_uring* iu = nullptr;
@@ -1086,7 +1130,7 @@ class PosixFileSystem : public FileSystem {
 #endif
   }
 
-  virtual IOStatus AbortIO(std::vector<void*>& io_handles) override {
+  IOStatus AbortIO(std::vector<void*>& io_handles) override {
 #if defined(ROCKSDB_IOURING_PRESENT)
     // io_uring_queue_init.
     struct io_uring* iu = nullptr;
@@ -1191,6 +1235,16 @@ class PosixFileSystem : public FileSystem {
 #endif
   }
 
+  void SupportedOps(int64_t& supported_ops) override {
+    supported_ops = 0;
+#if defined(ROCKSDB_IOURING_PRESENT)
+    if (IsIOUringEnabled()) {
+      // Underlying FS supports async_io
+      supported_ops |= (1 << FSSupportedOps::kAsyncIO);
+    }
+#endif
+  }
+
 #if defined(ROCKSDB_IOURING_PRESENT)
   // io_uring instance
   std::unique_ptr<ThreadLocalPtr> thread_local_io_urings_;
@@ -1270,7 +1324,6 @@ std::shared_ptr<FileSystem> FileSystem::Default() {
   return instance;
 }
 
-#ifndef ROCKSDB_LITE
 static FactoryFunc<FileSystem> posix_filesystem_reg =
     ObjectLibrary::Default()->AddFactory<FileSystem>(
         ObjectLibrary::PatternEntry("posix").AddSeparator("://", false),
@@ -1279,7 +1332,6 @@ static FactoryFunc<FileSystem> posix_filesystem_reg =
           f->reset(new PosixFileSystem());
           return f->get();
         });
-#endif
 
 }  // namespace ROCKSDB_NAMESPACE
 

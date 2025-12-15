@@ -46,7 +46,6 @@ class ConfigurableHelper {
       const std::unordered_map<std::string, std::string>& options,
       std::unordered_map<std::string, std::string>* unused);
 
-#ifndef ROCKSDB_LITE
   // Internal method to configure a set of options for this object.
   // Classes may override this value to change its behavior.
   // @param config_options Controls how the options are being configured
@@ -161,9 +160,9 @@ class ConfigurableHelper {
                             std::string* mismatch);
 
  private:
-  // Looks for the option specified by name in the RegisteredOptions.
-  // This method traverses the types in the input options vector.  If an entry
-  // matching name is found, that entry, opt_name, and pointer are returned.
+  // Looks for the option specified by name in the RegisteredOptions of a
+  // configurable. If an entry matching name is found, that entry, opt_name,
+  // and pointer are returned.
   // @param options  The vector of options to search through
   // @param name     The name of the option to search for in the OptionType map
   // @param opt_name If the name was found, this value is set to the option name
@@ -173,15 +172,15 @@ class ConfigurableHelper {
   //                 in the RegisteredOptions vector associated with this entry
   // @return         A pointer to the OptionTypeInfo from the options if found,
   //                 nullptr if the name was not found in the input options
-  static const OptionTypeInfo* FindOption(
-      const std::vector<Configurable::RegisteredOptions>& options,
-      const std::string& name, std::string* opt_name, void** opt_ptr);
+  static const OptionTypeInfo* FindOption(const Configurable& configurable,
+                                          const std::string& name,
+                                          std::string* opt_name,
+                                          void** opt_ptr);
 
   static Status ConfigureCustomizableOption(
       const ConfigOptions& config_options, Configurable& configurable,
       const OptionTypeInfo& opt_info, const std::string& opt_name,
       const std::string& name, const std::string& value, void* opt_ptr);
-#endif  // ROCKSDB_LITE
 };
 
 }  // namespace ROCKSDB_NAMESPACE

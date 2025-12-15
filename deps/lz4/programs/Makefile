@@ -1,6 +1,6 @@
 # ##########################################################################
 # LZ4 programs - Makefile
-# Copyright (C) Yann Collet 2011-2017
+# Copyright (C) Yann Collet 2011-2023
 #
 # This Makefile is validated for Linux, macOS, *BSD, Hurd, Solaris, MSYS2 targets
 #
@@ -22,100 +22,172 @@
 #
 # You can contact the author at :
 #  - LZ4 homepage : http://www.lz4.org
-#  - LZ4 source repository : https://github.com/Cyan4973/lz4
+#  - LZ4 source repository : https://github.com/lz4/lz4
 # ##########################################################################
 # lz4 : Command Line Utility, supporting gzip-like arguments
 # lz4c  : CLU, supporting also legacy lz4demo arguments
 # lz4c32: Same as lz4c, but forced to compile in 32-bits mode
 # ##########################################################################
+SED ?= sed
 
 # Version numbers
-LZ4DIR   := ../lib
-LIBVER_SRC := $(LZ4DIR)/lz4.h
-LIBVER_MAJOR_SCRIPT:=`sed -n '/define LZ4_VERSION_MAJOR/s/.*[[:blank:]]\([0-9][0-9]*\).*/\1/p' < $(LIBVER_SRC)`
-LIBVER_MINOR_SCRIPT:=`sed -n '/define LZ4_VERSION_MINOR/s/.*[[:blank:]]\([0-9][0-9]*\).*/\1/p' < $(LIBVER_SRC)`
-LIBVER_PATCH_SCRIPT:=`sed -n '/define LZ4_VERSION_RELEASE/s/.*[[:blank:]]\([0-9][0-9]*\).*/\1/p' < $(LIBVER_SRC)`
+LIBDIR   := ../lib
+LIBVER_SRC := $(LIBDIR)/lz4.h
+LIBVER_MAJOR_SCRIPT:=`$(SED) -n '/define[[:blank:]][[:blank:]]*LZ4_VERSION_MAJOR/s/.*[[:blank:]]\([0-9][0-9]*\).*/\1/p' < $(LIBVER_SRC)`
+LIBVER_MINOR_SCRIPT:=`$(SED) -n '/define[[:blank:]][[:blank:]]*LZ4_VERSION_MINOR/s/.*[[:blank:]]\([0-9][0-9]*\).*/\1/p' < $(LIBVER_SRC)`
+LIBVER_PATCH_SCRIPT:=`$(SED) -n '/define[[:blank:]][[:blank:]]*LZ4_VERSION_RELEASE/s/.*[[:blank:]]\([0-9][0-9]*\).*/\1/p' < $(LIBVER_SRC)`
 LIBVER_SCRIPT:= $(LIBVER_MAJOR_SCRIPT).$(LIBVER_MINOR_SCRIPT).$(LIBVER_PATCH_SCRIPT)
 LIBVER_MAJOR := $(shell echo $(LIBVER_MAJOR_SCRIPT))
 LIBVER_MINOR := $(shell echo $(LIBVER_MINOR_SCRIPT))
 LIBVER_PATCH := $(shell echo $(LIBVER_PATCH_SCRIPT))
 LIBVER   := $(shell echo $(LIBVER_SCRIPT))
 
-SRCFILES := $(sort $(wildcard $(LZ4DIR)/*.c) $(wildcard *.c))
-OBJFILES := $(SRCFILES:.c=.o)
+LIBFILES  = $(wildcard $(LIBDIR)/*.c)
+SRCFILES  = $(sort $(LIBFILES) $(wildcard *.c))
+OBJFILES  = $(SRCFILES:.c=.o)
 
-CPPFLAGS += -I$(LZ4DIR) -DXXH_NAMESPACE=LZ4_
-CFLAGS   ?= -O3
-DEBUGFLAGS:=-Wall -Wextra -Wundef -Wcast-qual -Wcast-align -Wshadow \
+DEBUGFLAGS= -Wall -Wextra -Wundef -Wcast-qual -Wcast-align -Wshadow \
             -Wswitch-enum -Wdeclaration-after-statement -Wstrict-prototypes \
             -Wpointer-arith -Wstrict-aliasing=1
-CFLAGS   += $(DEBUGFLAGS) $(MOREFLAGS)
-FLAGS     = $(CFLAGS) $(CPPFLAGS) $(LDFLAGS)
+USERCFLAGS:= -O3 $(CFLAGS) # -O3 can be overruled by user-provided -Ox level
+CFLAGS    = $(DEBUGFLAGS) $(USERCFLAGS)
+CPPFLAGS += -I$(LIBDIR) -DXXH_NAMESPACE=LZ4_
 
-LZ4_VERSION=$(LIBVER)
-MD2ROFF   = ronn
-MD2ROFF_FLAGS = --roff --warnings --manual="User Commands" --organization="lz4 $(LZ4_VERSION)"
+include ../Makefile.inc
 
-
-# Define *.exe as extension for Windows systems
-ifneq (,$(filter Windows%,$(OS)))
-EXT  :=.exe
-VOID := nul
-else
-EXT  :=
-VOID := /dev/null
+OS_VERSION ?= $(UNAME) -r
+ifeq ($(TARGET_OS)$(shell $(OS_VERSION)),SunOS5.10)
+LDFLAGS  += -lrt
 endif
 
+ALLFLAGS  = $(CFLAGS) $(CPPFLAGS) $(LDFLAGS)
 
+# thread detection
+NUM_SYMBOL   := \#
+NO_THREAD_MSG:= ==> no multithread support: building for single-thread mode only
+HAVE_PTHREAD := $(shell printf '$(NUM_SYMBOL)include <pthread.h>\nint main(void) { return 0; }' > have_pthread.c && $(CC) $(ALLFLAGS) -o have_pthread$(EXT) have_pthread.c -pthread 2> $(VOID) && rm -f have_pthread$(EXT) && echo 1 || echo 0; rm have_pthread.c)
+HAVE_MULTITHREAD  := $(shell [ "$(HAVE_PTHREAD)" -eq "1" -o -n "$(filter Windows%,$(OS))" ] && echo 1 || echo 0)
+ifeq ($(HAVE_MULTITHREAD), 1)
+  THREAD_MSG := ==> building with multithreading support
+  THREAD_CPP := -DLZ4IO_MULTITHREAD
+  ifeq ($(HAVE_PTHREAD), 1)
+    THREAD_LD  := -pthread
+  endif
+else
+  THREAD_MSG := $(NO_THREAD_MSG)
+endif
 
+LZ4_VERSION=$(LIBVER)
+MD2ROFF    = ronn
+MD2ROFF_FLAGS = --roff --warnings --manual="User Commands" --organization="lz4 $(LZ4_VERSION)"
+
+.PHONY:default
 default: lz4-release
 
-all: lz4 lz4c
+# silent mode by default; verbose can be triggered by V=1 or VERBOSE=1
+$(V)$(VERBOSE).SILENT:
 
+.PHONY:all
+all: lz4 lz4-nomt lz4c unlz4 lz4cat
+
+.PHONY:all32
 all32: CFLAGS+=-m32
 all32: all
 
-lz4: $(OBJFILES)
-	$(CC) $(FLAGS) $^ -o $@$(EXT)
+ifeq ($(WINBASED),yes)
+lz4-exe.rc: lz4-exe.rc.in
+	@echo creating executable resource
+	$(SED) -e 's|@PROGNAME@|lz4|' \
+           -e 's|@LIBVER_MAJOR@|$(LIBVER_MAJOR)|g' \
+           -e 's|@LIBVER_MINOR@|$(LIBVER_MINOR)|g' \
+           -e 's|@LIBVER_PATCH@|$(LIBVER_PATCH)|g' \
+           -e 's|@EXT@|.exe|g' \
+           $< >$@
 
+lz4-exe.o: lz4-exe.rc
+	$(WINDRES) -i lz4-exe.rc -o lz4-exe.o
+
+lz4: CPPFLAGS += $(THREAD_CPP)
+lz4: LDFLAGS += $(THREAD_LD)
+lz4: $(OBJFILES) lz4-exe.o
+	echo "$(THREAD_MSG)"
+	$(CC) $(ALLFLAGS) $^ -o $@$(EXT)
+else
+lz4: CPPFLAGS += $(THREAD_CPP)
+lz4: LDFLAGS += $(THREAD_LD)
+lz4: $(OBJFILES)
+	echo "$(THREAD_MSG)"
+	$(CC) $(ALLFLAGS) $(OBJFILES) -o $@$(EXT) $(LDLIBS)
+endif
+CLEAN += lz4
+
+.PHONY: lz4-release
 lz4-release: DEBUGFLAGS=
+lz4-release: CPPFLAGS+=-DNDEBUG
 lz4-release: lz4
 
-lz4c: lz4
-	ln -s lz4$(EXT) lz4c$(EXT)
+CLEAN += lz4-nomt
+lz4-nomt: $(SRCFILES)
+	$(CC) $(ALLFLAGS) $^ -o $@$(EXT)
 
+CLEAN += lz4-wlib
+lz4-wlib: LIBFILES =
+lz4-wlib: SRCFILES+= $(LIBDIR)/xxhash.c  # benchmark unit needs XXH64()
+lz4-wlib: LDFLAGS += -L $(LIBDIR)
+lz4-wlib: LDLIBS   = -llz4
+lz4-wlib: liblz4 $(OBJFILES)
+	@echo WARNING: $@ must link to an extended variant of the dynamic library which also exposes unstable symbols
+	$(CC) $(ALLFLAGS) $(OBJFILES) -o $@$(EXT) $(LDLIBS)
+
+.PHONY:liblz4
+liblz4:
+	CPPFLAGS="-DLZ4F_PUBLISH_STATIC_FUNCTIONS -DLZ4_PUBLISH_STATIC_FUNCTIONS" $(MAKE) -C $(LIBDIR) liblz4
+
+CLEAN += lz4c
+lz4c: lz4
+	$(LN_SF) lz4$(EXT) lz4c$(EXT)
+
+CLEAN += lz4c32
 lz4c32: CFLAGS += -m32
 lz4c32 : $(SRCFILES)
-	$(CC) $(FLAGS) $^ -o $@$(EXT)
+	$(CC) $(ALLFLAGS) $^ -o $@$(EXT)
+
+CLEAN += unlz4
+unlz4: lz4
+	$(LN_SF) lz4$(EXT) unlz4$(EXT)
+
+CLEAN += lz4cat
+lz4cat: lz4
+	$(LN_SF) lz4$(EXT) lz4cat$(EXT)
 
 lz4.1: lz4.1.md $(LIBVER_SRC)
-	cat $< | $(MD2ROFF) $(MD2ROFF_FLAGS) | sed -n '/^\.\\\".*/!p' > $@
+	cat $< | $(MD2ROFF) $(MD2ROFF_FLAGS) | $(SED) -n '/^\.\\\".*/!p' > $@
 
+.PHONY:man
 man: lz4.1
 
+.PHONY:clean-man
 clean-man:
-	rm lz4.1
+	$(RM) lz4.1
 
+.PHONY:preview-man
 preview-man: clean-man man
 	man ./lz4.1
 
+.PHONY:clean
 clean:
-	@$(MAKE) -C $(LZ4DIR) $@ > $(VOID)
-	@$(RM) core *.o *.test tmp* \
-           lz4$(EXT) lz4c$(EXT) lz4c32$(EXT) unlz4$(EXT) lz4cat$(EXT)
+ifeq ($(WINBASED),yes)
+	$(RM) *.rc
+endif
+	$(MAKE) -C $(LIBDIR) $@ > $(VOID)
+	$(RM) $(CLEAN) *.o tmp* *.test core
 	@echo Cleaning completed
 
 
 #-----------------------------------------------------------------------------
 # make install is validated only for Linux, OSX, BSD, Hurd and Solaris targets
 #-----------------------------------------------------------------------------
-ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS Haiku MidnightBSD))
-
-unlz4: lz4
-	ln -s lz4$(EXT) unlz4$(EXT)
-
-lz4cat: lz4
-	ln -s lz4$(EXT) lz4cat$(EXT)
+ifeq ($(POSIX_ENV),Yes)
 
 DESTDIR     ?=
 # directory variables : GNU conventions prefer lowercase
@@ -134,39 +206,31 @@ mandir      ?= $(MANDIR)
 MAN1DIR     ?= $(mandir)/man1
 man1dir     ?= $(MAN1DIR)
 
-ifneq (,$(filter $(shell uname),SunOS))
-INSTALL ?= ginstall
-else
-INSTALL ?= install
-endif
-
-INSTALL_PROGRAM ?= $(INSTALL) -m 755
-INSTALL_DATA    ?= $(INSTALL) -m 644
-
-
+.PHONY: install
 install: lz4
-	@echo Installing binaries
-	@$(INSTALL) -d -m 755 $(DESTDIR)$(bindir)/ $(DESTDIR)$(man1dir)/
-	@$(INSTALL_PROGRAM) lz4$(EXT) $(DESTDIR)$(bindir)/lz4$(EXT)
-	@ln -sf lz4$(EXT) $(DESTDIR)$(bindir)/lz4c$(EXT)
-	@ln -sf lz4$(EXT) $(DESTDIR)$(bindir)/lz4cat$(EXT)
-	@ln -sf lz4$(EXT) $(DESTDIR)$(bindir)/unlz4$(EXT)
-	@echo Installing man pages
-	@$(INSTALL_DATA) lz4.1 $(DESTDIR)$(man1dir)/lz4.1
-	@ln -sf lz4.1 $(DESTDIR)$(man1dir)/lz4c.1
-	@ln -sf lz4.1 $(DESTDIR)$(man1dir)/lz4cat.1
-	@ln -sf lz4.1 $(DESTDIR)$(man1dir)/unlz4.1
+	@echo Installing binaries in $(DESTDIR)$(bindir)
+	$(MAKE_DIR) $(DESTDIR)$(bindir)/ $(DESTDIR)$(man1dir)/
+	$(INSTALL_PROGRAM) lz4$(EXT) $(DESTDIR)$(bindir)/lz4$(EXT)
+	$(LN_SF) lz4$(EXT) $(DESTDIR)$(bindir)/lz4c$(EXT)
+	$(LN_SF) lz4$(EXT) $(DESTDIR)$(bindir)/lz4cat$(EXT)
+	$(LN_SF) lz4$(EXT) $(DESTDIR)$(bindir)/unlz4$(EXT)
+	@echo Installing man pages in $(DESTDIR)$(man1dir)
+	$(INSTALL_DATA) lz4.1 $(DESTDIR)$(man1dir)/lz4.1
+	$(LN_SF) lz4.1 $(DESTDIR)$(man1dir)/lz4c.1
+	$(LN_SF) lz4.1 $(DESTDIR)$(man1dir)/lz4cat.1
+	$(LN_SF) lz4.1 $(DESTDIR)$(man1dir)/unlz4.1
 	@echo lz4 installation completed
 
+.PHONY: uninstall
 uninstall:
-	@$(RM) $(DESTDIR)$(bindir)/lz4cat$(EXT)
-	@$(RM) $(DESTDIR)$(bindir)/unlz4$(EXT)
-	@$(RM) $(DESTDIR)$(bindir)/lz4$(EXT)
-	@$(RM) $(DESTDIR)$(bindir)/lz4c$(EXT)
-	@$(RM) $(DESTDIR)$(man1dir)/lz4.1
-	@$(RM) $(DESTDIR)$(man1dir)/lz4c.1
-	@$(RM) $(DESTDIR)$(man1dir)/lz4cat.1
-	@$(RM) $(DESTDIR)$(man1dir)/unlz4.1
+	$(RM) $(DESTDIR)$(bindir)/lz4cat$(EXT)
+	$(RM) $(DESTDIR)$(bindir)/unlz4$(EXT)
+	$(RM) $(DESTDIR)$(bindir)/lz4$(EXT)
+	$(RM) $(DESTDIR)$(bindir)/lz4c$(EXT)
+	$(RM) $(DESTDIR)$(man1dir)/lz4.1
+	$(RM) $(DESTDIR)$(man1dir)/lz4c.1
+	$(RM) $(DESTDIR)$(man1dir)/lz4cat.1
+	$(RM) $(DESTDIR)$(man1dir)/unlz4.1
 	@echo lz4 programs successfully uninstalled
 
 endif

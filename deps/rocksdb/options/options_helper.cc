@@ -4,6 +4,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 #include "options/options_helper.h"
 
+#include <atomic>
 #include <cassert>
 #include <cctype>
 #include <cstdlib>
@@ -30,37 +31,37 @@
 
 namespace ROCKSDB_NAMESPACE {
 ConfigOptions::ConfigOptions()
-#ifndef ROCKSDB_LITE
     : registry(ObjectRegistry::NewInstance())
-#endif
 {
   env = Env::Default();
 }
 
 ConfigOptions::ConfigOptions(const DBOptions& db_opts) : env(db_opts.env) {
-#ifndef ROCKSDB_LITE
   registry = ObjectRegistry::NewInstance();
-#endif
 }
 
 Status ValidateOptions(const DBOptions& db_opts,
                        const ColumnFamilyOptions& cf_opts) {
   Status s;
-#ifndef ROCKSDB_LITE
   auto db_cfg = DBOptionsAsConfigurable(db_opts);
   auto cf_cfg = CFOptionsAsConfigurable(cf_opts);
   s = db_cfg->ValidateOptions(db_opts, cf_opts);
-  if (s.ok()) s = cf_cfg->ValidateOptions(db_opts, cf_opts);
-#else
-  s = cf_opts.table_factory->ValidateOptions(db_opts, cf_opts);
-#endif
+  if (s.ok()) {
+    s = cf_cfg->ValidateOptions(db_opts, cf_opts);
+  }
   return s;
 }
 
 DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
                          const MutableDBOptions& mutable_db_options) {
   DBOptions options;
+  BuildDBOptions(immutable_db_options, mutable_db_options, options);
+  return options;
+}
 
+void BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
+                    const MutableDBOptions& mutable_db_options,
+                    DBOptions& options) {
   options.create_if_missing = immutable_db_options.create_if_missing;
   options.create_missing_column_families =
       immutable_db_options.create_missing_column_families;
@@ -68,6 +69,8 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
   options.paranoid_checks = immutable_db_options.paranoid_checks;
   options.flush_verify_memtable_count =
       immutable_db_options.flush_verify_memtable_count;
+  options.compaction_verify_record_count =
+      immutable_db_options.compaction_verify_record_count;
   options.track_and_verify_wals_in_manifest =
       immutable_db_options.track_and_verify_wals_in_manifest;
   options.verify_sst_unique_id_in_manifest =
@@ -91,9 +94,6 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
   options.max_background_jobs = mutable_db_options.max_background_jobs;
   options.max_background_compactions =
       mutable_db_options.max_background_compactions;
-  options.bytes_per_sync = mutable_db_options.bytes_per_sync;
-  options.wal_bytes_per_sync = mutable_db_options.wal_bytes_per_sync;
-  options.strict_bytes_per_sync = mutable_db_options.strict_bytes_per_sync;
   options.max_subcompactions = mutable_db_options.max_subcompactions;
   options.max_background_flushes = mutable_db_options.max_background_flushes;
   options.max_log_file_size = immutable_db_options.max_log_file_size;
@@ -123,8 +123,6 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
   options.advise_random_on_open = immutable_db_options.advise_random_on_open;
   options.db_write_buffer_size = immutable_db_options.db_write_buffer_size;
   options.write_buffer_manager = immutable_db_options.write_buffer_manager;
-  options.access_hint_on_compaction_start =
-      immutable_db_options.access_hint_on_compaction_start;
   options.compaction_readahead_size =
       mutable_db_options.compaction_readahead_size;
   options.random_access_max_buffer_size =
@@ -132,6 +130,9 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
   options.writable_file_max_buffer_size =
       mutable_db_options.writable_file_max_buffer_size;
   options.use_adaptive_mutex = immutable_db_options.use_adaptive_mutex;
+  options.bytes_per_sync = mutable_db_options.bytes_per_sync;
+  options.wal_bytes_per_sync = mutable_db_options.wal_bytes_per_sync;
+  options.strict_bytes_per_sync = mutable_db_options.strict_bytes_per_sync;
   options.listeners = immutable_db_options.listeners;
   options.enable_thread_tracking = immutable_db_options.enable_thread_tracking;
   options.delayed_write_rate = mutable_db_options.delayed_write_rate;
@@ -154,9 +155,7 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
   options.wal_recovery_mode = immutable_db_options.wal_recovery_mode;
   options.allow_2pc = immutable_db_options.allow_2pc;
   options.row_cache = immutable_db_options.row_cache;
-#ifndef ROCKSDB_LITE
   options.wal_filter = immutable_db_options.wal_filter;
-#endif  // ROCKSDB_LITE
   options.fail_if_options_file_error =
       immutable_db_options.fail_if_options_file_error;
   options.dump_malloc_stats = immutable_db_options.dump_malloc_stats;
@@ -168,9 +167,15 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
   options.two_write_queues = immutable_db_options.two_write_queues;
   options.manual_wal_flush = immutable_db_options.manual_wal_flush;
   options.wal_compression = immutable_db_options.wal_compression;
+  options.background_close_inactive_wals =
+      immutable_db_options.background_close_inactive_wals;
   options.atomic_flush = immutable_db_options.atomic_flush;
   options.avoid_unnecessary_blocking_io =
       immutable_db_options.avoid_unnecessary_blocking_io;
+  options.write_dbid_to_manifest = immutable_db_options.write_dbid_to_manifest;
+  options.write_identity_file = immutable_db_options.write_identity_file;
+  options.prefix_seek_opt_in_only =
+      immutable_db_options.prefix_seek_opt_in_only;
   options.log_readahead_size = immutable_db_options.log_readahead_size;
   options.file_checksum_gen_factory =
       immutable_db_options.file_checksum_gen_factory;
@@ -186,7 +191,17 @@ DBOptions BuildDBOptions(const ImmutableDBOptions& immutable_db_options,
   options.lowest_used_cache_tier = immutable_db_options.lowest_used_cache_tier;
   options.enforce_single_del_contracts =
       immutable_db_options.enforce_single_del_contracts;
-  return options;
+  options.daily_offpeak_time_utc = mutable_db_options.daily_offpeak_time_utc;
+  options.follower_refresh_catchup_period_ms =
+      immutable_db_options.follower_refresh_catchup_period_ms;
+  options.follower_catchup_retry_count =
+      immutable_db_options.follower_catchup_retry_count;
+  options.follower_catchup_retry_wait_ms =
+      immutable_db_options.follower_catchup_retry_wait_ms;
+  options.metadata_write_temperature =
+      immutable_db_options.metadata_write_temperature;
+  options.wal_write_temperature = immutable_db_options.wal_write_temperature;
+  options.compaction_service = immutable_db_options.compaction_service;
 }
 
 ColumnFamilyOptions BuildColumnFamilyOptions(
@@ -210,15 +225,22 @@ void UpdateColumnFamilyOptions(const MutableCFOptions& moptions,
   cf_opts->memtable_whole_key_filtering = moptions.memtable_whole_key_filtering;
   cf_opts->memtable_huge_page_size = moptions.memtable_huge_page_size;
   cf_opts->max_successive_merges = moptions.max_successive_merges;
+  cf_opts->strict_max_successive_merges = moptions.strict_max_successive_merges;
   cf_opts->inplace_update_num_locks = moptions.inplace_update_num_locks;
   cf_opts->prefix_extractor = moptions.prefix_extractor;
   cf_opts->experimental_mempurge_threshold =
       moptions.experimental_mempurge_threshold;
   cf_opts->memtable_protection_bytes_per_key =
       moptions.memtable_protection_bytes_per_key;
+  cf_opts->block_protection_bytes_per_key =
+      moptions.block_protection_bytes_per_key;
+  cf_opts->paranoid_memory_checks = moptions.paranoid_memory_checks;
+  cf_opts->bottommost_file_compaction_delay =
+      moptions.bottommost_file_compaction_delay;
 
   // Compaction related options
   cf_opts->disable_auto_compactions = moptions.disable_auto_compactions;
+  cf_opts->table_factory = moptions.table_factory;
   cf_opts->soft_pending_compaction_bytes_limit =
       moptions.soft_pending_compaction_bytes_limit;
   cf_opts->hard_pending_compaction_bytes_limit =
@@ -236,6 +258,10 @@ void UpdateColumnFamilyOptions(const MutableCFOptions& moptions,
       moptions.max_bytes_for_level_multiplier;
   cf_opts->ttl = moptions.ttl;
   cf_opts->periodic_compaction_seconds = moptions.periodic_compaction_seconds;
+  cf_opts->preclude_last_level_data_seconds =
+      moptions.preclude_last_level_data_seconds;
+  cf_opts->preserve_internal_time_seconds =
+      moptions.preserve_internal_time_seconds;
 
   cf_opts->max_bytes_for_level_multiplier_additional.clear();
   for (auto value : moptions.max_bytes_for_level_multiplier_additional) {
@@ -264,8 +290,6 @@ void UpdateColumnFamilyOptions(const MutableCFOptions& moptions,
   // Misc options
   cf_opts->max_sequential_skip_in_iterations =
       moptions.max_sequential_skip_in_iterations;
-  cf_opts->check_flush_compaction_key_order =
-      moptions.check_flush_compaction_key_order;
   cf_opts->paranoid_file_checks = moptions.paranoid_file_checks;
   cf_opts->report_bg_io_stats = moptions.report_bg_io_stats;
   cf_opts->compression = moptions.compression;
@@ -275,7 +299,9 @@ void UpdateColumnFamilyOptions(const MutableCFOptions& moptions,
   cf_opts->sample_for_compression = moptions.sample_for_compression;
   cf_opts->compression_per_level = moptions.compression_per_level;
   cf_opts->last_level_temperature = moptions.last_level_temperature;
-  cf_opts->bottommost_temperature = moptions.last_level_temperature;
+  cf_opts->default_write_temperature = moptions.default_write_temperature;
+  cf_opts->memtable_max_range_deletions = moptions.memtable_max_range_deletions;
+  cf_opts->uncache_aggressiveness = moptions.uncache_aggressiveness;
 }
 
 void UpdateColumnFamilyOptions(const ImmutableCFOptions& ioptions,
@@ -295,7 +321,6 @@ void UpdateColumnFamilyOptions(const ImmutableCFOptions& ioptions,
   cf_opts->inplace_update_support = ioptions.inplace_update_support;
   cf_opts->inplace_callback = ioptions.inplace_callback;
   cf_opts->memtable_factory = ioptions.memtable_factory;
-  cf_opts->table_factory = ioptions.table_factory;
   cf_opts->table_properties_collector_factories =
       ioptions.table_properties_collector_factories;
   cf_opts->bloom_locality = ioptions.bloom_locality;
@@ -310,8 +335,9 @@ void UpdateColumnFamilyOptions(const ImmutableCFOptions& ioptions,
   cf_opts->compaction_thread_limiter = ioptions.compaction_thread_limiter;
   cf_opts->sst_partitioner_factory = ioptions.sst_partitioner_factory;
   cf_opts->blob_cache = ioptions.blob_cache;
-  cf_opts->preclude_last_level_data_seconds =
-      ioptions.preclude_last_level_data_seconds;
+  cf_opts->persist_user_defined_timestamps =
+      ioptions.persist_user_defined_timestamps;
+  cf_opts->default_temperature = ioptions.default_temperature;
 
   // TODO(yhchiang): find some way to handle the following derived options
   // * max_file_size
@@ -396,7 +422,6 @@ std::vector<ChecksumType> GetSupportedChecksums() {
                                    checksum_types.end());
 }
 
-#ifndef ROCKSDB_LITE
 static bool ParseOptionHelper(void* opt_address, const OptionType& opt_type,
                               const std::string& value) {
   switch (opt_type) {
@@ -426,6 +451,10 @@ static bool ParseOptionHelper(void* opt_address, const OptionType& opt_type,
       break;
     case OptionType::kSizeT:
       PutUnaligned(static_cast<size_t*>(opt_address), ParseSizeT(value));
+      break;
+    case OptionType::kAtomicInt:
+      static_cast<std::atomic<int>*>(opt_address)
+          ->store(ParseInt(value), std::memory_order_release);
       break;
     case OptionType::kString:
       *static_cast<std::string*>(opt_address) = value;
@@ -515,6 +544,10 @@ bool SerializeSingleOptionHelper(const void* opt_address,
       break;
     case OptionType::kDouble:
       *value = std::to_string(*(static_cast<const double*>(opt_address)));
+      break;
+    case OptionType::kAtomicInt:
+      *value = std::to_string(static_cast<const std::atomic<int>*>(opt_address)
+                                  ->load(std::memory_order_acquire));
       break;
     case OptionType::kString:
       *value =
@@ -664,18 +697,6 @@ Status GetStringFromCompressionType(std::string* compression_str,
 }
 
 Status GetColumnFamilyOptionsFromMap(
-    const ColumnFamilyOptions& base_options,
-    const std::unordered_map<std::string, std::string>& opts_map,
-    ColumnFamilyOptions* new_options, bool input_strings_escaped,
-    bool ignore_unknown_options) {
-  ConfigOptions config_options;
-  config_options.ignore_unknown_options = ignore_unknown_options;
-  config_options.input_strings_escaped = input_strings_escaped;
-  return GetColumnFamilyOptionsFromMap(config_options, base_options, opts_map,
-                                       new_options);
-}
-
-Status GetColumnFamilyOptionsFromMap(
     const ConfigOptions& config_options,
     const ColumnFamilyOptions& base_options,
     const std::unordered_map<std::string, std::string>& opts_map,
@@ -696,17 +717,6 @@ Status GetColumnFamilyOptionsFromMap(
   }
 }
 
-Status GetColumnFamilyOptionsFromString(
-    const ColumnFamilyOptions& base_options,
-    const std::string& opts_str,
-    ColumnFamilyOptions* new_options) {
-  ConfigOptions config_options;
-  config_options.input_strings_escaped = false;
-  config_options.ignore_unknown_options = false;
-  return GetColumnFamilyOptionsFromString(config_options, base_options,
-                                          opts_str, new_options);
-}
-
 Status GetColumnFamilyOptionsFromString(const ConfigOptions& config_options,
                                         const ColumnFamilyOptions& base_options,
                                         const std::string& opts_str,
@@ -719,18 +729,6 @@ Status GetColumnFamilyOptionsFromString(const ConfigOptions& config_options,
   }
   return GetColumnFamilyOptionsFromMap(config_options, base_options, opts_map,
                                        new_options);
-}
-
-Status GetDBOptionsFromMap(
-    const DBOptions& base_options,
-    const std::unordered_map<std::string, std::string>& opts_map,
-    DBOptions* new_options, bool input_strings_escaped,
-    bool ignore_unknown_options) {
-  ConfigOptions config_options(base_options);
-  config_options.input_strings_escaped = input_strings_escaped;
-  config_options.ignore_unknown_options = ignore_unknown_options;
-  return GetDBOptionsFromMap(config_options, base_options, opts_map,
-                             new_options);
 }
 
 Status GetDBOptionsFromMap(
@@ -749,17 +747,6 @@ Status GetDBOptionsFromMap(
   } else {
     return Status::InvalidArgument(s.getState());
   }
-}
-
-Status GetDBOptionsFromString(const DBOptions& base_options,
-                              const std::string& opts_str,
-                              DBOptions* new_options) {
-  ConfigOptions config_options(base_options);
-  config_options.input_strings_escaped = false;
-  config_options.ignore_unknown_options = false;
-
-  return GetDBOptionsFromString(config_options, base_options, opts_str,
-                                new_options);
 }
 
 Status GetDBOptionsFromString(const ConfigOptions& config_options,
@@ -943,7 +930,7 @@ Status OptionTypeInfo::Parse(const ConfigOptions& config_options,
         ConfigOptions copy = config_options;
         copy.ignore_unknown_options = false;
         copy.invoke_prepare_options = false;
-        if (opt_value.find("=") != std::string::npos) {
+        if (opt_value.find('=') != std::string::npos) {
           return config->ConfigureFromString(copy, opt_value);
         } else {
           return config->ConfigureOption(copy, opt_name, opt_value);
@@ -1008,7 +995,8 @@ Status OptionTypeInfo::ParseStruct(
     std::unordered_map<std::string, std::string> unused;
     status =
         ParseType(config_options, opt_value, *struct_map, opt_addr, &unused);
-    if (status.ok() && !unused.empty()) {
+    if (status.ok() && !unused.empty() &&
+        !config_options.ignore_unknown_options) {
       status = Status::InvalidArgument(
           "Unrecognized option", struct_name + "." + unused.begin()->first);
     }
@@ -1019,7 +1007,7 @@ Status OptionTypeInfo::ParseStruct(
         Find(opt_name.substr(struct_name.size() + 1), *struct_map, &elem_name);
     if (opt_info != nullptr) {
       status = opt_info->Parse(config_options, elem_name, opt_value, opt_addr);
-    } else {
+    } else if (!config_options.ignore_unknown_options) {
       status = Status::InvalidArgument("Unrecognized option", opt_name);
     }
   } else {
@@ -1028,7 +1016,7 @@ Status OptionTypeInfo::ParseStruct(
     const auto opt_info = Find(opt_name, *struct_map, &elem_name);
     if (opt_info != nullptr) {
       status = opt_info->Parse(config_options, elem_name, opt_value, opt_addr);
-    } else {
+    } else if (!config_options.ignore_unknown_options) {
       status = Status::InvalidArgument("Unrecognized option",
                                        struct_name + "." + opt_name);
     }
@@ -1078,7 +1066,7 @@ Status OptionTypeInfo::Serialize(const ConfigOptions& config_options,
       }
       std::string value = custom->ToString(embedded);
       if (!embedded.mutable_options_only ||
-          value.find("=") != std::string::npos) {
+          value.find('=') != std::string::npos) {
         *opt_value = value;
       } else {
         *opt_value = "";
@@ -1210,6 +1198,8 @@ static bool AreOptionsEqual(OptionType type, const void* this_offset,
       GetUnaligned(static_cast<const size_t*>(that_offset), &v2);
       return (v1 == v2);
     }
+    case OptionType::kAtomicInt:
+      return IsOptionEqual<std::atomic<int>>(this_offset, that_offset);
     case OptionType::kString:
       return IsOptionEqual<std::string>(this_offset, that_offset);
     case OptionType::kDouble:
@@ -1452,7 +1442,7 @@ const OptionTypeInfo* OptionTypeInfo::Find(
     *elem_name = opt_name;                   // Return the name
     return &(iter->second);  // Return the contents of the iterator
   } else {
-    auto idx = opt_name.find(".");              // Look for a separator
+    auto idx = opt_name.find('.');              // Look for a separator
     if (idx > 0 && idx != std::string::npos) {  // We found a separator
       auto siter =
           opt_map.find(opt_name.substr(0, idx));  // Look for the short name
@@ -1467,6 +1457,5 @@ const OptionTypeInfo* OptionTypeInfo::Find(
   }
   return nullptr;
 }
-#endif  // !ROCKSDB_LITE
 
 }  // namespace ROCKSDB_NAMESPACE

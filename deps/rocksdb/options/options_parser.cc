@@ -3,7 +3,6 @@
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
 
-#ifndef ROCKSDB_LITE
 
 #include "options/options_parser.h"
 
@@ -13,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "file/file_util.h"
 #include "file/line_file_reader.h"
 #include "file/writable_file_writer.h"
 #include "options/cf_options.h"
@@ -36,7 +36,8 @@ static const std::string option_file_header =
     "#\n"
     "\n";
 
-Status PersistRocksDBOptions(const DBOptions& db_opt,
+Status PersistRocksDBOptions(const WriteOptions& write_options,
+                             const DBOptions& db_opt,
                              const std::vector<std::string>& cf_names,
                              const std::vector<ColumnFamilyOptions>& cf_opts,
                              const std::string& file_name, FileSystem* fs) {
@@ -49,11 +50,12 @@ Status PersistRocksDBOptions(const DBOptions& db_opt,
   if (db_opt.log_readahead_size > 0) {
     config_options.file_readahead_size = db_opt.log_readahead_size;
   }
-  return PersistRocksDBOptions(config_options, db_opt, cf_names, cf_opts,
-                               file_name, fs);
+  return PersistRocksDBOptions(write_options, config_options, db_opt, cf_names,
+                               cf_opts, file_name, fs);
 }
 
-Status PersistRocksDBOptions(const ConfigOptions& config_options_in,
+Status PersistRocksDBOptions(const WriteOptions& write_options,
+                             const ConfigOptions& config_options_in,
                              const DBOptions& db_opt,
                              const std::vector<std::string>& cf_names,
                              const std::vector<ColumnFamilyOptions>& cf_opts,
@@ -68,74 +70,85 @@ Status PersistRocksDBOptions(const ConfigOptions& config_options_in,
   }
   std::unique_ptr<FSWritableFile> wf;
 
-  Status s =
-      fs->NewWritableFile(file_name, FileOptions(), &wf, nullptr);
+  FileOptions file_options;
+  file_options.temperature = db_opt.metadata_write_temperature;
+  Status s = fs->NewWritableFile(file_name, file_options, &wf, nullptr);
   if (!s.ok()) {
     return s;
   }
   std::unique_ptr<WritableFileWriter> writable;
   writable.reset(new WritableFileWriter(std::move(wf), file_name, EnvOptions(),
                                         nullptr /* statistics */));
+  TEST_SYNC_POINT("PersistRocksDBOptions:create");
 
   std::string options_file_content;
 
-  s = writable->Append(
-      option_file_header + "[" + opt_section_titles[kOptionSectionVersion] +
-      "]\n"
-      "  rocksdb_version=" +
-      std::to_string(ROCKSDB_MAJOR) + "." + std::to_string(ROCKSDB_MINOR) +
-      "." + std::to_string(ROCKSDB_PATCH) + "\n");
+  IOOptions opts;
+  s = WritableFileWriter::PrepareIOOptions(write_options, opts);
   if (s.ok()) {
-    s = writable->Append(
-        "  options_file_version=" + std::to_string(ROCKSDB_OPTION_FILE_MAJOR) +
-        "." + std::to_string(ROCKSDB_OPTION_FILE_MINOR) + "\n");
+    s = writable->Append(opts, option_file_header + "[" +
+                                   opt_section_titles[kOptionSectionVersion] +
+                                   "]\n"
+                                   "  rocksdb_version=" +
+                                   std::to_string(ROCKSDB_MAJOR) + "." +
+                                   std::to_string(ROCKSDB_MINOR) + "." +
+                                   std::to_string(ROCKSDB_PATCH) + "\n");
   }
   if (s.ok()) {
-    s = writable->Append("\n[" + opt_section_titles[kOptionSectionDBOptions] +
-                         "]\n  ");
+    s = writable->Append(
+        opts,
+        "  options_file_version=" + std::to_string(ROCKSDB_OPTION_FILE_MAJOR) +
+            "." + std::to_string(ROCKSDB_OPTION_FILE_MINOR) + "\n");
+  }
+  if (s.ok()) {
+    s = writable->Append(
+        opts, "\n[" + opt_section_titles[kOptionSectionDBOptions] + "]\n  ");
   }
 
   if (s.ok()) {
     s = GetStringFromDBOptions(config_options, db_opt, &options_file_content);
   }
   if (s.ok()) {
-    s = writable->Append(options_file_content + "\n");
+    s = writable->Append(opts, options_file_content + "\n");
   }
 
   for (size_t i = 0; s.ok() && i < cf_opts.size(); ++i) {
     // CFOptions section
-    s = writable->Append("\n[" + opt_section_titles[kOptionSectionCFOptions] +
-                         " \"" + EscapeOptionString(cf_names[i]) + "\"]\n  ");
+    s = writable->Append(
+        opts, "\n[" + opt_section_titles[kOptionSectionCFOptions] + " \"" +
+                  EscapeOptionString(cf_names[i]) + "\"]\n  ");
     if (s.ok()) {
       s = GetStringFromColumnFamilyOptions(config_options, cf_opts[i],
                                            &options_file_content);
     }
     if (s.ok()) {
-      s = writable->Append(options_file_content + "\n");
+      s = writable->Append(opts, options_file_content + "\n");
     }
     // TableOptions section
     auto* tf = cf_opts[i].table_factory.get();
     if (tf != nullptr) {
       if (s.ok()) {
         s = writable->Append(
-            "[" + opt_section_titles[kOptionSectionTableOptions] + tf->Name() +
-            " \"" + EscapeOptionString(cf_names[i]) + "\"]\n  ");
+            opts, "[" + opt_section_titles[kOptionSectionTableOptions] +
+                      tf->Name() + " \"" + EscapeOptionString(cf_names[i]) +
+                      "\"]\n  ");
       }
       if (s.ok()) {
         options_file_content.clear();
         s = tf->GetOptionString(config_options, &options_file_content);
       }
       if (s.ok()) {
-        s = writable->Append(options_file_content + "\n");
+        s = writable->Append(opts, options_file_content + "\n");
       }
     }
   }
   if (s.ok()) {
-    s = writable->Sync(true /* use_fsync */);
+    s = writable->Sync(opts, true /* use_fsync */);
   }
   if (s.ok()) {
-    s = writable->Close();
+    s = writable->Close(opts);
   }
+  TEST_SYNC_POINT("PersistRocksDBOptions:written");
   if (s.ok()) {
     return RocksDBOptionsParser::VerifyRocksDBOptionsFromFile(
         config_options, db_opt, cf_names, cf_opts, file_name, fs);
@@ -178,8 +191,8 @@ Status RocksDBOptionsParser::ParseSection(OptionSection* section,
   *section = kOptionSectionUnknown;
   // A section is of the form [<SectionName> "<SectionArg>"], where
   // "<SectionArg>" is optional.
-  size_t arg_start_pos = line.find("\"");
-  size_t arg_end_pos = line.rfind("\"");
+  size_t arg_start_pos = line.find('\"');
+  size_t arg_end_pos = line.rfind('\"');
   // The following if-then check tries to identify whether the input
   // section has the optional section argument.
   if (arg_start_pos != std::string::npos && arg_start_pos != arg_end_pos) {
@@ -223,7 +236,7 @@ Status RocksDBOptionsParser::ParseStatement(std::string* name,
                                             std::string* value,
                                             const std::string& line,
                                             const int line_num) {
-  size_t eq_pos = line.find("=");
+  size_t eq_pos = line.find('=');
   if (eq_pos == std::string::npos) {
     return InvalidArgument(line_num, "A valid statement must have a '='.");
   }
@@ -256,69 +269,89 @@ Status RocksDBOptionsParser::Parse(const ConfigOptions& config_options_in,
   Reset();
   ConfigOptions config_options = config_options_in;
 
-  std::unique_ptr<FSSequentialFile> seq_file;
-  Status s = fs->NewSequentialFile(file_name, FileOptions(), &seq_file,
-                                   nullptr);
-  if (!s.ok()) {
-    return s;
-  }
-  LineFileReader lf_reader(std::move(seq_file), file_name,
-                           config_options.file_readahead_size);
-
-  OptionSection section = kOptionSectionUnknown;
-  std::string title;
-  std::string argument;
-  std::unordered_map<std::string, std::string> opt_map;
-  std::string line;
-  // we only support single-lined statement.
-  while (lf_reader.ReadLine(&line, Env::IO_TOTAL /* rate_limiter_priority */)) {
-    int line_num = static_cast<int>(lf_reader.GetLineNumber());
-    line = TrimAndRemoveComment(line);
-    if (line.empty()) {
-      continue;
+  Status s;
+  bool retry = false;
+  do {
+    std::unique_ptr<FSSequentialFile> seq_file;
+    s = fs->NewSequentialFile(file_name, FileOptions(), &seq_file, nullptr);
+    if (!s.ok()) {
+      return s;
     }
-    if (IsSection(line)) {
+
+    LineFileReader lf_reader(
+        std::move(seq_file), file_name, config_options.file_readahead_size,
+        nullptr, std::vector<std::shared_ptr<EventListener>>{}, nullptr, retry);
+
+    OptionSection section = kOptionSectionUnknown;
+    std::string title;
+    std::string argument;
+    std::unordered_map<std::string, std::string> opt_map;
+    std::string line;
+    // we only support single-lined statement.
+    while (
+        lf_reader.ReadLine(&line, Env::IO_TOTAL /* rate_limiter_priority */)) {
+      int line_num = static_cast<int>(lf_reader.GetLineNumber());
+      line = TrimAndRemoveComment(line);
+      if (line.empty()) {
+        continue;
+      }
+      if (IsSection(line)) {
+        s = EndSection(config_options, section, title, argument, opt_map);
+        opt_map.clear();
+        if (!s.ok()) {
+          break;
+        }
+
+        // If the option file is not generated by a higher version, unknown
+        // option should only mean corruption.
+        if (config_options.ignore_unknown_options &&
+            section == kOptionSectionVersion) {
+          using VTuple = std::tuple<int, int, int>;
+          if (VTuple(db_version[0], db_version[1], db_version[2]) <=
+              VTuple(ROCKSDB_MAJOR, ROCKSDB_MINOR, ROCKSDB_PATCH)) {
+            config_options.ignore_unknown_options = false;
+          }
+        }
+
+        s = ParseSection(&section, &title, &argument, line, line_num);
+        if (!s.ok()) {
+          break;
+        }
+      } else {
+        std::string name;
+        std::string value;
+        s = ParseStatement(&name, &value, line, line_num);
+        if (!s.ok()) {
+          break;
+        }
+        opt_map.insert({name, value});
+      }
+    }
+    if (s.ok()) {
+      s = lf_reader.GetStatus();
+    }
+    if (s.ok()) {
       s = EndSection(config_options, section, title, argument, opt_map);
       opt_map.clear();
-      if (!s.ok()) {
-        return s;
-      }
-
-      // If the option file is not generated by a higher minor version,
-      // there shouldn't be any unknown option.
-      if (config_options.ignore_unknown_options &&
-          section == kOptionSectionVersion) {
-        if (db_version[0] < ROCKSDB_MAJOR || (db_version[0] == ROCKSDB_MAJOR &&
-                                              db_version[1] <= ROCKSDB_MINOR)) {
-          config_options.ignore_unknown_options = false;
-        }
-      }
-
-      s = ParseSection(&section, &title, &argument, line, line_num);
-      if (!s.ok()) {
+    }
+    if (s.ok()) {
+      s = ValidityCheck();
+    }
+    if (!s.ok()) {
+      if ((s.IsCorruption() || s.IsInvalidArgument()) && !retry &&
+          CheckFSFeatureSupport(fs,
+                                FSSupportedOps::kVerifyAndReconstructRead)) {
+        retry = true;
+        Reset();
+      } else {
         return s;
       }
     } else {
-      std::string name;
-      std::string value;
-      s = ParseStatement(&name, &value, line, line_num);
-      if (!s.ok()) {
-        return s;
-      }
-      opt_map.insert({name, value});
+      return s;
     }
-  }
-  s = lf_reader.GetStatus();
-  if (!s.ok()) {
-    return s;
-  }
+  } while (retry);
 
-  s = EndSection(config_options, section, title, argument, opt_map);
-  opt_map.clear();
-  if (!s.ok()) {
-    return s;
-  }
-  return ValidityCheck();
+  return s;
 }
 
 Status RocksDBOptionsParser::CheckSection(const OptionSection section,
@@ -680,6 +713,15 @@ Status RocksDBOptionsParser::VerifyCFOptions(
     Status s = base_config->GetOption(config_options, mismatch, &base_value);
     if (s.ok()) {
       s = file_config->GetOption(config_options, mismatch, &file_value);
+      // In file_opt, certain options like MergeOperator may be nullptr due to
+      //   factor methods not available. So we use opt_map to get
+      //   option value to use in the error message below.
+      if (s.ok() && file_value == kNullptrString && opt_map) {
+        auto const& opt_val_str = (opt_map->find(mismatch));
+        if (opt_val_str != opt_map->end()) {
+          file_value = opt_val_str->second;
+        }
+      }
     }
     int offset = snprintf(buffer, sizeof(buffer),
                           "[RocksDBOptionsParser]: "
@@ -723,5 +765,3 @@ Status RocksDBOptionsParser::VerifyTableFactory(
   return Status::OK();
 }
 }  // namespace ROCKSDB_NAMESPACE
-
-#endif  // !ROCKSDB_LITE

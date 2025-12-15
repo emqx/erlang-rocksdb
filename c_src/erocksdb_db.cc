@@ -295,21 +295,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         {
             opts.advise_random_on_open = (option[1] == erocksdb::ATOM_TRUE);
         }
-        else if (option[0] == erocksdb::ATOM_ACCESS_HINT)
-        {
-            if (option[1] == erocksdb::ATOM_ACCESS_HINT_NORMAL) {
-                opts.access_hint_on_compaction_start = rocksdb::DBOptions::AccessHint::NORMAL;
-            }
-            else if (option[1] == erocksdb::ATOM_ACCESS_HINT_SEQUENTIAL) {
-                opts.access_hint_on_compaction_start = rocksdb::DBOptions::AccessHint::SEQUENTIAL;
-            }
-            else if (option[1] == erocksdb::ATOM_ACCESS_HINT_WILLNEED) {
-                opts.access_hint_on_compaction_start = rocksdb::DBOptions::AccessHint::WILLNEED;
-            }
-            else if (option[1] == erocksdb::ATOM_ACCESS_HINT_NONE) {
-                opts.access_hint_on_compaction_start = rocksdb::DBOptions::AccessHint::NONE;
-            }
-        }
         else if (option[0] == erocksdb::ATOM_COMPACTION_READAHEAD_SIZE)
         {
             unsigned int compaction_readahead_size;
