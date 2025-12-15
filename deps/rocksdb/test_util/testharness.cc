@@ -13,8 +13,7 @@
 #include <string>
 #include <thread>
 
-namespace ROCKSDB_NAMESPACE {
-namespace test {
+namespace ROCKSDB_NAMESPACE::test {
 
 #ifdef OS_WIN
 #include <windows.h>
@@ -28,8 +27,7 @@ std::string GetPidStr() { return std::to_string(getpid()); }
   if (s.ok()) {
     return ::testing::AssertionSuccess();
   } else {
-    return ::testing::AssertionFailure() << s_expr << std::endl
-                                         << s.ToString();
+    return ::testing::AssertionFailure() << s_expr << std::endl << s.ToString();
   }
 }
 
@@ -104,5 +102,4 @@ bool TestRegex::Matches(const std::string& str) const {
   }
 }
 
-}  // namespace test
-}  // namespace ROCKSDB_NAMESPACE
+}  // namespace ROCKSDB_NAMESPACE::test

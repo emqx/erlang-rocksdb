@@ -50,7 +50,9 @@ struct Entry {
   bool visible = true;
 
   bool operator<(const Entry& e) const {
-    if (key != e.key) return key < e.key;
+    if (key != e.key) {
+      return key < e.key;
+    }
     return std::tie(sequence, type) > std::tie(e.sequence, e.type);
   }
 };
@@ -177,7 +179,9 @@ struct StressTestIterator : public InternalIterator {
   }
 
   void SeekToFirst() override {
-    if (MaybeFail()) return;
+    if (MaybeFail()) {
+      return;
+    }
     MaybeMutate();
 
     status_ = Status::OK();
@@ -185,7 +189,9 @@ struct StressTestIterator : public InternalIterator {
     SkipForward();
   }
   void SeekToLast() override {
-    if (MaybeFail()) return;
+    if (MaybeFail()) {
+      return;
+    }
     MaybeMutate();
 
     status_ = Status::OK();
@@ -194,7 +200,9 @@ struct StressTestIterator : public InternalIterator {
   }
 
   void Seek(const Slice& target) override {
-    if (MaybeFail()) return;
+    if (MaybeFail()) {
+      return;
+    }
     MaybeMutate();
 
     status_ = Status::OK();
@@ -206,7 +214,9 @@ struct StressTestIterator : public InternalIterator {
     SkipForward();
   }
   void SeekForPrev(const Slice& target) override {
-    if (MaybeFail()) return;
+    if (MaybeFail()) {
+      return;
+    }
     MaybeMutate();
 
     status_ = Status::OK();
@@ -221,14 +231,18 @@ struct StressTestIterator : public InternalIterator {
 
   void Next() override {
     assert(Valid());
-    if (MaybeFail()) return;
+    if (MaybeFail()) {
+      return;
+    }
     MaybeMutate();
     ++iter;
     SkipForward();
   }
   void Prev() override {
     assert(Valid());
-    if (MaybeFail()) return;
+    if (MaybeFail()) {
+      return;
+    }
     MaybeMutate();
     --iter;
     SkipBackward();
@@ -318,7 +332,9 @@ struct ReferenceIterator {
         return false;
       }
       assert(e.sequence <= sequence);
-      if (!e.visible) continue;
+      if (!e.visible) {
+        continue;
+      }
       if (e.type == kTypeDeletion) {
         return false;
       }
@@ -339,11 +355,13 @@ struct ReferenceIterator {
         break;
       }
       assert(e.sequence <= sequence);
-      if (!e.visible) continue;
+      if (!e.visible) {
+        continue;
+      }
       if (e.type == kTypeDeletion) {
         break;
       }
-      operands.push_back(e.value);
+      operands.emplace_back(e.value);
       if (e.type == kTypeValue) {
         break;
       }
@@ -392,7 +410,7 @@ struct ReferenceIterator {
   }
 };
 
-}  // namespace
+}  // anonymous namespace
 
 // Use an internal iterator that sometimes returns errors and sometimes
 // adds/removes entries on the fly. Do random operations on a DBIter and
@@ -482,12 +500,11 @@ TEST_F(DBIteratorStressTest, StressTest) {
                 std::cout << "entries:";
                 for (size_t i = 0; i < data.entries.size(); ++i) {
                   Entry& e = data.entries[i];
-                  std::cout
-                      << "\n  idx " << i << ": \"" << e.key << "\": \""
-                      << e.value << "\" seq: " << e.sequence << " type: "
-                      << (e.type == kTypeValue
-                              ? "val"
-                              : e.type == kTypeDeletion ? "del" : "merge");
+                  std::cout << "\n  idx " << i << ": \"" << e.key << "\": \""
+                            << e.value << "\" seq: " << e.sequence << " type: "
+                            << (e.type == kTypeValue      ? "val"
+                                : e.type == kTypeDeletion ? "del"
+                                                          : "merge");
                 }
                 std::cout << std::endl;
               }
@@ -589,15 +606,17 @@ TEST_F(DBIteratorStressTest, StressTest) {
 
                     // Check that the key moved in the right direction.
                     if (forward) {
-                      if (seek)
+                      if (seek) {
                         ASSERT_GE(db_iter->key().ToString(), old_key);
-                      else
+                      } else {
                         ASSERT_GT(db_iter->key().ToString(), old_key);
+                      }
                     } else {
-                      if (seek)
+                      if (seek) {
                         ASSERT_LE(db_iter->key().ToString(), old_key);
-                      else
+                      } else {
                         ASSERT_LT(db_iter->key().ToString(), old_key);
+                      }
                     }
 
                     if (ref_iter->Valid()) {
@@ -652,6 +671,7 @@ TEST_F(DBIteratorStressTest, StressTest) {
 }  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
+  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   ParseCommandLineFlags(&argc, &argv, true);
   return RUN_ALL_TESTS();

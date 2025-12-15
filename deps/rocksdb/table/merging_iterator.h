@@ -12,6 +12,7 @@
 #include "db/range_del_aggregator.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/types.h"
+#include "table/iterator_wrapper.h"
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -23,7 +24,7 @@ template <class TValue>
 class InternalIteratorBase;
 using InternalIterator = InternalIteratorBase<Slice>;
 
-// Return an iterator that provided the union of the data in
+// Return an iterator that provides the union of the data in
 // children[0,n-1].  Takes ownership of the child iterators and
 // will delete them when the result iterator is deleted.
 //
@@ -31,24 +32,30 @@ using InternalIterator = InternalIteratorBase<Slice>;
 // key is present in K child iterators, it will be yielded K times.
 //
 // REQUIRES: n >= 0
-extern InternalIterator* NewMergingIterator(
-    const InternalKeyComparator* comparator, InternalIterator** children, int n,
-    Arena* arena = nullptr, bool prefix_seek_mode = false);
+InternalIterator* NewMergingIterator(const InternalKeyComparator* comparator,
+                                     InternalIterator** children, int n,
+                                     Arena* arena = nullptr,
+                                     bool prefix_seek_mode = false);
 
+// The iterator returned by NewMergingIterator() and
+// MergeIteratorBuilder::Finish(). MergingIterator handles the merging of data
+// from different point and/or range tombstone iterators.
 class MergingIterator;
 
-// A builder class to build a merging iterator by adding iterators one by one.
-// User should call only one of AddIterator() or AddPointAndTombstoneIterator()
-// exclusively for the same builder.
+// A builder class to for an iterator that provides the union of data
+// of input iterators. Two APIs are provided to add input iterators. User should
+// only call one of them exclusively depending on if range tombstone should be
+// processed.
 class MergeIteratorBuilder {
  public:
   // comparator: the comparator used in merging comparator
   // arena: where the merging iterator needs to be allocated from.
   explicit MergeIteratorBuilder(const InternalKeyComparator* comparator,
-                                Arena* arena, bool prefix_seek_mode = false);
+                                Arena* arena, bool prefix_seek_mode = false,
+                                const Slice* iterate_upper_bound = nullptr);
   ~MergeIteratorBuilder();
 
-  // Add iter to the merging iterator.
+  // Add point key iterator `iter` to the merging iterator.
   void AddIterator(InternalIterator* iter);
 
   // Add a point key iterator and a range tombstone iterator.
@@ -63,8 +70,10 @@ class MergeIteratorBuilder {
   // point iterators are not LevelIterator, then range tombstone iterator is
   // only added to the merging iter if there is a non-null `tombstone_iter`.
   void AddPointAndTombstoneIterator(
-      InternalIterator* point_iter, TruncatedRangeDelIterator* tombstone_iter,
-      TruncatedRangeDelIterator*** tombstone_iter_ptr = nullptr);
+      InternalIterator* point_iter,
+      std::unique_ptr<TruncatedRangeDelIterator>&& tombstone_iter,
+      std::unique_ptr<TruncatedRangeDelIterator>** tombstone_iter_ptr =
+          nullptr);
 
   // Get arena used to build the merging iterator. It is called one a child
   // iterator needs to be allocated.
@@ -84,7 +93,7 @@ class MergeIteratorBuilder {
   Arena* arena;
   // Used to set LevelIterator.range_tombstone_iter_.
   // See AddRangeTombstoneIterator() implementation for more detail.
-  std::vector<std::pair<size_t, TruncatedRangeDelIterator***>>
+  std::vector<std::pair<size_t, std::unique_ptr<TruncatedRangeDelIterator>**>>
       range_del_iter_ptrs_;
 };
 

@@ -7,7 +7,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef ROCKSDB_LITE
 
 #include "utilities/checkpoint/checkpoint_impl.h"
 
@@ -47,28 +46,41 @@ Status Checkpoint::CreateCheckpoint(const std::string& /*checkpoint_dir*/,
   return Status::NotSupported("");
 }
 
-void CheckpointImpl::CleanStagingDirectory(const std::string& full_private_path,
-                                           Logger* info_log) {
+Status CheckpointImpl::CleanStagingDirectory(
+    const std::string& full_private_path, Logger* info_log) {
   std::vector<std::string> subchildren;
   Status s = db_->GetEnv()->FileExists(full_private_path);
   if (s.IsNotFound()) {
-    return;
+    // Nothing to clean
+    return Status::OK();
+  } else if (!s.ok()) {
+    return s;
   }
+  assert(s.ok());
   ROCKS_LOG_INFO(info_log, "File exists %s -- %s", full_private_path.c_str(),
                  s.ToString().c_str());
+
   s = db_->GetEnv()->GetChildren(full_private_path, &subchildren);
   if (s.ok()) {
     for (auto& subchild : subchildren) {
+      Status del_s;
       std::string subchild_path = full_private_path + "/" + subchild;
-      s = db_->GetEnv()->DeleteFile(subchild_path);
+      del_s = db_->GetEnv()->DeleteFile(subchild_path);
       ROCKS_LOG_INFO(info_log, "Delete file %s -- %s", subchild_path.c_str(),
-                     s.ToString().c_str());
+                     del_s.ToString().c_str());
+      if (!del_s.ok() && s.ok()) {
+        s = del_s;
+      }
     }
   }
-  // finally delete the private dir
-  s = db_->GetEnv()->DeleteDir(full_private_path);
-  ROCKS_LOG_INFO(info_log, "Delete dir %s -- %s", full_private_path.c_str(),
-                 s.ToString().c_str());
+
+  // Then delete the private dir
+  if (s.ok()) {
+    s = db_->GetEnv()->DeleteDir(full_private_path);
+    ROCKS_LOG_INFO(info_log, "Delete dir %s -- %s", full_private_path.c_str(),
+                   s.ToString().c_str());
+  }
+  return s;
 }
 
 Status Checkpoint::ExportColumnFamily(
@@ -83,14 +95,17 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir,
                                         uint64_t* sequence_number_ptr) {
   DBOptions db_options = db_->GetDBOptions();
 
-  Status s = db_->GetEnv()->FileExists(checkpoint_dir);
-  if (s.ok()) {
+  Status file_exists_s = db_->GetEnv()->FileExists(checkpoint_dir);
+  if (file_exists_s.ok()) {
     return Status::InvalidArgument("Directory exists");
-  } else if (!s.IsNotFound()) {
-    assert(s.IsIOError());
-    return s;
-  }
+  } else if (!file_exists_s.IsNotFound()) {
+    assert(file_exists_s.IsIOError());
+    return file_exists_s;
+  } else {
+    assert(file_exists_s.IsNotFound());
+  };
 
+  Status s;
   ROCKS_LOG_INFO(
       db_options.info_log,
       "Started the snapshot process -- creating snapshot in directory %s",
@@ -102,6 +117,7 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir,
     // directory, but it shouldn't be because we verified above the directory
     // doesn't exist.
     assert(checkpoint_dir.empty());
+    s.PermitUncheckedError();
     return Status::InvalidArgument("invalid checkpoint directory name");
   }
 
@@ -110,7 +126,14 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir,
   ROCKS_LOG_INFO(db_options.info_log,
                  "Snapshot process -- using temporary directory %s",
                  full_private_path.c_str());
-  CleanStagingDirectory(full_private_path, db_options.info_log.get());
+
+  s = CleanStagingDirectory(full_private_path, db_options.info_log.get());
+  if (!s.ok()) {
+    return Status::Aborted(
+        "Failed to clean the temporary directory " + full_private_path +
+        " needed before checkpoint creation : " + s.ToString());
+  }
+
   // create snapshot directory
   s = db_->GetEnv()->CreateDir(full_private_path);
   uint64_t sequence_number = 0;
@@ -136,8 +159,9 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir,
               const Temperature temperature) {
             ROCKS_LOG_INFO(db_options.info_log, "Copying %s", fname.c_str());
             return CopyFile(db_->GetFileSystem(), src_dirname + "/" + fname,
-                            full_private_path + "/" + fname, size_limit_bytes,
-                            db_options.use_fsync, nullptr, temperature);
+                            temperature, full_private_path + "/" + fname,
+                            temperature, size_limit_bytes, db_options.use_fsync,
+                            nullptr);
           } /* copy_file_cb */,
           [&](const std::string& fname, const std::string& contents, FileType) {
             ROCKS_LOG_INFO(db_options.info_log, "Creating %s", fname.c_str());
@@ -149,7 +173,7 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir,
 
       // we copied all the files, enable file deletions
       if (disabled_file_deletions) {
-        Status ss = db_->EnableFileDeletions(false);
+        Status ss = db_->EnableFileDeletions();
         assert(ss.ok());
         ss.PermitUncheckedError();
       }
@@ -180,10 +204,15 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir,
     ROCKS_LOG_INFO(db_options.info_log, "Snapshot sequence number: %" PRIu64,
                    sequence_number);
   } else {
-    // clean all the files we might have created
     ROCKS_LOG_INFO(db_options.info_log, "Snapshot failed -- %s",
                    s.ToString().c_str());
-    CleanStagingDirectory(full_private_path, db_options.info_log.get());
+    // clean all the files and directory we might have created
+    Status del_s =
+        CleanStagingDirectory(full_private_path, db_options.info_log.get());
+    ROCKS_LOG_INFO(db_options.info_log,
+                   "Clean files or directory we might have created %s: %s",
+                   full_private_path.c_str(), del_s.ToString().c_str());
+    del_s.PermitUncheckedError();
   }
   return s;
 }
@@ -333,12 +362,14 @@ Status CheckpointImpl::ExportColumnFamily(
           [&](const std::string& src_dirname, const std::string& fname) {
             ROCKS_LOG_INFO(db_options.info_log, "[%s] Copying %s",
                            cf_name.c_str(), fname.c_str());
+            // FIXME: temperature handling
             return CopyFile(db_->GetFileSystem(), src_dirname + fname,
-                            tmp_export_dir + fname, 0, db_options.use_fsync,
-                            nullptr, Temperature::kUnknown);
+                            Temperature::kUnknown, tmp_export_dir + fname,
+                            Temperature::kUnknown, 0, db_options.use_fsync,
+                            nullptr);
           } /*copy_file_cb*/);
 
-      const auto enable_status = db_->EnableFileDeletions(false /*force*/);
+      const auto enable_status = db_->EnableFileDeletions();
       if (s.ok()) {
         s = enable_status;
       }
@@ -373,16 +404,19 @@ Status CheckpointImpl::ExportColumnFamily(
       for (const auto& file_metadata : level_metadata.files) {
         LiveFileMetaData live_file_metadata;
         live_file_metadata.size = file_metadata.size;
-        live_file_metadata.name = std::move(file_metadata.name);
+        live_file_metadata.name = file_metadata.name;
         live_file_metadata.file_number = file_metadata.file_number;
         live_file_metadata.db_path = export_dir;
         live_file_metadata.smallest_seqno = file_metadata.smallest_seqno;
         live_file_metadata.largest_seqno = file_metadata.largest_seqno;
-        live_file_metadata.smallestkey = std::move(file_metadata.smallestkey);
-        live_file_metadata.largestkey = std::move(file_metadata.largestkey);
+        live_file_metadata.smallestkey = file_metadata.smallestkey;
+        live_file_metadata.largestkey = file_metadata.largestkey;
         live_file_metadata.oldest_blob_file_number =
             file_metadata.oldest_blob_file_number;
+        live_file_metadata.epoch_number = file_metadata.epoch_number;
         live_file_metadata.level = level_metadata.level;
+        live_file_metadata.smallest = file_metadata.smallest;
+        live_file_metadata.largest = file_metadata.largest;
         result_metadata->files.push_back(live_file_metadata);
       }
       *metadata = result_metadata;
@@ -465,5 +499,3 @@ Status CheckpointImpl::ExportFilesInMetaData(
   return s;
 }
 }  // namespace ROCKSDB_NAMESPACE
-
-#endif  // ROCKSDB_LITE

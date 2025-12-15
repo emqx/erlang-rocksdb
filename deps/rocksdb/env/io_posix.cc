@@ -9,23 +9,26 @@
 
 #ifdef ROCKSDB_LIB_IO_POSIX
 #include "env/io_posix.h"
-#include <errno.h>
+
 #include <fcntl.h>
+
 #include <algorithm>
+#include <cerrno>
 #if defined(OS_LINUX)
 #include <linux/fs.h>
 #ifndef FALLOC_FL_KEEP_SIZE
 #include <linux/falloc.h>
 #endif
 #endif
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifdef OS_LINUX
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#if defined(OS_LINUX) || defined(OS_ANDROID)
 #include <sys/statfs.h>
 #include <sys/sysmacros.h>
 #endif
@@ -435,7 +438,7 @@ void LogicalBlockSizeCache::UnrefAndTryRemoveCachedLogicalBlockSize(
 
 size_t LogicalBlockSizeCache::GetLogicalBlockSize(const std::string& fname,
                                                   int fd) {
-  std::string dir = fname.substr(0, fname.find_last_of("/"));
+  std::string dir = fname.substr(0, fname.find_last_of('/'));
   if (dir.empty()) {
     dir = "/";
   }
@@ -452,39 +455,71 @@ size_t LogicalBlockSizeCache::GetLogicalBlockSize(const std::string& fname,
 
 Status PosixHelper::GetLogicalBlockSizeOfDirectory(const std::string& directory,
                                                    size_t* size) {
+  return GetQueueSysfsFileValueofDirectory(directory,
+                                           GetLogicalBlockSizeFileName(), size);
+}
+
+Status PosixHelper::GetMaxSectorsKBOfDirectory(const std::string& directory,
+                                               size_t* kb) {
+  return GetQueueSysfsFileValueofDirectory(directory, GetMaxSectorsKBFileName(),
+                                           kb);
+}
+
+Status PosixHelper::GetQueueSysfsFileValueofDirectory(
+    const std::string& directory, const std::string& file_name, size_t* value) {
   int fd = open(directory.c_str(), O_DIRECTORY | O_RDONLY);
   if (fd == -1) {
-    close(fd);
     return Status::IOError("Cannot open directory " + directory);
   }
-  *size = PosixHelper::GetLogicalBlockSizeOfFd(fd);
+  if (file_name == PosixHelper::GetLogicalBlockSizeFileName()) {
+    *value = PosixHelper::GetLogicalBlockSizeOfFd(fd);
+  } else if (file_name == PosixHelper::GetMaxSectorsKBFileName()) {
+    *value = PosixHelper::GetMaxSectorsKBOfFd(fd);
+  } else {
+    assert(false);
+  }
   close(fd);
   return Status::OK();
 }
 
 size_t PosixHelper::GetLogicalBlockSizeOfFd(int fd) {
+  return GetQueueSysfsFileValueOfFd(fd, GetLogicalBlockSizeFileName(),
+                                    kDefaultPageSize);
+}
+
+size_t PosixHelper::GetMaxSectorsKBOfFd(int fd) {
+  return GetQueueSysfsFileValueOfFd(fd, GetMaxSectorsKBFileName(),
+                                    kDefaultMaxSectorsKB);
+}
+
+size_t PosixHelper::GetQueueSysfsFileValueOfFd(
+    int fd, const std::string& file_name, const size_t default_return_value) {
 #ifdef OS_LINUX
   struct stat buf;
   int result = fstat(fd, &buf);
   if (result == -1) {
-    return kDefaultPageSize;
+    return default_return_value;
   }
+
+  // Get device number
   if (major(buf.st_dev) == 0) {
     // Unnamed devices (e.g. non-device mounts), reserved as null device number.
     // These don't have an entry in /sys/dev/block/. Return a sensible default.
-    return kDefaultPageSize;
+    return default_return_value;
   }
 
-  // Reading queue/logical_block_size does not require special permissions.
+  // Get device path
   const int kBufferSize = 100;
   char path[kBufferSize];
   char real_path[PATH_MAX + 1];
   snprintf(path, kBufferSize, "/sys/dev/block/%u:%u", major(buf.st_dev),
            minor(buf.st_dev));
   if (realpath(path, real_path) == nullptr) {
-    return kDefaultPageSize;
+    return default_return_value;
   }
   std::string device_dir(real_path);
+
+  // Get the queue sysfs file path
   if (!device_dir.empty() && device_dir.back() == '/') {
     device_dir.pop_back();
   }
@@ -498,11 +533,11 @@ size_t PosixHelper::GetLogicalBlockSizeOfFd(int fd) {
   // ../../devices/pci0000:17/0000:17:00.0/0000:18:00.0/nvme/nvme0/nvme0n1/nvme0n1p1
   size_t parent_end = device_dir.rfind('/', device_dir.length() - 1);
   if (parent_end == std::string::npos) {
-    return kDefaultPageSize;
+    return default_return_value;
   }
   size_t parent_begin = device_dir.rfind('/', parent_end - 1);
   if (parent_begin == std::string::npos) {
-    return kDefaultPageSize;
+    return default_return_value;
   }
   std::string parent =
       device_dir.substr(parent_begin + 1, parent_end - parent_begin - 1);
@@ -511,25 +546,37 @@ size_t PosixHelper::GetLogicalBlockSizeOfFd(int fd) {
       (child.compare(0, 4, "nvme") || child.find('p') != std::string::npos)) {
     device_dir = device_dir.substr(0, parent_end);
   }
-  std::string fname = device_dir + "/queue/logical_block_size";
+  std::string fname = device_dir + "/queue/" + file_name;
+
+  // Get value in the queue sysfs file
   FILE* fp;
-  size_t size = 0;
+  size_t value = 0;
   fp = fopen(fname.c_str(), "r");
   if (fp != nullptr) {
     char* line = nullptr;
     size_t len = 0;
     if (getline(&line, &len, fp) != -1) {
-      sscanf(line, "%zu", &size);
+      sscanf(line, "%zu", &value);
     }
     free(line);
     fclose(fp);
   }
-  if (size != 0 && (size & (size - 1)) == 0) {
-    return size;
+
+  if (file_name == GetLogicalBlockSizeFileName()) {
+    if (value != 0 && (value & (value - 1)) == 0) {
+      return value;
+    }
+  } else if (file_name == GetMaxSectorsKBFileName()) {
+    if (value != 0) {
+      return value;
+    }
+  } else {
+    assert(false);
   }
 #endif
   (void)fd;
-  return kDefaultPageSize;
+  (void)file_name;
+  return default_return_value;
 }
 
 /*
@@ -601,8 +648,7 @@ IOStatus PosixRandomAccessFile::Read(uint64_t offset, size_t n,
   return s;
 }
 
-IOStatus PosixRandomAccessFile::MultiRead(FSReadRequest* reqs,
-                                          size_t num_reqs,
+IOStatus PosixRandomAccessFile::MultiRead(FSReadRequest* reqs, size_t num_reqs,
                                           const IOOptions& options,
                                           IODebugContext* dbg) {
   if (use_direct_io()) {
@@ -653,7 +699,9 @@ IOStatus PosixRandomAccessFile::MultiRead(FSReadRequest* reqs,
     size_t this_reqs = (num_reqs - reqs_off) + incomplete_rq_list.size();
 
     // If requests exceed depth, split it into batches
-    if (this_reqs > kIoUringDepth) this_reqs = kIoUringDepth;
+    if (this_reqs > kIoUringDepth) {
+      this_reqs = kIoUringDepth;
+    }
 
     assert(incomplete_rq_list.size() <= this_reqs);
     for (size_t i = 0; i < this_reqs; i++) {
@@ -853,7 +901,7 @@ IOStatus PosixRandomAccessFile::InvalidateCache(size_t offset, size_t length) {
 
 IOStatus PosixRandomAccessFile::ReadAsync(
     FSReadRequest& req, const IOOptions& /*opts*/,
-    std::function<void(const FSReadRequest&, void*)> cb, void* cb_arg,
+    std::function<void(FSReadRequest&, void*)> cb, void* cb_arg,
     void** io_handle, IOHandleDeleter* del_fn, IODebugContext* /*dbg*/) {
   if (use_direct_io()) {
     assert(IsSectorAligned(req.offset, GetRequiredBufferAlignment()));
@@ -964,7 +1012,7 @@ IOStatus PosixMmapReadableFile::Read(uint64_t offset, size_t n,
   } else if (offset + n > length_) {
     n = static_cast<size_t>(length_ - offset);
   }
-  *result = Slice(reinterpret_cast<char*>(mmapped_region_) + offset, n);
+  *result = Slice(static_cast<char*>(mmapped_region_) + offset, n);
   return s;
 }
 
@@ -1063,7 +1111,7 @@ IOStatus PosixMmapFile::MapNewRegion() {
   }
   TEST_KILL_RANDOM("PosixMmapFile::Append:2");
 
-  base_ = reinterpret_cast<char*>(ptr);
+  base_ = static_cast<char*>(ptr);
   limit_ = base_ + map_size_;
   dst_ = base_;
   last_sync_ = base_;
@@ -1373,9 +1421,10 @@ IOStatus PosixWritableFile::Close(const IOOptions& /*opts*/,
     // After ftruncate, we check whether ftruncate has the correct behavior.
     // If not, we should hack it with FALLOC_FL_PUNCH_HOLE
     if (result == 0 &&
-        (file_stats.st_size + file_stats.st_blksize - 1) /
-                file_stats.st_blksize !=
-            file_stats.st_blocks / (file_stats.st_blksize / 512)) {
+        static_cast<size_t>((file_stats.st_size + file_stats.st_blksize - 1) /
+                            file_stats.st_blksize) !=
+            static_cast<size_t>(file_stats.st_blocks /
+                                (file_stats.st_blksize / 512))) {
       IOSTATS_TIMER_GUARD(allocate_nanos);
       if (allow_fallocate_) {
         fallocate(fd_, FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE, filesize_,
@@ -1437,10 +1486,12 @@ void PosixWritableFile::SetWriteLifeTimeHint(Env::WriteLifeTimeHint hint) {
 #ifdef OS_LINUX
 // Suppress Valgrind "Unimplemented functionality" error.
 #ifndef ROCKSDB_VALGRIND_RUN
+  uint64_t fcntl_hint = hint;
+
   if (hint == write_hint_) {
     return;
   }
-  if (fcntl(fd_, F_SET_RW_HINT, &hint) == 0) {
+  if (fcntl(fd_, F_SET_RW_HINT, &fcntl_hint) == 0) {
     write_hint_ = hint;
   }
 #else

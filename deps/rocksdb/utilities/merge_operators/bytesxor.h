@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+
 #include "rocksdb/env.h"
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/slice.h"
@@ -22,11 +23,8 @@ class BytesXOROperator : public AssociativeMergeOperator {
  public:
   // XORs the two array of bytes one byte at a time and stores the result
   // in new_value. len is the number of xored bytes, and the length of new_value
-  virtual bool Merge(const Slice& key,
-                     const Slice* existing_value,
-                     const Slice& value,
-                     std::string* new_value,
-                     Logger* logger) const override;
+  bool Merge(const Slice& key, const Slice* existing_value, const Slice& value,
+             std::string* new_value, Logger* logger) const override;
 
   static const char* kClassName() { return "BytesXOR"; }
   static const char* kNickName() { return "bytesxor"; }
@@ -35,7 +33,7 @@ class BytesXOROperator : public AssociativeMergeOperator {
   const char* Name() const override { return kClassName(); }
 
   void XOR(const Slice* existing_value, const Slice& value,
-          std::string* new_value) const;
+           std::string* new_value) const;
 };
 
 }  // namespace ROCKSDB_NAMESPACE

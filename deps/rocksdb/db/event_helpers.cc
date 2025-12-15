@@ -10,20 +10,18 @@
 #include "rocksdb/utilities/customizable_util.h"
 
 namespace ROCKSDB_NAMESPACE {
-#ifndef ROCKSDB_LITE
 Status EventListener::CreateFromString(const ConfigOptions& config_options,
                                        const std::string& id,
                                        std::shared_ptr<EventListener>* result) {
-  return LoadSharedObject<EventListener>(config_options, id, nullptr, result);
+  return LoadSharedObject<EventListener>(config_options, id, result);
 }
-#endif  // ROCKSDB_LITE
 
 namespace {
 template <class T>
 inline T SafeDivide(T a, T b) {
   return b == 0 ? 0 : a / b;
 }
-}  // namespace
+}  // anonymous namespace
 
 void EventHelpers::AppendCurrentTime(JSONWriter* jwriter) {
   *jwriter << "time_micros"
@@ -32,7 +30,6 @@ void EventHelpers::AppendCurrentTime(JSONWriter* jwriter) {
                   .count();
 }
 
-#ifndef ROCKSDB_LITE
 void EventHelpers::NotifyTableFileCreationStarted(
     const std::vector<std::shared_ptr<EventListener>>& listeners,
     const std::string& db_name, const std::string& cf_name,
@@ -50,13 +47,11 @@ void EventHelpers::NotifyTableFileCreationStarted(
     listener->OnTableFileCreationStarted(info);
   }
 }
-#endif  // !ROCKSDB_LITE
 
 void EventHelpers::NotifyOnBackgroundError(
     const std::vector<std::shared_ptr<EventListener>>& listeners,
     BackgroundErrorReason reason, Status* bg_error, InstrumentedMutex* db_mutex,
     bool* auto_recovery) {
-#ifndef ROCKSDB_LITE
   if (listeners.empty()) {
     return;
   }
@@ -71,13 +66,6 @@ void EventHelpers::NotifyOnBackgroundError(
     }
   }
   db_mutex->Lock();
-#else
-  (void)listeners;
-  (void)reason;
-  (void)bg_error;
-  (void)db_mutex;
-  (void)auto_recovery;
-#endif  // ROCKSDB_LITE
 }
 
 void EventHelpers::LogAndNotifyTableFileCreationFinished(
@@ -134,6 +122,9 @@ void EventHelpers::LogAndNotifyTableFileCreationFinished(
               << "column_family_name" << table_properties.column_family_name
               << "column_family_id" << table_properties.column_family_id
               << "comparator" << table_properties.comparator_name
+              << "user_defined_timestamps_persisted"
+              << table_properties.user_defined_timestamps_persisted
+              << "key_largest_seqno" << table_properties.key_largest_seqno
               << "merge_operator" << table_properties.merge_operator_name
               << "prefix_extractor_name"
               << table_properties.prefix_extractor_name << "property_collectors"
@@ -141,6 +132,7 @@ void EventHelpers::LogAndNotifyTableFileCreationFinished(
               << table_properties.compression_name << "compression_options"
               << table_properties.compression_options << "creation_time"
               << table_properties.creation_time << "oldest_key_time"
+              << table_properties.newest_key_time << "newest_key_time"
               << table_properties.oldest_key_time << "file_creation_time"
               << table_properties.file_creation_time
               << "slow_compression_estimated_data_size"
@@ -155,7 +147,7 @@ void EventHelpers::LogAndNotifyTableFileCreationFinished(
         jwriter << "N/A";
       } else {
         SeqnoToTimeMapping tmp;
-        Status status = tmp.Add(table_properties.seqno_to_time_mapping);
+        Status status = tmp.DecodeFrom(table_properties.seqno_to_time_mapping);
         if (status.ok()) {
           jwriter << tmp.ToHumanString();
         } else {
@@ -179,7 +171,6 @@ void EventHelpers::LogAndNotifyTableFileCreationFinished(
     event_logger->Log(jwriter);
   }
 
-#ifndef ROCKSDB_LITE
   if (listeners.empty()) {
     return;
   }
@@ -198,13 +189,6 @@ void EventHelpers::LogAndNotifyTableFileCreationFinished(
     listener->OnTableFileCreated(info);
   }
   info.status.PermitUncheckedError();
-#else
-  (void)listeners;
-  (void)db_name;
-  (void)cf_name;
-  (void)file_path;
-  (void)reason;
-#endif  // !ROCKSDB_LITE
 }
 
 void EventHelpers::LogAndNotifyTableFileDeletion(
@@ -226,7 +210,6 @@ void EventHelpers::LogAndNotifyTableFileDeletion(
 
   event_logger->Log(jwriter);
 
-#ifndef ROCKSDB_LITE
   if (listeners.empty()) {
     return;
   }
@@ -239,42 +222,36 @@ void EventHelpers::LogAndNotifyTableFileDeletion(
     listener->OnTableFileDeleted(info);
   }
   info.status.PermitUncheckedError();
-#else
-  (void)file_path;
-  (void)dbname;
-  (void)listeners;
-#endif  // !ROCKSDB_LITE
 }
 
 void EventHelpers::NotifyOnErrorRecoveryEnd(
     const std::vector<std::shared_ptr<EventListener>>& listeners,
     const Status& old_bg_error, const Status& new_bg_error,
     InstrumentedMutex* db_mutex) {
-#ifndef ROCKSDB_LITE
   if (!listeners.empty()) {
     db_mutex->AssertHeld();
+    // Make copies before releasing mutex to avoid race.
+    Status old_bg_error_cp = old_bg_error;
+    Status new_bg_error_cp = new_bg_error;
     // release lock while notifying events
     db_mutex->Unlock();
+    TEST_SYNC_POINT("NotifyOnErrorRecoveryEnd:MutexUnlocked:1");
+    TEST_SYNC_POINT("NotifyOnErrorRecoveryEnd:MutexUnlocked:2");
     for (auto& listener : listeners) {
       BackgroundErrorRecoveryInfo info;
-      info.old_bg_error = old_bg_error;
-      info.new_bg_error = new_bg_error;
-      listener->OnErrorRecoveryCompleted(old_bg_error);
+      info.old_bg_error = old_bg_error_cp;
+      info.new_bg_error = new_bg_error_cp;
+      listener->OnErrorRecoveryCompleted(old_bg_error_cp);
       listener->OnErrorRecoveryEnd(info);
       info.old_bg_error.PermitUncheckedError();
       info.new_bg_error.PermitUncheckedError();
     }
     db_mutex->Lock();
+  } else {
+    old_bg_error.PermitUncheckedError();
   }
-#else
-  (void)listeners;
-  (void)old_bg_error;
-  (void)new_bg_error;
-  (void)db_mutex;
-#endif  // ROCKSDB_LITE
 }
 
-#ifndef ROCKSDB_LITE
 void EventHelpers::NotifyBlobFileCreationStarted(
     const std::vector<std::shared_ptr<EventListener>>& listeners,
     const std::string& db_name, const std::string& cf_name,
@@ -289,7 +266,6 @@ void EventHelpers::NotifyBlobFileCreationStarted(
     listener->OnBlobFileCreationStarted(info);
   }
 }
-#endif  // !ROCKSDB_LITE
 
 void EventHelpers::LogAndNotifyBlobFileCreationFinished(
     EventLogger* event_logger,
@@ -314,7 +290,6 @@ void EventHelpers::LogAndNotifyBlobFileCreationFinished(
     event_logger->Log(jwriter);
   }
 
-#ifndef ROCKSDB_LITE
   if (listeners.empty()) {
     return;
   }
@@ -325,12 +300,6 @@ void EventHelpers::LogAndNotifyBlobFileCreationFinished(
     listener->OnBlobFileCreated(info);
   }
   info.status.PermitUncheckedError();
-#else
-  (void)listeners;
-  (void)db_name;
-  (void)file_path;
-  (void)creation_reason;
-#endif
 }
 
 void EventHelpers::LogAndNotifyBlobFileDeletion(
@@ -352,7 +321,6 @@ void EventHelpers::LogAndNotifyBlobFileDeletion(
     jwriter.EndObject();
     event_logger->Log(jwriter);
   }
-#ifndef ROCKSDB_LITE
   if (listeners.empty()) {
     return;
   }
@@ -361,11 +329,6 @@ void EventHelpers::LogAndNotifyBlobFileDeletion(
     listener->OnBlobFileDeleted(info);
   }
   info.status.PermitUncheckedError();
-#else
-  (void)listeners;
-  (void)dbname;
-  (void)file_path;
-#endif  // !ROCKSDB_LITE
 }
 
 }  // namespace ROCKSDB_NAMESPACE

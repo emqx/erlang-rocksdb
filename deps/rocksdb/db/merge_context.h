@@ -8,6 +8,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "rocksdb/db.h"
 #include "rocksdb/slice.h"
 
 namespace ROCKSDB_NAMESPACE {
@@ -20,6 +22,8 @@ const std::vector<Slice> empty_operand_list;
 // will be fetched from the context when issuing partial of full merge.
 class MergeContext {
  public:
+  GetMergeOperandsOptions* get_merge_operands_options = nullptr;
+
   // Clear all the operands
   void Clear() {
     if (operand_list_) {

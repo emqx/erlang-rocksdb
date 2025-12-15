@@ -25,7 +25,7 @@
 #include "test_util/transaction_test_util.h"
 #include "util/random.h"
 #include "util/string_util.h"
-#include "utilities/fault_injection_env.h"
+#include "utilities/fault_injection_fs.h"
 #include "utilities/merge_operators.h"
 #include "utilities/merge_operators/string_append/stringappend.h"
 #include "utilities/transactions/pessimistic_transaction_db.h"
@@ -42,7 +42,8 @@ class TransactionTestBase : public ::testing::Test {
  public:
   TransactionDB* db;
   SpecialEnv special_env;
-  FaultInjectionTestEnv* env;
+  std::shared_ptr<FaultInjectionTestFS> fault_fs;
+  std::unique_ptr<Env> env;
   std::string dbname;
   Options options;
 
@@ -62,9 +63,12 @@ class TransactionTestBase : public ::testing::Test {
     options.unordered_write = write_ordering == kUnorderedWrite;
     options.level0_file_num_compaction_trigger = 2;
     options.merge_operator = MergeOperators::CreateFromStringId("stringappend");
+    // Recycling log file is generally more challenging for correctness
+    options.recycle_log_file_num = 2;
     special_env.skip_fsync_ = true;
-    env = new FaultInjectionTestEnv(&special_env);
-    options.env = env;
+    fault_fs.reset(new FaultInjectionTestFS(FileSystem::Default()));
+    env.reset(new CompositeEnvWrapper(&special_env, fault_fs));
+    options.env = env.get();
     options.two_write_queues = two_write_queue;
     dbname = test::PerThreadDBPath("transaction_testdb");
 
@@ -101,15 +105,14 @@ class TransactionTestBase : public ::testing::Test {
     } else {
       fprintf(stdout, "db is still in %s\n", dbname.c_str());
     }
-    delete env;
   }
 
   Status ReOpenNoDelete() {
     delete db;
     db = nullptr;
-    env->AssertNoOpenFile();
-    env->DropUnsyncedFileData();
-    env->ResetState();
+    fault_fs->AssertNoOpenFile();
+    EXPECT_OK(fault_fs->DropUnsyncedFileData());
+    fault_fs->ResetState();
     Status s;
     if (use_stackable_db_ == false) {
       s = TransactionDB::Open(options, txn_db_options, dbname, &db);
@@ -128,9 +131,9 @@ class TransactionTestBase : public ::testing::Test {
     handles->clear();
     delete db;
     db = nullptr;
-    env->AssertNoOpenFile();
-    env->DropUnsyncedFileData();
-    env->ResetState();
+    fault_fs->AssertNoOpenFile();
+    EXPECT_OK(fault_fs->DropUnsyncedFileData());
+    fault_fs->ResetState();
     Status s;
     if (use_stackable_db_ == false) {
       s = TransactionDB::Open(options, txn_db_options, dbname, cfs, handles,
@@ -145,7 +148,7 @@ class TransactionTestBase : public ::testing::Test {
   Status ReOpen() {
     delete db;
     db = nullptr;
-    DestroyDB(dbname, options);
+    EXPECT_OK(DestroyDB(dbname, options));
     Status s;
     if (use_stackable_db_ == false) {
       s = TransactionDB::Open(options, txn_db_options, dbname, &db);
@@ -169,7 +172,8 @@ class TransactionTestBase : public ::testing::Test {
         txn_db_options.write_policy == WRITE_COMMITTED ||
         txn_db_options.write_policy == WRITE_PREPARED;
     Status s = DBImpl::Open(options_copy, dbname, cfs, handles, &root_db,
-                            use_seq_per_batch, use_batch_per_txn);
+                            use_seq_per_batch, use_batch_per_txn,
+                            /*is_retry=*/false, /*can_retry=*/nullptr);
     auto stackable_db = std::make_unique<StackableDB>(root_db);
     if (s.ok()) {
       assert(root_db != nullptr);
@@ -199,7 +203,8 @@ class TransactionTestBase : public ::testing::Test {
         txn_db_options.write_policy == WRITE_COMMITTED ||
         txn_db_options.write_policy == WRITE_PREPARED;
     Status s = DBImpl::Open(options_copy, dbname, column_families, &handles,
-                            &root_db, use_seq_per_batch, use_batch_per_txn);
+                            &root_db, use_seq_per_batch, use_batch_per_txn,
+                            /*is_retry=*/false, /*can_retry=*/nullptr);
     if (!s.ok()) {
       delete root_db;
       return s;
@@ -223,12 +228,10 @@ class TransactionTestBase : public ::testing::Test {
   std::atomic<size_t> expected_commits = {0};
   // Without Prepare, the commit does not write to WAL
   std::atomic<size_t> with_empty_commits = {0};
-  std::function<void(size_t, Status)> txn_t0_with_status = [&](size_t index,
-                                                               Status exp_s) {
+  void TestTxn0(size_t index) {
     // Test DB's internal txn. It involves no prepare phase nor a commit marker.
-    WriteOptions wopts;
-    auto s = db->Put(wopts, "key" + std::to_string(index), "value");
-    ASSERT_EQ(exp_s, s);
+    auto s = db->Put(WriteOptions(), "key" + std::to_string(index), "value");
+    ASSERT_OK(s);
     if (txn_db_options.write_policy == TxnDBWritePolicy::WRITE_COMMITTED) {
       // Consume one seq per key
       exp_seq++;
@@ -241,11 +244,9 @@ class TransactionTestBase : public ::testing::Test {
       }
     }
     with_empty_commits++;
-  };
-  std::function<void(size_t)> txn_t0 = [&](size_t index) {
-    return txn_t0_with_status(index, Status::OK());
-  };
-  std::function<void(size_t)> txn_t1 = [&](size_t index) {
+  }
+
+  void TestTxn1(size_t index) {
     // Testing directly writing a write batch. Functionality-wise it is
     // equivalent to commit without prepare.
     WriteBatch wb;
@@ -253,8 +254,7 @@ class TransactionTestBase : public ::testing::Test {
     ASSERT_OK(wb.Put("k1" + istr, "v1"));
     ASSERT_OK(wb.Put("k2" + istr, "v2"));
     ASSERT_OK(wb.Put("k3" + istr, "v3"));
-    WriteOptions wopts;
-    auto s = db->Write(wopts, &wb);
+    auto s = db->Write(WriteOptions(), &wb);
     if (txn_db_options.write_policy == TxnDBWritePolicy::WRITE_COMMITTED) {
       // Consume one seq per key
       exp_seq += 3;
@@ -268,12 +268,12 @@ class TransactionTestBase : public ::testing::Test {
     }
     ASSERT_OK(s);
     with_empty_commits++;
-  };
-  std::function<void(size_t)> txn_t2 = [&](size_t index) {
+  }
+
+  void TestTxn2(size_t index) {
     // Commit without prepare. It should write to DB without a commit marker.
-    TransactionOptions txn_options;
-    WriteOptions write_options;
-    Transaction* txn = db->BeginTransaction(write_options, txn_options);
+    Transaction* txn =
+        db->BeginTransaction(WriteOptions(), TransactionOptions());
     auto istr = std::to_string(index);
     ASSERT_OK(txn->SetName("xid" + istr));
     ASSERT_OK(txn->Put(Slice("foo" + istr), Slice("bar")));
@@ -301,12 +301,12 @@ class TransactionTestBase : public ::testing::Test {
     }
     delete txn;
     with_empty_commits++;
-  };
-  std::function<void(size_t)> txn_t3 = [&](size_t index) {
+  }
+
+  void TestTxn3(size_t index) {
     // A full 2pc txn that also involves a commit marker.
-    TransactionOptions txn_options;
-    WriteOptions write_options;
-    Transaction* txn = db->BeginTransaction(write_options, txn_options);
+    Transaction* txn =
+        db->BeginTransaction(WriteOptions(), TransactionOptions());
     auto istr = std::to_string(index);
     ASSERT_OK(txn->SetName("xid" + istr));
     ASSERT_OK(txn->Put(Slice("foo" + istr), Slice("bar")));
@@ -334,12 +334,12 @@ class TransactionTestBase : public ::testing::Test {
       exp_seq++;
     }
     delete txn;
-  };
-  std::function<void(size_t)> txn_t4 = [&](size_t index) {
+  }
+
+  void TestTxn4(size_t index) {
     // A full 2pc txn that also involves a commit marker.
-    TransactionOptions txn_options;
-    WriteOptions write_options;
-    Transaction* txn = db->BeginTransaction(write_options, txn_options);
+    Transaction* txn =
+        db->BeginTransaction(WriteOptions(), TransactionOptions());
     auto istr = std::to_string(index);
     ASSERT_OK(txn->SetName("xid" + istr));
     ASSERT_OK(txn->Put(Slice("foo" + istr), Slice("bar")));
@@ -375,7 +375,7 @@ class TransactionTestBase : public ::testing::Test {
       }
     }
     delete txn;
-  };
+  }
 
   // Test that we can change write policy after a clean shutdown (which would
   // empty the WAL)
@@ -463,7 +463,7 @@ class TransactionTestBase : public ::testing::Test {
     }
     db_impl = static_cast_with_check<DBImpl>(db->GetRootDB());
     // Check that WAL is empty
-    VectorLogPtr log_files;
+    VectorWalPtr log_files;
     ASSERT_OK(db_impl->GetSortedWalFiles(log_files));
     ASSERT_EQ(0, log_files.size());
 
@@ -490,6 +490,12 @@ class TransactionTest
   TransactionTest()
       : TransactionTestBase(std::get<0>(GetParam()), std::get<1>(GetParam()),
                             std::get<2>(GetParam()), std::get<3>(GetParam())){};
+};
+
+class TransactionDBTest : public TransactionTestBase {
+ public:
+  TransactionDBTest()
+      : TransactionTestBase(false, false, WRITE_COMMITTED, kOrderedWrite) {}
 };
 
 class TransactionStressTest : public TransactionTest {};

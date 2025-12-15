@@ -129,7 +129,6 @@ TEST_F(CacheReservationManagerTest,
 
 TEST(CacheReservationManagerIncreaseReservcationOnFullCacheTest,
      IncreaseCacheReservationOnFullCache) {
-  ;
   constexpr std::size_t kSizeDummyEntry =
       CacheReservationManagerImpl<CacheEntryRole::kMisc>::GetDummyEntrySize();
   constexpr std::size_t kSmallCacheCapacity = 4 * kSizeDummyEntry;
@@ -463,6 +462,7 @@ TEST(CacheReservationHandleTest, HandleTest) {
 }  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
+  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

@@ -47,12 +47,12 @@ class Configurable {
   struct RegisteredOptions {
     // The name of the options being registered
     std::string name;
-    // Pointer to the object being registered
-    void* opt_ptr;
-#ifndef ROCKSDB_LITE
+    // Pointer to the object being registered, relative to `this` so that
+    // RegisteredOptions are copyable from one Configurable to another of the
+    // same type, assuming the option is a member of `this`.
+    intptr_t opt_offset;
     // The map of options being registered
     const std::unordered_map<std::string, OptionTypeInfo>* type_map;
-#endif
   };
 
  public:
@@ -81,6 +81,8 @@ class Configurable {
   }
   template <typename T>
   T* GetOptions(const std::string& name) {
+    // FIXME: Is this sometimes reading a raw pointer from a shared_ptr,
+    // unsafely relying on the object layout?
     return reinterpret_cast<T*>(const_cast<void*>(GetOptionsPtr(name)));
   }
 
@@ -121,7 +123,6 @@ class Configurable {
       const std::unordered_map<std::string, std::string>& opt_map,
       std::unordered_map<std::string, std::string>* unused);
 
-#ifndef ROCKSDB_LITE
   // Updates the named option to the input value, returning OK if successful.
   // Note that ConfigureOption does not cause PrepareOptions to be invoked.
   // @param config_options Controls how the name/value is processed.
@@ -135,7 +136,6 @@ class Configurable {
   // @return InvalidArgument If the value cannot be successfully  parsed.
   Status ConfigureOption(const ConfigOptions& config_options,
                          const std::string& name, const std::string& value);
-#endif  // ROCKSDB_LITE
 
   // Configures the options for this class based on the input parameters.
   // On successful completion, the object is updated with the settings from
@@ -171,7 +171,6 @@ class Configurable {
   // serialized.
   Status GetOptionString(const ConfigOptions& config_options,
                          std::string* result) const;
-#ifndef ROCKSDB_LITE
   // Returns the serialized options for this object.
   // This method is similar to GetOptionString with no errors.
   // @param config_options Controls how serialization happens.
@@ -202,7 +201,6 @@ class Configurable {
   //      its value cannot be serialized.
   virtual Status GetOption(const ConfigOptions& config_options,
                            const std::string& name, std::string* value) const;
-#endif  // ROCKSDB_LITE
 
   // Checks to see if this Configurable is equivalent to other.
   // This method assumes that the two objects are of the same class.
@@ -317,7 +315,6 @@ class Configurable {
       const std::unordered_map<std::string, std::string>& opts_map,
       std::unordered_map<std::string, std::string>* unused);
 
-#ifndef ROCKSDB_LITE
   // Method that configures a the specific opt_name from opt_value.
   // By default, this method calls opt_info.ParseOption with the
   // input parameters.
@@ -348,13 +345,10 @@ class Configurable {
                                const void* const this_ptr,
                                const void* const that_ptr,
                                std::string* bad_name) const;
-#endif
-#ifndef ROCKSDB_LITE
   // Internal method to serialize options (ToString)
   // Classes may override this value to change its behavior.
   virtual std::string SerializeOptions(const ConfigOptions& config_options,
                                        const std::string& header) const;
-#endif  // ROCKSDB_LITE
 
   //  Given a name (e.g. rocksdb.my.type.opt), returns the short name (opt)
   virtual std::string GetOptionName(const std::string& long_name) const;
@@ -392,9 +386,9 @@ class Configurable {
   inline bool HasRegisteredOptions() const { return !options_.empty(); }
 
  private:
-  // Contains the collection of options (name, opt_ptr, opt_map) associated with
-  // this object. This collection is typically set in the constructor of the
-  // Configurable option via
+  // Contains the collection of options (name, opt_offset, opt_map) associated
+  // with this object. This collection is typically set in the constructor of
+  // the specific Configurable via RegisterOptions().
   std::vector<RegisteredOptions> options_;
 };
 }  // namespace ROCKSDB_NAMESPACE

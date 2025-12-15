@@ -18,7 +18,6 @@
 #include "test_util/testharness.h"
 #include "util/string_util.h"
 
-#ifndef ROCKSDB_LITE
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -41,7 +40,7 @@ class DeleteSchedulerTest : public testing::Test {
     ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->LoadDependency({});
     ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->ClearAllCallBacks();
     for (const auto& dummy_files_dir : dummy_files_dirs_) {
-      DestroyDir(env_, dummy_files_dir);
+      EXPECT_OK(DestroyDir(env_, dummy_files_dir));
     }
   }
 
@@ -79,15 +78,17 @@ class DeleteSchedulerTest : public testing::Test {
   }
 
   std::string NewDummyFile(const std::string& file_name, uint64_t size = 1024,
-                           size_t dummy_files_dirs_idx = 0) {
+                           size_t dummy_files_dirs_idx = 0, bool track = true) {
     std::string file_path =
         dummy_files_dirs_[dummy_files_dirs_idx] + "/" + file_name;
     std::unique_ptr<WritableFile> f;
-    env_->NewWritableFile(file_path, &f, EnvOptions());
+    EXPECT_OK(env_->NewWritableFile(file_path, &f, EnvOptions()));
     std::string data(size, 'A');
     EXPECT_OK(f->Append(data));
     EXPECT_OK(f->Close());
-    sst_file_mgr_->OnAddFile(file_path);
+    if (track) {
+      EXPECT_OK(sst_file_mgr_->OnAddFile(file_path));
+    }
     return file_path;
   }
 
@@ -132,11 +133,11 @@ TEST_F(DeleteSchedulerTest, BasicRateLimiting) {
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
       "DeleteScheduler::DeleteTrashFile::AfterSyncDir", [&](void* arg) {
         dir_synced++;
-        std::string* dir = reinterpret_cast<std::string*>(arg);
+        std::string* dir = static_cast<std::string*>(arg);
         EXPECT_EQ(dummy_files_dirs_[0], *dir);
       });
 
-  int num_files = 100;  // 100 files
+  int num_files = 100;        // 100 files
   uint64_t file_size = 1024;  // every file is 1 kb
   std::vector<uint64_t> delete_kbs_per_sec = {512, 200, 100, 50, 25};
 
@@ -186,6 +187,8 @@ TEST_F(DeleteSchedulerTest, BasicRateLimiting) {
 
     ASSERT_EQ(CountTrashFiles(), 0);
     ASSERT_EQ(num_files, stats_->getAndResetTickerCount(FILES_MARKED_TRASH));
+    ASSERT_EQ(num_files,
+              stats_->getAndResetTickerCount(FILES_DELETED_FROM_TRASH_QUEUE));
     ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_DELETED_IMMEDIATELY));
     ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
   }
@@ -225,6 +228,8 @@ TEST_F(DeleteSchedulerTest, MultiDirectoryDeletionsScheduled) {
   }
 
   ASSERT_EQ(kNumFiles, stats_->getAndResetTickerCount(FILES_MARKED_TRASH));
+  ASSERT_EQ(kNumFiles,
+            stats_->getAndResetTickerCount(FILES_DELETED_FROM_TRASH_QUEUE));
   ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_DELETED_IMMEDIATELY));
 
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
@@ -249,7 +254,7 @@ TEST_F(DeleteSchedulerTest, RateLimitingMultiThreaded) {
       [&](void* arg) { penalties.push_back(*(static_cast<uint64_t*>(arg))); });
 
   int thread_cnt = 10;
-  int num_files = 10;  // 10 files per thread
+  int num_files = 10;         // 10 files per thread
   uint64_t file_size = 1024;  // every file is 1 kb
 
   std::vector<uint64_t> delete_kbs_per_sec = {512, 200, 100, 50, 25};
@@ -309,8 +314,11 @@ TEST_F(DeleteSchedulerTest, RateLimitingMultiThreaded) {
 
     ASSERT_EQ(CountNormalFiles(), 0);
     ASSERT_EQ(CountTrashFiles(), 0);
-    ASSERT_EQ(num_files * thread_cnt,
+    int total_num_files = num_files * thread_cnt;
+    ASSERT_EQ(total_num_files,
               stats_->getAndResetTickerCount(FILES_MARKED_TRASH));
+    ASSERT_EQ(total_num_files,
+              stats_->getAndResetTickerCount(FILES_DELETED_FROM_TRASH_QUEUE));
     ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_DELETED_IMMEDIATELY));
 
     ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
@@ -343,8 +351,11 @@ TEST_F(DeleteSchedulerTest, DisableRateLimiting) {
 
   ASSERT_EQ(bg_delete_file, 0);
   ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_MARKED_TRASH));
+  ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_DELETED_FROM_TRASH_QUEUE));
   ASSERT_EQ(num_files,
             stats_->getAndResetTickerCount(FILES_DELETED_IMMEDIATELY));
+
+  ASSERT_FALSE(delete_scheduler_->NewTrashBucket().has_value());
 
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
 }
@@ -382,6 +393,7 @@ TEST_F(DeleteSchedulerTest, ConflictNames) {
   auto bg_errors = delete_scheduler_->GetBackgroundErrors();
   ASSERT_EQ(bg_errors.size(), 0);
   ASSERT_EQ(10, stats_->getAndResetTickerCount(FILES_MARKED_TRASH));
+  ASSERT_EQ(10, stats_->getAndResetTickerCount(FILES_DELETED_FROM_TRASH_QUEUE));
   ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_DELETED_IMMEDIATELY));
 
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
@@ -466,6 +478,8 @@ TEST_F(DeleteSchedulerTest, StartBGEmptyTrashMultipleTimes) {
     auto bg_errors = delete_scheduler_->GetBackgroundErrors();
     ASSERT_EQ(bg_errors.size(), 0);
     ASSERT_EQ(kTestFileNum, stats_->getAndResetTickerCount(FILES_MARKED_TRASH));
+    ASSERT_EQ(kTestFileNum,
+              stats_->getAndResetTickerCount(FILES_DELETED_FROM_TRASH_QUEUE));
     ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_DELETED_IMMEDIATELY));
   }
 
@@ -591,8 +605,7 @@ TEST_F(DeleteSchedulerTest, DISABLED_DynamicRateLimiting1) {
   rate_bytes_per_sec_ = 0;  // Disable rate limiting initially
   NewDeleteScheduler();
 
-
-  int num_files = 10;  // 10 files
+  int num_files = 10;         // 10 files
   uint64_t file_size = 1024;  // every file is 1 kb
 
   std::vector<int64_t> delete_kbs_per_sec = {512, 200, 0, 100, 50, -2, 25};
@@ -662,9 +675,9 @@ TEST_F(DeleteSchedulerTest, ImmediateDeleteOn25PercDBSize) {
 
   ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
 
-  int num_files = 100;  // 100 files
-  uint64_t file_size = 1024 * 10; // 100 KB as a file size
-  rate_bytes_per_sec_ = 1;  // 1 byte per sec (very slow trash delete)
+  int num_files = 100;             // 100 files
+  uint64_t file_size = 1024 * 10;  // 100 KB as a file size
+  rate_bytes_per_sec_ = 1;         // 1 byte per sec (very slow trash delete)
 
   NewDeleteScheduler();
   delete_scheduler_->SetMaxTrashDBRatio(0.25);
@@ -709,16 +722,146 @@ TEST_F(DeleteSchedulerTest, IsTrashCheck) {
   ASSERT_FALSE(DeleteScheduler::IsTrashFile("abc.trashx"));
 }
 
+TEST_F(DeleteSchedulerTest, DeleteAccountedAndUnaccountedFiles) {
+  rate_bytes_per_sec_ = 1024 * 1024;  // 1 MB / s
+  NewDeleteScheduler();
+
+  // Create 100 files, every file is 1 KB
+  int num_files = 100;        // 100 files
+  uint64_t file_size = 1024;  // 1 KB as a file size
+  std::vector<std::string> generated_files;
+  for (int i = 0; i < num_files; i++) {
+    std::string file_name = "file" + std::to_string(i) + ".data";
+    generated_files.push_back(NewDummyFile(file_name, file_size,
+                                           /*dummy_files_dirs_idx*/ 0,
+                                           /*track=*/false));
+  }
+
+  for (int i = 0; i < num_files; i++) {
+    if (i % 2) {
+      ASSERT_OK(sst_file_mgr_->OnAddFile(generated_files[i], file_size));
+      ASSERT_OK(delete_scheduler_->DeleteFile(generated_files[i], ""));
+    } else {
+      ASSERT_OK(
+          delete_scheduler_->DeleteUnaccountedFile(generated_files[i], ""));
+    }
+  }
+
+  delete_scheduler_->WaitForEmptyTrash();
+  ASSERT_EQ(0, delete_scheduler_->GetTotalTrashSize());
+  ASSERT_EQ(0, sst_file_mgr_->GetTotalSize());
+}
+
+TEST_F(DeleteSchedulerTest, ConcurrentlyDeleteUnaccountedFilesInBuckets) {
+  int bg_delete_file = 0;
+  int fg_delete_file = 0;
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+      "DeleteScheduler::DeleteTrashFile:DeleteFile",
+      [&](void* /*arg*/) { bg_delete_file++; });
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+      "DeleteScheduler::DeleteFile", [&](void* /*arg*/) { fg_delete_file++; });
+  rate_bytes_per_sec_ = 1024 * 1024;  // 1 MB / s
+  NewDeleteScheduler();
+
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+  // Create 1000 files, every file is 1 KB
+  int num_files = 1000;
+  uint64_t file_size = 1024;  // 1 KB as a file size
+  std::vector<std::string> generated_files;
+  for (int i = 0; i < num_files; i++) {
+    std::string file_name = "file" + std::to_string(i) + ".data";
+    generated_files.push_back(NewDummyFile(file_name, file_size,
+                                           /*dummy_files_dirs_idx*/ 0,
+                                           /*track=*/false));
+  }
+  // Concurrently delete files in different buckets and check all the buckets
+  // are empty.
+  int thread_cnt = 10;
+  int files_per_thread = 100;
+  std::atomic<int> thread_num(0);
+  std::vector<port::Thread> threads;
+  std::function<void()> delete_thread = [&]() {
+    std::optional<int32_t> bucket = delete_scheduler_->NewTrashBucket();
+    ASSERT_TRUE(bucket.has_value());
+    int idx = thread_num.fetch_add(1);
+    int range_start = idx * files_per_thread;
+    int range_end = range_start + files_per_thread;
+    for (int j = range_start; j < range_end; j++) {
+      ASSERT_OK(delete_scheduler_->DeleteUnaccountedFile(
+          generated_files[j], "", /*false_bg=*/false, bucket));
+    }
+    delete_scheduler_->WaitForEmptyTrashBucket(bucket.value());
+  };
+
+  for (int i = 0; i < thread_cnt; i++) {
+    threads.emplace_back(delete_thread);
+  }
+
+  for (size_t i = 0; i < threads.size(); i++) {
+    threads[i].join();
+  }
+
+  ASSERT_EQ(0, delete_scheduler_->GetTotalTrashSize());
+  ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_DELETED_IMMEDIATELY));
+  ASSERT_EQ(1000, stats_->getAndResetTickerCount(FILES_MARKED_TRASH));
+  ASSERT_EQ(0, fg_delete_file);
+  ASSERT_EQ(1000, bg_delete_file);
+
+  // OK to re check an already empty bucket
+  delete_scheduler_->WaitForEmptyTrashBucket(9);
+  // Invalid bucket return too.
+  delete_scheduler_->WaitForEmptyTrashBucket(100);
+  std::optional<int32_t> next_bucket = delete_scheduler_->NewTrashBucket();
+  ASSERT_TRUE(next_bucket.has_value());
+  ASSERT_EQ(10, next_bucket.value());
+  delete_scheduler_->WaitForEmptyTrashBucket(10);
+
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->DisableProcessing();
+}
+
+TEST_F(DeleteSchedulerTest,
+       ImmediatelyDeleteUnaccountedFilesWithRemainingLinks) {
+  int bg_delete_file = 0;
+  int fg_delete_file = 0;
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+      "DeleteScheduler::DeleteTrashFile:DeleteFile",
+      [&](void* /*arg*/) { bg_delete_file++; });
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->SetCallBack(
+      "DeleteScheduler::DeleteFile", [&](void* /*arg*/) { fg_delete_file++; });
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+
+  rate_bytes_per_sec_ = 1024 * 1024;  // 1 MB / sec
+  NewDeleteScheduler();
+
+  std::string file1 = NewDummyFile("data_1", 500 * 1024,
+                                   /*dummy_files_dirs_idx*/ 0, /*track=*/false);
+  std::string file2 = NewDummyFile("data_2", 100 * 1024,
+                                   /*dummy_files_dirs_idx*/ 0, /*track=*/false);
+
+  ASSERT_OK(env_->LinkFile(file1, dummy_files_dirs_[0] + "/data_1b"));
+  ASSERT_OK(env_->LinkFile(file2, dummy_files_dirs_[0] + "/data_2b"));
+
+  // Should delete in 4 batch if there is no hardlink
+  ASSERT_OK(
+      delete_scheduler_->DeleteUnaccountedFile(file1, "", /*force_bg=*/false));
+  ASSERT_OK(
+      delete_scheduler_->DeleteUnaccountedFile(file2, "", /*force_bg=*/false));
+
+  delete_scheduler_->WaitForEmptyTrash();
+
+  ASSERT_EQ(0, delete_scheduler_->GetTotalTrashSize());
+  ASSERT_EQ(0, bg_delete_file);
+  ASSERT_EQ(2, fg_delete_file);
+  ASSERT_EQ(0, stats_->getAndResetTickerCount(FILES_MARKED_TRASH));
+  ASSERT_EQ(2, stats_->getAndResetTickerCount(FILES_DELETED_IMMEDIATELY));
+  ROCKSDB_NAMESPACE::SyncPoint::GetInstance()->EnableProcessing();
+}
+
 }  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
+  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
 
-#else
-int main(int /*argc*/, char** /*argv*/) {
-  printf("DeleteScheduler is not supported in ROCKSDB_LITE\n");
-  return 0;
-}
-#endif  // ROCKSDB_LITE

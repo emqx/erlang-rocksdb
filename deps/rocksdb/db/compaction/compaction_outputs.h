@@ -30,11 +30,9 @@ class CompactionOutputs {
   // compaction output file
   struct Output {
     Output(FileMetaData&& _meta, const InternalKeyComparator& _icmp,
-           bool _enable_order_check, bool _enable_hash, bool _finished,
-           uint64_t precalculated_hash)
+           bool _enable_hash, bool _finished, uint64_t precalculated_hash)
         : meta(std::move(_meta)),
-          validator(_icmp, _enable_order_check, _enable_hash,
-                    precalculated_hash),
+          validator(_icmp, _enable_hash, precalculated_hash),
           finished(_finished) {}
     FileMetaData meta;
     OutputValidator validator;
@@ -49,10 +47,10 @@ class CompactionOutputs {
 
   // Add generated output to the list
   void AddOutput(FileMetaData&& meta, const InternalKeyComparator& icmp,
-                 bool enable_order_check, bool enable_hash,
-                 bool finished = false, uint64_t precalculated_hash = 0) {
-    outputs_.emplace_back(std::move(meta), icmp, enable_order_check,
-                          enable_hash, finished, precalculated_hash);
+                 bool enable_hash, bool finished = false,
+                 uint64_t precalculated_hash = 0) {
+    outputs_.emplace_back(std::move(meta), icmp, enable_hash, finished,
+                          precalculated_hash);
   }
 
   // Set new table builder for the current output
@@ -64,8 +62,9 @@ class CompactionOutputs {
   }
 
   // TODO: Remove it when remote compaction support tiered compaction
-  void SetTotalBytes(uint64_t bytes) { stats_.bytes_written += bytes; }
+  void AddBytesWritten(uint64_t bytes) { stats_.bytes_written += bytes; }
   void SetNumOutputRecords(uint64_t num) { stats_.num_output_records = num; }
+  void SetNumOutputFiles(uint64_t num) { stats_.num_output_files = num; }
 
   // TODO: Move the BlobDB builder into CompactionOutputs
   const std::vector<BlobFileAddition>& GetBlobFileAdditions() const {
@@ -107,8 +106,14 @@ class CompactionOutputs {
 
   // Finish the current output file
   Status Finish(const Status& intput_status,
-                const SeqnoToTimeMapping& seqno_time_mapping);
+                const SeqnoToTimeMapping& seqno_to_time_mapping);
 
+  // Update output table properties from already populated TableProperties.
+  // Used for remote compaction
+  void UpdateTableProperties(const TableProperties& table_properties) {
+    current_output().table_properties =
+        std::make_shared<TableProperties>(table_properties);
+  }
   // Update output table properties from table builder
   void UpdateTableProperties() {
     current_output().table_properties =
@@ -167,12 +172,23 @@ class CompactionOutputs {
     current_output_file_size_ = 0;
   }
 
-  // Add range-dels from the aggregator to the current output file
-  Status AddRangeDels(const Slice* comp_start, const Slice* comp_end,
+  // Add range deletions from the range_del_agg_ to the current output file.
+  // Input parameters, `range_tombstone_lower_bound_` and current output's
+  // metadata determine the bounds on range deletions to add. Updates output
+  // file metadata boundary if extended by range tombstones.
+  //
+  // @param comp_start_user_key and comp_end_user_key include timestamp if
+  // user-defined timestamp is enabled. Their timestamp should be max timestamp.
+  // @param next_table_min_key internal key lower bound for the next compaction
+  // output.
+  // @param full_history_ts_low used for range tombstone garbage collection.
+  Status AddRangeDels(const Slice* comp_start_user_key,
+                      const Slice* comp_end_user_key,
                       CompactionIterationStats& range_del_out_stats,
                       bool bottommost_level, const InternalKeyComparator& icmp,
                       SequenceNumber earliest_snapshot,
-                      const Slice& next_table_min_key);
+                      const Slice& next_table_min_key,
+                      const std::string& full_history_ts_low);
 
   // if the outputs have range delete, range delete is also data
   bool HasRangeDel() const {
@@ -195,10 +211,10 @@ class CompactionOutputs {
       // We may only split the output when the cursor is in the range. Split
       if ((!end.has_value() ||
            icmp->user_comparator()->Compare(
-               ExtractUserKey(output_split_key->Encode()), end.value()) < 0) &&
-          (!start.has_value() || icmp->user_comparator()->Compare(
-                                     ExtractUserKey(output_split_key->Encode()),
-                                     start.value()) > 0)) {
+               ExtractUserKey(output_split_key->Encode()), *end) < 0) &&
+          (!start.has_value() ||
+           icmp->user_comparator()->Compare(
+               ExtractUserKey(output_split_key->Encode()), *start) > 0)) {
         local_output_split_key_ = output_split_key;
       }
     }
@@ -216,9 +232,23 @@ class CompactionOutputs {
     }
   }
 
-  uint64_t GetCurrentOutputFileSize() const {
-    return current_output_file_size_;
-  }
+  // Updates states related to file cutting for TTL.
+  // Returns a boolean value indicating whether the current
+  // compaction output file should be cut before `internal_key`.
+  //
+  // @param internal_key the current key to be added to output.
+  bool UpdateFilesToCutForTTLStates(const Slice& internal_key);
+
+  // update tracked grandparents information like grandparent index, if it's
+  // in the gap between 2 grandparent files, accumulated grandparent files size
+  // etc.
+  // It returns how many boundaries it crosses by including current key.
+  size_t UpdateGrandparentBoundaryInfo(const Slice& internal_key);
+
+  // helper function to get the overlapped grandparent files size, it's only
+  // used for calculating the first key's overlap.
+  uint64_t GetCurrentKeyGrandparentOverlappedBytes(
+      const Slice& internal_key) const;
 
   // Add current key from compaction_iterator to the output file. If needed
   // close and open new compaction output with the functions provided.
@@ -274,6 +304,7 @@ class CompactionOutputs {
   std::unique_ptr<TableBuilder> builder_;
   std::unique_ptr<WritableFileWriter> file_writer_;
   uint64_t current_output_file_size_ = 0;
+  SequenceNumber smallest_preferred_seqno_ = kMaxSequenceNumber;
 
   // all the compaction outputs so far
   std::vector<Output> outputs_;
@@ -295,6 +326,7 @@ class CompactionOutputs {
   std::unique_ptr<SstPartitioner> partitioner_;
 
   // A flag determines if this subcompaction has been split by the cursor
+  // for RoundRobin compaction
   bool is_split_ = false;
 
   // We also maintain the output split key for each subcompaction to avoid
@@ -311,12 +343,34 @@ class CompactionOutputs {
   // An index that used to speed up ShouldStopBefore().
   size_t grandparent_index_ = 0;
 
+  // if the output key is being grandparent files gap, so:
+  //  key > grandparents[grandparent_index_ - 1].largest &&
+  //  key < grandparents[grandparent_index_].smallest
+  bool being_grandparent_gap_ = true;
+
   // The number of bytes overlapping between the current output and
   // grandparent files used in ShouldStopBefore().
-  uint64_t overlapped_bytes_ = 0;
+  uint64_t grandparent_overlapped_bytes_ = 0;
 
   // A flag determines whether the key has been seen in ShouldStopBefore()
   bool seen_key_ = false;
+
+  // for the current output file, how many file boundaries has it crossed,
+  // basically number of files overlapped * 2
+  size_t grandparent_boundary_switched_num_ = 0;
+
+  // The smallest key of the current output file, this is set when current
+  // output file's smallest key is a range tombstone start key.
+  InternalKey range_tombstone_lower_bound_;
+
+  // Used for calls to compaction->KeyRangeNotExistsBeyondOutputLevel() in
+  // CompactionOutputs::AddRangeDels().
+  // level_ptrs_[i] holds index of the file that was checked during the last
+  // call to compaction->KeyRangeNotExistsBeyondOutputLevel(). This allows
+  // future calls to the function to pick up where it left off, since each
+  // range tombstone added to output file within each subcompaction is in
+  // increasing key range.
+  std::vector<size_t> level_ptrs_;
 };
 
 // helper struct to concatenate the last level and penultimate level outputs

@@ -16,7 +16,6 @@
 
 namespace ROCKSDB_NAMESPACE {
 
-#ifndef ROCKSDB_LITE
 // -- AutoRollLogger
 
 AutoRollLogger::AutoRollLogger(const std::shared_ptr<FileSystem>& fs,
@@ -90,8 +89,8 @@ void AutoRollLogger::RollLogFile() {
   uint64_t now = clock_->NowMicros();
   std::string old_fname;
   do {
-    old_fname = OldInfoLogFileName(
-      dbname_, now, db_absolute_path_, db_log_dir_);
+    old_fname =
+        OldInfoLogFileName(dbname_, now, db_absolute_path_, db_log_dir_);
     now++;
   } while (fs_->FileExists(old_fname, io_options_, &io_context_).ok());
   // Wait for logger_ reference count to turn to 1 as it might be pinned by
@@ -173,7 +172,7 @@ std::string AutoRollLogger::ValistToString(const char* format,
   char buffer[MAXBUFFERSIZE];
 
   int count = vsnprintf(buffer, MAXBUFFERSIZE, format, args);
-  (void) count;
+  (void)count;
   assert(count >= 0);
 
   return buffer;
@@ -193,14 +192,13 @@ void AutoRollLogger::LogInternal(const char* format, ...) {
 }
 
 void AutoRollLogger::Logv(const char* format, va_list ap) {
-  assert(GetStatus().ok());
-  if (!logger_) {
-    return;
-  }
-
   std::shared_ptr<Logger> logger;
   {
     MutexLock l(&mutex_);
+    assert(GetStatus().ok());
+    if (!logger_) {
+      return;
+    }
     if ((kLogFileTimeToRoll > 0 && LogExpired()) ||
         (kMaxLogFileSize > 0 && logger_->GetLogFileSize() >= kMaxLogFileSize)) {
       RollLogFile();
@@ -241,10 +239,6 @@ void AutoRollLogger::WriteHeaderInfo() {
 }
 
 void AutoRollLogger::LogHeader(const char* format, va_list args) {
-  if (!logger_) {
-    return;
-  }
-
   // header message are to be retained in memory. Since we cannot make any
   // assumptions about the data contained in va_list, we will retain them as
   // strings
@@ -254,6 +248,9 @@ void AutoRollLogger::LogHeader(const char* format, va_list args) {
   va_end(tmp);
 
   MutexLock l(&mutex_);
+  if (!logger_) {
+    return;
+  }
   headers_.push_back(data);
 
   // Log the original message to the current log
@@ -269,7 +266,6 @@ bool AutoRollLogger::LogExpired() {
   ++cached_now_access_count;
   return cached_now >= ctime_ + kLogFileTimeToRoll;
 }
-#endif  // !ROCKSDB_LITE
 
 Status CreateLoggerFromOptions(const std::string& dbname,
                                const DBOptions& options,
@@ -312,7 +308,6 @@ Status CreateLoggerFromOptions(const std::string& dbname,
       return s;
     }
   }
-#ifndef ROCKSDB_LITE
   // Currently we only support roll by time-to-roll and log size
   if (options.log_file_time_to_roll > 0 || options.max_log_file_size > 0) {
     AutoRollLogger* result = new AutoRollLogger(
@@ -327,7 +322,6 @@ Status CreateLoggerFromOptions(const std::string& dbname,
     }
     return s;
   }
-#endif  // !ROCKSDB_LITE
   // Open a log file in the same directory as the db
   s = env->FileExists(fname);
   if (s.ok()) {

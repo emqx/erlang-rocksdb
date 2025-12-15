@@ -2,13 +2,11 @@
 //  This source code is licensed under both the GPLv2 (found in the
 //  COPYING file in the root directory) and Apache 2.0 License
 //  (found in the LICENSE.Apache file in the root directory).
-#ifndef ROCKSDB_LITE
 
 #include "utilities/blob_db/blob_dump_tool.h"
 
-#include <stdio.h>
-
 #include <cinttypes>
+#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -22,8 +20,7 @@
 #include "util/coding.h"
 #include "util/string_util.h"
 
-namespace ROCKSDB_NAMESPACE {
-namespace blob_db {
+namespace ROCKSDB_NAMESPACE::blob_db {
 
 BlobDumpTool::BlobDumpTool()
     : reader_(nullptr), buffer_(nullptr), buffer_size_(0) {}
@@ -103,8 +100,8 @@ Status BlobDumpTool::Read(uint64_t offset, size_t size, Slice* result) {
     }
     buffer_.reset(new char[buffer_size_]);
   }
-  Status s = reader_->Read(IOOptions(), offset, size, result, buffer_.get(),
-                           nullptr, Env::IO_TOTAL /* rate_limiter_priority */);
+  Status s =
+      reader_->Read(IOOptions(), offset, size, result, buffer_.get(), nullptr);
   if (!s.ok()) {
     return s;
   }
@@ -213,7 +210,7 @@ Status BlobDumpTool::DumpRecord(DisplayType show_key, DisplayType show_blob,
     UncompressionContext context(compression);
     UncompressionInfo info(context, UncompressionDict::GetEmptyDict(),
                            compression);
-    s = UncompressBlockContentsForCompressionType(
+    s = UncompressBlockData(
         info, slice.data() + key_size, static_cast<size_t>(value_size),
         &contents, 2 /*compress_format_version*/, ImmutableOptions(Options()));
     if (!s.ok()) {
@@ -226,7 +223,9 @@ Status BlobDumpTool::DumpRecord(DisplayType show_key, DisplayType show_blob,
     DumpSlice(Slice(slice.data(), static_cast<size_t>(key_size)), show_key);
     if (show_blob != DisplayType::kNone) {
       fprintf(stdout, "  blob       : ");
-      DumpSlice(Slice(slice.data() + static_cast<size_t>(key_size), static_cast<size_t>(value_size)), show_blob);
+      DumpSlice(Slice(slice.data() + static_cast<size_t>(key_size),
+                      static_cast<size_t>(value_size)),
+                show_blob);
     }
     if (show_uncompressed_blob != DisplayType::kNone) {
       fprintf(stdout, "  raw blob   : ");
@@ -274,7 +273,4 @@ std::string BlobDumpTool::GetString(std::pair<T, T> p) {
   return "(" + std::to_string(p.first) + ", " + std::to_string(p.second) + ")";
 }
 
-}  // namespace blob_db
-}  // namespace ROCKSDB_NAMESPACE
-
-#endif  // ROCKSDB_LITE
+}  // namespace ROCKSDB_NAMESPACE::blob_db

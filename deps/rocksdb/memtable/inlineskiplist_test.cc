@@ -8,8 +8,10 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "memtable/inlineskiplist.h"
+
 #include <set>
 #include <unordered_set>
+
 #include "memory/concurrent_arena.h"
 #include "rocksdb/env.h"
 #include "test_util/testharness.h"
@@ -34,9 +36,7 @@ static Key Decode(const char* key) {
 struct TestComparator {
   using DecodedType = Key;
 
-  static DecodedType decode_key(const char* b) {
-    return Decode(b);
-  }
+  static DecodedType decode_key(const char* b) { return Decode(b); }
 
   int operator()(const char* a, const char* b) const {
     if (Decode(a) < Decode(b)) {
@@ -568,7 +568,7 @@ class TestState {
 };
 
 static void ConcurrentReader(void* arg) {
-  TestState* state = reinterpret_cast<TestState*>(arg);
+  TestState* state = static_cast<TestState*>(arg);
   Random rnd(state->seed_);
   int64_t reads = 0;
   state->Change(TestState::RUNNING);
@@ -576,11 +576,12 @@ static void ConcurrentReader(void* arg) {
     state->t_.ReadStep(&rnd);
     ++reads;
   }
+  (void)reads;
   state->Change(TestState::DONE);
 }
 
 static void ConcurrentWriter(void* arg) {
-  TestState* state = reinterpret_cast<TestState*>(arg);
+  TestState* state = static_cast<TestState*>(arg);
   uint32_t k = state->next_writer_++ % ConcurrentTest::K;
   state->t_.ConcurrentWriteStep(k, state->use_hint_);
   state->AdjustPendingWriters(-1);
@@ -658,6 +659,7 @@ TEST_F(InlineSkipTest, ConcurrentInsertWithHint3) {
 }  // namespace ROCKSDB_NAMESPACE
 
 int main(int argc, char** argv) {
+  ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

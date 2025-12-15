@@ -8,7 +8,8 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #pragma once
-#include "memory/memory_allocator.h"
+#include "file/file_util.h"
+#include "memory/memory_allocator_impl.h"
 #include "table/block_based/block.h"
 #include "table/block_based/block_type.h"
 #include "table/format.h"
@@ -19,8 +20,8 @@ namespace ROCKSDB_NAMESPACE {
 // Retrieves a single block of a given file. Utilizes the prefetch buffer and/or
 // persistent cache provided (if any) to try to avoid reading from the file
 // directly. Note that both the prefetch buffer and the persistent cache are
-// optional; also, note that the persistent cache may be configured to store either
-// compressed or uncompressed blocks.
+// optional; also, note that the persistent cache may be configured to store
+// either compressed or uncompressed blocks.
 //
 // If the retrieved block is compressed and the do_uncompress flag is set,
 // BlockFetcher uncompresses the block (using the uncompression dictionary,
@@ -68,6 +69,13 @@ class BlockFetcher {
         memory_allocator_compressed_(memory_allocator_compressed),
         for_compaction_(for_compaction) {
     io_status_.PermitUncheckedError();  // TODO(AR) can we improve on this?
+    if (CheckFSFeatureSupport(ioptions_.fs.get(), FSSupportedOps::kFSBuffer)) {
+      use_fs_scratch_ = true;
+    }
+    if (CheckFSFeatureSupport(ioptions_.fs.get(),
+                              FSSupportedOps::kVerifyAndReconstructRead)) {
+      retry_corrupt_read_ = true;
+    }
   }
 
   IOStatus ReadBlockContents();
@@ -78,6 +86,10 @@ class BlockFetcher {
   }
   inline size_t GetBlockSizeWithTrailer() const {
     return block_size_with_trailer_;
+  }
+  inline Slice& GetCompressedBlock() {
+    assert(compression_type_ != kNoCompression);
+    return slice_;
   }
 
 #ifndef NDEBUG
@@ -123,12 +135,15 @@ class BlockFetcher {
   bool got_from_prefetch_buffer_ = false;
   CompressionType compression_type_;
   bool for_compaction_ = false;
+  bool use_fs_scratch_ = false;
+  bool retry_corrupt_read_ = false;
+  FSAllocationPtr fs_buf_;
 
   // return true if found
   bool TryGetUncompressBlockFromPersistentCache();
   // return true if found
   bool TryGetFromPrefetchBuffer();
-  bool TryGetCompressedBlockFromPersistentCache();
+  bool TryGetSerializedBlockFromPersistentCache();
   void PrepareBufferForBlockFromFile();
   // Copy content from used_buf_ to new heap_buf_.
   void CopyBufferToHeapBuf();
@@ -138,5 +153,16 @@ class BlockFetcher {
   void InsertCompressedBlockToPersistentCacheIfNeeded();
   void InsertUncompressedBlockToPersistentCacheIfNeeded();
   void ProcessTrailerIfPresent();
+  void ReadBlock(bool retry);
+
+  void ReleaseFileSystemProvidedBuffer(FSReadRequest* read_req) {
+    if (use_fs_scratch_) {
+      // Free the scratch buffer allocated by FileSystem.
+      if (read_req->fs_scratch != nullptr) {
+        read_req->fs_scratch.reset();
+        read_req->fs_scratch = nullptr;
+      }
+    }
+  }
 };
 }  // namespace ROCKSDB_NAMESPACE

@@ -3,7 +3,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
-#ifndef ROCKSDB_LITE
 
 #include "table/plain/plain_table_reader.h"
 
@@ -11,14 +10,15 @@
 #include <vector>
 
 #include "db/dbformat.h"
-
+#include "memory/arena.h"
+#include "monitoring/histogram.h"
+#include "monitoring/perf_context_imp.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/comparator.h"
 #include "rocksdb/env.h"
 #include "rocksdb/filter_policy.h"
 #include "rocksdb/options.h"
 #include "rocksdb/statistics.h"
-
 #include "table/block_based/block.h"
 #include "table/block_based/filter_block.h"
 #include "table/format.h"
@@ -29,10 +29,6 @@
 #include "table/plain/plain_table_factory.h"
 #include "table/plain/plain_table_key_coding.h"
 #include "table/two_level_iterator.h"
-
-#include "memory/arena.h"
-#include "monitoring/histogram.h"
-#include "monitoring/perf_context_imp.h"
 #include "util/coding.h"
 #include "util/dynamic_bloom.h"
 #include "util/hash.h"
@@ -91,7 +87,6 @@ class PlainTableIterator : public InternalIterator {
   Status status_;
 };
 
-extern const uint64_t kPlainTableMagicNumber;
 PlainTableReader::PlainTableReader(
     const ImmutableOptions& ioptions,
     std::unique_ptr<RandomAccessFileReader>&& file,
@@ -130,8 +125,10 @@ Status PlainTableReader::Open(
   }
 
   std::unique_ptr<TableProperties> props;
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
   auto s = ReadTableProperties(file.get(), file_size, kPlainTableMagicNumber,
-                               ioptions, &props);
+                               ioptions, read_options, &props);
   if (!s.ok()) {
     return s;
   }
@@ -194,20 +191,20 @@ Status PlainTableReader::Open(
   return s;
 }
 
-void PlainTableReader::SetupForCompaction() {
-}
+void PlainTableReader::SetupForCompaction() {}
 
 InternalIterator* PlainTableReader::NewIterator(
     const ReadOptions& options, const SliceTransform* /* prefix_extractor */,
     Arena* arena, bool /*skip_filters*/, TableReaderCaller /*caller*/,
-    size_t /*compaction_readahead_size*/,
-    bool /* allow_unprepared_value */) {
+    size_t /*compaction_readahead_size*/, bool /* allow_unprepared_value */) {
   // Not necessarily used here, but make sure this has been initialized
   assert(table_properties_);
 
   // Auto prefix mode is not implemented in PlainTable.
-  bool use_prefix_seek = !IsTotalOrderMode() && !options.total_order_seek &&
-                         !options.auto_prefix_mode;
+  bool use_prefix_seek =
+      !IsTotalOrderMode() &&
+      (options.prefix_same_as_start ||
+       (!options.total_order_seek && !options.auto_prefix_mode));
   if (arena == nullptr) {
     return new PlainTableIterator(this, use_prefix_seek);
   } else {
@@ -288,9 +285,9 @@ void PlainTableReader::FillBloom(const std::vector<uint32_t>& prefix_hashes) {
 Status PlainTableReader::MmapDataIfNeeded() {
   if (file_info_.is_mmap_mode) {
     // Get mmapped memory.
-    return file_info_.file->Read(
-        IOOptions(), 0, static_cast<size_t>(file_size_), &file_info_.file_data,
-        nullptr, nullptr, Env::IO_TOTAL /* rate_limiter_priority */);
+    return file_info_.file->Read(IOOptions(), 0,
+                                 static_cast<size_t>(file_size_),
+                                 &file_info_.file_data, nullptr, nullptr);
   }
   return Status::OK();
 }
@@ -303,10 +300,14 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
   assert(props != nullptr);
 
   BlockContents index_block_contents;
-  Status s = ReadMetaBlock(file_info_.file.get(), nullptr /* prefetch_buffer */,
-                           file_size_, kPlainTableMagicNumber, ioptions_,
-                           PlainTableIndexBuilder::kPlainTableIndexBlock,
-                           BlockType::kIndex, &index_block_contents);
+
+  // TODO: plumb Env::IOActivity, Env::IOPriority
+  const ReadOptions read_options;
+  Status s =
+      ReadMetaBlock(file_info_.file.get(), nullptr /* prefetch_buffer */,
+                    file_size_, kPlainTableMagicNumber, ioptions_, read_options,
+                    PlainTableIndexBuilder::kPlainTableIndexBlock,
+                    BlockType::kIndex, &index_block_contents);
 
   bool index_in_file = s.ok();
 
@@ -316,8 +317,8 @@ Status PlainTableReader::PopulateIndex(TableProperties* props,
   if (index_in_file) {
     s = ReadMetaBlock(file_info_.file.get(), nullptr /* prefetch_buffer */,
                       file_size_, kPlainTableMagicNumber, ioptions_,
-                      BloomBlockBuilder::kBloomBlock, BlockType::kFilter,
-                      &bloom_block_contents);
+                      read_options, BloomBlockBuilder::kBloomBlock,
+                      BlockType::kFilter, &bloom_block_contents);
     bloom_in_file = s.ok() && bloom_block_contents.data.size() > 0;
   }
 
@@ -454,7 +455,9 @@ Status PlainTableReader::GetOffset(PlainTableKeyDecoder* decoder,
   ParsedInternalKey parsed_target;
   Status s = ParseInternalKey(target, &parsed_target,
                               false /* log_err_key */);  // TODO
-  if (!s.ok()) return s;
+  if (!s.ok()) {
+    return s;
+  }
 
   // The key is between [low, high). Do a binary search between it.
   while (high - low > 1) {
@@ -591,7 +594,9 @@ Status PlainTableReader::Get(const ReadOptions& /*ro*/, const Slice& target,
   ParsedInternalKey parsed_target;
   s = ParseInternalKey(target, &parsed_target,
                        false /* log_err_key */);  // TODO
-  if (!s.ok()) return s;
+  if (!s.ok()) {
+    return s;
+  }
 
   Slice found_value;
   while (offset < file_info_.data_end_offset) {
@@ -611,8 +616,12 @@ Status PlainTableReader::Get(const ReadOptions& /*ro*/, const Slice& target,
     // can we enable the fast path?
     if (internal_comparator_.Compare(found_key, parsed_target) >= 0) {
       bool dont_care __attribute__((__unused__));
-      if (!get_context->SaveValue(found_key, found_value, &dont_care,
-                                  dummy_cleanable_.get())) {
+      bool ret = get_context->SaveValue(found_key, found_value, &dont_care, &s,
+                                        dummy_cleanable_.get());
+      if (!s.ok()) {
+        return s;
+      }
+      if (!ret) {
         break;
       }
     }
@@ -620,12 +629,14 @@ Status PlainTableReader::Get(const ReadOptions& /*ro*/, const Slice& target,
   return Status::OK();
 }
 
-uint64_t PlainTableReader::ApproximateOffsetOf(const Slice& /*key*/,
-                                               TableReaderCaller /*caller*/) {
+uint64_t PlainTableReader::ApproximateOffsetOf(
+    const ReadOptions& /*read_options*/, const Slice& /*key*/,
+    TableReaderCaller /*caller*/) {
   return 0;
 }
 
-uint64_t PlainTableReader::ApproximateSize(const Slice& /*start*/,
+uint64_t PlainTableReader::ApproximateSize(const ReadOptions& /* read_options*/,
+                                           const Slice& /*start*/,
                                            const Slice& /*end*/,
                                            TableReaderCaller /*caller*/) {
   return 0;
@@ -640,8 +651,7 @@ PlainTableIterator::PlainTableIterator(PlainTableReader* table,
   next_offset_ = offset_ = table_->file_info_.data_end_offset;
 }
 
-PlainTableIterator::~PlainTableIterator() {
-}
+PlainTableIterator::~PlainTableIterator() = default;
 
 bool PlainTableIterator::Valid() const {
   return offset_ < table_->file_info_.data_end_offset &&
@@ -671,9 +681,8 @@ void PlainTableIterator::Seek(const Slice& target) {
     // it. This is needed for compaction: it creates iterator with
     // total_order_seek = true but usually never does Seek() on it,
     // only SeekToFirst().
-    status_ =
-        Status::InvalidArgument(
-          "total_order_seek not implemented for PlainTable.");
+    status_ = Status::InvalidArgument(
+        "total_order_seek not implemented for PlainTable.");
     offset_ = next_offset_ = table_->file_info_.data_end_offset;
     return;
   }
@@ -754,9 +763,7 @@ void PlainTableIterator::Next() {
   }
 }
 
-void PlainTableIterator::Prev() {
-  assert(false);
-}
+void PlainTableIterator::Prev() { assert(false); }
 
 Slice PlainTableIterator::key() const {
   assert(Valid());
@@ -768,9 +775,6 @@ Slice PlainTableIterator::value() const {
   return value_;
 }
 
-Status PlainTableIterator::status() const {
-  return status_;
-}
+Status PlainTableIterator::status() const { return status_; }
 
 }  // namespace ROCKSDB_NAMESPACE
-#endif  // ROCKSDB_LITE

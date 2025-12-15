@@ -28,6 +28,9 @@ class BlockBasedTableBuilder;
 class RandomAccessFileReader;
 class WritableFileWriter;
 
+// TODO: deprecate this class as it can be replaced with
+// `FileMetaData::tail_size`
+//
 // A class used to track actual bytes written from the tail in the recent SST
 // file opens, and provide a suggestion for following open.
 class TailPrefetchStats {
@@ -76,22 +79,30 @@ class BlockBasedTableFactory : public TableFactory {
 
   bool IsDeleteRangeSupported() const override { return true; }
 
-  TailPrefetchStats* tail_prefetch_stats() { return &tail_prefetch_stats_; }
+  std::unique_ptr<TableFactory> Clone() const override {
+    return std::make_unique<BlockBasedTableFactory>(*this);
+  }
+
+  TailPrefetchStats* tail_prefetch_stats() {
+    return &shared_state_->tail_prefetch_stats;
+  }
 
  protected:
   const void* GetOptionsPtr(const std::string& name) const override;
-#ifndef ROCKSDB_LITE
   Status ParseOption(const ConfigOptions& config_options,
                      const OptionTypeInfo& opt_info,
                      const std::string& opt_name, const std::string& opt_value,
                      void* opt_ptr) override;
-#endif
   void InitializeOptions();
 
  private:
   BlockBasedTableOptions table_options_;
-  std::shared_ptr<CacheReservationManager> table_reader_cache_res_mgr_;
-  mutable TailPrefetchStats tail_prefetch_stats_;
+  // Share some state among cloned instances
+  struct SharedState {
+    std::shared_ptr<CacheReservationManager> table_reader_cache_res_mgr;
+    TailPrefetchStats tail_prefetch_stats;
+  };
+  std::shared_ptr<SharedState> shared_state_;
 };
 
 extern const std::string kHashIndexPrefixesBlock;
