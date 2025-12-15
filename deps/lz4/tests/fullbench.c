@@ -1,6 +1,6 @@
 /*
     bench.c - Demo program to benchmark open-source compression algorithm
-    Copyright (C) Yann Collet 2012-2016
+    Copyright (C) Yann Collet 2012-2020
 
     GPL v2 License
 
@@ -24,8 +24,8 @@
 */
 
 
-// S_ISREG & gettimeofday() are not supported by MSVC
 #if defined(_MSC_VER) || defined(_WIN32)
+   /* S_ISREG & gettimeofday() are not supported by MSVC */
 #  define BMK_LEGACY_TIMER 1
 #endif
 
@@ -42,6 +42,7 @@
 #include <string.h>      /* strcmp */
 #include <time.h>        /* clock_t, clock(), CLOCKS_PER_SEC */
 
+#define LZ4_DISABLE_DEPRECATE_WARNINGS   /* LZ4_decompress_fast */
 #include "lz4.h"
 #include "lz4hc.h"
 #include "lz4frame.h"
@@ -57,7 +58,7 @@
 #define WELCOME_MESSAGE "*** %s v%s %i-bits, by %s ***\n", PROGRAM_DESCRIPTION, LZ4_VERSION_STRING, (int)(sizeof(void*)*8), AUTHOR
 
 #define NBLOOPS    6
-#define TIMELOOP   (CLOCKS_PER_SEC * 25 / 10)
+#define TIMELOOP   (CLOCKS_PER_SEC * 19 / 10)
 
 #define KB *(1 <<10)
 #define MB *(1 <<20)
@@ -133,7 +134,7 @@ static clock_t BMK_GetClockSpan( clock_t clockStart )
 static size_t BMK_findMaxMem(U64 requiredMem)
 {
     size_t step = 64 MB;
-    BYTE* testmem=NULL;
+    BYTE* testmem = NULL;
 
     requiredMem = (((requiredMem >> 26) + 1) << 26);
     requiredMem += 2*step;
@@ -155,17 +156,34 @@ static size_t BMK_findMaxMem(U64 requiredMem)
 
 
 /*********************************************************
+*  Memory management, to test LZ4_USER_MEMORY_FUNCTIONS
+*********************************************************/
+void* LZ4_malloc(size_t s) { return malloc(s); }
+void* LZ4_calloc(size_t n, size_t s) { return calloc(n,s); }
+void  LZ4_free(void* p) { free(p); }
+
+
+/*********************************************************
 *  Benchmark function
 *********************************************************/
 static LZ4_stream_t LZ4_stream;
 static void local_LZ4_resetDictT(void)
 {
-    LZ4_resetStream(&LZ4_stream);
+    void* const r = LZ4_initStream(&LZ4_stream, sizeof(LZ4_stream));
+    assert(r != NULL); (void)r;
 }
 
 static void local_LZ4_createStream(void)
 {
-    LZ4_resetStream(&LZ4_stream);
+    void* const r = LZ4_initStream(&LZ4_stream, sizeof(LZ4_stream));
+    assert(r != NULL); (void)r;
+}
+
+static void* g_chunk0 = NULL;
+static size_t g_chunk0Size = 0;
+static void local_LZ4_saveDict_init(void)
+{
+    LZ4_loadDict(&LZ4_stream, (const char*)g_chunk0, (int)g_chunk0Size);
 }
 
 static int local_LZ4_saveDict(const char* in, char* out, int inSize)
@@ -242,7 +260,12 @@ static int local_LZ4_compress_forceDict(const char* in, char* out, int inSize)
 LZ4_streamHC_t LZ4_streamHC;
 static void local_LZ4_resetStreamHC(void)
 {
-    LZ4_resetStreamHC(&LZ4_streamHC, 0);
+    LZ4_initStreamHC(&LZ4_streamHC, sizeof(LZ4_streamHC));
+}
+
+static void local_LZ4_saveDictHC_init(void)
+{
+    LZ4_loadDictHC(&LZ4_streamHC, (const char*)g_chunk0, (int)g_chunk0Size);
 }
 
 static int local_LZ4_saveDictHC(const char* in, char* out, int inSize)
@@ -289,10 +312,27 @@ static int local_LZ4_decompress_fast_usingExtDict(const char* in, char* out, int
     return outSize;
 }
 
+static int local_LZ4_decompress_safe(const char* in, char* out, int inSize, int outSize)
+{
+    return LZ4_decompress_safe(in, out, inSize, outSize);
+}
+
+static int local_LZ4_decompress_safe_withPrefix64k(const char* in, char* out, int inSize, int outSize)
+{
+    LZ4_decompress_safe_withPrefix64k(in, out, inSize, outSize);
+    return outSize;
+}
+
 static int local_LZ4_decompress_safe_usingDict(const char* in, char* out, int inSize, int outSize)
 {
-    (void)inSize;
     LZ4_decompress_safe_usingDict(in, out, inSize, outSize, out - 65536, 65536);
+    return outSize;
+}
+
+static int local_LZ4_decompress_safe_partial_usingDict(const char* in, char* out, int inSize, int outSize)
+{
+    int result = LZ4_decompress_safe_partial_usingDict(in, out, inSize, outSize - 5, outSize, out - 65536, 65536);
+    if (result < 0) return result;
     return outSize;
 }
 
@@ -309,8 +349,26 @@ extern int LZ4_decompress_safe_forceExtDict(const char* in, char* out, int inSiz
 
 static int local_LZ4_decompress_safe_forceExtDict(const char* in, char* out, int inSize, int outSize)
 {
-    (void)inSize;
     LZ4_decompress_safe_forceExtDict(in, out, inSize, outSize, out - 65536, 65536);
+    return outSize;
+}
+#endif
+
+#ifndef LZ4_DLL_IMPORT
+#if defined (__cplusplus)
+extern "C" {
+#endif
+
+extern int LZ4_decompress_safe_partial_forceExtDict(const char* in, char* out, int inSize, int targetOutputSize, int dstCapacity, const void* dict, size_t dictSize);
+
+#if defined (__cplusplus)
+}
+#endif
+
+static int local_LZ4_decompress_safe_partial_forceExtDict(const char* in, char* out, int inSize, int outSize)
+{
+    int result = LZ4_decompress_safe_partial_forceExtDict(in, out, inSize, outSize - 5, outSize, out - 65536, 65536);
+    if (result < 0) return result;
     return outSize;
 }
 #endif
@@ -326,28 +384,191 @@ static int local_LZ4_decompress_safe_partial(const char* in, char* out, int inSi
 /* frame functions */
 static int local_LZ4F_compressFrame(const char* in, char* out, int inSize)
 {
-    return (int)LZ4F_compressFrame(out, LZ4F_compressFrameBound(inSize, NULL), in, inSize, NULL);
+    assert(inSize >= 0);
+    return (int)LZ4F_compressFrame(out, LZ4F_compressFrameBound((size_t)inSize, NULL), in, (size_t)inSize, NULL);
+}
+
+LZ4F_cctx* g_cctx = NULL;
+static int local_LZ4F_compress(const char* in, char* out, int inSize)
+{
+    /* output buffer size is assumed */
+    size_t const outSize = LZ4F_compressFrameBound((size_t)inSize, NULL);
+    size_t cSize = 0;
+    assert(inSize >= 0);
+    if (g_cctx == NULL) {
+        /* create and initialize LZ4F compression context the first time */
+        LZ4F_createCompressionContext(&g_cctx, LZ4F_VERSION);
+        assert(g_cctx != NULL);
+    } /* re-use existing compression context otherwise */
+    {   size_t const cbSize = LZ4F_compressBegin(g_cctx, out, outSize, NULL);
+        assert(!LZ4F_isError(cbSize));
+        cSize += cbSize;
+    }
+    {   size_t const cuSize = LZ4F_compressUpdate(g_cctx, out+cSize, outSize-cSize, in, (size_t)inSize, NULL);
+        assert(!LZ4F_isError(cuSize));
+        cSize += cuSize;
+    }
+    {   size_t const ceSize = LZ4F_compressEnd(g_cctx, out+cSize, outSize-cSize, NULL);
+        assert(!LZ4F_isError(ceSize));
+        cSize += ceSize;
+    }
+    return (int)cSize;
 }
 
 static LZ4F_decompressionContext_t g_dCtx;
 
 static int local_LZ4F_decompress(const char* in, char* out, int inSize, int outSize)
 {
-    size_t srcSize = inSize;
-    size_t dstSize = outSize;
+    size_t srcSize = (size_t)inSize;
+    size_t dstSize = (size_t)outSize;
     size_t result;
+    assert(inSize >= 0);
+    assert(outSize >= 0);
     result = LZ4F_decompress(g_dCtx, out, &dstSize, in, &srcSize, NULL);
-    if (result!=0) { DISPLAY("Error decompressing frame : unfinished frame\n"); exit(8); }
-    if (srcSize != (size_t)inSize) { DISPLAY("Error decompressing frame : read size incorrect\n"); exit(9); }
+    if (result!=0) { DISPLAY("Error decompressing frame : unfinished frame \n"); exit(8); }
+    if (srcSize != (size_t)inSize) { DISPLAY("Error decompressing frame : read size incorrect \n"); exit(9); }
     return (int)dstSize;
 }
 
+static int local_LZ4F_decompress_followHint(const char* src, char* dst, int srcSize, int dstSize)
+{
+    size_t totalInSize = (size_t)srcSize;
+    size_t maxOutSize = (size_t)dstSize;
 
-#define NB_COMPRESSION_ALGORITHMS 100
-#define NB_DECOMPRESSION_ALGORITHMS 100
+    size_t inPos = 0;
+    size_t inSize = 0;
+    size_t outPos = 0;
+    size_t outRemaining = maxOutSize - outPos;
+
+    for (;;) {
+        size_t const sizeHint =
+            LZ4F_decompress(g_dCtx, dst+outPos, &outRemaining, src+inPos, &inSize, NULL);
+        assert(!LZ4F_isError(sizeHint));
+
+        inPos += inSize;
+        inSize = sizeHint;
+
+        outPos += outRemaining;
+        outRemaining = maxOutSize - outPos;
+
+        if (!sizeHint) break;
+    }
+
+    /* frame completed */
+    if (inPos != totalInSize) {
+        DISPLAY("Error decompressing frame : must read (%u) full frame (%u) \n",
+                (unsigned)inPos, (unsigned)totalInSize);
+        exit(10);
+    }
+    return (int)outPos;
+
+}
+
+/* always provide input by block of 64 KB */
+static int local_LZ4F_decompress_noHint(const char* src, char* dst, int srcSize, int dstSize)
+{
+    size_t totalInSize = (size_t)srcSize;
+    size_t maxOutSize = (size_t)dstSize;
+
+    size_t inPos = 0;
+    size_t inSize = 64 KB;
+    size_t outPos = 0;
+    size_t outRemaining = maxOutSize - outPos;
+
+    for (;;) {
+        size_t const sizeHint = LZ4F_decompress(g_dCtx, dst+outPos, &outRemaining, src+inPos, &inSize, NULL);
+        assert(!LZ4F_isError(sizeHint));
+
+        inPos += inSize;
+        inSize = (inPos + 64 KB <= totalInSize) ? 64 KB : totalInSize - inPos;
+
+        outPos += outRemaining;
+        outRemaining = maxOutSize - outPos;
+
+        if (!sizeHint) break;
+    }
+
+    /* frame completed */
+    if (inPos != totalInSize) {
+        DISPLAY("Error decompressing frame : must read (%u) full frame (%u) \n",
+                (unsigned)inPos, (unsigned)totalInSize);
+        exit(10);
+    }
+    return (int)outPos;
+
+}
+
+typedef struct {
+    const char* name;
+    int (*compressionF)(const char*, char*, int);
+    void (*initFunction)(void);
+    int singleChunk;
+} CompressionDesc;
+
+static const CompressionDesc compDescArray[] = {
+    { NULL, NULL, NULL, 0 },
+    { "LZ4_compress_default", local_LZ4_compress_default_large, NULL, 0 },
+    { "LZ4_compress_default(small dst)", local_LZ4_compress_default_small, NULL, 0 },
+    { "LZ4_compress_destSize", local_LZ4_compress_destSize, NULL, 0 },
+    { "LZ4_compress_fast(0)", local_LZ4_compress_fast0, NULL, 0 },
+    { "LZ4_compress_fast(1)", local_LZ4_compress_fast1, NULL, 0 },
+    { "LZ4_compress_fast(2)", local_LZ4_compress_fast2, NULL, 0 },
+    { "LZ4_compress_fast(17)", local_LZ4_compress_fast17, NULL, 0 },
+    { "LZ4_compress_fast_extState(0)", local_LZ4_compress_fast_extState0, NULL, 0 },
+    { "LZ4_compress_fast_continue(0)", local_LZ4_compress_fast_continue0, local_LZ4_createStream, 0 },
+    { "LZ4_compress_HC", local_LZ4_compress_HC, NULL, 0 },
+    { "LZ4_compress_HC_extStateHC", local_LZ4_compress_HC_extStateHC, NULL, 0 },
+    { "LZ4_compress_HC_continue", local_LZ4_compress_HC_continue, local_LZ4_resetStreamHC, 0 },
+#ifndef LZ4_DLL_IMPORT
+    { "LZ4_compress_forceDict", local_LZ4_compress_forceDict, local_LZ4_resetDictT, 0 },
+#endif
+    { "LZ4F_compressFrame", local_LZ4F_compressFrame, NULL, 1 },
+    { "LZ4F_compressUpdate", local_LZ4F_compress, NULL, 1 },
+    { "LZ4_saveDict", local_LZ4_saveDict, local_LZ4_saveDict_init, 0 },
+    { "LZ4_saveDictHC", local_LZ4_saveDictHC, local_LZ4_saveDictHC_init, 0 },
+
+};
+
+typedef struct {
+    const char* name;
+    int (*decompressionF)(const char*, char*, int, int);
+    int checkResult;
+    int frameFormat;
+} DecompressionDesc;
+
+static const DecompressionDesc decDescArray[] = {
+    { NULL, NULL, 0, 0 },
+    { "LZ4_decompress_fast", local_LZ4_decompress_fast, 1, 0 },
+    { "LZ4_decompress_fast_usingDict(prefix)", local_LZ4_decompress_fast_usingDict_prefix, 1, 0 },
+    { "LZ4_decompress_fast_using(Ext)Dict", local_LZ4_decompress_fast_usingExtDict, 1, 0 },
+    { "LZ4_decompress_safe", local_LZ4_decompress_safe, 1, 0 },
+    { "LZ4_decompress_safe_withPrefix64k", local_LZ4_decompress_safe_withPrefix64k, 1, 0 },
+    { "LZ4_decompress_safe_usingDict", local_LZ4_decompress_safe_usingDict, 1, 0 },
+    { "LZ4_decompress_safe_partial", local_LZ4_decompress_safe_partial, 0, 0 },
+    { "LZ4_decompress_safe_partial_usingDict", local_LZ4_decompress_safe_partial_usingDict, 0, 0 },
+#ifndef LZ4_DLL_IMPORT
+    { "LZ4_decompress_safe_partial_forceExtDict", local_LZ4_decompress_safe_partial_forceExtDict, 0, 0 },
+    { "LZ4_decompress_safe_forceExtDict", local_LZ4_decompress_safe_forceExtDict, 1, 0 },
+#endif
+    { "LZ4F_decompress", local_LZ4F_decompress, 1, 1 },
+    { "LZ4F_decompLZ4F_decompress_followHintress", local_LZ4F_decompress_followHint, 1, 1 },
+    { "LZ4F_decompress_noHint", local_LZ4F_decompress_noHint, 1, 1 },
+};
+
+#define ARRAY_SIZE(a) (sizeof(a) / (sizeof((a)[0])))
+
+#define NB_COMPRESSION_ALGORITHMS ARRAY_SIZE(compDescArray)
+#define NB_DECOMPRESSION_ALGORITHMS ARRAY_SIZE(decDescArray)
+
 int fullSpeedBench(const char** fileNamesTable, int nbFiles)
 {
     int fileIdx=0;
+    clock_t loopDuration = TIMELOOP;
+
+    if (g_nbIterations==0) {
+        loopDuration = CLOCKS_PER_SEC / 50 + 1;
+        g_nbIterations = 1;
+    }
 
     /* Init */
     { size_t const errorCode = LZ4F_createDecompressionContext(&g_dCtx, LZ4F_VERSION);
@@ -360,36 +581,39 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
       char* compressed_buff=NULL;
       const char* const inFileName = fileNamesTable[fileIdx++];
       FILE* const inFile = fopen( inFileName, "rb" );
-      U64   inFileSize;
-      size_t benchedSize;
+      U64 const inFileSize = UTIL_getFileSize(inFileName);
+      size_t benchedSize = BMK_findMaxMem(inFileSize*2) / 2;   /* because 2 buffers */
       int nbChunks;
       int maxCompressedChunkSize;
       size_t readSize;
       int compressedBuffSize;
       U32 crcOriginal;
-      size_t errorCode;
 
-      /* Check file existence */
-      if (inFile==NULL) { DISPLAY( "Pb opening %s\n", inFileName); return 11; }
+      /* Check infile pre-requisites */
+      if (inFile==NULL) { DISPLAY("Pb opening %s \n", inFileName); return 11; }
+      if (inFileSize==0) { DISPLAY("file is empty \n"); fclose(inFile); return 11; }
+      if (benchedSize==0) { DISPLAY("not enough memory \n"); fclose(inFile); return 11; }
 
       /* Memory size adjustments */
-      inFileSize = UTIL_getFileSize(inFileName);
-      if (inFileSize==0) { DISPLAY( "file is empty\n"); fclose(inFile); return 11; }
-      benchedSize = BMK_findMaxMem(inFileSize*2) / 2;   /* because 2 buffers */
-      if (benchedSize==0) { DISPLAY( "not enough memory\n"); fclose(inFile); return 11; }
       if ((U64)benchedSize > inFileSize) benchedSize = (size_t)inFileSize;
-      if (benchedSize < inFileSize)
-          DISPLAY("Not enough memory for '%s' full size; testing %i MB only...\n", inFileName, (int)(benchedSize>>20));
+      if (benchedSize < inFileSize) {
+          DISPLAY("Not enough memory for '%s' full size; testing %i MB only... \n",
+                inFileName, (int)(benchedSize>>20));
+      }
+      if (benchedSize < 8 || g_chunkSize < 8) {
+        DISPLAY(" cannot bench using less then 8 bytes \n");
+        return 1;
+      }
 
       /* Allocation */
-      chunkP = (struct chunkParameters*) malloc(((benchedSize / (size_t)g_chunkSize)+1) * sizeof(struct chunkParameters));
+      nbChunks = (int) ((benchedSize + (size_t)g_chunkSize - 1) / (size_t)g_chunkSize);
+      chunkP = (struct chunkParameters*) malloc((size_t)nbChunks * sizeof(chunkP[0]));
       orig_buff = (char*) malloc(benchedSize);
-      nbChunks = (int) ((benchedSize + (g_chunkSize-1)) / g_chunkSize);
       maxCompressedChunkSize = LZ4_compressBound(g_chunkSize);
       compressedBuffSize = nbChunks * maxCompressedChunkSize;
       compressed_buff = (char*)malloc((size_t)compressedBuffSize);
       if(!chunkP || !orig_buff || !compressed_buff) {
-          DISPLAY("\nError: not enough memory!\n");
+          DISPLAY("\nError: not enough memory! \n");
           fclose(inFile);
           free(orig_buff);
           free(compressed_buff);
@@ -413,7 +637,6 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
       /* Calculating input Checksum */
       crcOriginal = XXH32(orig_buff, benchedSize,0);
 
-
       /* Bench */
       { int loopNb, nb_loops, chunkNb, cAlgNb, dAlgNb;
         size_t cSize=0;
@@ -423,7 +646,7 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
         DISPLAY(" %s : \n", inFileName);
 
         /* Bench Compression Algorithms */
-        for (cAlgNb=0; (cAlgNb <= NB_COMPRESSION_ALGORITHMS) && (g_compressionTest); cAlgNb++) {
+        for (cAlgNb=0; (cAlgNb <= (int)NB_COMPRESSION_ALGORITHMS) && (g_compressionTest); cAlgNb++) {
             const char* compressorName;
             int (*compressionFunction)(const char*, char*, int);
             void (*initFunction)(void) = NULL;
@@ -437,48 +660,41 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
                 size_t remaining = benchedSize;
                 char* in = orig_buff;
                 char* out = compressed_buff;
-                nbChunks = (int) (((int)benchedSize + (g_chunkSize-1))/ g_chunkSize);
+                assert(nbChunks >= 1);
                 for (i=0; i<nbChunks; i++) {
-                    chunkP[i].id = i;
+                    chunkP[i].id = (U32)i;
                     chunkP[i].origBuffer = in; in += g_chunkSize;
-                    if ((int)remaining > g_chunkSize) { chunkP[i].origSize = g_chunkSize; remaining -= g_chunkSize; } else { chunkP[i].origSize = (int)remaining; remaining = 0; }
+                    assert(g_chunkSize > 0);
+                    if (remaining > (size_t)g_chunkSize) {
+                        chunkP[i].origSize = g_chunkSize;
+                        remaining -= (size_t)g_chunkSize;
+                    } else {
+                        chunkP[i].origSize = (int)remaining;
+                        remaining = 0;
+                    }
                     chunkP[i].compressedBuffer = out; out += maxCompressedChunkSize;
                     chunkP[i].compressedSize = 0;
                 }
             }
+            g_chunk0 = chunkP[0].origBuffer;
+            g_chunk0Size = (size_t)chunkP[0].origSize;
 
-            switch(cAlgNb)
-            {
-            case 0 : DISPLAY("Compression functions : \n"); continue;
-            case 1 : compressionFunction = local_LZ4_compress_default_large; compressorName = "LZ4_compress_default"; break;
-            case 2 : compressionFunction = local_LZ4_compress_default_small; compressorName = "LZ4_compress_default(small dst)"; break;
-            case 3 : compressionFunction = local_LZ4_compress_destSize; compressorName = "LZ4_compress_destSize"; break;
-            case 4 : compressionFunction = local_LZ4_compress_fast0; compressorName = "LZ4_compress_fast(0)"; break;
-            case 5 : compressionFunction = local_LZ4_compress_fast1; compressorName = "LZ4_compress_fast(1)"; break;
-            case 6 : compressionFunction = local_LZ4_compress_fast2; compressorName = "LZ4_compress_fast(2)"; break;
-            case 7 : compressionFunction = local_LZ4_compress_fast17; compressorName = "LZ4_compress_fast(17)"; break;
-            case 8 : compressionFunction = local_LZ4_compress_fast_extState0; compressorName = "LZ4_compress_fast_extState(0)"; break;
-            case 9 : compressionFunction = local_LZ4_compress_fast_continue0; initFunction = local_LZ4_createStream; compressorName = "LZ4_compress_fast_continue(0)"; break;
-
-            case 10: compressionFunction = local_LZ4_compress_HC; compressorName = "LZ4_compress_HC"; break;
-            case 12: compressionFunction = local_LZ4_compress_HC_extStateHC; compressorName = "LZ4_compress_HC_extStateHC"; break;
-            case 14: compressionFunction = local_LZ4_compress_HC_continue; initFunction = local_LZ4_resetStreamHC; compressorName = "LZ4_compress_HC_continue"; break;
-#ifndef LZ4_DLL_IMPORT
-            case 20: compressionFunction = local_LZ4_compress_forceDict; initFunction = local_LZ4_resetDictT; compressorName = "LZ4_compress_forceDict"; break;
-#endif
-            case 30: compressionFunction = local_LZ4F_compressFrame; compressorName = "LZ4F_compressFrame";
-                        chunkP[0].origSize = (int)benchedSize; nbChunks=1;
-                        break;
-            case 40: compressionFunction = local_LZ4_saveDict; compressorName = "LZ4_saveDict";
-                        if (chunkP[0].origSize < 8) { DISPLAY(" cannot bench %s with less then 8 bytes \n", compressorName); continue; }
-                        LZ4_loadDict(&LZ4_stream, chunkP[0].origBuffer, chunkP[0].origSize);
-                        break;
-            case 41: compressionFunction = local_LZ4_saveDictHC; compressorName = "LZ4_saveDictHC";
-                        if (chunkP[0].origSize < 8) { DISPLAY(" cannot bench %s with less then 8 bytes \n", compressorName); continue; }
-                        LZ4_loadDictHC(&LZ4_streamHC, chunkP[0].origBuffer, chunkP[0].origSize);
-                        break;
-            default :
-                continue;   /* unknown ID : just skip */
+            if (cAlgNb==0) {
+                DISPLAY("Compression functions : \n");
+                continue;
+            }
+            if (cAlgNb >= (int)NB_COMPRESSION_ALGORITHMS) {
+                continue;
+            }
+            compressorName = compDescArray[cAlgNb].name;
+            compressionFunction = compDescArray[cAlgNb].compressionF;
+            initFunction = compDescArray[cAlgNb].initFunction;
+            if (compDescArray[cAlgNb].singleChunk) {
+                nbChunks=1;
+                chunkP[0].origSize = (int)benchedSize;
+            }
+            if (compressorName==NULL || compressionFunction==NULL) {
+                continue;
             }
 
             for (loopNb = 1; loopNb <= g_nbIterations; loopNb++) {
@@ -492,13 +708,14 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
                 clockTime = clock();
                 while(clock() == clockTime);
                 clockTime = clock();
-                while(BMK_GetClockSpan(clockTime) < TIMELOOP) {
+                while(BMK_GetClockSpan(clockTime) < loopDuration) {
                     if (initFunction!=NULL) initFunction();
                     for (chunkNb=0; chunkNb<nbChunks; chunkNb++) {
                         chunkP[chunkNb].compressedSize = compressionFunction(chunkP[chunkNb].origBuffer, chunkP[chunkNb].compressedBuffer, chunkP[chunkNb].origSize);
-                        if (chunkP[chunkNb].compressedSize==0)
-                            DISPLAY("ERROR ! %s() = 0 !! \n", compressorName), exit(1);
-                    }
+                        if (chunkP[chunkNb].compressedSize==0) {
+                            DISPLAY("ERROR ! %s() = 0 !! \n", compressorName);
+                            exit(1);
+                    }   }
                     nb_loops++;
                 }
                 clockTime = BMK_GetClockSpan(clockTime);
@@ -506,7 +723,7 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
                 nb_loops += !nb_loops;   /* avoid division by zero */
                 averageTime = ((double)clockTime) / nb_loops / CLOCKS_PER_SEC;
                 if (averageTime < bestTime) bestTime = averageTime;
-                cSize=0; for (chunkNb=0; chunkNb<nbChunks; chunkNb++) cSize += chunkP[chunkNb].compressedSize;
+                cSize=0; for (chunkNb=0; chunkNb<nbChunks; chunkNb++) cSize += (size_t)chunkP[chunkNb].compressedSize;
                 ratio = (double)cSize/(double)benchedSize*100.;
                 PROGRESS("%2i-%-34.34s :%10i ->%9i (%5.2f%%),%7.1f MB/s\r", loopNb, compressorName, (int)benchedSize, (int)cSize, ratio, (double)benchedSize / bestTime / 1000000);
             }
@@ -526,55 +743,53 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
 
           nbChunks = (int) (((int)benchedSize + (g_chunkSize-1))/ g_chunkSize);
           for (i=0; i<nbChunks; i++) {
-              chunkP[i].id = i;
+              chunkP[i].id = (U32)i;
               chunkP[i].origBuffer = in; in += g_chunkSize;
-              if ((int)remaining > g_chunkSize) { chunkP[i].origSize = g_chunkSize; remaining -= g_chunkSize; } else { chunkP[i].origSize = (int)remaining; remaining = 0; }
+              if ((int)remaining > g_chunkSize) {
+                  chunkP[i].origSize = g_chunkSize;
+                  remaining -= (size_t)g_chunkSize;
+              } else {
+                  chunkP[i].origSize = (int)remaining;
+                  remaining = 0;
+              }
               chunkP[i].compressedBuffer = out; out += maxCompressedChunkSize;
               chunkP[i].compressedSize = 0;
           }
         }
         for (chunkNb=0; chunkNb<nbChunks; chunkNb++) {
             chunkP[chunkNb].compressedSize = LZ4_compress_default(chunkP[chunkNb].origBuffer, chunkP[chunkNb].compressedBuffer, chunkP[chunkNb].origSize, maxCompressedChunkSize);
-            if (chunkP[chunkNb].compressedSize==0)
-                DISPLAY("ERROR ! %s() = 0 !! \n", "LZ4_compress"), exit(1);
-        }
+            if (chunkP[chunkNb].compressedSize==0) {
+                DISPLAY("ERROR ! %s() = 0 !! \n", "LZ4_compress");
+                exit(1);
+        }   }
 
         /* Decompression Algorithms */
-        for (dAlgNb=0; (dAlgNb <= NB_DECOMPRESSION_ALGORITHMS) && g_decompressionTest; dAlgNb++) {
-            const char* dName;
-            int (*decompressionFunction)(const char*, char*, int, int);
+        for (dAlgNb=0; (dAlgNb <= (int)NB_DECOMPRESSION_ALGORITHMS) && g_decompressionTest; dAlgNb++) {
+            const char* dName = NULL;
+            int (*decompressionFunction)(const char*, char*, int, int) = NULL;
             double bestTime = 100000000.;
             int checkResult = 1;
 
             if ((g_decompressionAlgo != ALL_DECOMPRESSORS) && (g_decompressionAlgo != dAlgNb)) continue;
 
-            switch(dAlgNb)
-            {
-            case 0: DISPLAY("Decompression functions : \n"); continue;
-            case 1: decompressionFunction = local_LZ4_decompress_fast; dName = "LZ4_decompress_fast"; break;
-            case 2: decompressionFunction = local_LZ4_decompress_fast_usingDict_prefix; dName = "LZ4_decompress_fast_usingDict(prefix)"; break;
-            case 3: decompressionFunction = local_LZ4_decompress_fast_usingExtDict; dName = "LZ4_decompress_fast_using(Ext)Dict"; break;
-            case 4: decompressionFunction = LZ4_decompress_safe; dName = "LZ4_decompress_safe"; break;
-            case 6: decompressionFunction = local_LZ4_decompress_safe_usingDict; dName = "LZ4_decompress_safe_usingDict"; break;
-            case 7: decompressionFunction = local_LZ4_decompress_safe_partial; dName = "LZ4_decompress_safe_partial"; checkResult = 0; break;
-#ifndef LZ4_DLL_IMPORT
-            case 8: decompressionFunction = local_LZ4_decompress_safe_forceExtDict; dName = "LZ4_decompress_safe_forceExtDict"; break;
-#endif
-            case 9: decompressionFunction = local_LZ4F_decompress; dName = "LZ4F_decompress";
-                    errorCode = LZ4F_compressFrame(compressed_buff, compressedBuffSize, orig_buff, benchedSize, NULL);
-                    if (LZ4F_isError(errorCode)) {
-                        DISPLAY("Error while preparing compressed frame\n");
-                        free(orig_buff);
-                        free(compressed_buff);
-                        free(chunkP);
-                        return 1;
-                    }
-                    chunkP[0].origSize = (int)benchedSize;
-                    chunkP[0].compressedSize = (int)errorCode;
-                    nbChunks = 1;
-                    break;
-            default :
-                continue;   /* skip if unknown ID */
+            if (dAlgNb==0) { /* just for display */
+                DISPLAY("Decompression functions : \n");
+                continue;
+            }
+            if (dAlgNb >= (int)NB_DECOMPRESSION_ALGORITHMS)
+                continue;
+            dName = decDescArray[dAlgNb].name;
+            decompressionFunction = decDescArray[dAlgNb].decompressionF;
+            if (dName==NULL || decompressionFunction == NULL)
+                continue;
+            checkResult = decDescArray[dAlgNb].checkResult;
+            if (decDescArray[dAlgNb].frameFormat) {
+                /* prepare compressed data using LZ4F frame format */
+                size_t const fcsize = LZ4F_compressFrame(compressed_buff, (size_t)compressedBuffSize, orig_buff, benchedSize, NULL);
+                assert(!LZ4F_isError(fcsize));
+                chunkP[0].origSize = (int)benchedSize;
+                chunkP[0].compressedSize = (int)fcsize;
+                nbChunks = 1;
             }
 
             { size_t i; for (i=0; i<benchedSize; i++) orig_buff[i]=0; }     /* zeroing source area, for CRC checking */
@@ -590,7 +805,7 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
                 clockTime = clock();
                 while(clock() == clockTime);
                 clockTime = clock();
-                while(BMK_GetClockSpan(clockTime) < TIMELOOP) {
+                while(BMK_GetClockSpan(clockTime) < loopDuration) {
                     for (chunkNb=0; chunkNb<nbChunks; chunkNb++) {
                         int const decodedSize = decompressionFunction(chunkP[chunkNb].compressedBuffer, chunkP[chunkNb].origBuffer,
                                                                       chunkP[chunkNb].compressedSize, chunkP[chunkNb].origSize);
@@ -610,7 +825,7 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
                 PROGRESS("%2i-%-34.34s :%10i -> %7.1f MB/s\r", loopNb, dName, (int)benchedSize, (double)benchedSize / bestTime / 1000000);
 
                 /* CRC Checking */
-                crcDecoded = XXH32(orig_buff, (int)benchedSize, 0);
+                crcDecoded = XXH32(orig_buff, benchedSize, 0);
                 if (checkResult && (crcOriginal!=crcDecoded)) {
                     DISPLAY("\n!!! WARNING !!! %14s : Invalid Checksum : %x != %x\n",
                             inFileName, (unsigned)crcOriginal, (unsigned)crcDecoded);
@@ -631,6 +846,23 @@ int fullSpeedBench(const char** fileNamesTable, int nbFiles)
     return 0;
 }
 
+static int list(void)
+{
+    size_t n;
+    DISPLAY("Compression Algorithm ids: \n");
+    for (n=0; n<NB_COMPRESSION_ALGORITHMS; n++) {
+        if (compDescArray[n].name) {
+            DISPLAY("%2u: %s \n", (unsigned)n, compDescArray[n].name);
+        }
+    }
+    DISPLAY("Decompression Algorithm ids: \n");
+    for (n=0; n<NB_DECOMPRESSION_ALGORITHMS; n++) {
+        if (decDescArray[n].name) {
+            DISPLAY("%2u: %s \n", (unsigned)n, decDescArray[n].name);
+        }
+    }
+    return 0;
+}
 
 static int usage(const char* exename)
 {
@@ -646,11 +878,11 @@ static int usage(const char* exename)
 static int usage_advanced(void)
 {
     DISPLAY( "\nAdvanced options :\n");
-    DISPLAY( " -c#    : test only compression function # [1-%i]\n", NB_COMPRESSION_ALGORITHMS);
-    DISPLAY( " -d#    : test only decompression function # [1-%i]\n", NB_DECOMPRESSION_ALGORITHMS);
+    DISPLAY( " -c#    : test only compression function # [1-%i]\n", (int)NB_COMPRESSION_ALGORITHMS);
+    DISPLAY( " -d#    : test only decompression function # [1-%i]\n", (int)NB_DECOMPRESSION_ALGORITHMS);
     DISPLAY( " -i#    : iteration loops [1-9](default : %i)\n", NBLOOPS);
     DISPLAY( " -B#    : Block size [4-7](default : 7)\n");
-    return 0;
+    return list();
 }
 
 static int badusage(const char* exename)
@@ -710,7 +942,8 @@ int main(int argc, const char** argv)
 
                     // Display help on usage
                 case 'h' :
-                case 'H': usage(exename); usage_advanced(); return 0;
+                case 'H': usage(exename); return usage_advanced();
+                case 'l': return list();
 
                     // Modify Block Properties
                 case 'B':

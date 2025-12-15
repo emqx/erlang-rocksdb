@@ -2,7 +2,7 @@ add_dependencies (${ErlangRocksDBNIF_TARGET} lz4)
 include(ExternalProject)
 include(GNUInstallDirs)
 
-set(LZ4_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/lz4/contrib/cmake_unofficial")
+set(LZ4_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/lz4/build/cmake")
 set(LZ4_ROOT_DIR "${CMAKE_CURRENT_BINARY_DIR}/lz4")
 set(LZ4_INCLUDE_DIR "${LZ4_ROOT_DIR}/include")
 set(LZ4_STATIC_LIB "${LZ4_ROOT_DIR}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}lz4${CMAKE_STATIC_LIBRARY_SUFFIX}")
@@ -31,5 +31,3 @@ mark_as_advanced(
     LZ4_LIBRARY
     LZ4_INCLUDE_DIR
 )
-
-

@@ -1,6 +1,6 @@
 /*
     platform.h - compiler and OS detection
-    Copyright (C) 2016-present, Przemyslaw Skibinski, Yann Collet
+    Copyright (C) 2016-2020, Przemyslaw Skibinski, Yann Collet
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -48,7 +48,9 @@ extern "C" {
   || defined __x86_64__s || defined _M_X64                                                                          /* x86 64-bit */    \
   || defined __arm64__ || defined __aarch64__ || defined __ARM64_ARCH_8__                                           /* ARM 64-bit */    \
   || (defined __mips  && (__mips == 64 || __mips == 4 || __mips == 3))                                              /* MIPS 64-bit */   \
-  || defined _LP64 || defined __LP64__ /* NetBSD, OpenBSD */ || defined __64BIT__ /* AIX */ || defined _ADDR64 /* Cray */               \
+  || defined __loongarch64                                                                                          /* LoongArch 64-bit */  \
+  || (defined __riscv && defined __riscv_xlen && (__riscv_xlen == 64))                                              /* Riscv 64-bit */  \
+  || defined _LP64 || defined __LP64__ /* NetBSD, OpenBSD */ || defined __64BIT__ /* AIX */ || defined _ADDR64      /* Cray */               \
   || (defined __SIZEOF_POINTER__ && __SIZEOF_POINTER__ == 8) /* gcc */
 #  if !defined(__64BIT__)
 #    define __64BIT__  1
@@ -77,16 +79,17 @@ extern "C" {
 *  PLATFORM_POSIX_VERSION = -1 for non-Unix e.g. Windows
 *  PLATFORM_POSIX_VERSION = 0 for Unix-like non-POSIX
 *  PLATFORM_POSIX_VERSION >= 1 is equal to found _POSIX_VERSION
-***************************************************************/
+************************************************************** */
 #if !defined(_WIN32) && (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)) /* UNIX-like OS */ \
    || defined(__midipix__) || defined(__VMS))
-#  if (defined(__APPLE__) && defined(__MACH__)) || defined(__SVR4) || defined(_AIX) || defined(__hpux) /* POSIX.1–2001 (SUSv3) conformant */ \
-     || defined(__DragonFly__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)  || defined(__MidnightBSD__) /* BSD distros */
+#  if (defined(__APPLE__) && defined(__MACH__)) || defined(__SVR4) || defined(_AIX) || defined(__hpux) /* POSIX.1-2001 (SUSv3) conformant */ \
+     || defined(__DragonFly__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)  || defined(__MidnightBSD__) /* BSD distros */ \
+     || defined(__HAIKU__)
 #    define PLATFORM_POSIX_VERSION 200112L
 #  else
 #    if defined(__linux__) || defined(__linux)
 #      ifndef _POSIX_C_SOURCE
-#        define _POSIX_C_SOURCE 200112L  /* use feature test macro */
+#        define _POSIX_C_SOURCE 200809L  /* use feature test macro */
 #      endif
 #    endif
 #    include <unistd.h>  /* declares _POSIX_VERSION */
@@ -104,7 +107,7 @@ extern "C" {
 
 /*-*********************************************
 *  Detect if isatty() and fileno() are available
-************************************************/
+*********************************************** */
 #if (defined(__linux__) && (PLATFORM_POSIX_VERSION >= 1)) || (PLATFORM_POSIX_VERSION >= 200112L) || defined(__DJGPP__)
 #  include <unistd.h>   /* isatty */
 #  define IS_CONSOLE(stdStream) isatty(fileno(stdStream))
@@ -127,7 +130,7 @@ static __inline int IS_CONSOLE(FILE* stdStream)
 
 /******************************
 *  OS-specific Includes
-******************************/
+***************************** */
 #if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(_WIN32)
 #  include <fcntl.h>   /* _O_BINARY */
 #  include <io.h>      /* _setmode, _fileno, _get_osfhandle */

@@ -1,6 +1,6 @@
 /*
     frameTest - test tool for lz4frame
-    Copyright (C) Yann Collet 2014-2016
+    Copyright (C) Yann Collet 2014-2020
 
     GPL v2 License
 
@@ -27,8 +27,8 @@
 *  Compiler specific
 **************************************/
 #ifdef _MSC_VER    /* Visual Studio */
-#  pragma warning(disable : 4127)        /* disable: C4127: conditional expression is constant */
-#  pragma warning(disable : 4146)        /* disable: C4146: minus unsigned expression */
+#  pragma warning(disable : 26451)     /* disable: Arithmetic overflow */
+#  pragma warning(disable : 4127)    /* disable: C4127: conditional expression is constant */
 #endif
 
 
@@ -41,21 +41,22 @@
 #include <string.h>     /* strcmp */
 #include <time.h>       /* clock_t, clock(), CLOCKS_PER_SEC */
 #include <assert.h>
-#include "lz4frame.h"   /* include multiple times to test correctness/safety */
+#include "lz4frame.h"   /* included multiple times to test correctness/safety */
 #include "lz4frame.h"
 #define LZ4F_STATIC_LINKING_ONLY
 #include "lz4frame.h"
 #include "lz4frame.h"
+#define LZ4_STATIC_LINKING_ONLY  /* LZ4_DISTANCE_MAX */
 #include "lz4.h"        /* LZ4_VERSION_STRING */
 #define XXH_STATIC_LINKING_ONLY
 #include "xxhash.h"     /* XXH64 */
 
 
-/* unoptimized version; solves endianess & alignment issues */
+/* unoptimized version; solves endianness & alignment issues */
 static void FUZ_writeLE32 (void* dstVoidPtr, U32 value32)
 {
-    BYTE* dstPtr = (BYTE*)dstVoidPtr;
-    dstPtr[0] = (BYTE)value32;
+    BYTE* const dstPtr = (BYTE*)dstVoidPtr;
+    dstPtr[0] = (BYTE) value32;
     dstPtr[1] = (BYTE)(value32 >> 8);
     dstPtr[2] = (BYTE)(value32 >> 16);
     dstPtr[3] = (BYTE)(value32 >> 24);
@@ -65,8 +66,6 @@ static void FUZ_writeLE32 (void* dstVoidPtr, U32 value32)
 /*-************************************
 *  Constants
 **************************************/
-#define LZ4F_MAGIC_SKIPPABLE_START 0x184D2A50U
-
 #define KB *(1U<<10)
 #define MB *(1U<<20)
 #define GB *(1U<<30)
@@ -77,16 +76,15 @@ static const U32 prime1 = 2654435761U;
 static const U32 prime2 = 2246822519U;
 
 
-
 /*-************************************
 *  Macros
 **************************************/
 #define DISPLAY(...)          fprintf(stderr, __VA_ARGS__)
-#define DISPLAYLEVEL(l, ...)  if (displayLevel>=l) { DISPLAY(__VA_ARGS__); }
-#define DISPLAYUPDATE(l, ...) if (displayLevel>=l) { \
+#define DISPLAYLEVEL(l, ...)  do { if (displayLevel>=(l)) DISPLAY(__VA_ARGS__); } while (0)
+#define DISPLAYUPDATE(l, ...) do { if (displayLevel>=(l)) { \
             if ((FUZ_GetClockSpan(g_clockTime) > refreshRate) || (displayLevel>=4)) \
             { g_clockTime = clock(); DISPLAY(__VA_ARGS__); \
-            if (displayLevel>=4) fflush(stdout); } }
+            if (displayLevel>=4) fflush(stdout); } } } while (0)
 static const clock_t refreshRate = CLOCKS_PER_SEC / 6;
 static clock_t g_clockTime = 0;
 
@@ -105,11 +103,62 @@ static U32 use_pause = 0;
 #define MIN(a,b)  ( (a) < (b) ? (a) : (b) )
 #define MAX(a,b)  ( (a) > (b) ? (a) : (b) )
 
+typedef struct {
+    int nbAllocs;
+} Test_alloc_state;
+static Test_alloc_state g_testAllocState = { 0 };
+
+static void* dummy_malloc(void* state, size_t s)
+{
+    Test_alloc_state* const t = (Test_alloc_state*)state;
+    void* const p = malloc(s);
+    if (p==NULL) return NULL;
+    assert(t != NULL);
+    t->nbAllocs += 1;
+    DISPLAYLEVEL(6, "Allocating %u bytes at address %p \n", (unsigned)s, p);
+    DISPLAYLEVEL(5, "nb allocated memory segments : %i \n", t->nbAllocs);
+    return p;
+}
+
+static void* dummy_calloc(void* state, size_t s)
+{
+    Test_alloc_state* const t = (Test_alloc_state*)state;
+    void* const p = calloc(1, s);
+    if (p==NULL) return NULL;
+    assert(t != NULL);
+    t->nbAllocs += 1;
+    DISPLAYLEVEL(6, "Allocating and zeroing %u bytes at address %p \n", (unsigned)s, p);
+    DISPLAYLEVEL(5, "nb allocated memory segments : %i \n", t->nbAllocs);
+    return p;
+}
+
+static void dummy_free(void* state, void* p)
+{
+    Test_alloc_state* const t = (Test_alloc_state*)state;
+    if (p==NULL) {
+        DISPLAYLEVEL(5, "free() on NULL \n");
+        return;
+    }
+    DISPLAYLEVEL(6, "freeing memory at address %p \n", p);
+    free(p);
+    assert(t != NULL);
+    t->nbAllocs -= 1;
+    DISPLAYLEVEL(5, "nb of allocated memory segments after this free : %i \n", t->nbAllocs);
+    assert(t->nbAllocs >= 0);
+}
+
+static const LZ4F_CustomMem lz4f_cmem_test = {
+    dummy_malloc,
+    dummy_calloc,
+    dummy_free,
+    &g_testAllocState
+};
+
+
 static clock_t FUZ_GetClockSpan(clock_t clockStart)
 {
     return clock() - clockStart;   /* works even if overflow; max span ~ 30 mn */
 }
-
 
 #define FUZ_rotl32(x,r) ((x << r) | (x >> (32 - r)))
 unsigned int FUZ_rand(unsigned int* src)
@@ -122,45 +171,43 @@ unsigned int FUZ_rand(unsigned int* src)
     return rand32 >> 5;
 }
 
-
-#define FUZ_RAND15BITS  (FUZ_rand(seed) & 0x7FFF)
-#define FUZ_RANDLENGTH  ( (FUZ_rand(seed) & 3) ? (FUZ_rand(seed) % 15) : (FUZ_rand(seed) % 510) + 15)
-static void FUZ_fillCompressibleNoiseBuffer(void* buffer, size_t bufferSize, double proba, U32* seed)
+#define RAND_BITS(N) (FUZ_rand(randState) & ((1 << (N))-1))
+#define FUZ_LITERAL (RAND_BITS(6) + '0')
+#define FUZ_ABOUT(_R) ((FUZ_rand(randState) % (_R)) + (FUZ_rand(randState) % (_R)) + 1)
+static void FUZ_fillCompressibleNoiseBuffer(void* buffer, size_t bufferSize, double proba, U32* randState)
 {
     BYTE* BBuffer = (BYTE*)buffer;
     size_t pos = 0;
     U32 P32 = (U32)(32768 * proba);
 
     /* First Byte */
-    BBuffer[pos++] = (BYTE)(FUZ_rand(seed));
+    BBuffer[pos++] = FUZ_LITERAL;
 
     while (pos < bufferSize) {
         /* Select : Literal (noise) or copy (within 64K) */
-        if (FUZ_RAND15BITS < P32) {
+        if (RAND_BITS(15) < P32) {
             /* Copy (within 64K) */
-            size_t const lengthRand = FUZ_RANDLENGTH + 4;
+            size_t const lengthRand = FUZ_ABOUT(8) + 4;
             size_t const length = MIN(lengthRand, bufferSize - pos);
             size_t const end = pos + length;
-            size_t const offsetRand = FUZ_RAND15BITS + 1;
+            size_t const offsetRand = RAND_BITS(15) + 1;
             size_t const offset = MIN(offsetRand, pos);
             size_t match = pos - offset;
             while (pos < end) BBuffer[pos++] = BBuffer[match++];
         } else {
             /* Literal (noise) */
-            size_t const lengthRand = FUZ_RANDLENGTH + 4;
+            size_t const lengthRand = FUZ_ABOUT(4);
             size_t const length = MIN(lengthRand, bufferSize - pos);
             size_t const end = pos + length;
-            while (pos < end) BBuffer[pos++] = (BYTE)(FUZ_rand(seed) >> 5);
-        }
-    }
+            while (pos < end) BBuffer[pos++] = FUZ_LITERAL;
+    }   }
 }
-
 
 static unsigned FUZ_highbit(U32 v32)
 {
     unsigned nbBits = 0;
     if (v32==0) return 0;
-    while (v32) v32 >>= 1, nbBits ++;
+    while (v32) {v32 >>= 1; nbBits ++;}
     return nbBits;
 }
 
@@ -168,17 +215,76 @@ static unsigned FUZ_highbit(U32 v32)
 /*-*******************************************************
 *  Tests
 *********************************************************/
-#define CHECK_V(v,f) v = f; if (LZ4F_isError(v)) { fprintf(stderr, "%s\n", LZ4F_getErrorName(v)); goto _output_error; }
+
+#define CONTROL(c) { \
+    if (!(c)) {      \
+        DISPLAY("Error (line %i) => %s not respected \n", __LINE__, #c); \
+        return 1;    \
+}   }
+
+static int bug1227(void)
+{
+    LZ4F_dctx* dctx;
+    CONTROL(!LZ4F_isError(LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION)));
+
+    /* first session */
+    {   const char s9Buffer[9] = { 0 };
+        char d9Buffer[sizeof(s9Buffer)];
+        size_t const c9SizeBound = LZ4F_compressFrameBound(sizeof(s9Buffer), NULL);
+        void* const c9Buffer = malloc(c9SizeBound);
+        /* First compress a valid frame */
+        LZ4F_preferences_t pref = LZ4F_INIT_PREFERENCES;
+        pref.frameInfo.contentSize = sizeof(s9Buffer);
+        CONTROL(c9Buffer != NULL);
+        {   size_t const c9Size = LZ4F_compressFrame(c9Buffer, c9SizeBound, s9Buffer, sizeof(s9Buffer), &pref);
+            CONTROL(!LZ4F_isError(c9Size));
+            assert(c9Size > 15);
+            /* decompress it, but do not complete the process - state not terminated correctly */
+            {   size_t dstSize = sizeof(d9Buffer);
+                size_t srcSize = 15;
+                size_t const d9Size = LZ4F_decompress(dctx, d9Buffer, &dstSize, c9Buffer, &srcSize, NULL);
+                CONTROL(!LZ4F_isError(d9Size));
+                CONTROL(srcSize < c9Size); /* not entirely consumed */
+            }
+        }
+        free(c9Buffer);
+    }
+    LZ4F_resetDecompressionContext(dctx); /* unfinished session -> reset should make it clean */
+
+    /* second session : generate a valid 0-size frame with no content size field (default) */
+    {   size_t const c0SizeBound = LZ4F_compressFrameBound(0, NULL);
+        void* const c0Buffer = malloc(c0SizeBound);
+        char d0Buffer[1];
+        CONTROL(c0Buffer != NULL);
+        {   size_t const c0Size = LZ4F_compressFrame(c0Buffer, c0SizeBound, NULL, 0, NULL);
+            CONTROL(!LZ4F_isError(c0Size));
+            /* now decompress this valid empty frame */
+            {   size_t dstSize = sizeof(d0Buffer);
+                size_t srcSize = c0Size;
+                size_t const d0Size = LZ4F_decompress(dctx, d0Buffer, &dstSize, c0Buffer, &srcSize, NULL);
+                CONTROL(!LZ4F_isError(d0Size));
+                CONTROL(dstSize == 0);
+                CONTROL(srcSize == c0Size);
+        }   }
+        free(c0Buffer);
+    }
+
+    LZ4F_freeDecompressionContext(dctx);
+    return 0;
+}
+
+#define CHECK_V(v,f) v = f; if (LZ4F_isError(v)) { fprintf(stderr, "%s \n", LZ4F_getErrorName(v)); goto _output_error; }
 #define CHECK(f)   { LZ4F_errorCode_t const CHECK_V(err_ , f); }
 
-int basicTests(U32 seed, double compressibility)
+static int unitTests(U32 seed, double compressibility)
 {
 #define COMPRESSIBLE_NOISE_LENGTH (2 MB)
     void* const CNBuffer = malloc(COMPRESSIBLE_NOISE_LENGTH);
     size_t const cBuffSize = LZ4F_compressFrameBound(COMPRESSIBLE_NOISE_LENGTH, NULL);
     void* const compressedBuffer = malloc(cBuffSize);
     void* const decodedBuffer = malloc(COMPRESSIBLE_NOISE_LENGTH);
-    U32 randState = seed;
+    U32 randVal = seed;
+    U32* const randState = &randVal;
     size_t cSize, testSize;
     LZ4F_decompressionContext_t dCtx = NULL;
     LZ4F_compressionContext_t cctx = NULL;
@@ -191,12 +297,30 @@ int basicTests(U32 seed, double compressibility)
         DISPLAY("allocation error, not enough memory to start fuzzer tests \n");
         goto _output_error;
     }
-    FUZ_fillCompressibleNoiseBuffer(CNBuffer, COMPRESSIBLE_NOISE_LENGTH, compressibility, &randState);
+    FUZ_fillCompressibleNoiseBuffer(CNBuffer, COMPRESSIBLE_NOISE_LENGTH, compressibility, randState);
     crcOrig = XXH64(CNBuffer, COMPRESSIBLE_NOISE_LENGTH, 1);
 
     /* LZ4F_compressBound() : special case : srcSize == 0 */
     DISPLAYLEVEL(3, "LZ4F_compressBound(0) = ");
     {   size_t const cBound = LZ4F_compressBound(0, NULL);
+        if (cBound < 64 KB) goto _output_error;
+        DISPLAYLEVEL(3, " %u \n", (U32)cBound);
+    }
+
+    /* LZ4F_compressBound() : special case : automatic flushing enabled */
+    DISPLAYLEVEL(3, "LZ4F_compressBound(1 KB, autoFlush=1) = ");
+    {   size_t cBound;
+        LZ4F_preferences_t autoFlushPrefs;
+        memset(&autoFlushPrefs, 0, sizeof(autoFlushPrefs));
+        autoFlushPrefs.autoFlush = 1;
+        cBound = LZ4F_compressBound(1 KB, &autoFlushPrefs);
+        if (cBound > 64 KB) goto _output_error;
+        DISPLAYLEVEL(3, " %u \n", (U32)cBound);
+    }
+
+    /* LZ4F_compressBound() : special case : automatic flushing disabled */
+    DISPLAYLEVEL(3, "LZ4F_compressBound(1 KB, autoFlush=0) = ");
+    {   size_t const cBound = LZ4F_compressBound(1 KB, &prefs);
         if (cBound < 64 KB) goto _output_error;
         DISPLAYLEVEL(3, " %u \n", (U32)cBound);
     }
@@ -211,9 +335,13 @@ int basicTests(U32 seed, double compressibility)
     CHECK ( LZ4F_createDecompressionContext(&dCtx, LZ4F_VERSION) );
 
     DISPLAYLEVEL(3, "LZ4F_getFrameInfo on null-content frame (#157) \n");
-    {   size_t avail_in = cSize;
-        LZ4F_frameInfo_t frame_info;
+    assert(cSize >= LZ4F_MIN_SIZE_TO_KNOW_HEADER_LENGTH);
+    {   LZ4F_frameInfo_t frame_info;
+        size_t const fhs = LZ4F_headerSize(compressedBuffer, LZ4F_MIN_SIZE_TO_KNOW_HEADER_LENGTH);
+        size_t avail_in = fhs;
+        CHECK( fhs );
         CHECK( LZ4F_getFrameInfo(dCtx, &frame_info, compressedBuffer, &avail_in) );
+        if (avail_in != fhs) goto _output_error;  /* must consume all, since header size is supposed to be exact */
     }
 
     DISPLAYLEVEL(3, "LZ4F_freeDecompressionContext \n");
@@ -270,7 +398,7 @@ int basicTests(U32 seed, double compressibility)
             if (decResult != 0) goto _output_error;   /* should finish now */
             op += oSize;
             if (op>oend) { DISPLAY("decompression write overflow \n"); goto _output_error; }
-            {   U64 const crcDest = XXH64(decodedBuffer, op-ostart, 1);
+            {   U64 const crcDest = XXH64(decodedBuffer, (size_t)(op-ostart), 1);
                 if (crcDest != crcOrig) goto _output_error;
         }   }
 
@@ -306,10 +434,10 @@ int basicTests(U32 seed, double compressibility)
             }
 
             DISPLAYLEVEL(3, "LZ4F_getFrameInfo on enough input : ");
-            iSize = 15 - iSize;
+            iSize = LZ4F_headerSize(ip, LZ4F_MIN_SIZE_TO_KNOW_HEADER_LENGTH);
+            CHECK( iSize );
             CHECK( LZ4F_getFrameInfo(dCtx, &fi, ip, &iSize) );
             DISPLAYLEVEL(3, " correctly decoded \n");
-            ip += iSize;
         }
 
         DISPLAYLEVEL(3, "Decode a buggy input : ");
@@ -337,15 +465,16 @@ int basicTests(U32 seed, double compressibility)
             const BYTE* ip = (const BYTE*) compressedBuffer;
             const BYTE* const iend = ip + cSize;
             while (ip < iend) {
-                size_t oSize = oend-op;
+                size_t oSize = (size_t)(oend-op);
                 size_t iSize = 1;
                 CHECK( LZ4F_decompress(dCtx, op, &oSize, ip, &iSize, NULL) );
                 op += oSize;
                 ip += iSize;
             }
-            { U64 const crcDest = XXH64(decodedBuffer, COMPRESSIBLE_NOISE_LENGTH, 1);
-              if (crcDest != crcOrig) goto _output_error; }
-            DISPLAYLEVEL(3, "Regenerated %u/%u bytes \n", (unsigned)(op-ostart), COMPRESSIBLE_NOISE_LENGTH);
+            {   U64 const crcDest = XXH64(decodedBuffer, COMPRESSIBLE_NOISE_LENGTH, 1);
+                if (crcDest != crcOrig) goto _output_error;
+            }
+            DISPLAYLEVEL(3, "Regenerated %u/%u bytes \n", (unsigned)(op-ostart), (unsigned)COMPRESSIBLE_NOISE_LENGTH);
         }
     }
 
@@ -377,10 +506,10 @@ int basicTests(U32 seed, double compressibility)
 
         DISPLAYLEVEL(3, "random segment sizes : ");
         while (ip < iend) {
-            unsigned const nbBits = FUZ_rand(&randState) % maxBits;
-            size_t iSize = (FUZ_rand(&randState) & ((1<<nbBits)-1)) + 1;
-            size_t oSize = oend-op;
-            if (iSize > (size_t)(iend-ip)) iSize = iend-ip;
+            unsigned const nbBits = FUZ_rand(randState) % maxBits;
+            size_t iSize = RAND_BITS(nbBits) + 1;
+            size_t oSize = (size_t)(oend-op);
+            if (iSize > (size_t)(iend-ip)) iSize = (size_t)(iend-ip);
             CHECK( LZ4F_decompress(dCtx, op, &oSize, ip, &iSize, NULL) );
             op += oSize;
             ip += iSize;
@@ -415,7 +544,7 @@ int basicTests(U32 seed, double compressibility)
     prefs.frameInfo.blockSizeID = LZ4F_max4MB;
     prefs.frameInfo.contentChecksumFlag = LZ4F_contentChecksumEnabled;
     {   size_t const dstCapacity = LZ4F_compressFrameBound(testSize, &prefs);
-        DISPLAYLEVEL(4, "dstCapacity = %u  ; ", (U32)dstCapacity)
+        DISPLAYLEVEL(4, "dstCapacity = %u  ; ", (U32)dstCapacity);
         CHECK_V(cSize, LZ4F_compressFrame(compressedBuffer, dstCapacity, CNBuffer, testSize, &prefs) );
         DISPLAYLEVEL(3, "Compressed %u bytes into a %u bytes frame \n", (U32)testSize, (U32)cSize);
     }
@@ -423,7 +552,7 @@ int basicTests(U32 seed, double compressibility)
     DISPLAYLEVEL(3, "without frame checksum : ");
     prefs.frameInfo.contentChecksumFlag = LZ4F_noContentChecksum;
     {   size_t const dstCapacity = LZ4F_compressFrameBound(testSize, &prefs);
-        DISPLAYLEVEL(4, "dstCapacity = %u  ; ", (U32)dstCapacity)
+        DISPLAYLEVEL(4, "dstCapacity = %u  ; ", (U32)dstCapacity);
         CHECK_V(cSize, LZ4F_compressFrame(compressedBuffer, dstCapacity, CNBuffer, testSize, &prefs) );
         DISPLAYLEVEL(3, "Compressed %u bytes into a %u bytes frame \n", (U32)testSize, (U32)cSize);
     }
@@ -494,7 +623,9 @@ int basicTests(U32 seed, double compressibility)
     /* dictID tests */
     {   size_t cErr;
         U32 const dictID = 0x99;
-        CHECK( LZ4F_createCompressionContext(&cctx, LZ4F_VERSION) );
+        /* test advanced variant with custom allocator functions */
+        cctx = LZ4F_createCompressionContext_advanced(lz4f_cmem_test, LZ4F_VERSION);
+        if (cctx==NULL) goto _output_error;
 
         DISPLAYLEVEL(3, "insert a dictID : ");
         memset(&prefs.frameInfo, 0, sizeof(prefs.frameInfo));
@@ -513,36 +644,52 @@ int basicTests(U32 seed, double compressibility)
         CHECK( LZ4F_freeCompressionContext(cctx) ); cctx = NULL;
     }
 
-    /* Dictionary compression test */
-    {   size_t const dictSize = 63 KB;
-        size_t const dstCapacity = LZ4F_compressFrameBound(dictSize, NULL);
+    /* Raw Dictionary compression test */
+    {   size_t const dictSize = 7 KB; /* small enough for LZ4_MEMORY_USAGE == 10 */
+        size_t const srcSize = 66 KB; /* must be > 64 KB to avoid short-size optimizations */
+        size_t const dstCapacity = LZ4F_compressFrameBound(srcSize, NULL);
         size_t cSizeNoDict, cSizeWithDict;
-        LZ4F_CDict* const cdict = LZ4F_createCDict(CNBuffer, dictSize);
-        if (cdict == NULL) goto _output_error;
+        const void* dict = CNBuffer;
+        const void* src = (const char*)CNBuffer + dictSize;
+        char* cPtr = (char*)compressedBuffer;
         CHECK( LZ4F_createCompressionContext(&cctx, LZ4F_VERSION) );
-        
-        DISPLAYLEVEL(3, "LZ4F_compressFrame_usingCDict, with NULL dict : ");
+
+        /* compress without dictionary, just to establish a comparison point */
         CHECK_V(cSizeNoDict,
-                LZ4F_compressFrame_usingCDict(cctx, compressedBuffer, dstCapacity,
-                                              CNBuffer, dictSize,
-                                              NULL, NULL) );
-        DISPLAYLEVEL(3, "%u bytes \n", (unsigned)cSizeNoDict);
+                LZ4F_compressFrame(compressedBuffer, dstCapacity,
+                                    src, srcSize,
+                                    NULL) );
+        /* note: NULL preferences ==> 64 KB linked blocks */
 
-        CHECK( LZ4F_freeCompressionContext(cctx) );
-        CHECK( LZ4F_createCompressionContext(&cctx, LZ4F_VERSION) );
-        DISPLAYLEVEL(3, "LZ4F_compressFrame_usingCDict, with dict : ");
-        CHECK_V(cSizeWithDict,
-                LZ4F_compressFrame_usingCDict(cctx, compressedBuffer, dstCapacity,
-                                              CNBuffer, dictSize,
-                                              cdict, NULL) );
-        DISPLAYLEVEL(3, "compressed %u bytes into %u bytes \n",
-                        (unsigned)dictSize, (unsigned)cSizeWithDict);
-        if (cSizeWithDict >= cSizeNoDict) goto _output_error;  /* must be more efficient */
-        crcOrig = XXH64(CNBuffer, dictSize, 0);
+        /* now compress with dictionary */
+        DISPLAYLEVEL(3, "LZ4F_compressBegin_usingDict: ");
+        cSizeWithDict = 0;
+        {   size_t hSize = LZ4F_compressBegin_usingDict(cctx, cPtr, dstCapacity, dict, dictSize, NULL);
+            //size_t hSize = LZ4F_compressBegin(cctx, cPtr, dstCapacity, NULL);
+            CHECK(hSize);
+            cSizeWithDict += hSize;
+            cPtr += hSize;
+        }
+        {   size_t bSize = LZ4F_compressUpdate(cctx, cPtr, dstCapacity, src, srcSize, NULL);
+            CHECK(bSize);
+            cSizeWithDict += bSize;
+            cPtr += bSize;
+        }
+        {   size_t endSize = LZ4F_compressEnd(cctx, cPtr, dstCapacity, NULL);
+            CHECK(endSize);
+            cSizeWithDict += endSize;
+        }
+        DISPLAYLEVEL(3, "compress %u bytes into %u bytes with dict (< %u bytes without) \n",
+                        (unsigned)srcSize, (unsigned)cSizeWithDict, (unsigned)cSizeNoDict);
+        if (cSizeWithDict >= cSizeNoDict) {
+            DISPLAYLEVEL(3, "cSizeWithDict (%u) should have been more compact than cSizeNoDict(%u) \n", (unsigned)cSizeWithDict, (unsigned)cSizeNoDict);
+            goto _output_error;  /* must be more efficient */
+        }
+        crcOrig = XXH64(src, srcSize, 0);
 
-        DISPLAYLEVEL(3, "LZ4F_decompress_usingDict : ");
+        DISPLAYLEVEL(3, "LZ4F_decompress_usingDict: ");
         {   LZ4F_dctx* dctx;
-            size_t decodedSize = COMPRESSIBLE_NOISE_LENGTH;
+            size_t decodedSize = srcSize;
             size_t compressedSize = cSizeWithDict;
             CHECK( LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION) );
             CHECK( LZ4F_decompress_usingDict(dctx,
@@ -551,7 +698,67 @@ int basicTests(U32 seed, double compressibility)
                                         CNBuffer, dictSize,
                                         NULL) );
             if (compressedSize != cSizeWithDict) goto _output_error;
-            if (decodedSize != dictSize) goto _output_error;
+            if (decodedSize != srcSize) goto _output_error;
+            { U64 const crcDest = XXH64(decodedBuffer, decodedSize, 0);
+              if (crcDest != crcOrig) goto _output_error; }
+            DISPLAYLEVEL(3, "Regenerated %u bytes \n", (U32)decodedSize);
+            CHECK( LZ4F_freeDecompressionContext(dctx) );
+        }
+
+        /* clean */
+        CHECK( LZ4F_freeCompressionContext(cctx) );
+    }
+
+    /* Digested Dictionary (cdict) compression test */
+    {   size_t const dictSize = 7 KB; /* small enough for LZ4_MEMORY_USAGE == 10 */
+        size_t const srcSize = 65 KB; /* must be > 64 KB to avoid short-size optimizations */
+        size_t const dstCapacity = LZ4F_compressFrameBound(srcSize, NULL);
+        size_t cSizeNoDict, cSizeWithDict;
+        LZ4F_CDict* const cdict = LZ4F_createCDict(CNBuffer, dictSize);
+        if (cdict == NULL) goto _output_error;
+        CHECK( LZ4F_createCompressionContext(&cctx, LZ4F_VERSION) );
+
+        DISPLAYLEVEL(3, "Testing LZ4F_createCDict_advanced : ");
+        {   LZ4F_CDict* const cda = LZ4F_createCDict_advanced(lz4f_cmem_test, CNBuffer, dictSize);
+            if (cda == NULL) goto _output_error;
+            LZ4F_freeCDict(cda);
+        }
+        DISPLAYLEVEL(3, "OK \n");
+
+        DISPLAYLEVEL(3, "LZ4F_compressFrame_usingCDict, with NULL dict : ");
+        CHECK_V(cSizeNoDict,
+                LZ4F_compressFrame_usingCDict(cctx, compressedBuffer, dstCapacity,
+                                              CNBuffer, srcSize,
+                                              NULL, NULL) );
+        DISPLAYLEVEL(3, "%u bytes \n", (unsigned)cSizeNoDict);
+
+        DISPLAYLEVEL(3, "LZ4F_compressFrame_usingCDict, with dict : ");
+        CHECK( LZ4F_freeCompressionContext(cctx) );
+        CHECK( LZ4F_createCompressionContext(&cctx, LZ4F_VERSION) );
+        CHECK_V(cSizeWithDict,
+                LZ4F_compressFrame_usingCDict(cctx, compressedBuffer, dstCapacity,
+                                              CNBuffer, srcSize,
+                                              cdict, NULL) );
+        DISPLAYLEVEL(3, "compressed %u bytes into %u bytes \n",
+                        (unsigned)srcSize, (unsigned)cSizeWithDict);
+        if (cSizeWithDict > cSizeNoDict) {
+            DISPLAYLEVEL(3, "cSizeWithDict (%u) should have been more compact than cSizeNoDict(%u) \n", (unsigned)cSizeWithDict, (unsigned)cSizeNoDict);
+            goto _output_error;  /* must be more efficient */
+        }
+        crcOrig = XXH64(CNBuffer, srcSize, 0);
+
+        DISPLAYLEVEL(3, "LZ4F_decompress_usingDict : ");
+        {   LZ4F_dctx* dctx;
+            size_t decodedSize = srcSize;
+            size_t compressedSize = cSizeWithDict;
+            CHECK( LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION) );
+            CHECK( LZ4F_decompress_usingDict(dctx,
+                                        decodedBuffer, &decodedSize,
+                                        compressedBuffer, &compressedSize,
+                                        CNBuffer, dictSize,
+                                        NULL) );
+            if (compressedSize != cSizeWithDict) goto _output_error;
+            if (decodedSize != srcSize) goto _output_error;
             { U64 const crcDest = XXH64(decodedBuffer, decodedSize, 0);
               if (crcDest != crcOrig) goto _output_error; }
             DISPLAYLEVEL(3, "Regenerated %u bytes \n", (U32)decodedSize);
@@ -617,7 +824,6 @@ int basicTests(U32 seed, double compressibility)
             }
         }
 
-
         DISPLAYLEVEL(3, "LZ4F_compressFrame_usingCDict, multiple independent blocks : ");
         {   size_t cSizeIndep;
             size_t const inSize = dictSize * 3;
@@ -657,6 +863,32 @@ int basicTests(U32 seed, double compressibility)
         CHECK( LZ4F_freeCompressionContext(cctx) ); cctx = NULL;
     }
 
+    DISPLAYLEVEL(3, "getBlockSize test: \n");
+    { size_t result;
+      unsigned blockSizeID;
+      for (blockSizeID = 4; blockSizeID < 8; ++blockSizeID) {
+        result = LZ4F_getBlockSize((LZ4F_blockSizeID_t)blockSizeID);
+        CHECK(result);
+        DISPLAYLEVEL(3, "Returned block size of %u bytes for blockID %u \n",
+                         (unsigned)result, blockSizeID);
+      }
+
+      /* Test an invalid input that's too large */
+      result = LZ4F_getBlockSize((LZ4F_blockSizeID_t)8);
+      if(!LZ4F_isError(result) ||
+          LZ4F_getErrorCode(result) != LZ4F_ERROR_maxBlockSize_invalid)
+        goto _output_error;
+
+      /* Test an invalid input that's too small */
+      result = LZ4F_getBlockSize((LZ4F_blockSizeID_t)3);
+      if(!LZ4F_isError(result) ||
+          LZ4F_getErrorCode(result) != LZ4F_ERROR_maxBlockSize_invalid)
+        goto _output_error;
+    }
+
+    DISPLAYLEVEL(3, "check bug1227: reused dctx after error => ");
+    if (bug1227()) goto _output_error;
+    DISPLAYLEVEL(3, "OK \n");
 
     DISPLAYLEVEL(3, "Skippable frame test : \n");
     {   size_t decodedBufferSize = COMPRESSIBLE_NOISE_LENGTH;
@@ -674,10 +906,10 @@ int basicTests(U32 seed, double compressibility)
 
         DISPLAYLEVEL(3, "random segment sizes : \n");
         while (ip < iend) {
-            unsigned nbBits = FUZ_rand(&randState) % maxBits;
-            size_t iSize = (FUZ_rand(&randState) & ((1<<nbBits)-1)) + 1;
-            size_t oSize = oend-op;
-            if (iSize > (size_t)(iend-ip)) iSize = iend-ip;
+            unsigned nbBits = FUZ_rand(randState) % maxBits;
+            size_t iSize = RAND_BITS(nbBits) + 1;
+            size_t oSize = (size_t)(oend-op);
+            if (iSize > (size_t)(iend-ip)) iSize = (size_t)(iend-ip);
             CHECK( LZ4F_decompress(dCtx, op, &oSize, ip, &iSize, NULL) );
             op += oSize;
             ip += iSize;
@@ -693,10 +925,10 @@ int basicTests(U32 seed, double compressibility)
         iend = ip+8;
 
         while (ip < iend) {
-            unsigned const nbBits = FUZ_rand(&randState) % maxBits;
-            size_t iSize = (FUZ_rand(&randState) & ((1<<nbBits)-1)) + 1;
-            size_t oSize = oend-op;
-            if (iSize > (size_t)(iend-ip)) iSize = iend-ip;
+            unsigned const nbBits = FUZ_rand(randState) % maxBits;
+            size_t iSize = RAND_BITS(nbBits) + 1;
+            size_t oSize = (size_t)(oend-op);
+            if (iSize > (size_t)(iend-ip)) iSize = (size_t)(iend-ip);
             CHECK( LZ4F_decompress(dCtx, op, &oSize, ip, &iSize, NULL) );
             op += oSize;
             ip += iSize;
@@ -712,7 +944,7 @@ int basicTests(U32 seed, double compressibility)
         while (ip < iend) {
             size_t iSize = 10;
             size_t oSize = 10;
-            if (iSize > (size_t)(iend-ip)) iSize = iend-ip;
+            if (iSize > (size_t)(iend-ip)) iSize = (size_t)(iend-ip);
             CHECK( LZ4F_decompress(dCtx, op, &oSize, ip, &iSize, NULL) );
             op += oSize;
             ip += iSize;
@@ -736,54 +968,178 @@ _output_error:
 }
 
 
-static void locateBuffDiff(const void* buff1, const void* buff2, size_t size, unsigned nonContiguous)
+typedef enum { o_contiguous, o_noncontiguous, o_overwrite } o_scenario_e;
+
+static void locateBuffDiff(const void* buff1, const void* buff2, size_t size, o_scenario_e o_scenario)
 {
-    size_t p=0;
-    const BYTE* b1=(const BYTE*)buff1;
-    const BYTE* b2=(const BYTE*)buff2;
-    DISPLAY("locateBuffDiff: looking for error position \n");
-    if (nonContiguous) {
-        DISPLAY("mode %u: non-contiguous output (%zu bytes), cannot search \n", nonContiguous, size);
-        return;
+    if (displayLevel >= 2) {
+        size_t p=0;
+        const BYTE* b1=(const BYTE*)buff1;
+        const BYTE* b2=(const BYTE*)buff2;
+        DISPLAY("locateBuffDiff: looking for error position \n");
+        if (o_scenario != o_contiguous) {
+            DISPLAY("mode %i: non-contiguous output (%u bytes), cannot search \n",
+                    (int)o_scenario, (unsigned)size);
+            return;
+        }
+        while (p < size && b1[p]==b2[p]) p++;
+        if (p != size) {
+            DISPLAY("Error at pos %i/%i : %02X != %02X \n", (int)p, (int)size, b1[p], b2[p]);
+        }
     }
-    while (p < size && b1[p]==b2[p]) p++;
-    if (p != size) {
-        DISPLAY("Error at pos %i/%i : %02X != %02X \n", (int)p, (int)size, b1[p], b2[p]);
+}
+
+#define EXIT_MSG(...) { DISPLAY("Error => "); DISPLAY(__VA_ARGS__); \
+                        DISPLAY(" (seed %u, test nb %u)  \n", seed, testNb); exit(1); }
+#undef CHECK
+#define CHECK(cond, ...) { if (cond) { EXIT_MSG(__VA_ARGS__); } }
+
+size_t test_lz4f_decompression_wBuffers(
+          const void* cSrc, size_t cSize,
+                void* dst, size_t dstCapacity, o_scenario_e o_scenario,
+          const void* srcRef, size_t decompressedSize,
+                U64 crcOrig,
+                U32* const randState,
+                LZ4F_dctx* const dCtx,
+                U32 seed, U32 testNb,
+                int findErrorPos)
+{
+    const BYTE* ip = (const BYTE*)cSrc;
+    const BYTE* const iend = ip + cSize;
+
+    BYTE* op = (BYTE*)dst;
+    BYTE* const oend = op + dstCapacity;
+
+    unsigned const suggestedBits = FUZ_highbit((U32)cSize);
+    unsigned const maxBits = MAX(3, suggestedBits);
+    size_t totalOut = 0;
+    size_t moreToFlush = 0;
+    XXH64_state_t xxh64;
+    XXH64_reset(&xxh64, 1);
+    assert(ip < iend);
+    while (ip < iend) {
+        unsigned const nbBitsI = (FUZ_rand(randState) % (maxBits-1)) + 1;
+        unsigned const nbBitsO = (FUZ_rand(randState) % (maxBits)) + 1;
+        size_t const iSizeCand = RAND_BITS(nbBitsI) + 1;
+        size_t const iSizeMax = MIN(iSizeCand, (size_t)(iend-ip));
+        size_t iSize = iSizeMax;
+        size_t const oSizeCand = RAND_BITS(nbBitsO) + 2;
+        size_t const oSizeMax = MIN(oSizeCand, (size_t)(oend-op));
+        int const sentinelTest = (op + oSizeMax < oend);
+        size_t oSize = oSizeMax;
+        BYTE const mark = (BYTE)(RAND_BITS(8));
+        LZ4F_decompressOptions_t dOptions;
+        memset(&dOptions, 0, sizeof(dOptions));
+        dOptions.stableDst = RAND_BITS(1);
+        if (o_scenario == o_overwrite) dOptions.stableDst = 0;  /* overwrite mode */
+        dOptions.skipChecksums = RAND_BITS(1);
+        if (sentinelTest) op[oSizeMax] = mark;
+
+        DISPLAYLEVEL(7, "dstCapacity=%u,  presentedInput=%u \n", (unsigned)oSize, (unsigned)iSize);
+
+        /* read data from byte-exact buffer to catch out-of-bound reads */
+        {   void* const iBuffer = malloc(iSizeMax);
+            /*test NULL supported if size==0 */
+            void* const tmpop = RAND_BITS(oSize == 0) ? NULL : op;
+            const void* const tmpip = RAND_BITS(iSize == 0) ? NULL : iBuffer;
+            assert(iBuffer != NULL);
+            memcpy(iBuffer, ip, iSizeMax);
+            moreToFlush = LZ4F_decompress(dCtx, tmpop, &oSize, tmpip, &iSize, &dOptions);
+            free(iBuffer);
+        }
+        DISPLAYLEVEL(7, "oSize=%u,  readSize=%u \n", (unsigned)oSize, (unsigned)iSize);
+
+        if (sentinelTest) {
+            CHECK(op[oSizeMax] != mark, "op[oSizeMax] = %02X != %02X : "
+                    "Decompression overwrites beyond assigned dst size",
+                    op[oSizeMax], mark);
+        }
+        if (LZ4F_getErrorCode(moreToFlush) == LZ4F_ERROR_contentChecksum_invalid) {
+            if (findErrorPos) DISPLAYLEVEL(2, "checksum error detected \n");
+            if (findErrorPos) locateBuffDiff(srcRef, dst, decompressedSize, o_scenario);
+        }
+        if (LZ4F_isError(moreToFlush)) return moreToFlush;
+
+        XXH64_update(&xxh64, op, oSize);
+        totalOut += oSize;
+        op += oSize;
+        ip += iSize;
+        if (o_scenario == o_noncontiguous) {
+            if (op == oend) return LZ4F_ERROR_GENERIC;  /* can theoretically happen with bogus data */
+            op++; /* create a gap between consecutive output */
+        }
+        if (o_scenario==o_overwrite) op = (BYTE*)dst;   /* overwrite destination */
+        if ( (op == oend) /* no more room for output; can happen with bogus input */
+          && (iSize == 0)) /* no input consumed */
+            break;
     }
+    if (moreToFlush != 0) return LZ4F_ERROR_decompressionFailed;
+    if (totalOut) {  /* otherwise, it's a skippable frame */
+        U64 const crcDecoded = XXH64_digest(&xxh64);
+        if (crcDecoded != crcOrig) {
+            if (findErrorPos) locateBuffDiff(srcRef, dst, decompressedSize, o_scenario);
+            return LZ4F_ERROR_contentChecksum_invalid;
+    }   }
+    return 0;
+}
+
+
+size_t test_lz4f_decompression(const void* cSrc, size_t cSize,
+                               const void* srcRef, size_t decompressedSize,
+                               U64 crcOrig,
+                               U32* const randState,
+                               LZ4F_dctx* const dCtx,
+                               U32 seed, U32 testNb,
+                               int findErrorPos)
+{
+    o_scenario_e const o_scenario = (o_scenario_e)(FUZ_rand(randState) % 3);   /* 0 : contiguous; 1 : non-contiguous; 2 : dst overwritten */
+    /* tighten dst buffer conditions */
+    size_t const dstCapacity = (o_scenario == o_noncontiguous) ?
+                               (decompressedSize * 2) + 128 :
+                               decompressedSize;
+    size_t result;
+    void* const dstBuffer = malloc(dstCapacity);
+    assert(dstBuffer != NULL);
+
+    result = test_lz4f_decompression_wBuffers(cSrc, cSize,
+                                     dstBuffer, dstCapacity, o_scenario,
+                                     srcRef, decompressedSize,
+                                     crcOrig,
+                                     randState,
+                                     dCtx,
+                                     seed, testNb, findErrorPos);
+
+    free(dstBuffer);
+    return result;
 }
 
 
 int fuzzerTests(U32 seed, unsigned nbTests, unsigned startTest, double compressibility, U32 duration_s)
 {
-    unsigned testResult = 0;
     unsigned testNb = 0;
-    size_t const srcDataLength = 9 MB;  /* needs to be > 2x4MB to test large blocks */
-    void* srcBuffer = NULL;
-    size_t const compressedBufferSize = LZ4F_compressFrameBound(srcDataLength, NULL);
+    size_t const CNBufferLength = 9 MB;  /* needs to be > 2x4MB to test large blocks */
+    void* CNBuffer = NULL;
+    size_t const compressedBufferSize = LZ4F_compressFrameBound(CNBufferLength, NULL) + 4 MB;  /* needs some margin */
     void* compressedBuffer = NULL;
     void* decodedBuffer = NULL;
     U32 coreRand = seed;
     LZ4F_decompressionContext_t dCtx = NULL;
     LZ4F_compressionContext_t cCtx = NULL;
-    size_t result;
     clock_t const startClock = clock();
     clock_t const clockDuration = duration_s * CLOCKS_PER_SEC;
-#   undef CHECK
-#   define CHECK(cond, ...) if (cond) { DISPLAY("Error => "); DISPLAY(__VA_ARGS__); \
-                            DISPLAY(" (seed %u, test nb %u)  \n", seed, testNb); goto _output_error; }
 
-    /* Create buffers */
-    result = LZ4F_createDecompressionContext(&dCtx, LZ4F_VERSION);
-    CHECK(LZ4F_isError(result), "Allocation failed (error %i)", (int)result);
-    result = LZ4F_createCompressionContext(&cCtx, LZ4F_VERSION);
-    CHECK(LZ4F_isError(result), "Allocation failed (error %i)", (int)result);
-    srcBuffer = malloc(srcDataLength);
-    CHECK(srcBuffer==NULL, "srcBuffer Allocation failed");
+    /* Create states & buffers */
+    {   size_t const creationStatus = LZ4F_createDecompressionContext(&dCtx, LZ4F_VERSION);
+        CHECK(LZ4F_isError(creationStatus), "Allocation failed (error %i)", (int)creationStatus); }
+    {   size_t const creationStatus = LZ4F_createCompressionContext(&cCtx, LZ4F_VERSION);
+        CHECK(LZ4F_isError(creationStatus), "Allocation failed (error %i)", (int)creationStatus); }
+    CNBuffer = malloc(CNBufferLength);
+    CHECK(CNBuffer==NULL, "CNBuffer Allocation failed");
     compressedBuffer = malloc(compressedBufferSize);
     CHECK(compressedBuffer==NULL, "compressedBuffer Allocation failed");
-    decodedBuffer = calloc(1, srcDataLength);   /* calloc avoids decodedBuffer being considered "garbage" by scan-build */
+    decodedBuffer = calloc(1, CNBufferLength);   /* calloc avoids decodedBuffer being considered "garbage" by scan-build */
     CHECK(decodedBuffer==NULL, "decodedBuffer Allocation failed");
-    FUZ_fillCompressibleNoiseBuffer(srcBuffer, srcDataLength, compressibility, &coreRand);
+    FUZ_fillCompressibleNoiseBuffer(CNBuffer, CNBufferLength, compressibility, &coreRand);
 
     /* jump to requested testNb */
     for (testNb =0; (testNb < startTest); testNb++) (void)FUZ_rand(&coreRand);   /* sync randomizer */
@@ -791,10 +1147,10 @@ int fuzzerTests(U32 seed, unsigned nbTests, unsigned startTest, double compressi
     /* main fuzzer test loop */
     for ( ; (testNb < nbTests) || (clockDuration > FUZ_GetClockSpan(startClock)) ; testNb++) {
         U32 randState = coreRand ^ prime1;
-        unsigned const srcBits = (FUZ_rand(&randState) % (FUZ_highbit((U32)(srcDataLength-1)) - 1)) + 1;
-        size_t const srcSize = (FUZ_rand(&randState) & ((1<<srcBits)-1)) + 1;
-        size_t const srcStartId = FUZ_rand(&randState) % (srcDataLength - srcSize);
-        const BYTE* const srcStart = (const BYTE*)srcBuffer + srcStartId;
+        unsigned const srcBits = (FUZ_rand(&randState) % (FUZ_highbit((U32)(CNBufferLength-1)) - 1)) + 1;
+        size_t const srcSize = (FUZ_rand(&randState) & ((1<<srcBits)-1));
+        size_t const srcStartId = FUZ_rand(&randState) % (CNBufferLength - srcSize);
+        const BYTE* const srcStart = (const BYTE*)CNBuffer + srcStartId;
         unsigned const neverFlush = (FUZ_rand(&randState) & 15) == 1;
         U64 const crcOrig = XXH64(srcStart, srcSize, 1);
         LZ4F_preferences_t prefs;
@@ -820,9 +1176,11 @@ int fuzzerTests(U32 seed, unsigned nbTests, unsigned startTest, double compressi
             FUZ_writeLE32(op, LZ4F_MAGIC_SKIPPABLE_START + (FUZ_rand(&randState) & 15));
             FUZ_writeLE32(op+4, (U32)srcSize);
             cSize = srcSize+8;
+
         } else if ((FUZ_rand(&randState) & 0xF) == 2) {  /* single pass compression (simple) */
             cSize = LZ4F_compressFrame(compressedBuffer, LZ4F_compressFrameBound(srcSize, prefsPtr), srcStart, srcSize, prefsPtr);
             CHECK(LZ4F_isError(cSize), "LZ4F_compressFrame failed : error %i (%s)", (int)cSize, LZ4F_getErrorName(cSize));
+
         } else {   /* multi-segments compression */
             const BYTE* ip = srcStart;
             const BYTE* const iend = srcStart + srcSize;
@@ -831,86 +1189,130 @@ int fuzzerTests(U32 seed, unsigned nbTests, unsigned startTest, double compressi
             unsigned const maxBits = FUZ_highbit((U32)srcSize);
             LZ4F_compressOptions_t cOptions;
             memset(&cOptions, 0, sizeof(cOptions));
-            result = LZ4F_compressBegin(cCtx, op, oend-op, prefsPtr);
-            CHECK(LZ4F_isError(result), "Compression header failed (error %i)", (int)result);
-            op += result;
+            {   size_t const fhSize = LZ4F_compressBegin(cCtx, op, (size_t)(oend-op), prefsPtr);
+                CHECK(LZ4F_isError(fhSize), "Compression header failed (error %i)",
+                                            (int)fhSize);
+                op += fhSize;
+            }
             while (ip < iend) {
                 unsigned const nbBitsSeg = FUZ_rand(&randState) % maxBits;
                 size_t const sampleMax = (FUZ_rand(&randState) & ((1<<nbBitsSeg)-1)) + 1;
-                size_t const iSize = MIN(sampleMax, (size_t)(iend-ip));
+                size_t iSize = MIN(sampleMax, (size_t)(iend-ip));
                 size_t const oSize = LZ4F_compressBound(iSize, prefsPtr);
                 cOptions.stableSrc = ((FUZ_rand(&randState) & 3) == 1);
-                DISPLAYLEVEL(6, "Sending %zi bytes to compress (stableSrc:%u) \n",
-                                iSize, cOptions.stableSrc);
+                DISPLAYLEVEL(6, "Sending %u bytes to compress (stableSrc:%u) \n",
+                                (unsigned)iSize, cOptions.stableSrc);
 
-                result = LZ4F_compressUpdate(cCtx, op, oSize, ip, iSize, &cOptions);
-                CHECK(LZ4F_isError(result), "Compression failed (error %i : %s)", (int)result, LZ4F_getErrorName(result));
-                op += result;
-                ip += iSize;
+#if 1
+                /* insert uncompressed segment */
+                if ( (iSize>0)
+                  && !neverFlush   /* do not mess with compressBound when neverFlush is set */
+                  && prefsPtr != NULL   /* prefs are set */
+                  && prefs.frameInfo.blockMode == LZ4F_blockIndependent  /* uncompressedUpdate is only valid with blockMode==independent */
+                  && (FUZ_rand(&randState) & 15) == 1 ) {
+                    size_t const uSize = FUZ_rand(&randState) % iSize;
+                    size_t const flushedSize = LZ4F_uncompressedUpdate(cCtx, op, (size_t)(oend-op), ip, uSize, &cOptions);
+                    CHECK(LZ4F_isError(flushedSize), "Insert uncompressed data failed (error %i : %s)",
+                            (int)flushedSize, LZ4F_getErrorName(flushedSize));
+                    op += flushedSize;
+                    ip += uSize;
+                    iSize -= uSize;
+                }
+#endif
+
+                {   size_t const flushedSize = LZ4F_compressUpdate(cCtx, op, oSize, ip, iSize, &cOptions);
+                    CHECK(LZ4F_isError(flushedSize), "Compression failed (error %i : %s)",
+                            (int)flushedSize, LZ4F_getErrorName(flushedSize));
+                    op += flushedSize;
+                    ip += iSize;
+                }
 
                 {   unsigned const forceFlush = neverFlush ? 0 : ((FUZ_rand(&randState) & 3) == 1);
                     if (forceFlush) {
-                        result = LZ4F_flush(cCtx, op, oend-op, &cOptions);
-                        CHECK(LZ4F_isError(result), "Compression failed (error %i)", (int)result);
-                        op += result;
-                }   }
-            }
+                        size_t const flushSize = LZ4F_flush(cCtx, op, (size_t)(oend-op), &cOptions);
+                        DISPLAYLEVEL(6,"flushing %u bytes \n", (unsigned)flushSize);
+                        CHECK(LZ4F_isError(flushSize), "Compression failed (error %i)", (int)flushSize);
+                        op += flushSize;
+                        if ((FUZ_rand(&randState) % 1024) == 3) {
+                            /* add an empty block (requires uncompressed flag) */
+                            op[0] = op[1] = op[2] = 0;
+                            op[3] = 0x80; /* 0x80000000U in little-endian format */
+                            op += 4;
+                            if ((prefsPtr!= NULL) && prefsPtr->frameInfo.blockChecksumFlag) {
+                                /* add block checksum (even for empty blocks) */
+                                FUZ_writeLE32(op, XXH32(op, 0, 0));
+                                op += 4;
+                }   }   }   }
+            }  /* while (ip<iend) */
             CHECK(op>=oend, "LZ4F_compressFrameBound overflow");
-            result = LZ4F_compressEnd(cCtx, op, oend-op, &cOptions);
-            CHECK(LZ4F_isError(result), "Compression completion failed (error %i : %s)", (int)result, LZ4F_getErrorName(result));
-            op += result;
-            cSize = op-(BYTE*)compressedBuffer;
+            {   size_t const dstEndSafeSize = LZ4F_compressBound(0, prefsPtr);
+                int const tooSmallDstEnd = ((FUZ_rand(&randState) & 31) == 3);
+                size_t const dstEndTooSmallSize = (FUZ_rand(&randState) % dstEndSafeSize) + 1;
+                size_t const dstEndSize = tooSmallDstEnd ? dstEndTooSmallSize : dstEndSafeSize;
+                BYTE const canaryByte = (BYTE)(FUZ_rand(&randState) & 255);
+                size_t flushedSize;
+                DISPLAYLEVEL(7,"canaryByte at pos %u / %u \n",
+                            (unsigned)((size_t)(op - (BYTE*)compressedBuffer) + dstEndSize),
+                            (unsigned)compressedBufferSize);
+                assert(op + dstEndSize < (BYTE*)compressedBuffer + compressedBufferSize);
+                op[dstEndSize] = canaryByte;
+                flushedSize = LZ4F_compressEnd(cCtx, op, dstEndSize, &cOptions);
+                CHECK(op[dstEndSize] != canaryByte, "LZ4F_compressEnd writes beyond dstCapacity !");
+                if (LZ4F_isError(flushedSize)) {
+                    if (tooSmallDstEnd) /* failure is allowed */ continue;
+                    CHECK(!tooSmallDstEnd, "Compression completion failed (error %i : %s)",
+                            (int)flushedSize, LZ4F_getErrorName(flushedSize));
+                }
+                op += flushedSize;
+            }
+            cSize = (size_t)(op - (BYTE*)compressedBuffer);
             DISPLAYLEVEL(5, "\nCompressed %u bytes into %u \n", (U32)srcSize, (U32)cSize);
         }
 
+
         /* multi-segments decompression */
-        {   const BYTE* ip = (const BYTE*)compressedBuffer;
-            const BYTE* const iend = ip + cSize;
-            BYTE* op = (BYTE*)decodedBuffer;
-            BYTE* const oend = op + srcDataLength;
-            unsigned const suggestedBits = FUZ_highbit((U32)cSize);
-            unsigned const maxBits = MAX(3, suggestedBits);
-            unsigned const nonContiguousDst = FUZ_rand(&randState) % 3;   /* 0 : contiguous; 1 : non-contiguous; 2 : dst overwritten */
-            size_t totalOut = 0;
-            XXH64_state_t xxh64;
-            XXH64_reset(&xxh64, 1);
-            while (ip < iend) {
-                unsigned const nbBitsI = (FUZ_rand(&randState) % (maxBits-1)) + 1;
-                unsigned const nbBitsO = (FUZ_rand(&randState) % (maxBits)) + 1;
-                size_t const iSizeMax = (FUZ_rand(&randState) & ((1<<nbBitsI)-1)) + 1;
-                size_t iSize = MIN(iSizeMax, (size_t)(iend-ip));
-                size_t const oSizeMax = (FUZ_rand(&randState) & ((1<<nbBitsO)-1)) + 2;
-                size_t oSize = MIN(oSizeMax, (size_t)(oend-op));
-                LZ4F_decompressOptions_t dOptions;
-                memset(&dOptions, 0, sizeof(dOptions));
-                dOptions.stableDst = FUZ_rand(&randState) & 1;
-                if (nonContiguousDst==2) dOptions.stableDst = 0;   /* overwrite mode */
-                result = LZ4F_decompress(dCtx, op, &oSize, ip, &iSize, &dOptions);
-                if (LZ4F_getErrorCode(result) == LZ4F_ERROR_contentChecksum_invalid)
-                    locateBuffDiff(srcStart, decodedBuffer, srcSize, nonContiguousDst);
-                CHECK(LZ4F_isError(result), "Decompression failed (error %i:%s)", (int)result, LZ4F_getErrorName(result));
-                XXH64_update(&xxh64, op, (U32)oSize);
-                totalOut += oSize;
-                op += oSize;
-                ip += iSize;
-                op += nonContiguousDst;
-                if (nonContiguousDst==2) op = (BYTE*)decodedBuffer;   /* overwritten destination */
-            }
-            CHECK(result != 0, "Frame decompression failed (error %i)", (int)result);
-            if (totalOut) {  /* otherwise, it's a skippable frame */
-                U64 const crcDecoded = XXH64_digest(&xxh64);
-                if (crcDecoded != crcOrig) locateBuffDiff(srcStart, decodedBuffer, srcSize, nonContiguousDst);
-                CHECK(crcDecoded != crcOrig, "Decompression corruption");
-            }
+        DISPLAYLEVEL(6, "normal decompression \n");
+        {   size_t result = test_lz4f_decompression(compressedBuffer, cSize, srcStart, srcSize, crcOrig, &randState, dCtx, seed, testNb, 1 /*findError*/ );
+            CHECK (LZ4F_isError(result), "multi-segment decompression failed (error %i => %s)",
+                                        (int)result, LZ4F_getErrorName(result));
         }
-    }
+
+        /* insert noise into src - ensure decoder survives with no sanitizer error */
+        {   U32 const maxNbBits = FUZ_highbit((U32)cSize);
+            size_t pos = 0;
+            for (;;) {
+                /* keep some original src */
+                {   U32 const nbBits = FUZ_rand(&randState) % maxNbBits;
+                    size_t const mask = (1<<nbBits) - 1;
+                    size_t const skipLength = FUZ_rand(&randState) & mask;
+                    pos += skipLength;
+                }
+                if (pos >= cSize) break;
+                /* add noise */
+                {   U32 const nbBitsCodes = FUZ_rand(&randState) % maxNbBits;
+                    U32 const nbBits = nbBitsCodes ? nbBitsCodes-1 : 0;
+                    size_t const mask = (1<<nbBits) - 1;
+                    size_t const rNoiseLength = (FUZ_rand(&randState) & mask) + 1;
+                    size_t const noiseLength = MIN(rNoiseLength, cSize-pos);
+                    size_t const noiseStart = FUZ_rand(&randState) % (CNBufferLength - noiseLength);
+                    memcpy((BYTE*)compressedBuffer + pos, (const char*)CNBuffer + noiseStart, noiseLength);
+                    pos += noiseLength;
+        }   }   }
+
+        /* test decompression on noisy src */
+        DISPLAYLEVEL(6, "noisy decompression \n");
+        test_lz4f_decompression(compressedBuffer, cSize, srcStart, srcSize, crcOrig, &randState, dCtx, seed, testNb, 0 /*don't search error Pos*/ );
+        /* note : we don't analyze result here : it probably failed, which is expected.
+         * The sole purpose is to catch potential out-of-bound reads and writes. */
+        LZ4F_resetDecompressionContext(dCtx);  /* state must be reset to clean after an error */
+
+    }   /* for ( ; (testNb < nbTests) ; ) */
 
     DISPLAYLEVEL(2, "\rAll tests completed   \n");
 
-_end:
     LZ4F_freeDecompressionContext(dCtx);
     LZ4F_freeCompressionContext(cCtx);
-    free(srcBuffer);
+    free(CNBuffer);
     free(compressedBuffer);
     free(decodedBuffer);
 
@@ -918,11 +1320,7 @@ _end:
         DISPLAY("press enter to finish \n");
         (void)getchar();
     }
-    return testResult;
-
-_output_error:
-    testResult = 1;
-    goto _end;
+    return 0;
 }
 
 
@@ -948,10 +1346,9 @@ int main(int argc, const char** argv)
     U32 seed=0;
     int seedset=0;
     int argNb;
-    int nbTests = nbTestsDefault;
-    int testNb = 0;
+    unsigned nbTests = nbTestsDefault;
+    unsigned testNb = 0;
     int proba = FUZ_COMPRESSIBILITY_DEFAULT;
-    int result=0;
     U32 duration=0;
     const char* const programName = argv[0];
 
@@ -994,7 +1391,7 @@ int main(int argc, const char** argv)
                     nbTests=0; duration=0;
                     while ((*argument>='0') && (*argument<='9')) {
                         nbTests *= 10;
-                        nbTests += *argument - '0';
+                        nbTests += (unsigned)(*argument - '0');
                         argument++;
                     }
                     break;
@@ -1017,7 +1414,7 @@ int main(int argc, const char** argv)
                             case '6':
                             case '7':
                             case '8':
-                            case '9': duration *= 10; duration += *argument++ - '0'; continue;
+                            case '9': duration *= 10; duration += (U32)(*argument++ - '0'); continue;
                         }
                         break;
                     }
@@ -1029,7 +1426,7 @@ int main(int argc, const char** argv)
                     seedset=1;
                     while ((*argument>='0') && (*argument<='9')) {
                         seed *= 10;
-                        seed += *argument - '0';
+                        seed += (U32)(*argument - '0');
                         argument++;
                     }
                     break;
@@ -1038,7 +1435,7 @@ int main(int argc, const char** argv)
                     testNb=0;
                     while ((*argument>='0') && (*argument<='9')) {
                         testNb *= 10;
-                        testNb += *argument - '0';
+                        testNb += (unsigned)(*argument - '0');
                         argument++;
                     }
                     break;
@@ -1058,23 +1455,29 @@ int main(int argc, const char** argv)
                     return FUZ_usage(programName);
                 }
             }
-        }
-    }
+        } /* if (argument[0]=='-') */
+    } /* for (argNb=1; argNb<argc; argNb++) */
 
-    /* Get Seed */
-    DISPLAY("Starting lz4frame tester (%i-bits, %s)\n", (int)(sizeof(size_t)*8), LZ4_VERSION_STRING);
+    DISPLAY("Starting lz4frame tester (%i-bits, %s) \n", (int)(sizeof(size_t)*8), LZ4_VERSION_STRING);
 
+    /* Select a random seed if none given */
     if (!seedset) {
         time_t const t = time(NULL);
         U32 const h = XXH32(&t, sizeof(t), 1);
         seed = h % 10000;
     }
-    DISPLAY("Seed = %u\n", seed);
-    if (proba!=FUZ_COMPRESSIBILITY_DEFAULT) DISPLAY("Compressibility : %i%%\n", proba);
+    DISPLAY("Seed = %u \n", seed);
+    if (proba != FUZ_COMPRESSIBILITY_DEFAULT)
+        DISPLAY("Compressibility : %i%% \n", proba);
 
-    if (nbTests<=0) nbTests=1;
+    {   double const compressibility = (double)proba / 100;
+        /* start by unit tests if not requesting a specific run nb */
+        if (testNb==0) {
+            if (unitTests(seed, compressibility))
+                return 1;
+        }
 
-    if (testNb==0) result = basicTests(seed, ((double)proba) / 100);
-    if (result) return 1;
-    return fuzzerTests(seed, nbTests, testNb, ((double)proba) / 100, duration);
+        nbTests += (nbTests==0);  /* avoid zero */
+        return fuzzerTests(seed, nbTests, testNb, compressibility, duration);
+    }
 }
