@@ -20,8 +20,10 @@
 
 #include "erl_nif.h"
 
+#include "rocksdb/convenience.h"
 #include "rocksdb/env.h"
-
+#include "rocksdb/options.h"
+#include "rocksdb/status.h"
 
 namespace erocksdb {
 
@@ -30,7 +32,7 @@ namespace erocksdb {
       static ErlNifResourceType* m_Env_RESOURCE;
 
     public:
-      explicit ManagedEnv(rocksdb::Env * Env);
+      explicit ManagedEnv(rocksdb::Env * env, std::shared_ptr<rocksdb::Env> guard_env);
 
       ~ManagedEnv();
 
@@ -39,11 +41,12 @@ namespace erocksdb {
       static void CreateEnvType(ErlNifEnv * Env);
       static void EnvResourceCleanup(ErlNifEnv *Env, void * Arg);
 
-      static ManagedEnv * CreateEnvResource(rocksdb::Env * env);
+      static ManagedEnv * CreateEnvResource(rocksdb::Env * env, std::shared_ptr<rocksdb::Env> guard_env);
       static ManagedEnv * RetrieveEnvResource(ErlNifEnv * Env, const ERL_NIF_TERM & EnvTerm);
 
     private:
-      const rocksdb::Env* env_;
+      const rocksdb::Env * env_;
+      const std::shared_ptr<rocksdb::Env> guard_env_;
   };
 
 }
