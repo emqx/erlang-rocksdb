@@ -17,14 +17,14 @@ jobs:
       fail-fast: false
       matrix:
         otp:
-          - "26.2.5.14-1"
-          - "27.3.4.2-1"
+          - "27.3.4.2-5"
+          - "28.2-2"
         rebar3:
-          - "3.22.0"
+          - "3.24.0"
         os:
-          - macos-13
           - macos-14
           - macos-15
+          - macos-26
     runs-on: ${{ matrix.os }}
     steps:
       - uses: emqx/macos-erlang@f744c98139c0db83a10619587d4bae4fc49765a8 # v1.0.0
@@ -51,24 +51,22 @@ jobs:
       fail-fast: false
       matrix:
         erlang:
-          - otp: "26.2.5.14-1"
-            builder: "5.6-3:1.15.7-26.2.5.14-1"
-          - otp: "27.3.4.2-4"
-            builder: "5.6-3:1.18.3-27.3.4.2-4"
+          - otp: "27.3.4.2-5"
+            builder: "6.0-3:1.18.3-27.3.4.2-5"
+          - otp: "28.2-2"
+            builder: "6.0-9:1.19.1-28.2-2"
         arch:
           - amd64
           - arm64
         os:
           - ubuntu24.04
           - ubuntu22.04
-          - ubuntu20.04
           - debian13
           - debian12
           - debian11
           - el9
           - el8
           - el7
-          - amzn2
           - amzn2023
           - alpine3.15.1
 
