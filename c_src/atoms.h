@@ -41,6 +41,7 @@ extern ERL_NIF_TERM ATOM_UNDEFINED;
 // related to envs
 extern ERL_NIF_TERM ATOM_DEFAULT;
 extern ERL_NIF_TERM ATOM_MEMENV;
+extern ERL_NIF_TERM ATOM_FS_URI;
 
 // cache
 extern ERL_NIF_TERM ATOM_LRU;
@@ -118,10 +119,10 @@ extern ERL_NIF_TERM ATOM_LEVEL_COMPACTION_DYNAMIC_LEVEL_BYTES;
 extern ERL_NIF_TERM ATOM_OPTIMIZE_FILTERS_FOR_HITS;
 extern ERL_NIF_TERM ATOM_PREFIX_EXTRACTOR;
 
-// Related to COMPACTION_OPTIONS_FIFO                                                                                   
-extern ERL_NIF_TERM ATOM_ALLOW_COMPACTION;                                                                                     
-extern ERL_NIF_TERM ATOM_AGE_FOR_WARM;                                                                                         
-extern ERL_NIF_TERM ATOM_MAX_TABLE_FILES_SIZE;                                                                                 
+// Related to COMPACTION_OPTIONS_FIFO
+extern ERL_NIF_TERM ATOM_ALLOW_COMPACTION;
+extern ERL_NIF_TERM ATOM_AGE_FOR_WARM;
+extern ERL_NIF_TERM ATOM_MAX_TABLE_FILES_SIZE;
 
 // Related to DBOptions
 extern ERL_NIF_TERM ATOM_TOTAL_THREADS;
