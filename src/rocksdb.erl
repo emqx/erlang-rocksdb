@@ -373,7 +373,6 @@
                        {is_fd_close_on_exec, boolean()} |
                        {stats_dump_period_sec, non_neg_integer()} |
                        {advise_random_on_open, boolean()} |
-                       {access_hint, access_hint()} |
                        {compaction_readahead_size, non_neg_integer()} |
                        {use_adaptive_mutex, boolean()} |
                        {bytes_per_sync, non_neg_integer()} |
@@ -393,7 +392,14 @@
                        {enable_pipelined_write, boolean()} |
                        {unordered_write, boolean()} |
                        {two_write_queues, boolean()} |
-                       {statistics, statistics_handle()}].
+                       {statistics, statistics_handle()} |
+
+                       %% If false, fallocate() calls are bypassed, which disables file
+                       %% preallocation. The file space preallocation is used to increase the file
+                       %% write/append performance. By default, RocksDB preallocates space for WAL,
+                       %% SST, Manifest files, the extra space is truncated when the file is written.
+                       {allow_fallocate, boolean()}
+                      ].
 
 -type options() :: db_options() | cf_options().
 
@@ -464,13 +470,6 @@
 -define(nif_stub,nif_stub_error(?LINE)).
 nif_stub_error(Line) ->
     erlang:nif_error({nif_not_loaded,module,?MODULE,line,Line}).
-
-%% This cannot be a separate function. Code must be inline to trigger
-%% Erlang compiler's use of optimized selective receive.
--define(WAIT_FOR_REPLY(Ref),
-    receive {Ref, Reply} ->
-        Reply
-    end).
 
 -spec on_load() -> ok | {error, any()}.
 on_load() ->

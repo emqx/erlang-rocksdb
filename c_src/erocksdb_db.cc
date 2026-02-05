@@ -22,8 +22,6 @@
 #include "rocksdb/db.h"
 #include "rocksdb/utilities/db_ttl.h"
 #include "rocksdb/slice.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/rate_limiter.h"
 #include "rocksdb/sst_file_manager.h"
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
@@ -121,7 +119,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
     const ERL_NIF_TERM* option;
     if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
     {
-
         if (option[0] == erocksdb::ATOM_ENV)
         {
             if (enif_is_atom(env, option[1]))
@@ -409,6 +406,10 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         else if (option[0] == erocksdb::ATOM_TWO_WRITE_QUEUES)
         {
             opts.two_write_queues = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_ALLOW_FALLOCATE)
+        {
+            opts.allow_fallocate = (option[1] == erocksdb::ATOM_TRUE);
         }
     }
     return erocksdb::ATOM_OK;

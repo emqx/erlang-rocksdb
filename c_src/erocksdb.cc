@@ -338,6 +338,7 @@ ERL_NIF_TERM ATOM_USE_DIRECT_IO_FOR_FLUSH_AND_COMPACTION;
 ERL_NIF_TERM ATOM_ENABLE_PIPELINED_WRITE;
 ERL_NIF_TERM ATOM_UNORDERED_WRITE;
 ERL_NIF_TERM ATOM_TWO_WRITE_QUEUES;
+ERL_NIF_TERM ATOM_ALLOW_FALLOCATE;
 
 // Related to BlockBasedTable Options
 ERL_NIF_TERM ATOM_NO_BLOCK_CACHE;
@@ -697,6 +698,7 @@ try
   ATOM(erocksdb::ATOM_ENABLE_PIPELINED_WRITE, "enable_pipelined_write");
   ATOM(erocksdb::ATOM_UNORDERED_WRITE, "unordered_write");
   ATOM(erocksdb::ATOM_TWO_WRITE_QUEUES, "two_write_queues");
+  ATOM(erocksdb::ATOM_ALLOW_FALLOCATE, "allow_fallocate");
 
   // Related to BlockBasedTable Options
   ATOM(erocksdb::ATOM_NO_BLOCK_CACHE, "no_block_cache");
