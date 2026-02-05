@@ -393,7 +393,14 @@
                        {enable_pipelined_write, boolean()} |
                        {unordered_write, boolean()} |
                        {two_write_queues, boolean()} |
-                       {statistics, statistics_handle()}].
+                       {statistics, statistics_handle()} |
+
+                       %% If false, fallocate() calls are bypassed, which disables file
+                       %% preallocation. The file space preallocation is used to increase the file
+                       %% write/append performance. By default, RocksDB preallocates space for WAL,
+                       %% SST, Manifest files, the extra space is truncated when the file is written.
+                       {allow_fallocate, boolean()}
+                      ].
 
 -type options() :: db_options() | cf_options().
 

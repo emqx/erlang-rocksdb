@@ -121,7 +121,6 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
     const ERL_NIF_TERM* option;
     if (enif_get_tuple(env, item, &arity, &option) && 2==arity)
     {
-
         if (option[0] == erocksdb::ATOM_ENV)
         {
             if (enif_is_atom(env, option[1]))
@@ -409,6 +408,10 @@ ERL_NIF_TERM parse_db_option(ErlNifEnv* env, ERL_NIF_TERM item, rocksdb::DBOptio
         else if (option[0] == erocksdb::ATOM_TWO_WRITE_QUEUES)
         {
             opts.two_write_queues = (option[1] == erocksdb::ATOM_TRUE);
+        }
+        else if (option[0] == erocksdb::ATOM_ALLOW_FALLOCATE)
+        {
+            opts.allow_fallocate = (option[1] == erocksdb::ATOM_TRUE);
         }
     }
     return erocksdb::ATOM_OK;

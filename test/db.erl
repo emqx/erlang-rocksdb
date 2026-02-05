@@ -38,6 +38,7 @@ open_test_Z() ->
   not_found = rocksdb:get(Ref, <<"abc">>, []),
   true = rocksdb:is_empty(Ref),
   ?rm_rf("erocksdb.open.test").
+
 open_with_optimize_filters_for_hits_test() ->
   ?rm_rf("erocksdb.optimize_filters_for_hits.test"),
   {ok, Ref} = rocksdb:open("erocksdb.optimize_filters_for_hits.test", [{create_if_missing, true}, {optimize_filters_for_hits, true}]),
