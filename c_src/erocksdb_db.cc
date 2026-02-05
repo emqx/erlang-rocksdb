@@ -22,8 +22,6 @@
 #include "rocksdb/db.h"
 #include "rocksdb/utilities/db_ttl.h"
 #include "rocksdb/slice.h"
-#include "rocksdb/cache.h"
-#include "rocksdb/rate_limiter.h"
 #include "rocksdb/sst_file_manager.h"
 #include "rocksdb/table.h"
 #include "rocksdb/filter_policy.h"
