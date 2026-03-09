@@ -276,6 +276,8 @@
                                       {block_cache_size, pos_integer()} |
                                       {bloom_filter_policy, BitsPerKey :: pos_integer()} |
                                       {format_version, 0 | 1 | 2 | 3 | 4 | 5} |
+                                      {pin_l0_filter_and_index_blocks_in_cache, boolean()} |
+                                      {partition_filters, boolean()} |
                                       {cache_index_and_filter_blocks, boolean()}].
 
 -type compaction_options_fifo() :: [{allow_compaction, boolean()} |
