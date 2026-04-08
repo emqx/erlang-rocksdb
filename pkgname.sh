@@ -8,14 +8,21 @@ case "$UNAMES" in
         SYSTEM="$(echo "${DIST}${VERSION_ID}" | gsed -r 's/([a-zA-Z]*)-.*/\1/g')"
         ;;
     Linux)
-        if grep -q -i 'rhel' /etc/*-release; then
-            DIST='el'
-            VERSION_ID="$(rpm --eval '%{rhel}')"
+        if [ -n "${ERLANG_ROCKSDB_DIST:-}" ]; then
+            # Allow distros without a matching prebuilt to opt into a
+            # binary-compatible target. e.g. on Arch Linux:
+            #   ERLANG_ROCKSDB_DIST=debian13
+            SYSTEM="${ERLANG_ROCKSDB_DIST}"
         else
-            DIST="$(sed -n '/^ID=/p' /etc/os-release | sed -r 's/ID=(.*)/\1/g' | sed 's/"//g')"
-            VERSION_ID="$(sed -n '/^VERSION_ID=/p' /etc/os-release | sed -r 's/VERSION_ID=(.*)/\1/g' | sed 's/"//g')"
+            if grep -q -i 'rhel' /etc/*-release; then
+                DIST='el'
+                VERSION_ID="$(rpm --eval '%{rhel}')"
+            else
+                DIST="$(sed -n '/^ID=/p' /etc/os-release | sed -r 's/ID=(.*)/\1/g' | sed 's/"//g')"
+                VERSION_ID="$(sed -n '/^VERSION_ID=/p' /etc/os-release | sed -r 's/VERSION_ID=(.*)/\1/g' | sed 's/"//g')"
+            fi
+            SYSTEM="$(echo "${DIST}${VERSION_ID}" | sed -r 's/([a-zA-Z]*)-.*/\1/g')"
         fi
-        SYSTEM="$(echo "${DIST}${VERSION_ID}" | sed -r 's/([a-zA-Z]*)-.*/\1/g')"
         ;;
     *)
         echo ''
