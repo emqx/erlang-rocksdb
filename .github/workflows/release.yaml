@@ -22,9 +22,9 @@ jobs:
         rebar3:
           - "3.22.0"
         os:
-          - macos-13
           - macos-14
           - macos-15
+          - macos-26
     runs-on: ${{ matrix.os }}
     steps:
       - uses: emqx/macos-erlang@f744c98139c0db83a10619587d4bae4fc49765a8 # v1.0.0
