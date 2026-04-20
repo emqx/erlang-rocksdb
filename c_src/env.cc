@@ -41,19 +41,23 @@ ManagedEnv::CreateEnvType(
 void
 ManagedEnv::EnvResourceCleanup(
     ErlNifEnv * /*env*/,
-    void * /*arg*/)
+    void * arg)
 {
+    ManagedEnv * env_ptr = (ManagedEnv *)arg;
+    env_ptr->~ManagedEnv();
     return;
 }
 
 ManagedEnv *
-ManagedEnv::CreateEnvResource(rocksdb::Env * env)
+ManagedEnv::CreateEnvResource(rocksdb::Env * env, std::shared_ptr<rocksdb::Env> guard_env)
 {
     ManagedEnv * ret_ptr;
     void * alloc_ptr;
-
     alloc_ptr=enif_alloc_resource(m_Env_RESOURCE, sizeof(ManagedEnv));
-    ret_ptr=new (alloc_ptr) ManagedEnv(env);
+    // NOTE
+    // ManagedEnv consists of a raw pointer and a shared pointer (which in turn consists of raw pointers)
+    // So it has minimal alignment requirements and we are not expected to have alignment issues.
+    ret_ptr=new (alloc_ptr) ManagedEnv(env, guard_env);
     return(ret_ptr);
 }
 
@@ -66,18 +70,10 @@ ManagedEnv::RetrieveEnvResource(ErlNifEnv * Env, const ERL_NIF_TERM & EnvTerm)
     return ret_ptr;
 }
 
-ManagedEnv::ManagedEnv(rocksdb::Env * Env) : env_(Env) {}
+ManagedEnv::ManagedEnv(rocksdb::Env* env, std::shared_ptr<rocksdb::Env> guard_env) : env_(env), guard_env_(guard_env) {}
 
 ManagedEnv::~ManagedEnv()
-{
-    if(env_)
-    {
-        delete env_;
-        env_ = NULL;
-    }
-
-    return;
-}
+{}
 
 const rocksdb::Env* ManagedEnv::env() { return env_; }
 
@@ -92,12 +88,39 @@ NewEnv(
     if (argv[0] == erocksdb::ATOM_DEFAULT)
     {
         rdb_env = rocksdb::Env::Default();
+        env_ptr = ManagedEnv::CreateEnvResource(rdb_env, std::shared_ptr<rocksdb::Env>());
     } else if (argv[0] == erocksdb::ATOM_MEMENV) {
         rdb_env = rocksdb::NewMemEnv(rocksdb::Env::Default());
+        // "The caller must delete the result when it is no longer needed."
+        // See rocksdb/env.h
+        env_ptr = ManagedEnv::CreateEnvResource(rdb_env, std::shared_ptr<rocksdb::Env>(rdb_env));
     } else {
-        return enif_make_badarg(env);
+        int arity;
+        const ERL_NIF_TERM* tuple;
+        if (!enif_get_tuple(env, argv[0], &arity, &tuple)) {
+            return enif_make_badarg(env);
+        }
+        if(arity != 2) {
+            return enif_make_badarg(env);
+        }
+        if(tuple[0] != erocksdb::ATOM_FS_URI) {
+            return enif_make_badarg(env);
+        }
+        std::string fs_uri(4096, '\0');
+        int fs_uri_size = enif_get_string(env, tuple[1], &fs_uri[0], fs_uri.size(), ERL_NIF_LATIN1);
+        if(fs_uri_size <= 0) {
+            return enif_make_badarg(env);
+        }
+        fs_uri.resize(fs_uri_size - 1);
+        std::shared_ptr<rocksdb::Env> env_guard;
+        auto config_options = rocksdb::ConfigOptions();
+        config_options.ignore_unsupported_options = false;
+        rocksdb::Status s = rocksdb::Env::CreateFromUri(config_options, /*env_uri=*/ "", fs_uri, &rdb_env, &env_guard);
+        if(!s.ok()) {
+            return error_tuple(env, erocksdb::ATOM_ERROR, s);
+        }
+        env_ptr = ManagedEnv::CreateEnvResource(rdb_env, env_guard);
     }
-    env_ptr = ManagedEnv::CreateEnvResource(rdb_env);
     // create a resource reference to send erlang
     ERL_NIF_TERM result = enif_make_resource(env, env_ptr);
     // clear the automatic reference from enif_alloc_resource in EnvObject
@@ -152,7 +175,13 @@ DestroyEnv(
     if(nullptr==env_ptr)
         return ATOM_OK;
 
+    // What the aim to assign nullptr to a temporary pointer?
+    // This funtction does nothing.
     env_ptr = nullptr;
+
+    // At the same time, it shouldn't do anyting:
+    // If we call ManagedEnv's destructor, then all the env references across the beam will be invalidated.
+    // But when the last reference is destroyed, the env will be destroyed in resource cleanup.
     return ATOM_OK;
 }   // erocksdb::DestroyEnv
 
