@@ -6,8 +6,6 @@ else
     echo "No prebuilt artifacts, building from source"
 fi
 
-git submodule update --init
-
 mkdir -p _build/cmake
 cd _build/cmake
 
