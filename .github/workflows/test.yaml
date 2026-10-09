@@ -19,8 +19,6 @@ jobs:
           rebar3-version: ${{ matrix.rebar3 }}
 
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-        with:
-          submodules: recursive
 
       - name: test build
         run: make
@@ -40,8 +38,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
-        with:
-          submodules: recursive
       - name: gitconfig
         run: git config --system --add safe.directory ${PWD}
       - name: test build
