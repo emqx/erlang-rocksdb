@@ -67,16 +67,16 @@ jobs:
       matrix:
         erlang:
           - otp: "27.3.4.2-9"
-            builder: "6.2-3:1.18.3-27.3.4.2-9"
-          - otp: "28.5.0.7-3"
-            builder: "6.2-3:1.19.1-28.5.0.7-3"
+            builder: "6.3-1:1.18.3-27.3.4.2-9"
+          - otp: "28.5.0.7-7"
+            builder: "6.3-1:1.19.1-28.5.0.7-7"
         arch:
           - amd64
           - arm64
         # The prebuilt file name carries the OTP major only, so one asset per
         # (version, OTP major, distro, arch) serves every OTP patch release.
         os: >-
-          ${{ fromJSON(github.event.inputs.linux_os || '["ubuntu24.04",
+          ${{ fromJSON(github.event.inputs.linux_os || '["ubuntu26.04", "ubuntu24.04",
           "ubuntu22.04", "debian13", "debian12", "debian11", "el10", "el9",
           "el8", "el7", "amzn2023", "alpine3.15.1"]') }}
 
